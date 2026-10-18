@@ -17,12 +17,25 @@ from dallinger.docker.tools import docker_tag_from_experiment_id
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
 
 
-def test_docker_host_uri_omits_at_sign_usernames(capsys):
+@pytest.mark.parametrize(
+    "ssh_g_user, advised",
+    [("pmch2@cam.ac.uk", False), ("peter", True), (None, True)],
+)
+def test_docker_host_uri_omits_at_sign_usernames(
+    monkeypatch, capsys, ssh_g_user, advised
+):
+    def fake_run(cmd, **kwargs):
+        assert cmd[:2] == ["ssh", "-G"] and cmd[-1] == "rr-pc01.example"
+        if ssh_g_user is None:
+            raise FileNotFoundError("ssh")
+        return subprocess.CompletedProcess(cmd, 0, f"port 22\nuser {ssh_g_user}\n")
+
+    monkeypatch.setattr(docker_ssh_module.subprocess, "run", fake_run)
     assert (
         docker_ssh_module.docker_host_uri("rr-pc01.example", user="pmch2@cam.ac.uk")
         == "ssh://rr-pc01.example"
     )
-    assert "User pmch2@cam.ac.uk" in capsys.readouterr().out
+    assert ("User pmch2@cam.ac.uk" in capsys.readouterr().out) == advised
     assert (
         docker_ssh_module.docker_host_uri("musix.example", user="pmch2", port=2222)
         == "ssh://pmch2@musix.example:2222"
@@ -774,6 +787,86 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
         "amir20/dozzle",
     ):
         assert not any(forbidden in cmd for cmd in rmi_commands)
+
+
+def _destroy_with_data(monkeypatch, deployed=True, **options):
+    commands = []
+
+    def run(cmd, raise_=True):
+        commands.append(cmd)
+        if cmd.startswith("test -f") and "docker-compose.yml" in cmd:
+            return "Yes" if deployed else ""
+        if cmd.startswith("test -d ~/dallinger-data/myapp"):
+            return "Yes"
+        return ""
+
+    _patch_destroy_executor(monkeypatch, run)
+    docker_ssh_module.destroy.callback(server="test-server", app="myapp", **options)
+    return commands
+
+
+def test_destroy_keeps_app_data_unless_asked(monkeypatch, capsys):
+    commands = _destroy_with_data(monkeypatch)
+    assert not any("dallinger-data" in c and "rm -rf" in c for c in commands)
+    out = capsys.readouterr().out
+    assert "Kept the app's data folder ~/dallinger-data/myapp" in out
+    assert "--remove-data" in out
+
+    commands = _destroy_with_data(monkeypatch, remove_data=True)
+    assert any("dallinger-data" in c and "rm -rf" in c for c in commands)
+
+
+def test_destroy_remove_data_works_after_the_app_is_gone(monkeypatch):
+    commands = _destroy_with_data(monkeypatch, deployed=False, remove_data=True)
+    assert any("dallinger-data" in c and "rm -rf" in c for c in commands)
+    with pytest.raises(click.Abort):
+        _destroy_with_data(monkeypatch, deployed=False)
+
+
+def test_remove_app_data_falls_back_to_a_root_container(tmp_path, capsys):
+    data = tmp_path / "dallinger-data"
+    (data / "demo" / "sub").mkdir(parents=True)
+    (data / "other").mkdir()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "docker").write_text(
+        '#!/bin/bash\necho "$@" > "$HOME/docker-args"\n'
+        'chmod u+w "$HOME/dallinger-data"; rm -rf "$HOME/dallinger-data/demo"\n'
+    )
+    (bin_dir / "docker").chmod(0o755)
+    data.chmod(0o555)  # Stands in for the root-owned parent.
+    try:
+        docker_ssh_module._remove_app_data(LocalExecutor(tmp_path, bin_dir), "demo")
+    finally:
+        data.chmod(0o755)
+    assert not (data / "demo").exists() and (data / "other").exists()
+    assert f"-v {data}:/data alpine:3.20 rm -rf /data/demo" in (
+        (tmp_path / "docker-args").read_text()
+    )
+    assert "Removed ~/dallinger-data/demo" in capsys.readouterr().out
+
+
+def test_update_removes_the_replaced_image_once_the_new_one_runs():
+    old_compose = docker_ssh_module.get_docker_compose_yml({}, "myapp", "reg/exp:old")
+    executor = FakeExecutor({"cat ~/dallinger/myapp/docker-compose.yml": old_compose})
+    previous = docker_ssh_module._upload_app_stack(
+        mock.Mock(),
+        executor,
+        {},
+        app="myapp",
+        server="s",
+        public_origin="https://myapp.example",
+        image_name="reg/exp:new",
+        ingress="cloudflare",
+        secrets={},
+    )
+    assert previous == "reg/exp:old"
+    docker_ssh_module._remove_replaced_image(executor, "myapp", previous, "reg/exp:new")
+    docker_ssh_module._remove_replaced_image(
+        executor, "myapp", "reg/exp:new", "reg/exp:new"
+    )
+    rmis = [c for c in executor.commands if c.startswith("docker rmi")]
+    assert rmis == ["docker rmi reg/exp:old"]
 
 
 class _LocalDockerExecutor:

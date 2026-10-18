@@ -560,6 +560,26 @@ To stop an experiment and remove its containers from the server, run:
 
     dallinger docker-ssh destroy --app $APP_ID
 
+Destroy removes the app's containers, its ``~/dallinger/$APP_ID/`` folder,
+its Caddy configuration or Cloudflare tunnel,
+and its experiment image unless another app still uses that image. When you
+redeploy an app with ``--update``, the image it ran before is removed in the
+same way once the new containers are up.
+
+Destroy keeps the app's data folder ``~/dallinger-data/$APP_ID``, because it
+may hold files the experiment saved (see the note below), and prints its
+location. Bind mounts that you added with ``docker_volumes`` are kept too. To
+delete the data folder, export anything you need, then run destroy with
+``--remove-data``. This also works after the app has been destroyed:
+
+.. code-block:: shell
+
+    dallinger docker-ssh destroy --app $APP_ID --remove-data
+
+The data folder's parent is often owned by root, so if the SSH user can't
+delete the folder, Dallinger deletes it with a short-lived root ``alpine``
+container.
+
 .. note::
 
       When deploying to a server using docker, the experiment can save files to the directory ``/var/lib/dallinger``.

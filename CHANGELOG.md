@@ -4,6 +4,10 @@
 
 ### Added
 
+- `dallinger docker-ssh destroy --remove-data` also deletes the app's data
+  folder `~/dallinger-data/<app>`, using a root container when the SSH user
+  can't. It works after the app has been destroyed. Without the flag, destroy
+  keeps the folder and prints where it is and how to delete it.
 - Added the `cloudflare_keychain_service` config key, which names the macOS
   Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
   deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
@@ -340,6 +344,11 @@
 
 ### Fixed
 
+- `dallinger docker-ssh deploy --update` now removes the app's previous
+  experiment image once the new containers are up, unless another app still
+  uses it. Previously each update left the old image on the server.
+- docker-ssh builds no longer advise setting `User` in `~/.ssh/config` for an
+  SSH user containing `@` when `ssh -G` already resolves the host to that user.
 - `dallinger debug` no longer prints "Error fetching experiment status" while
   the server shuts down or after a single failed request. Once recruitment
   closes, it reports an error only after three failed status checks in a row,

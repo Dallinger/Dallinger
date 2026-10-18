@@ -647,6 +647,27 @@ def known_hosts_target(host, port):
     return host if port == 22 else f"[{host}]:{port}"
 
 
+def _ssh_config_user(host, port=22):
+    """Return the user ``ssh -G`` resolves for ``host``, or None if unknown."""
+    try:
+        result = subprocess.run(
+            ["ssh", "-G", "-p", str(port), host],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    for line in result.stdout.splitlines():
+        key, _, value = line.partition(" ")
+        if key == "user":
+            return value.strip()
+    return None
+
+
 def docker_host_uri(host, user=None, port=22):
     """Return a DOCKER_HOST SSH URL for the remote Docker daemon.
 
@@ -655,13 +676,15 @@ def docker_host_uri(host, user=None, port=22):
     left out of the URL, so the SSH client takes the user from
     ``~/.ssh/config``.
     """
+    ssh_host = host
     if ":" in host and not host.startswith("["):
         host = f"[{host}]"
     if user and "@" in user:
-        print(
-            f"SSH user {user!r} contains '@', so Docker connects without it. "
-            f"Set `User {user}` for {host} in ~/.ssh/config."
-        )
+        if _ssh_config_user(ssh_host, port) != user:
+            print(
+                f"SSH user {user!r} contains '@', so Docker connects without it. "
+                f"Set `User {user}` for {ssh_host} in ~/.ssh/config."
+            )
         user = None
     user_part = f"{user}@" if user else ""
     port_part = f":{port}" if port != 22 else ""
@@ -951,7 +974,10 @@ def _upload_app_stack(
 
     Compose reads ``secrets`` (for example ``POSTGRES_PASSWORD``) from the
     app's ``.env``, so the Compose file itself holds none.
+
+    Returns the image the replaced Compose file pinned, or None for a new app.
     """
+    previous_image = read_remote_experiment_image(executor, app)
     # The JSON log is bind-mounted as a file, so it must exist before Compose starts.
     executor.run(f"mkdir -p dallinger/{app} && touch dallinger/{app}/{JSON_LOGFILE}")
     run_as_ssh_user = _image_runs_as_ssh_user(executor, image_name)
@@ -982,6 +1008,13 @@ def _upload_app_stack(
             cloudflare=cloudflare or {},
         ),
     )
+    return previous_image
+
+
+def _remove_replaced_image(executor, app, previous_image, image_name):
+    """After an update, remove the app's previous image unless another app pins it."""
+    if previous_image and previous_image != image_name:
+        remove_unshared_experiment_image(executor, previous_image, except_app=app)
 
 
 def _image_runs_as_ssh_user(executor, image_name):
@@ -1621,7 +1654,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         app_secrets["FLASK_SECRET_KEY"],
     )
     public_origin = public_origin_for_hostname(experiment_hostname)
-    _upload_app_stack(
+    previous_image = _upload_app_stack(
         sftp,
         executor,
         cfg,
@@ -1701,6 +1734,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         update,
         restore=False,
     )
+    _remove_replaced_image(executor, experiment_id, previous_image, image_name)
 
     if use_subdomain:
         # We give caddy the alias for the service. If we scale up the service container caddy will
@@ -1878,7 +1912,7 @@ def _deploy_cloudflare_in_mode(
         image_name,
         app_secrets["FLASK_SECRET_KEY"],
     )
-    _upload_app_stack(
+    previous_image = _upload_app_stack(
         sftp,
         executor,
         cfg,
@@ -1915,6 +1949,7 @@ def _deploy_cloudflare_in_mode(
         update,
         restore=True,
     )
+    _remove_replaced_image(executor, experiment_id, previous_image, image_name)
 
     launch_target = LaunchTarget(
         app=experiment_id,
@@ -2372,10 +2407,44 @@ def _inspect_container_env(executor, container):
     return env
 
 
+def _remove_app_data(executor, app):
+    """Delete ``~/dallinger-data/<app>``, falling back to a root container.
+
+    The parent folder is usually root-owned, so the SSH user cannot unlink
+    the app folder itself.
+    """
+    if not app or "/" in app or app in (".", ".."):
+        raise click.UsageError(f"Invalid app name {app!r}.")
+    status = executor.run(
+        f'app={quote(app)}; parent="$HOME/dallinger-data"; '
+        'if [ ! -e "$parent/$app" ]; then echo absent; exit 0; fi; '
+        'rm -rf "$parent/$app" 2>/dev/null || '
+        'docker run --rm -v "$parent:/data" alpine:3.20 rm -rf "/data/$app"; '
+        'if [ -e "$parent/$app" ]; then echo failed; else echo removed; fi',
+        raise_=False,
+    )
+    path = f"~/dallinger-data/{app}"
+    status = (status or "").strip()
+    if status == "removed":
+        print(f"Removed {path}")
+    elif status == "absent":
+        print(f"No data folder {path} to remove")
+    else:
+        print(f"{RED}Could not remove {path}. Remove it on the server by hand.{END}")
+
+
 @docker_ssh.command()
 @click.option("--app", required=True, help="Name of the experiment app to destroy")
+@click.option(
+    "--remove-data",
+    is_flag=True,
+    help=(
+        "Also delete the app's data folder ~/dallinger-data/<app>. "
+        "This cannot be undone. Works after the app has been destroyed."
+    ),
+)
 @option_server
-def destroy(server, app):
+def destroy(server, app, remove_data=False):
     """Tear down an experiment run on a server you control via ssh."""
     server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
@@ -2397,6 +2466,9 @@ def destroy(server, app):
     )
     if not (caddy_config_exists or docker_compose_exists or tunnel_token_exists):
         print(f"App {app} is not deployed")
+        if remove_data:
+            _remove_app_data(executor, app)
+            return
         raise click.Abort()
 
     manifest = _load_remote_manifests(executor, [app]).get(app)
@@ -2456,6 +2528,16 @@ def destroy(server, app):
     remove_unshared_experiment_image(executor, experiment_image, except_app=app)
     executor.run(f"rm -rf ~/dallinger/{app}/")
     print(f"App {app} removed")
+    if remove_data:
+        _remove_app_data(executor, app)
+    elif executor.run(
+        f"test -d ~/dallinger-data/{quote(app)} && echo Yes", raise_=False
+    ):
+        print(
+            f"Kept the app's data folder ~/dallinger-data/{app} on {ssh_host}. "
+            "To delete it, run: dallinger docker-ssh destroy "
+            f"--app {app} --server {server} --remove-data"
+        )
 
 
 def _stop_cloudflare_connector(executor, app):
