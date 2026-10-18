@@ -21,6 +21,11 @@ The variants differ in where entries and state live:
   deletes the entries it applied
 - ``pg-poll``: the same, with the runner polling the entries table every
   ``--poll-interval`` seconds instead of waiting for a ``NOTIFY``
+- ``pg-notify-async`` and ``pg-poll-async``: the same two, with every
+  real-time transaction setting ``synchronous_commit`` off, as any database
+  user can for its own transactions, and an unlogged entries table, since
+  entries last only until the runner applies them. Events and state stay in
+  logged tables.
 
 It reports what ``benchmarks/realtime.py`` reports where the simulation has
 it: ack latency from the moment a message was due to be sent, view spacing,
@@ -48,7 +53,7 @@ import sys
 import tempfile
 import time
 
-STORES = ("redis", "pg-notify", "pg-poll")
+STORES = ("redis", "pg-notify", "pg-poll", "pg-notify-async", "pg-poll-async")
 
 # Seconds players keep listening after they stop sending.
 GRACE = 1.0
@@ -64,7 +69,7 @@ MAX_WAIT = 0.5
 SCHEMA = """
 DROP TABLE IF EXISTS sim_entry, sim_event, sim_session;
 CREATE TABLE sim_session (id integer PRIMARY KEY, state jsonb, time double precision);
-CREATE TABLE sim_entry (
+CREATE ENTRIES_TABLE sim_entry (
     id bigserial PRIMARY KEY, session_id integer NOT NULL, data jsonb NOT NULL
 );
 CREATE INDEX ON sim_entry (session_id);
@@ -165,11 +170,13 @@ def run_web(config):
         conn = pool.getconn()
         try:
             with conn.cursor() as cursor:
+                if store.endswith("-async"):
+                    cursor.execute("SET LOCAL synchronous_commit = off")
                 cursor.execute(
                     "INSERT INTO sim_entry (session_id, data) VALUES (%s, %s)",
                     (session_id, data),
                 )
-                if store == "pg-notify":
+                if store.startswith("pg-notify"):
                     cursor.execute("NOTIFY sim_entries")
             conn.commit()
         finally:
@@ -320,7 +327,8 @@ class PostgresEntries:
         import psycopg2
 
         self.conn = psycopg2.connect(config["database_url"])
-        self.notify = config["store"] == "pg-notify"
+        self.notify = config["store"].startswith("pg-notify")
+        self.asynchronous = config["store"].endswith("-async")
         self.poll_interval = config["poll_interval"]
         if self.notify:
             self.listener = psycopg2.connect(config["database_url"])
@@ -340,6 +348,9 @@ class PostgresEntries:
     def read(self, sessions, timeout):
         self.wait(timeout)
         with self.conn.cursor() as cursor:
+            if self.asynchronous:
+                # The pass's save commits in this transaction too.
+                cursor.execute("SET LOCAL synchronous_commit = off")
             # Deleting takes every committed entry, whatever order the inserts
             # committed in, which reading past the last id would not.
             cursor.execute(
@@ -581,14 +592,19 @@ class Simulation:
         self.directory = directory
         self.redis_url = redis_url
 
-    def reset(self):
+    def reset(self, store):
         import psycopg2
         import redis
 
         redis.Redis.from_url(self.redis_url).flushall()
         conn = psycopg2.connect(self.args.database_url)
         with conn.cursor() as cursor:
-            cursor.execute(SCHEMA)
+            unlogged = store.endswith("-async")
+            cursor.execute(
+                SCHEMA.replace(
+                    "ENTRIES_TABLE", "UNLOGGED TABLE" if unlogged else "TABLE"
+                )
+            )
             for session_id in range(1, self.args.sessions + 1):
                 cursor.execute(
                     "INSERT INTO sim_session (id, state, time) VALUES (%s, '{}', 0)",
@@ -631,7 +647,7 @@ class Simulation:
 
     def run(self, store, views_on):
         args = self.args
-        self.reset()
+        self.reset(store)
         sessions = [
             (
                 session_id,
