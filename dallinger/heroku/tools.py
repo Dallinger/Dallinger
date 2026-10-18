@@ -486,6 +486,7 @@ class LocalProcfileWrapper:
             success = self._verify_startup()
         except BaseException:
             # Includes Ctrl-C, which would otherwise skip __exit__ and leak.
+            signal.alarm(0)
             self.stop()
             raise
         finally:
