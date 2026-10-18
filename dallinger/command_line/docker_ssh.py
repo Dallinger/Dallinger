@@ -2648,10 +2648,15 @@ _ssh_clients = {}
 _ssh_clients_lock = threading.Lock()
 
 
+def _ssh_client_key(host, user=None):
+    """Identify a login the same way however the host and user were spelled."""
+    return (*split_ssh_host_port(host), user or getuser())
+
+
 def _forget_ssh_client(host, user=None):
     """Close the shared connection to ``host`` so the next one logs in afresh."""
     with _ssh_clients_lock:
-        client = _ssh_clients.pop((host, user), None)
+        client = _ssh_clients.pop(_ssh_client_key(host, user), None)
     if client is not None:
         client.close()
 
@@ -2662,13 +2667,14 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     Callers share the client, so they should not close it unless they are
     finished with the server; a closed client is replaced on the next call.
     """
+    key = _ssh_client_key(host, user)
     with _ssh_clients_lock:
-        client = _ssh_clients.get((host, user))
+        client = _ssh_clients.get(key)
         transport = client.get_transport() if client is not None else None
         if transport is not None and transport.is_active():
             return client
         client = _connect_ssh_client(host, user)
-        _ssh_clients[(host, user)] = client
+        _ssh_clients[key] = client
         return client
 
 
@@ -2810,12 +2816,23 @@ def ensure_remote_host_in_known_hosts(host, user=None):
 
 
 class Executor:
-    """Execute remote commands using paramiko"""
+    """Execute remote commands using paramiko.
+
+    All Executors for a server share one SSH connection. Closing ``client``
+    closes it for every one of them; each reconnects on its next use.
+    """
 
     def __init__(self, host, user=None, app=None):
         self.app = app
-        self.client = get_connected_ssh_client(host, user)
         self.host = host
+        self.user = user
+        # Connect now so that connection and login errors surface here.
+        get_connected_ssh_client(host, user)
+
+    @property
+    def client(self):
+        """The shared SSH client for this server, reconnected if it was closed."""
+        return get_connected_ssh_client(self.host, self.user)
 
     def run(self, cmd, raise_=True):
         """Run the given command and block until it completes.
@@ -2871,7 +2888,12 @@ class Executor:
 
     def run_with_status(self, cmd):
         """Run ``cmd`` and return ``(exit_status, stdout, stderr)`` without raising."""
-        channel = self.client.get_transport().open_session()
+        try:
+            channel = self.client.get_transport().open_session()
+        except (paramiko.SSHException, EOFError):
+            # The connection can die without the transport noticing yet.
+            _forget_ssh_client(self.host, self.user)
+            channel = self.client.get_transport().open_session()
         channel.exec_command(cmd)
         return self._drain_channel(channel)
 

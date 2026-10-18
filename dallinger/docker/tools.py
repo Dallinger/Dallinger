@@ -527,8 +527,8 @@ def build_image(
     ``requirements.txt`` and ``prepare_docker_image.sh``. If
     ``force_build`` is False, skip the build when that tag already exists.
     If ``quiet`` is True, the ``docker build`` output goes to a log file that
-    is printed only if the build fails, unless ``DALLINGER_VERBOSE_BUILD`` is
-    set.
+    is printed and kept only if the build fails, unless
+    ``DALLINGER_VERBOSE_BUILD`` is ``1``, ``true`` or ``yes``.
     """
     tag = image_tag or get_experiment_image_tag(tmp_dir)
     image_name = f"{base_image_name}:{tag}"
@@ -622,7 +622,12 @@ def build_image(
         dockerfile_path.write_text(ensure_experiment_workdir_writable(dockerfile_text))
     # Our messages must reach the terminal before docker's own output does.
     sys.stdout.flush()
-    if quiet and not os.environ.get("DALLINGER_VERBOSE_BUILD"):
+    verbose = os.environ.get("DALLINGER_VERBOSE_BUILD", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if quiet and not verbose:
         _build_with_log_file(docker_build_invocation, env, image_name, out)
     else:
         try:
@@ -634,20 +639,21 @@ def build_image(
 
 
 def _build_with_log_file(docker_build_invocation, env, image_name, out):
-    """Run ``docker build`` into a log file, printing the log only on failure."""
+    """Run ``docker build`` into a log file, printing and keeping it only on failure."""
     with tempfile.NamedTemporaryFile(
         "w", prefix="dallinger-docker-build-", suffix=".log", delete=False
     ) as log_file:
         out.blather(
-            f"Building image {image_name} (full log: {log_file.name}; "
-            "set DALLINGER_VERBOSE_BUILD=1 to stream it)...\n"
+            f"Building image {image_name} (set DALLINGER_VERBOSE_BUILD=1 "
+            "to show docker's output)...\n"
         )
         sys.stdout.flush()
         result = run(docker_build_invocation, env=env, stdout=log_file, stderr=STDOUT)
-    if result.returncode != 0:
-        out.blather(Path(log_file.name).read_text(errors="replace"))
-        out.blather(
-            f"\nImage build failed; the log above is saved in {log_file.name}\n"
-        )
-        sys.stdout.flush()
-        raise BuildError
+    log_path = Path(log_file.name)
+    if result.returncode == 0:
+        log_path.unlink()
+        return
+    out.blather(log_path.read_text(errors="replace"))
+    out.blather(f"\nImage build failed; the log above is saved in {log_path}\n")
+    sys.stdout.flush()
+    raise BuildError

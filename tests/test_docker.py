@@ -2,8 +2,10 @@ import importlib
 import os
 import re
 import sys
+import tempfile
 import time
 import warnings
+from contextlib import nullcontext
 from pathlib import Path
 from unittest import mock
 
@@ -504,6 +506,9 @@ def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit
     fake_docker.write_text(f"#!/bin/sh\necho '#14 + ansi2html' >&2\nexit {exit_code}\n")
     fake_docker.chmod(0o755)
     monkeypatch.setattr(tools, "which", lambda name: str(fake_docker))
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(log_dir))
     (tmp_path / "Dockerfile").write_text("FROM python:3.12\n")
     messages = []
     client = mock.Mock()
@@ -511,24 +516,22 @@ def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit
     with (
         mock.patch("docker.client.from_env", return_value=client),
         mock.patch.object(tools, "get_base_image", return_value="base"),
+        pytest.raises(tools.BuildError) if exit_code else nullcontext(),
     ):
-        try:
-            tools.build_image(
-                tmp_path,
-                "exp",
-                Output(blather=messages.append),
-                image_tag="t",
-                quiet=True,
-            )
-        except tools.BuildError:
-            pass
+        tools.build_image(
+            tmp_path,
+            "exp",
+            Output(blather=messages.append),
+            image_tag="t",
+            quiet=True,
+        )
     output = "".join(messages)
     assert ("+ ansi2html" in output) == bool(exit_code)
     assert ("Built image: exp:" in output) == (not exit_code)
     assert all(message.endswith("\n") for message in messages)
-    log_path = re.search(r"full log: (\S+);", output).group(1)
-    assert "+ ansi2html" in Path(log_path).read_text()
-    os.remove(log_path)
+    kept_logs = list(log_dir.iterdir())
+    assert len(kept_logs) == exit_code
+    assert all("+ ansi2html" in log.read_text() for log in kept_logs)
 
 
 def test_deploy_image_tag_is_unique_per_launch():
@@ -600,7 +603,6 @@ def test_get_connected_ssh_client_reuses_one_quiet_connection(
     key_path.write_text("dummy")
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: key_path)
-    monkeypatch.setattr(docker_ssh, "_ssh_clients", {})
 
     class DummyClient:
         def __init__(self):
@@ -633,10 +635,46 @@ def test_get_connected_ssh_client_reuses_one_quiet_connection(
     assert docker_ssh.get_connected_ssh_client("localhost:2222", user="root") is client
     assert capsys.readouterr().out == "Connecting to localhost:2222\nConnected.\n"
 
+    executor = docker_ssh.Executor("localhost:2222", user="root")
     client.transport.is_active.return_value = False
-    assert (
-        docker_ssh.get_connected_ssh_client("localhost:2222", user="root") is not client
+    assert executor.client is not client
+    assert executor.client is docker_ssh.get_connected_ssh_client(
+        "localhost:2222", "root"
     )
+
+
+def test_run_with_status_reconnects_once_when_session_fails(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    dead, fresh = mock.Mock(), mock.Mock()
+    dead.get_transport.return_value.open_session.side_effect = (
+        docker_ssh.paramiko.SSHException("connection dropped")
+    )
+    clients = [dead, fresh]
+    monkeypatch.setattr(docker_ssh, "_connect_ssh_client", lambda *a: clients.pop(0))
+    monkeypatch.setattr(
+        docker_ssh.Executor, "_drain_channel", staticmethod(lambda ch: (0, "ok", ""))
+    )
+
+    assert docker_ssh.Executor("example.com").run_with_status("true") == (0, "ok", "")
+    dead.close.assert_called_once()
+
+
+def test_failing_remote_command_stops_spinner_before_error(monkeypatch, capsys):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    spinner = mock.MagicMock()
+    spinner.stop.side_effect = lambda: print("<spinner cleared>")
+    monkeypatch.setattr(docker_ssh, "yaspin", lambda **kwargs: spinner)
+    monkeypatch.setattr(docker_ssh, "get_connected_ssh_client", mock.Mock())
+    executor = docker_ssh.Executor("example.com")
+    monkeypatch.setattr(executor, "run_with_status", lambda cmd: (1, "", "boom"))
+
+    with pytest.raises(docker_ssh.ExecuteException):
+        with docker_ssh._spinner(text="Restarting Dozzle"):
+            executor.run("docker compose restart dozzle")
+    assert capsys.readouterr().out.startswith("<spinner cleared>\nError: exit code")
 
 
 @pytest.mark.parametrize("key_format", ["TraditionalOpenSSL", "OpenSSH"])
