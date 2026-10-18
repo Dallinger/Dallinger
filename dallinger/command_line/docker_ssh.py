@@ -1050,16 +1050,18 @@ def _record_then_launch(executor, target, deployment_infos, dashboard_password, 
     not answer 2xx, fails before the long public wait.
     Launching opens recruitment, so it only happens once participants can
     reach the public URL; if the bounded wait times out, nothing is launched.
+    Returns the ``/launch`` response, or an empty dict in update mode.
     """
     _record_deployment_infos(target.app, deployment_infos, dashboard_password)
     if update:
         print("Skipping experiment launch logic because we are in update mode.")
-        return
+        return {}
     check_internal_health(executor, target)
     wait_for_public_url(executor, target)
     print("Launching experiment")
     launch_data = launch_from_server(executor, target)
     print(launch_data.get("recruitment_msg"))
+    return launch_data
 
 
 def _install_tunnel_token(executor, sftp, app, connector_token, tunnel_id):
@@ -1737,7 +1739,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         f"Or you can head to {logs_url} (user = dallinger)",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
-    _record_then_launch(
+    launch_data = _record_then_launch(
         executor, launch_target, deployment_infos, dashboard_password, update
     )
     return {
@@ -1749,6 +1751,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         "server": server,
         "ingress": INGRESS_CLASSIC,
         "public_origin": public_origin,
+        "recruitment_msg": launch_data.get("recruitment_msg"),
     }
 
 
@@ -1937,7 +1940,7 @@ def _deploy_cloudflare_in_mode(
         f"Public origin: {public_origin}",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
-    _record_then_launch(
+    launch_data = _record_then_launch(
         executor, launch_target, deployment_infos, dashboard_password, update
     )
     return {
@@ -1949,6 +1952,7 @@ def _deploy_cloudflare_in_mode(
         "server": server,
         "ingress": INGRESS_CLOUDFLARE,
         "public_origin": public_origin,
+        "recruitment_msg": launch_data.get("recruitment_msg"),
         "tunnel_name": tunnel_name_for_app(experiment_id),
     }
 

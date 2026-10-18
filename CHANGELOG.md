@@ -185,6 +185,9 @@
   `DOCKER_HOST` and "custom Heroku ID root" lines are now debug-level logs,
   and `/launch` omits empty "Initial recruitment list" and "Additional
   details" headings.
+- docker-ssh deploys (classic and Cloudflare) also return the launch
+  recruitment message as `recruitment_msg` in their result dict, or `None`
+  if there isn't one (for example with `--update`). It is still printed.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
