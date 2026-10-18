@@ -108,7 +108,7 @@ packaging==26.3
     #   build
     #   dallinger
     #   gunicorn
-paramiko==5.0.0
+paramiko==5.1.0
     # via dallinger
 pexpect==4.9.0
     # via dallinger
