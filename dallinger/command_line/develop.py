@@ -7,7 +7,10 @@ import time
 from urllib.parse import urlparse, urlunparse
 
 import click
+from redis.exceptions import RedisError
 from rq import Queue
+from rq.exceptions import InvalidJobOperation
+from rq.job import Job, JobStatus
 
 from dallinger.command_line.utils import (
     Output,
@@ -104,10 +107,21 @@ def debug(port, skip_flask, no_browsers=False):
         try:
             _run_dev_server(["./run.sh"], develop_dir)
         finally:
+            _cancel_pending_job(job)
+
+
+def _cancel_pending_job(job):
+    """Cancel ``job`` if it hasn't started, so it can't run in a later session."""
+    pending = (JobStatus.QUEUED, JobStatus.DEFERRED, JobStatus.SCHEDULED)
+    try:
+        # A finished job's record expires, and then get_status() raises.
+        if Job.exists(job.id, job.connection) and job.get_status() in pending:
             job.cancel()
+    except (InvalidJobOperation, RedisError) as ex:
+        log(f"Could not cancel the launch job: {ex}")
 
 
-def _run_dev_server(cmd, cwd):
+def _run_dev_server(cmd, cwd, stop_timeout=5):
     """Run the local server until it exits or this process is interrupted.
 
     The server runs in its own session, so Ctrl-C reaches only this process,
@@ -121,6 +135,8 @@ def _run_dev_server(cmd, cwd):
         Command that starts the server.
     cwd : str
         Directory to run ``cmd`` in.
+    stop_timeout : float
+        Seconds to wait after SIGTERM before killing the server's processes.
 
     Raises
     ------
@@ -134,8 +150,9 @@ def _run_dev_server(cmd, cwd):
             code = proc.wait()
         except KeyboardInterrupt:
             interrupted = True
+            log("Stopping the local server...")
         finally:
-            _stop_process_group(proc)
+            _stop_process_group(proc, stop_timeout)
     if interrupted:
         log("Local server stopped.")
     elif code < 0:
@@ -152,13 +169,13 @@ def _stop_process_group(proc, timeout=5):
     """Stop the process group led by ``proc`` and reap ``proc``.
 
     Sends SIGTERM to the group, then SIGKILL to any member still alive after
-    ``timeout`` seconds. Ctrl-C, SIGTERM and SIGHUP are ignored meanwhile, so
-    repeating them can't cut the cleanup short.
+    ``timeout`` seconds. In the main thread, Ctrl-C, SIGTERM and SIGHUP are
+    ignored meanwhile, so repeating them can't cut the cleanup short.
     """
-    stop_signals = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
-    previous = {
-        signum: signal.signal(signum, signal.SIG_IGN) for signum in stop_signals
-    }
+    previous = {}
+    if threading.current_thread() is threading.main_thread():
+        for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            previous[signum] = signal.signal(signum, signal.SIG_IGN)
     try:
         # macOS reports EPERM for a group that only has zombies left.
         with contextlib.suppress(ProcessLookupError, PermissionError):
@@ -172,7 +189,8 @@ def _stop_process_group(proc, timeout=5):
         proc.wait()
     finally:
         for signum, handler in previous.items():
-            signal.signal(signum, handler)
+            if handler is not None:
+                signal.signal(signum, handler)
 
 
 @develop.command()

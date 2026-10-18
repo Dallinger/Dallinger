@@ -512,6 +512,23 @@ class TestDevelopCommand:
         assert result.exit_code == 1
         assert "The local server exited with status 2" in result.output
 
+    def test_debug_survives_failed_launch_job_cancel(self, develop):
+        from rq.exceptions import InvalidJobOperation
+        from rq.job import JobStatus
+
+        develop_module = sys.modules["dallinger.command_line.develop"]
+        with (
+            mock.patch.object(develop_module, "Queue") as queue,
+            mock.patch.object(develop_module, "_run_dev_server"),
+        ):
+            job = queue.return_value.enqueue_call.return_value
+            job.get_status.return_value = JobStatus.QUEUED
+            job.cancel.side_effect = InvalidJobOperation("already cancelled")
+            result = CliRunner().invoke(develop, ["debug", "--no-browsers"])
+
+        assert result.exit_code == 0, result.output
+        assert "already cancelled" in result.output
+
 
 def test_dev_server_stops_quietly_on_ctrl_c(tmp_path):
     import signal
@@ -536,7 +553,7 @@ def test_dev_server_stops_quietly_on_ctrl_c(tmp_path):
             sys.executable,
             "-c",
             "from dallinger.command_line.develop import _run_dev_server\n"
-            f"_run_dev_server({server!r}, {str(tmp_path)!r})",
+            f"_run_dev_server({server!r}, {str(tmp_path)!r}, stop_timeout=0.5)",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
