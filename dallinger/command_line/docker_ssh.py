@@ -2657,10 +2657,18 @@ def _ssh_client_key(host, user=None):
     return (*split_ssh_host_port(host), user or getuser())
 
 
-def _forget_ssh_client(host, user=None):
-    """Close the shared connection to ``host`` so the next one logs in afresh."""
+def _forget_ssh_client(host, user=None, client=None):
+    """Close the shared connection to ``host`` so the next one logs in afresh.
+
+    If ``client`` is given, it is closed, and dropped from the cache only if
+    the cache still holds it rather than a newer connection.
+    """
+    key = _ssh_client_key(host, user)
     with _ssh_clients_lock:
-        client = _ssh_clients.pop(_ssh_client_key(host, user), None)
+        if client is None:
+            client = _ssh_clients.pop(key, None)
+        elif _ssh_clients.get(key) is client:
+            del _ssh_clients[key]
     if client is not None:
         client.close()
 
@@ -2838,6 +2846,10 @@ class Executor:
         """The shared SSH client for this server, reconnected if it was closed."""
         return get_connected_ssh_client(self.host, self.user)
 
+    def close(self):
+        """Close the shared SSH connection for this server, without reconnecting."""
+        _forget_ssh_client(self.host, self.user)
+
     def run(self, cmd, raise_=True):
         """Run the given command and block until it completes.
         If `raise` is True and the command fails, print the reason and raise an exception.
@@ -2892,11 +2904,16 @@ class Executor:
 
     def run_with_status(self, cmd):
         """Run ``cmd`` and return ``(exit_status, stdout, stderr)`` without raising."""
+        client = self.client
         try:
-            channel = self.client.get_transport().open_session()
+            channel = client.get_transport().open_session()
         except (paramiko.SSHException, EOFError):
-            # The connection can die without the transport noticing yet.
-            _forget_ssh_client(self.host, self.user)
+            # A connection can die before its transport notices. A live one
+            # refusing a channel (e.g. MaxSessions) must stay up for others.
+            transport = client.get_transport()
+            if transport is not None and transport.is_active():
+                raise
+            _forget_ssh_client(self.host, self.user, client)
             channel = self.client.get_transport().open_session()
         channel.exec_command(cmd)
         return self._drain_channel(channel)

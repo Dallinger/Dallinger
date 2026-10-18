@@ -643,14 +643,24 @@ def test_get_connected_ssh_client_reuses_one_quiet_connection(
     )
 
 
-def test_run_with_status_reconnects_once_when_session_fails(monkeypatch):
-    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+def _client_refusing_sessions(docker_ssh, error, connection_dies):
+    """A client whose open_session fails, optionally taking the connection down."""
+    client = mock.Mock()
+    transport = client.get_transport.return_value
 
-    dead, fresh = mock.Mock(), mock.Mock()
-    dead.get_transport.return_value.open_session.side_effect = (
-        docker_ssh.paramiko.SSHException("connection dropped")
-    )
-    clients = [dead, fresh]
+    def open_session():
+        transport.is_active.return_value = not connection_dies
+        raise error
+
+    transport.open_session.side_effect = open_session
+    return client
+
+
+def test_run_with_status_reconnects_once_when_connection_died(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    SSHException = docker_ssh.paramiko.SSHException
+    dead = _client_refusing_sessions(docker_ssh, SSHException("dropped"), True)
+    clients = [dead, mock.Mock()]
     monkeypatch.setattr(docker_ssh, "_connect_ssh_client", lambda *a: clients.pop(0))
     monkeypatch.setattr(
         docker_ssh.Executor, "_drain_channel", staticmethod(lambda ch: (0, "ok", ""))
@@ -658,6 +668,33 @@ def test_run_with_status_reconnects_once_when_session_fails(monkeypatch):
 
     assert docker_ssh.Executor("example.com").run_with_status("true") == (0, "ok", "")
     dead.close.assert_called_once()
+
+
+def test_run_with_status_keeps_a_live_connection_that_refuses_a_channel(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    refused = docker_ssh.paramiko.ChannelException(2, "MaxSessions")
+    busy = _client_refusing_sessions(docker_ssh, refused, False)
+    connect = mock.Mock(return_value=busy)
+    monkeypatch.setattr(docker_ssh, "_connect_ssh_client", connect)
+
+    with pytest.raises(docker_ssh.paramiko.ChannelException):
+        docker_ssh.Executor("example.com").run_with_status("true")
+    busy.close.assert_not_called()
+    connect.assert_called_once()
+
+
+def test_run_with_status_does_not_retry_a_failed_reconnect(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    closed = mock.Mock()
+    login_failed = docker_ssh.paramiko.AuthenticationException("denied")
+    connect = mock.Mock(side_effect=[closed, login_failed])
+    monkeypatch.setattr(docker_ssh, "_connect_ssh_client", connect)
+    executor = docker_ssh.Executor("example.com")
+    closed.get_transport.return_value.is_active.return_value = False
+
+    with pytest.raises(docker_ssh.paramiko.AuthenticationException):
+        executor.run_with_status("true")
+    assert connect.call_count == 2
 
 
 def test_failing_remote_command_stops_spinner_before_error(monkeypatch, capsys):
