@@ -175,6 +175,15 @@
 
 ### Changed
 
+- docker-ssh commands print much less. Spinners only animate in a terminal,
+  and errors no longer interleave with spinner frames. Each command opens one
+  SSH connection to a server instead of reconnecting for every step. The image
+  build prints one line with the path of a saved build log, and prints the
+  full log only if the build fails (set `DALLINGER_VERBOSE_BUILD=1` to stream
+  it). Build messages now appear in order, each on its own line. The
+  `DOCKER_HOST` and "custom Heroku ID root" lines are now debug-level logs,
+  and `/launch` omits empty "Initial recruitment list" and "Additional
+  details" headings.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and

@@ -1028,7 +1028,7 @@ def test_remote_postgres_prefers_pinned_container_name(monkeypatch):
 
     open_channel = executor.client.get_transport.return_value.open_channel
     assert open_channel.call_args.args[:2] == ("direct-tcpip", ("10.0.0.8", 5432))
-    executor.client.close.assert_called_once()
+    executor.client.close.assert_not_called()
     remote.close()
 
 
@@ -1060,7 +1060,7 @@ def test_remote_postgres_does_not_fall_back_when_app_db_is_stopped(monkeypatch):
             {"host": "example.com", "user": "ubuntu"}, "myapp"
         ):
             pass
-    executor.client.close.assert_called_once()
+    executor.client.close.assert_not_called()
 
 
 def test_select_running_app_returns_lone_hibernating_app(monkeypatch):

@@ -299,7 +299,7 @@ def prepare_server(host, user):
             ) from exc
         raise
 
-    with yaspin(text="Checking for Docker...", color="green") as sp:
+    with _spinner(text="Checking for Docker...", color="green") as sp:
         docker_installed = bool(executor.run("command -v docker", raise_=False).strip())
         if not docker_installed:
             sp.text = "Installing Docker..."
@@ -347,6 +347,8 @@ def _grant_docker_group_and_refresh_session(executor, host, user, check_sudo=Tru
     if check_sudo:
         executor.check_sudo()
     executor.run("sudo -n adduser $(id --user --name) docker")
+    # Group membership only applies to new logins.
+    _forget_ssh_client(host, user)
     refreshed_executor = Executor(host, user)
     return refreshed_executor, _docker_is_usable(refreshed_executor)
 
@@ -1259,8 +1261,8 @@ def build_and_push_image(f):
                 os.environ["DOCKER_HOST"] = docker_host_uri(
                     ssh_host, user=ssh_user, port=ssh_port
                 )
-                print(
-                    f"Attempting to build image on remote host: {os.environ['DOCKER_HOST']}"
+                logging.getLogger(__name__).debug(
+                    "Using remote Docker host %s", os.environ["DOCKER_HOST"]
                 )
                 # Add server_pem to SSH agent so docker-py's SSH client can use it
                 # (necessary because docker.from_env() does not accept PEM files directly).
@@ -1287,6 +1289,7 @@ def build_and_push_image(f):
                 config.get("docker_image_base_name"),
                 out=Output(),
                 image_tag=docker_tag_from_experiment_id(config.get("id")),
+                quiet=True,
             )
 
             remote_build = not local_build
@@ -2285,38 +2288,35 @@ def _forward_local_port(transport, remote_address):
 def remote_postgres(server_info, app):
     """A context manager that opens an ssh tunnel to the remote host and
     returns a database URI to connect to it.
+
+    The tunnel rides on the shared SSH connection, which stays open for
+    other callers.
     """
-    executor = None
-    try:
-        ssh_user = server_info.get("user")
-        executor = Executor(server_info["host"], user=ssh_user, app=app)
-        container, remote_ip, isolated = _resolve_remote_postgres(executor, app)
-        if isolated:
-            env = _inspect_container_env(executor, container)
-            db_user = env.get("POSTGRES_USER") or app
-            db_password = env.get("POSTGRES_PASSWORD") or ""
-            db_name = env.get("POSTGRES_DB") or app
-            if not db_password:
-                raise ExecuteException(
-                    f"Could not read POSTGRES_PASSWORD from {container}."
-                )
-            uri_user = url_quote(db_user, safe="")
-            uri_password = url_quote(db_password, safe="")
-            uri_db = url_quote(db_name, safe="")
-        else:
-            uri_user = "dallinger"
-            uri_password = "dallinger"
-            uri_db = url_quote(app, safe="")
-        with _forward_local_port(
-            executor.client.get_transport(), (remote_ip, 5432)
-        ) as local_port:
-            yield (
-                f"postgresql://{uri_user}:{uri_password}"
-                f"@127.0.0.1:{local_port}/{uri_db}"
+    ssh_user = server_info.get("user")
+    executor = Executor(server_info["host"], user=ssh_user, app=app)
+    container, remote_ip, isolated = _resolve_remote_postgres(executor, app)
+    if isolated:
+        env = _inspect_container_env(executor, container)
+        db_user = env.get("POSTGRES_USER") or app
+        db_password = env.get("POSTGRES_PASSWORD") or ""
+        db_name = env.get("POSTGRES_DB") or app
+        if not db_password:
+            raise ExecuteException(
+                f"Could not read POSTGRES_PASSWORD from {container}."
             )
-    finally:
-        if executor is not None:
-            executor.client.close()
+        uri_user = url_quote(db_user, safe="")
+        uri_password = url_quote(db_password, safe="")
+        uri_db = url_quote(db_name, safe="")
+    else:
+        uri_user = "dallinger"
+        uri_password = "dallinger"
+        uri_db = url_quote(app, safe="")
+    with _forward_local_port(
+        executor.client.get_transport(), (remote_ip, 5432)
+    ) as local_port:
+        yield (
+            f"postgresql://{uri_user}:{uri_password}@127.0.0.1:{local_port}/{uri_db}"
+        )
 
 
 def _resolve_remote_postgres(executor, app):
@@ -2596,7 +2596,83 @@ def _is_dsa_key(path):
     return b"\x00\x00\x00\x07ssh-dss" in blob
 
 
+class _PlainSpinner:
+    """Stand-in for yaspin when stdout is not a terminal: no frames, one line per outcome."""
+
+    def __init__(self, text=""):
+        self.text = text
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
+    def ok(self, text=""):
+        print(" ".join(part for part in (text, self.text) if part), flush=True)
+
+    fail = ok
+
+
+_active_spinner = None
+
+
+@contextmanager
+def _spinner(text="", **kwargs):
+    """Animate a yaspin spinner on a terminal; otherwise print only the outcome."""
+    global _active_spinner
+    spinner = yaspin(text=text, **kwargs) if sys.stdout.isatty() else None
+    spinner = spinner or _PlainSpinner(text)
+    previous, _active_spinner = _active_spinner, spinner
+    try:
+        with spinner:
+            yield spinner
+    finally:
+        _active_spinner = previous
+        sys.stdout.flush()
+
+
+def _stop_active_spinner():
+    """Clear a running spinner so that the next output starts on a clean line."""
+    if _active_spinner is not None:
+        _active_spinner.stop()
+
+
+_ssh_clients = {}
+_ssh_clients_lock = threading.Lock()
+
+
+def _forget_ssh_client(host, user=None):
+    """Close the shared connection to ``host`` so the next one logs in afresh."""
+    with _ssh_clients_lock:
+        client = _ssh_clients.pop((host, user), None)
+    if client is not None:
+        client.close()
+
+
 def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
+    """Return a connected SSH client, reusing this process's open connection to ``host``.
+
+    Callers share the client, so they should not close it unless they are
+    finished with the server; a closed client is replaced on the next call.
+    """
+    with _ssh_clients_lock:
+        client = _ssh_clients.get((host, user))
+        transport = client.get_transport() if client is not None else None
+        if transport is not None and transport.is_active():
+            return client
+        client = _connect_ssh_client(host, user)
+        _ssh_clients[(host, user)] = client
+        return client
+
+
+def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
     """Create and connect an SSH client with proper authentication.
 
     Args:
@@ -2645,8 +2721,8 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     )
 
     connecting_to = ssh_host if ssh_port == 22 else f"{ssh_host}:{ssh_port}"
-    print(f"Connecting to {connecting_to}")
-    with yaspin() as spinner:
+    print(f"Connecting to {connecting_to}", flush=True)
+    with _spinner() as spinner:
         try:
             client.connect(**connect_kwargs)
             spinner.ok("Connected.")
@@ -2730,8 +2806,7 @@ def add_server_pem_to_ssh_agent():
 
 def ensure_remote_host_in_known_hosts(host, user=None):
     """Make sure the SSH host key is trusted locally before other clients connect."""
-    client = get_connected_ssh_client(host, user)
-    client.close()
+    get_connected_ssh_client(host, user)
 
 
 class Executor:
@@ -2748,6 +2823,7 @@ class Executor:
         """
         status, stdout, stderr = self.run_with_status(cmd)
         if raise_ and status != 0:
+            _stop_active_spinner()
             print(f"Error: exit code was not 0 ({status})")
             print(stdout)
             print(stderr)
@@ -2858,14 +2934,14 @@ class Executor:
             raise click.Abort
 
     def reload_caddy(self):
-        with yaspin(text="Reloading Caddy config file", color="green"):
+        with _spinner(text="Reloading Caddy config file", color="green"):
             self.run(
                 f"{SERVER_COMPOSE} exec -T httpserver "
                 "caddy reload --config /etc/caddy/Caddyfile"
             )
 
     def restart_dozzle(self):
-        with yaspin(text="Restarting Dozzle", color="green"):
+        with _spinner(text="Restarting Dozzle", color="green"):
             self.run(f"{SERVER_COMPOSE} restart dozzle")
 
     def run_and_echo(self, cmd):  # pragma: no cover

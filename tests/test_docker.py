@@ -493,6 +493,44 @@ def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path):
     assert "--force-reinstall --no-deps" in tools.LOCAL_DALLINGER_WHEEL_SNIPPET
 
 
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit_code):
+    import docker
+
+    from dallinger.command_line.utils import Output
+    from dallinger.docker import tools
+
+    fake_docker = tmp_path / "docker"
+    fake_docker.write_text(f"#!/bin/sh\necho '#14 + ansi2html' >&2\nexit {exit_code}\n")
+    fake_docker.chmod(0o755)
+    monkeypatch.setattr(tools, "which", lambda name: str(fake_docker))
+    (tmp_path / "Dockerfile").write_text("FROM python:3.12\n")
+    messages = []
+    client = mock.Mock()
+    client.api.inspect_image.side_effect = docker.errors.ImageNotFound("missing")
+    with (
+        mock.patch("docker.client.from_env", return_value=client),
+        mock.patch.object(tools, "get_base_image", return_value="base"),
+    ):
+        try:
+            tools.build_image(
+                tmp_path,
+                "exp",
+                Output(blather=messages.append),
+                image_tag="t",
+                quiet=True,
+            )
+        except tools.BuildError:
+            pass
+    output = "".join(messages)
+    assert ("+ ansi2html" in output) == bool(exit_code)
+    assert ("Built image: exp:" in output) == (not exit_code)
+    assert all(message.endswith("\n") for message in messages)
+    log_path = re.search(r"full log: (\S+);", output).group(1)
+    assert "+ ansi2html" in Path(log_path).read_text()
+    os.remove(log_path)
+
+
 def test_deploy_image_tag_is_unique_per_launch():
     """Copied-in deploys must not share a tag across launches."""
     from dallinger.docker.tools import docker_tag_from_experiment_id
@@ -551,7 +589,9 @@ def test_is_loopback_host():
     assert not is_loopback_host("example.com")
 
 
-def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypatch):
+def test_get_connected_ssh_client_reuses_one_quiet_connection(
+    tmp_path, monkeypatch, capsys
+):
     import importlib
 
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
@@ -560,29 +600,12 @@ def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypa
     key_path.write_text("dummy")
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: key_path)
-
-    class DummySpinner:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, traceback):
-            return False
-
-        def ok(self, *_):
-            pass
-
-        def fail(self, *_):
-            pass
-
-        def stop(self):
-            pass
-
-        def start(self):
-            pass
-
-    monkeypatch.setattr(docker_ssh, "yaspin", lambda *args, **kwargs: DummySpinner())
+    monkeypatch.setattr(docker_ssh, "_ssh_clients", {})
 
     class DummyClient:
+        def __init__(self):
+            self.transport = mock.Mock()
+
         def load_host_keys(self, filename):
             if not Path(filename).exists():
                 raise IOError("missing")
@@ -597,7 +620,7 @@ def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypa
             pass
 
         def get_transport(self):
-            return mock.Mock()
+            return self.transport
 
         def save_host_keys(self, filename):
             assert Path(filename).exists()
@@ -607,6 +630,13 @@ def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypa
     client = docker_ssh.get_connected_ssh_client("localhost:2222", user="root")
     assert isinstance(client, DummyClient)
     assert (tmp_path / ".ssh" / "known_hosts").exists()
+    assert docker_ssh.get_connected_ssh_client("localhost:2222", user="root") is client
+    assert capsys.readouterr().out == "Connecting to localhost:2222\nConnected.\n"
+
+    client.transport.is_active.return_value = False
+    assert (
+        docker_ssh.get_connected_ssh_client("localhost:2222", user="root") is not client
+    )
 
 
 @pytest.mark.parametrize("key_format", ["TraditionalOpenSSL", "OpenSSH"])

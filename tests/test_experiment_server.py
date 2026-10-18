@@ -1794,6 +1794,20 @@ class TestLaunchRoute:
         assert resp.status_code == 200
         mock_exp.recruiter.open_recruitment.assert_called()
 
+    def test_launch_omits_empty_recruitment_sections(self, webapp, active_config):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as mock_class:
+            mock_exp = mock.Mock(protected_routes=[], background_tasks=[], channel=None)
+            mock_exp.recruiter.open_recruitment.return_value = {
+                "items": [],
+                "message": "Single recruitment link: x",
+            }
+            mock_class.return_value = mock_exp
+            resp = webapp.post("/launch", data={})
+        message = json.loads(resp.get_data())["recruitment_msg"]
+        assert message == "Additional details:\nSingle recruitment link: x"
+
     def test_launch_establishes_channel_subscription(self, webapp, active_config):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"

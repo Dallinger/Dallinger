@@ -624,7 +624,9 @@ def setup_experiment(
     # this value actually represents (it's not used as _only_ the Heroku app ID).
     if app:
         heroku_app_id = str(app)
-        log("Using custom Heroku ID root: {}".format(heroku_app_id))
+        logging.getLogger(__name__).debug(
+            "Using custom Heroku ID root: %s", heroku_app_id
+        )
 
     config.extend(
         {

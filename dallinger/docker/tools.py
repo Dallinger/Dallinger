@@ -1,12 +1,14 @@
 import codecs
 import os
 import re
+import sys
+import tempfile
 import time
 import warnings
 from hashlib import sha256
 from pathlib import Path
 from shutil import which
-from subprocess import CalledProcessError, call, check_output
+from subprocess import STDOUT, CalledProcessError, call, check_output, run
 
 import click
 import docker
@@ -517,12 +519,16 @@ def build_image(
     needs_chrome=False,
     force_build=True,
     image_tag=None,
+    quiet=False,
 ) -> str:
     """Build the docker image for the experiment and return its name.
 
     If ``image_tag`` is set, use it (deploy: per-launch UID). Otherwise hash
     ``requirements.txt`` and ``prepare_docker_image.sh``. If
     ``force_build`` is False, skip the build when that tag already exists.
+    If ``quiet`` is True, the ``docker build`` output goes to a log file that
+    is printed only if the build fails, unless ``DALLINGER_VERBOSE_BUILD`` is
+    set.
     """
     tag = image_tag or get_experiment_image_tag(tmp_dir)
     image_name = f"{base_image_name}:{tag}"
@@ -559,7 +565,7 @@ def build_image(
     dockerfile_path = Path(tmp_dir) / "Dockerfile"
     if dockerfile_path.exists():
         out.blather(
-            "Found a custom Dockerfile in the experiment directory, will use this for deployment."
+            "Found a custom Dockerfile in the experiment directory, will use this for deployment.\n"
         )
         dockerfile_text = dockerfile_path.read_text(encoding="utf-8")
         if list(Path(tmp_dir).glob("dallinger-*.whl")):
@@ -614,9 +620,34 @@ def build_image(
         CMD dallinger_heroku_web
         """
         dockerfile_path.write_text(ensure_experiment_workdir_writable(dockerfile_text))
-    try:
-        check_output(docker_build_invocation, env=env)
-    except CalledProcessError:
-        raise BuildError
+    # Our messages must reach the terminal before docker's own output does.
+    sys.stdout.flush()
+    if quiet and not os.environ.get("DALLINGER_VERBOSE_BUILD"):
+        _build_with_log_file(docker_build_invocation, env, image_name, out)
+    else:
+        try:
+            check_output(docker_build_invocation, env=env)
+        except CalledProcessError:
+            raise BuildError
     out.blather(f"Built image: {image_name}" + "\n")
     return image_name
+
+
+def _build_with_log_file(docker_build_invocation, env, image_name, out):
+    """Run ``docker build`` into a log file, printing the log only on failure."""
+    with tempfile.NamedTemporaryFile(
+        "w", prefix="dallinger-docker-build-", suffix=".log", delete=False
+    ) as log_file:
+        out.blather(
+            f"Building image {image_name} (full log: {log_file.name}; "
+            "set DALLINGER_VERBOSE_BUILD=1 to stream it)...\n"
+        )
+        sys.stdout.flush()
+        result = run(docker_build_invocation, env=env, stdout=log_file, stderr=STDOUT)
+    if result.returncode != 0:
+        out.blather(Path(log_file.name).read_text(errors="replace"))
+        out.blather(
+            f"\nImage build failed; the log above is saved in {log_file.name}\n"
+        )
+        sys.stdout.flush()
+        raise BuildError

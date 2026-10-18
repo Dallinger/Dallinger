@@ -577,14 +577,14 @@ def launch():
             )
 
     if recruitment_details is not None:
-        message = "\n".join(
-            (
-                "Initial recruitment list:\n{}".format(
-                    "\n".join(recruitment_details["items"])
-                ),
-                "Additional details:\n{}".format(recruitment_details["message"]),
+        sections = []
+        if recruitment_details["items"]:
+            sections.append(
+                "Initial recruitment list:\n" + "\n".join(recruitment_details["items"])
             )
-        )
+        if recruitment_details["message"]:
+            sections.append("Additional details:\n" + recruitment_details["message"])
+        message = "\n".join(sections)
     else:
         message = "Recruitment hasn't been started yet. Please, initialize recruitment manually!"
     return success_response(recruitment_msg=message)
