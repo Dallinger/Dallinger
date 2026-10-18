@@ -102,9 +102,8 @@ def debug(port, skip_flask, no_browsers=False):
         job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
 
     if not skip_flask:
-        config = get_config()
-        develop_dir = develop_target_path(config)
         try:
+            develop_dir = develop_target_path(get_config())
             _run_dev_server(["./run.sh"], develop_dir)
         finally:
             _cancel_pending_job(job)

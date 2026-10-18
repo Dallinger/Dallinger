@@ -512,22 +512,25 @@ class TestDevelopCommand:
         assert result.exit_code == 1
         assert "The local server exited with status 2" in result.output
 
-    def test_debug_survives_failed_launch_job_cancel(self, develop):
-        from rq.exceptions import InvalidJobOperation
-        from rq.job import JobStatus
 
-        develop_module = sys.modules["dallinger.command_line.develop"]
-        with (
-            mock.patch.object(develop_module, "Queue") as queue,
-            mock.patch.object(develop_module, "_run_dev_server"),
-        ):
-            job = queue.return_value.enqueue_call.return_value
-            job.get_status.return_value = JobStatus.QUEUED
-            job.cancel.side_effect = InvalidJobOperation("already cancelled")
-            result = CliRunner().invoke(develop, ["debug", "--no-browsers"])
+def test_cancel_pending_job_skips_expired_and_cancels_queued():
+    from rq import Queue
+    from rq.job import JobStatus
 
-        assert result.exit_code == 0, result.output
-        assert "already cancelled" in result.output
+    from dallinger.command_line.develop import _cancel_pending_job
+    from dallinger.db import redis_conn
+
+    queue = Queue("test_cancel_pending_job", connection=redis_conn)
+    try:
+        expired = queue.enqueue(print)
+        redis_conn.delete(expired.key)
+        _cancel_pending_job(expired)
+
+        queued = queue.enqueue(print)
+        _cancel_pending_job(queued)
+        assert queued.get_status() == JobStatus.CANCELED
+    finally:
+        queue.delete(delete_jobs=True)
 
 
 def test_dev_server_stops_quietly_on_ctrl_c(tmp_path):
