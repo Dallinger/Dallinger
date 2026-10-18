@@ -1,4 +1,5 @@
 import configparser
+import gc
 import os
 import re
 import shutil
@@ -2153,11 +2154,21 @@ class TestDebugServer:
         )
 
 
-class QuietCLIRecruiter(recruiters.CLIRecruiter):
-    nickname = "quietcli"
-    opens_participant_browsers = False
+@pytest.fixture
+def quiet_cli_recruiter(active_config):
+    """Register a CLIRecruiter subclass that opens no browsers, for one test."""
+
+    class QuietCLIRecruiter(recruiters.CLIRecruiter):
+        nickname = "quietcli"
+        opens_participant_browsers = False
+
+    assert isinstance(recruiters.by_name("quietcli"), QuietCLIRecruiter)
+    yield
+    del QuietCLIRecruiter
+    gc.collect()
 
 
+@pytest.mark.usefixtures("quiet_cli_recruiter")
 @pytest.mark.parametrize(
     "recruiter_config, no_browsers, mentions_browsers",
     [

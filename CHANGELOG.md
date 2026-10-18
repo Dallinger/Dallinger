@@ -182,8 +182,9 @@
   claiming so with `--no-browsers`, `--bot`, other recruiters, or in
   `dallinger develop debug`, which never opens them. Recruiters declare this
   with the new `opens_participant_browsers` class attribute (True for the CLI
-  and HotAir recruiters); a MultiRecruiter counts if any recruiter in its spec
-  does. The new `recruiters.class_from_config()` returns the recruiter class
+  and HotAir recruiters), and `recruiters.config_opens_participant_browsers()`
+  applies it to the configured recruiter; a MultiRecruiter counts if any
+  recruiter in its spec does. The new `recruiters.class_from_config()` returns the recruiter class
   that `from_config()` would build, without constructing it. As a result,
   `from_config()` no longer constructs a configured recruiter that debug mode
   replaces, so for example `recruiter = prolific` or `mturk` in debug mode no

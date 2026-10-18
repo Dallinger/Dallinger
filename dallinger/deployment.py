@@ -606,8 +606,9 @@ class DebugDeployment(HerokuLocalDeployment):
         else:
             if result["status"] == "success":
                 self.out.log(result["recruitment_msg"])
-                if not self.no_browsers and recruiters.opens_participant_browsers(
-                    get_config()
+                if (
+                    not self.no_browsers
+                    and recruiters.config_opens_participant_browsers(get_config())
                 ):
                     self.out.log(
                         "New participants requested by the experiment will open "

@@ -170,7 +170,8 @@ class Recruiter:
     external_submission_url = None  # MTurkRecruiter, for one, overides this
     supports_delayed_publishing = False
     # True if recruit() logs NEW_RECRUIT_LOG_PREFIX lines, which the debug
-    # deployment turns into browser windows.
+    # deployment turns into browser windows. MultiRecruiter leaves this False;
+    # config_opens_participant_browsers() checks the recruiters in its spec.
     opens_participant_browsers = False
 
     def __call__(self):
@@ -2426,7 +2427,7 @@ def class_from_config(config):
     return MTurkRecruiter
 
 
-def opens_participant_browsers(config):
+def config_opens_participant_browsers(config):
     """Return whether the configured recruiter opens participant browsers.
 
     A MultiRecruiter counts if any recruiter in its ``recruiters`` spec does.
