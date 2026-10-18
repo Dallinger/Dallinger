@@ -23,8 +23,10 @@ object:
     page's last view, each a ``{"number", "reason"}`` object with the reason
     it gave :class:`~dallinger.realtime.Reject`
   - ``ended``: why the session ended, once it has, otherwise ``null``
-  - ``clock``: the runner's clock when it sent the view, in seconds since
-    1970
+  - ``clock``: the runner's clock, in seconds since 1970, when it started
+    playing the session for this view. The runner sends the view once it has
+    played and saved every session that was due with it, so the view leaves a
+    little after this.
 
 A message's number is the one its page put in the message's envelope, as
 :mod:`dallinger.realtime.session_sockets` describes.
