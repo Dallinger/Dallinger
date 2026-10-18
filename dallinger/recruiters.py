@@ -1293,10 +1293,8 @@ class HotAirRecruiter(CLIRecruiter):
         logger.debug("Opening HotAir recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
         message = (
-            "\nSingle recruitment link: {}/ad?recruiter={}&generate_tokens=1&mode={}\n\n"
-            "Recruitment requests will open browser windows automatically.".format(
-                get_base_url(), self.nickname, self._get_mode()
-            )
+            f"Single recruitment link: {get_base_url()}/ad?recruiter={self.nickname}"
+            f"&generate_tokens=1&mode={self._get_mode()}"
         )
 
         return {"items": recruitments, "message": message}

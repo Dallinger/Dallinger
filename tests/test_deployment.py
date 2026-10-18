@@ -1980,6 +1980,21 @@ class TestDebugServer:
         debugger.run()
         "Server is running" in str(debugger.out.log.call_args_list[0])
 
+    @pytest.mark.parametrize("no_browsers", [False, True])
+    def test_launch_mentions_browser_windows_only_if_enabled(
+        self, active_config, debugger_unpatched, browser, no_browsers
+    ):
+        debugger_unpatched.no_browsers = no_browsers
+        debugger_unpatched.display_dashboard_access_details = mock.Mock()
+        debugger_unpatched.async_open_dashboard = mock.Mock()
+        launch = {"status": "success", "recruitment_msg": "Recruitment is open"}
+        with mock.patch("dallinger.deployment.handle_launch_data", return_value=launch):
+            debugger_unpatched.execute(mock.Mock())
+
+        logged = [c.args[0] for c in debugger_unpatched.out.log.call_args_list]
+        assert "Recruitment is open" in logged
+        assert any("open in browser windows" in m for m in logged) != no_browsers
+
     def test_raises_if_heroku_wont_start(self, debugger):
         mock_wrapper = mock.Mock(
             __enter__=mock.Mock(side_effect=OSError),

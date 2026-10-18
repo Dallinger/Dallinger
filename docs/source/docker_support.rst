@@ -494,7 +494,7 @@ The above command will output:
     Initial recruitment list:
     https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&assignmentId=F2Q19C&hitId=BE9BWB&workerId=YC30TJ&mode=debug
     Additional details:
-    Recruitment requests will open browser windows automatically.
+    Single recruitment link: https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&generate_tokens=1&mode=debug
     To display the logs for this experiment you can run:
     ssh debian@0.0.0.0 docker compose -f '~/dallinger/dlgr-d5543ddd/docker-compose.yml' logs -f
     You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard as user admin using password foobar

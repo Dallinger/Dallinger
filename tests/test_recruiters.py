@@ -242,9 +242,10 @@ class TestHotAirRecruiter:
         result = recruiter.open_recruitment()
         assert len(result["items"]) == 1
 
-    def test_open_recruitment_describes_how_it_works(self, recruiter):
-        result = recruiter.open_recruitment()
-        assert "requests will open browser windows" in result["message"]
+    def test_open_recruitment_gives_the_recruitment_link(self, recruiter):
+        message = recruiter.open_recruitment()["message"]
+        assert message.startswith("Single recruitment link: http")
+        assert message.endswith("/ad?recruiter=hotair&generate_tokens=1&mode=debug")
 
     def test_open_recruitment_multiple(self, recruiter):
         result = recruiter.open_recruitment(n=3)

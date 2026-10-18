@@ -175,6 +175,11 @@
 
 ### Changed
 
+- The HotAir recruiter's launch message is now just the single recruitment
+  link. `dallinger debug` says that new participants will open in browser
+  windows only when browsers are enabled, rather than claiming so even with
+  `--no-browsers` or in `dallinger develop debug`, which never opens them.
+
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
@@ -340,6 +345,11 @@
 
 ### Fixed
 
+- A syntax error in `experiment.py` now names the author's file instead of
+  its symlink in the temporary develop directory.
+- Pressing Ctrl+C while a Dallinger server starts no longer prints a flood of
+  `ResourceWarning` messages; they stay hidden, as in Python's default
+  warning filters.
 - `dallinger debug` no longer prints "Error fetching experiment status" while
   the server shuts down or after a single failed request. Once recruitment
   closes, it reports an error only after three failed status checks in a row,
