@@ -459,7 +459,7 @@ class DevelopmentDeployment:
 
 
 @contextmanager
-def _sigterm_raises_keyboard_interrupt():
+def stop_signals_raise_keyboard_interrupt():
     """Treat SIGTERM and SIGHUP like Ctrl-C, so ``kill <pid>`` or closing the
     terminal also stops the local server.
 
@@ -539,7 +539,7 @@ class HerokuLocalDeployment:
             environ.update(self.environ)
         self.out.log(f"Starting up the {self.DEPLOY_NAME} server...")
         with (
-            _sigterm_raises_keyboard_interrupt(),
+            stop_signals_raise_keyboard_interrupt(),
             self.WRAPPER_CLASS(
                 config,
                 self.out,

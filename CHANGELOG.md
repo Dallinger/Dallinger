@@ -22,7 +22,9 @@
   interrupted. Ctrl+C prints "Local server stopped." instead of several
   tracebacks, and SIGTERM or SIGHUP also stops the server, worker and clock.
   If the server exits with an error, for example because the port is in
-  use, the command now exits with a non-zero status instead of 0.
+  use, the command now exits with a non-zero status instead of 0. A launch
+  job that hasn't run yet is cancelled when the server stops, so it no
+  longer runs in the next session.
 - Migration notes for code that builds on local debugging:
   - The wrapper class is now `LocalProcfileWrapper`. `HerokuLocalWrapper`
     remains as an alias.

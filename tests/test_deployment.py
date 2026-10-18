@@ -1942,12 +1942,12 @@ def test_signal_stops_local_server_like_ctrl_c(signame):
     import signal
     import time
 
-    from dallinger.deployment import _sigterm_raises_keyboard_interrupt
+    from dallinger.deployment import stop_signals_raise_keyboard_interrupt
 
     signum = getattr(signal, signame)
     if signal.getsignal(signum) != signal.SIG_DFL:
         pytest.skip(f"{signame} already has a handler")
-    with raises(KeyboardInterrupt), _sigterm_raises_keyboard_interrupt():
+    with raises(KeyboardInterrupt), stop_signals_raise_keyboard_interrupt():
         os.kill(os.getpid(), signum)
         time.sleep(5)
     assert signal.getsignal(signum) == signal.SIG_DFL

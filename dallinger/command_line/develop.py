@@ -1,3 +1,4 @@
+import contextlib
 import os
 import signal
 import subprocess
@@ -19,8 +20,8 @@ from dallinger.config import get_config
 from dallinger.db import redis_conn
 from dallinger.deployment import (
     DevelopmentDeployment,
-    _sigterm_raises_keyboard_interrupt,
     handle_launch_data,
+    stop_signals_raise_keyboard_interrupt,
 )
 from dallinger.utils import (
     develop_target_path,
@@ -102,9 +103,8 @@ def debug(port, skip_flask, no_browsers=False):
         develop_dir = develop_target_path(config)
         try:
             _run_dev_server(["./run.sh"], develop_dir)
-        except click.ClickException:
+        finally:
             job.cancel()
-            raise
 
 
 def _run_dev_server(cmd, cwd):
@@ -112,7 +112,8 @@ def _run_dev_server(cmd, cwd):
 
     The server runs in its own session, so Ctrl-C reaches only this process,
     which then stops the server's whole process group. SIGTERM and SIGHUP
-    are treated like Ctrl-C.
+    are treated like Ctrl-C. A SIGKILL to this process can't be passed on,
+    so it leaves the server running.
 
     Parameters
     ----------
@@ -124,28 +125,54 @@ def _run_dev_server(cmd, cwd):
     Raises
     ------
     click.ClickException
-        If the server exits with a non-zero status of its own accord.
+        If the server fails of its own accord.
     """
-    try:
-        with _sigterm_raises_keyboard_interrupt():
-            proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True)
-            try:
-                code = proc.wait()
-            finally:
-                try:
-                    os.killpg(proc.pid, signal.SIGTERM)
-                    proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-    except KeyboardInterrupt:
+    interrupted = False
+    with stop_signals_raise_keyboard_interrupt():
+        proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True)
+        try:
+            code = proc.wait()
+        except KeyboardInterrupt:
+            interrupted = True
+        finally:
+            _stop_process_group(proc)
+    if interrupted:
         log("Local server stopped.")
-        return
-    if code:
+    elif code < 0:
+        raise click.ClickException(
+            f"The local server was killed by signal {-code}; see its output above."
+        )
+    elif code:
         raise click.ClickException(
             f"The local server exited with status {code}; see its output above."
         )
+
+
+def _stop_process_group(proc, timeout=5):
+    """Stop the process group led by ``proc`` and reap ``proc``.
+
+    Sends SIGTERM to the group, then SIGKILL to any member still alive after
+    ``timeout`` seconds. Ctrl-C, SIGTERM and SIGHUP are ignored meanwhile, so
+    repeating them can't cut the cleanup short.
+    """
+    stop_signals = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    previous = {
+        signum: signal.signal(signum, signal.SIG_IGN) for signum in stop_signals
+    }
+    try:
+        # macOS reports EPERM for a group that only has zombies left.
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(proc.pid, signal.SIGTERM)
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                proc.poll()
+                os.killpg(proc.pid, 0)
+                time.sleep(0.1)
+            os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
 
 
 @develop.command()

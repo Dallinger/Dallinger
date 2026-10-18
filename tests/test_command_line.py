@@ -503,6 +503,8 @@ class TestDevelopCommand:
         assert builder.call_count == 1
 
     def test_debug_fails_when_server_fails(self, develop, monkeypatch):
+        bin_dir = os.path.dirname(sys.executable)
+        monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
         monkeypatch.setenv("FLASK_OPTIONS", "--no-such-option")
         with mock.patch("dallinger.command_line.develop.Queue"):
             result = CliRunner().invoke(develop, ["debug", "--no-browsers"])
@@ -516,10 +518,9 @@ def test_dev_server_stops_quietly_on_ctrl_c(tmp_path):
 
     pid_file = tmp_path / "grandchild.pid"
     grandchild = (
-        "import os, signal, sys, time\n"
+        "import os, signal, time\n"
         "def report(signum, frame):\n"
         "    print('got', signal.Signals(signum).name, flush=True)\n"
-        "    if signum == signal.SIGTERM: sys.exit()\n"
         "signal.signal(signal.SIGINT, report)\n"
         "signal.signal(signal.SIGTERM, report)\n"
         f"open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
@@ -546,6 +547,8 @@ def test_dev_server_stops_quietly_on_ctrl_c(tmp_path):
         if pid_file.exists() and pid_file.read_text():
             break
         sleep(0.1)
+    else:
+        pytest.fail("server did not start")
     os.killpg(parent.pid, signal.SIGINT)
     output = parent.communicate(timeout=30)[0]
 
