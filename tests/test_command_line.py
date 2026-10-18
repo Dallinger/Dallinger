@@ -502,15 +502,12 @@ class TestDevelopCommand:
         assert result.exit_code == 0, result.output
         assert builder.call_count == 1
 
-    def test_debug_fails_when_server_fails(self, develop, monkeypatch):
-        bin_dir = os.path.dirname(sys.executable)
-        monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
-        monkeypatch.setenv("FLASK_OPTIONS", "--no-such-option")
-        with mock.patch("dallinger.command_line.develop.Queue"):
-            result = CliRunner().invoke(develop, ["debug", "--no-browsers"])
 
-        assert result.exit_code == 1
-        assert "The local server exited with status 2" in result.output
+def test_dev_server_failure_raises(tmp_path):
+    from dallinger.command_line.develop import _run_dev_server
+
+    with pytest.raises(click.ClickException, match="exited with status 2"):
+        _run_dev_server([sys.executable, "-c", "raise SystemExit(2)"], str(tmp_path))
 
 
 def test_cancel_pending_job_skips_expired_and_cancels_queued():
