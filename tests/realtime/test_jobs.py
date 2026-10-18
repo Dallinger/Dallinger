@@ -108,12 +108,15 @@ def wait_for_a_lock_wait():
     deadline = time.monotonic() + 5
     with db.engine.connect() as connection:
         while time.monotonic() < deadline:
-            waiting = connection.execute(
-                text(
-                    "SELECT count(*) FROM pg_stat_activity "
-                    "WHERE wait_event_type = 'Lock'"
-                )
-            ).scalar()
+            # Each poll in its own transaction: Postgres keeps the
+            # pg_stat_activity it first read until the transaction ends.
+            with connection.begin():
+                waiting = connection.execute(
+                    text(
+                        "SELECT count(*) FROM pg_stat_activity "
+                        "WHERE wait_event_type = 'Lock'"
+                    )
+                ).scalar()
             if waiting:
                 return
             time.sleep(0.01)

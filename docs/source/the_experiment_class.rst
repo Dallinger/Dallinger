@@ -58,6 +58,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: __init__
 
+  .. automethod:: accept_websocket_connection
+
   .. automethod:: add_node_to_network
 
   .. automethod:: assignment_abandoned

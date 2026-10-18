@@ -151,6 +151,27 @@
   Dallinger pins given as Git URLs are replaced by the local wheel as well
   (extras such as ``[docker]`` are dropped from the rewritten line).
 
+- A real-time engine for live multiplayer games (#9974). An experiment
+  subclasses `RealtimeGame` to write a game type, lists its game types in
+  `Experiment.realtime_games`, and starts a session with
+  `create_realtime_session`. Runner processes, started with the new
+  `dallinger_realtime` command, play the sessions, keeping the game state in
+  Redis. Each session's messages, clock measurements, effects, checkpoints and
+  ending are saved in the new `realtime_session` and `realtime_event` tables,
+  which exports include. Several runners can share an experiment's sessions,
+  and a session carries on from its last save if its runner dies. A page joins
+  a session by opening its websocket with the session's id as a `session`
+  query parameter, on `/chat` or `/experiment-socket`, and sends its moves on
+  the game type's channel, within a per-socket rate limit the game type sets.
+  The engine needs Redis 7.0 or later.
+- `Experiment.accept_websocket_connection(participant_id, scope)` lets an
+  experiment refuse an `/experiment-socket` connection when it opens. A falsy
+  return closes the socket with code `1008`, and Dallinger's client helpers
+  stop reconnecting.
+- `db.run_after_commit` runs a function once the outermost transaction
+  commits, and never if the transaction, or the savepoint it was added in,
+  rolls back.
+
 ### Changed
 
 - The installation and developer setup guides now use Python 3.14, the
@@ -168,9 +189,11 @@
   of Dallinger's ``Dockerfile``, including new Python versions.
 - Clients may no longer subscribe to Dallinger's own channels. The `channel`
   argument may not name `dallinger_control`, which reports every connection's
-  worker and participant ids, nor the new `dallinger_direct`, which carries the
-  directed messages published to every participant on the deployment. A
-  connection naming either is logged and left unsubscribed rather than refused,
+  worker and participant ids, the new `dallinger_direct`, which carries the
+  directed messages published to every participant on the deployment, or the
+  new `dallinger_time`, on which real-time pages send time requests and clock
+  reports that the web process handles itself. A connection naming one of them
+  is logged and left unsubscribed rather than refused,
   and may still send and receive otherwise. Client messages addressed to
   `dallinger_control` were already discarded, and the same now applies to
   `dallinger_direct`.
@@ -218,6 +241,19 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
+
+- `db.queue_message` publishes only when the outermost transaction commits,
+  not also when a savepoint is released. An error in a function run after a
+  commit is logged rather than raised from `commit()`.
+- A web worker that gets `SIGTERM` closes its websockets with code `1001`, so
+  browsers reconnect to another web process straight away instead of being
+  dropped when the platform kills the process.
+- The RQ worker uses `psycogreen`, a new dependency, so a job waiting on the
+  database doesn't hold up the worker's other jobs. Connections set up this
+  way can't run `COPY`, so an experiment job that calls `export` on the worker
+  fails.
+- `init_db(drop_all=True)` also deletes every real-time session from Redis, so
+  it now needs Redis.
 
 ### Fixed
 

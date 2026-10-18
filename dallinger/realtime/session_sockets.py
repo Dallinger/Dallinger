@@ -13,11 +13,13 @@ session's ending instead, as :mod:`dallinger.realtime.delivery` describes.
 A page measures its clock against the server's with frames on
 :data:`~dallinger.db.TIME_CHANNEL`, each a JSON object:
 
-- ``{"type": "request", "id": ...}`` asks for the server's clock. The web
-  process answers at once, on the same socket, with
-  ``{"type": "time", "id": ..., "clock": ...}``: the request's ``id`` and the
-  server's clock, in seconds since 1970. The server's clock is redis's, which
-  also sets the times entries are received and the session's time.
+- ``{"type": "request", "id": ...}`` asks for the server's clock. The ``id``
+  is a number the page chooses. The web process answers at once, on the same
+  socket, with ``{"type": "time", "id": ..., "clock": ...}``: the request's
+  ``id`` and the server's clock, in seconds since 1970. A request whose ``id``
+  isn't a finite number that fits in a float is dropped. The server's clock
+  is redis's, which also sets the times entries are received and the
+  session's time.
 - ``{"type": "clock", "browser_time": ..., "server_time": ...,
   "round_trip": ...}`` reports a measurement, which is saved with the
   session's records. ``browser_time`` is the browser's clock, the clock of
@@ -25,14 +27,17 @@ A page measures its clock against the server's with frames on
   at the same moment, as the page estimated it, in seconds since 1970, and
   ``round_trip`` is the round trip of the request the estimate came from, in
   seconds. A report counts against the rate limit as a message does. One
-  missing a value, with a value that isn't a finite number, or with a
-  negative ``round_trip``, is dropped.
+  missing a value, with a value that isn't a finite number that fits in a
+  float, or with a negative ``round_trip``, is dropped.
 
 A socket with no session gets no answers, and its reports are dropped.
 
 The web process only checks that the participant the socket names is one of
 the session's players. Dallinger's sockets don't authenticate anyone, so a
-page that names another player's participant id can play as that player.
+page that names another player's participant id can play as that player. An
+experiment can check ``/experiment-socket`` connections itself with
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection`, but a
+``/chat`` connection can join a session without that check.
 """
 
 import json
@@ -43,7 +48,7 @@ import uuid
 
 from redis import RedisError
 
-from dallinger.db import DIRECT_CHANNEL, TIME_CHANNEL
+from dallinger.db import DIRECT_CHANNEL, TIME_CHANNEL, channel_frame
 from dallinger.realtime import store
 from dallinger.realtime.delivery import ending_payload
 
@@ -157,7 +162,7 @@ class SessionSocket(NoSession):
         ending = store.load_ending(self.session_id)
         if ending is None:
             raise SessionExpired(self.session_id)
-        return "{}:{}".format(
+        return channel_frame(
             DIRECT_CHANNEL, ending_payload(self.session_id, ending, self.participant)
         )
 
@@ -200,10 +205,10 @@ class SessionSocket(NoSession):
         """
         frame = _json_object(data)
         kind = None if frame is None else frame.get("type")
-        if kind == "request":
+        if kind == "request" and _finite_number(frame.get("id")) is not None:
             clock = time.time() + self.clock_offset
-            answer = {"type": "time", "id": frame.get("id"), "clock": clock}
-            return "{}:{}".format(TIME_CHANNEL, json.dumps(answer))
+            answer = {"type": "time", "id": frame["id"], "clock": clock}
+            return channel_frame(TIME_CHANNEL, json.dumps(answer))
         report = _clock_report(frame) if kind == "clock" else None
         if report is None:
             self.warn_dropped(
@@ -241,21 +246,24 @@ def _json_object(data):
     return value if isinstance(value, dict) else None
 
 
+def _finite_number(value):
+    """``value`` as a float if it's a finite number that fits in one, otherwise
+    ``None``.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        value = float(value)
+    except OverflowError:
+        return None
+    # json.loads reads NaN and Infinity, and a float too large as infinity.
+    return value if math.isfinite(value) else None
+
+
 def _clock_report(frame):
-    report = {}
-    for name in ("browser_time", "server_time", "round_trip"):
-        value = frame.get(name)
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return None
-        try:
-            value = float(value)
-        except OverflowError:
-            return None
-        # json.loads reads NaN and Infinity, and a float too large as infinity.
-        if not math.isfinite(value):
-            return None
-        report[name] = value
-    if report["round_trip"] < 0:
+    names = ("browser_time", "server_time", "round_trip")
+    report = {name: _finite_number(frame.get(name)) for name in names}
+    if None in report.values() or report["round_trip"] < 0:
         return None
     return report
 

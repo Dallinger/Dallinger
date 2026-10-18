@@ -6,6 +6,7 @@ import os
 import socket
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime
 
 import gevent
@@ -16,14 +17,13 @@ from gevent.lock import Semaphore
 from redis import ConnectionError, RedisError
 from redis import TimeoutError as RedisTimeoutError
 from simple_websocket import ConnectionClosed
-from sqlalchemy.exc import SQLAlchemyError
 
-from dallinger import models
 from dallinger.db import (
     CONTROL_CHANNEL,
     DIRECT_CHANNEL,
     RESERVED_CHANNELS,
     TIME_CHANNEL,
+    channel_frame,
     direct_envelope,
     redis_conn,
     session,
@@ -31,7 +31,8 @@ from dallinger.db import (
 from dallinger.realtime import session_sockets, store
 from dallinger.utils import normalized_participant_id
 
-from .experiment_server import Experiment, app
+from . import socket_admission
+from .experiment_server import app
 from .utils import date_handler
 
 sock = Sock(app)
@@ -100,27 +101,6 @@ def log(msg, level="info"):
     # Log including pid and greenlet id
     logfunc = getattr(app.logger, level)
     logfunc("{}/{}: {}".format(os.getpid(), id(gevent.hub.getcurrent()), msg))
-
-
-_process_experiment = None
-_process_experiment_lock = Semaphore()
-
-
-def process_experiment():
-    """The one ``Experiment`` this process hands to its experiment-socket clients.
-
-    ``Experiment.__init__`` runs ``configure()``, which is experiment code and
-    may query, so the constructor can yield and two connections would otherwise
-    each build one.
-    """
-    global _process_experiment
-    with _process_experiment_lock:
-        if _process_experiment is None:
-            try:
-                _process_experiment = Experiment()
-            finally:
-                session.remove()
-    return _process_experiment
 
 
 _process_games = None
@@ -220,7 +200,7 @@ class Channel:
         """Send one pubsub message to every subscribed client."""
         if message["type"] != "message":
             return
-        payload = "{}:{}".format(
+        payload = channel_frame(
             message["channel"].decode("utf-8"), message["data"].decode("utf-8")
         )
         for client in self.clients:
@@ -527,7 +507,7 @@ class ChatBackend:
         who are connected elsewhere, or nowhere, is ordinary.
         """
         scope = send["scope"]
-        frame = "{}:{}".format(DIRECT_CHANNEL, send["payload"])
+        frame = channel_frame(DIRECT_CHANNEL, send["payload"])
         for participant_id in send["participant_ids"]:
             for client in list(self.clients_by_participant.get(participant_id, ())):
                 if scope is not None and client.scope != scope:
@@ -816,24 +796,6 @@ def publish_to_participants(payload, participant_ids, scope=None):
     chat_backend.deliver_direct(send)
 
 
-def resolve_participant_id(participant_id):
-    """The id of the participant ``participant_id`` names, or ``None``.
-
-    Existence is checked against the normalized id, so a value the column
-    cannot hold is refused before a query is made with it.
-    """
-    normalized = normalized_participant_id(participant_id)
-    if normalized is None:
-        return None
-    try:
-        found = session.query(
-            session.query(models.Participant).filter_by(id=int(normalized)).exists()
-        ).scalar()
-    finally:
-        session.remove()
-    return normalized if found else None
-
-
 def wait_until_listening(*channels):
     """Wait for redis to confirm the subscription of each channel.
 
@@ -864,14 +826,53 @@ def _serve(ws, participant_id=None, experiment=None):
     once the connection's direct listener is confirmed, so the view the
     runner answers with can't miss it, and a leave when it closes. A session
     that has ended gets no join, and the connection gets its ending instead.
-    One whose keys expired after the check is refused like a non-member.
+    One whose keys expired after the check is refused like a non-member. A
+    connection that closes while it waits for its subscriptions, with or
+    without a session, isn't served.
+    """
+    try:
+        client = _open_client(ws, participant_id, experiment)
+    except socket_admission.Refused as refusal:
+        _refuse(ws, refusal)
+        return
+    with _registered(client, request.args.get("channel")) as listeners:
+        # Checked only once the client is registered, so a shutdown that
+        # began while the connection was being set up closes it either way.
+        if chat_backend.closing:
+            client.close_going_away()
+            return
+        wait_until_listening(*listeners)
+        if not ws.connected:
+            # Closed during the wait, by the browser or by a shutdown.
+            return
+        try:
+            ending = _join_session(client)
+        except socket_admission.Refused as refusal:
+            _refuse(ws, refusal)
+            return
+        if ending is not None:
+            client.send(ending)
+        client.publish()
+
+
+def _refuse(ws, refusal):
+    code = UNAVAILABLE_CLOSE_CODE if refusal.retry else REFUSED_CLOSE_CODE
+    ws.close(code, refusal.reason)
+
+
+def _open_client(ws, participant_id, experiment):
+    """Return the :class:`Client` for a new connection, with its place in
+    the real-time session it asked for, if any.
+
+    :raises ~dallinger.experiment_server.socket_admission.Refused: if the
+        game types can't be loaded, or the session can't be looked up or
+        doesn't have the connection's participant as a player
     """
     try:
         games = process_games()
     except Exception:
         log("Could not load the experiment's game types.", level="exception")
-        ws.close(UNAVAILABLE_CLOSE_CODE, "experiment unavailable")
-        return
+        raise socket_admission.Refused("experiment unavailable", retry=True)
     client = Client(
         ws,
         worker_id=request.args.get("worker_id"),
@@ -880,64 +881,50 @@ def _serve(ws, participant_id=None, experiment=None):
         experiment=experiment,
         games=games,
     )
-    requested_session = request.args.get("session")
-    if requested_session is not None:
-        try:
-            session = session_sockets.open_session_socket(
-                requested_session,
-                client.addressable_id,
-                client.scope,
-                games,
-                client.client_info(),
-            )
-        except RedisError:
-            log("Could not look up a real-time session.", level="exception")
-            ws.close(UNAVAILABLE_CLOSE_CODE, "session lookup failed")
-            return
-        if session is None:
-            log(
-                "Refusing {} for real-time session {!r}.".format(
-                    client.client_info(), requested_session
-                ),
-                level="warning",
-            )
-            ws.close(REFUSED_CLOSE_CODE, "not a player in this session")
-            return
-        client.session = session
-    subscribed = client.subscribe(request.args.get("channel"))
+    requested = request.args.get("session")
+    if requested is None:
+        return client
+    try:
+        session_socket = session_sockets.open_session_socket(
+            requested,
+            client.addressable_id,
+            client.scope,
+            games,
+            client.client_info(),
+        )
+    except RedisError:
+        log("Could not look up a real-time session.", level="exception")
+        raise socket_admission.Refused("session lookup failed", retry=True)
+    if session_socket is None:
+        log(
+            "Refusing {} for real-time session {!r}.".format(
+                client.client_info(), requested
+            ),
+            level="warning",
+        )
+        raise socket_admission.Refused("not a player in this session")
+    client.session = session_socket
+    return client
+
+
+@contextmanager
+def _registered(client, channel):
+    """Subscribe ``client`` to ``channel``, register it for directed sends
+    and add it to the open clients. Yield the two channels to wait for.
+
+    Afterwards, unsubscribe and deregister it, remove it from the open
+    clients, and add its leave to its session if it joined.
+    """
+    subscribed = client.subscribe(channel)
     direct = chat_backend.register(client)
     chat_backend.open_clients.add(client)
     try:
-        # Checked only once the client is in open_clients, so a shutdown that
-        # began while the connection was being set up closes it either way.
-        if chat_backend.closing:
-            client.close_going_away()
-            return
-        wait_until_listening(subscribed, direct)
-        session = client.session
-        if isinstance(session, session_sockets.SessionSocket) and not ws.connected:
-            # Closed during the wait, by the browser or by a shutdown.
-            return
-        try:
-            ending = session.join()
-        except session_sockets.SessionExpired:
-            ws.close(REFUSED_CLOSE_CODE, "not a player in this session")
-            return
-        except RedisError:
-            log(
-                "Could not join {} to its session.".format(client.client_info()),
-                level="exception",
-            )
-            ws.close(UNAVAILABLE_CLOSE_CODE, "session join failed")
-            return
-        if ending is not None:
-            client.send(ending)
-        client.publish()
+        yield subscribed, direct
     finally:
-        # The client is registered by the two calls above, and the wait hands
-        # control to the hub, so a greenlet killed during it would leave the
-        # registrations behind. ``unsubscribe`` also runs in ``publish``, and
-        # tolerates being called twice.
+        # The caller's wait for the subscriptions hands control to the hub, so
+        # a greenlet killed during it would otherwise leave the registrations
+        # behind. ``unsubscribe`` also runs in ``publish``, and tolerates being
+        # called twice.
         chat_backend.unsubscribe(client)
         chat_backend.open_clients.discard(client)
         try:
@@ -949,6 +936,25 @@ def _serve(ws, participant_id=None, experiment=None):
             )
 
 
+def _join_session(client):
+    """Add the client's join to its session, if it has one, and return the
+    frame that tells the page how the session ended, if it has, or ``None``.
+
+    :raises ~dallinger.experiment_server.socket_admission.Refused: if the
+        session's keys have expired, or redis refuses the join
+    """
+    try:
+        return client.session.join()
+    except session_sockets.SessionExpired:
+        raise socket_admission.Refused("not a player in this session")
+    except RedisError:
+        log(
+            "Could not join {} to its session.".format(client.client_info()),
+            level="exception",
+        )
+        raise socket_admission.Refused("session join failed", retry=True)
+
+
 def chat(ws):
     """Relay messages between a client and redis."""
     _serve(ws, participant_id=request.args.get("participant_id"))
@@ -956,36 +962,12 @@ def chat(ws):
 
 def experiment_socket(ws):
     """Hand each inbound message to the experiment running in this process."""
-    requested_id = request.args.get("participant_id")
     try:
-        participant_id = resolve_participant_id(requested_id)
-    except SQLAlchemyError:
-        log(
-            "Could not look up participant {!r} for an experiment socket.".format(
-                requested_id
-            ),
-            level="exception",
+        participant_id, experiment = socket_admission.admit(
+            request.args.get("participant_id"), request.args.get("scope")
         )
-        ws.close(UNAVAILABLE_CLOSE_CODE, "participant lookup failed")
-        return
-    # handle_websocket_message is told which participant sent each message, so
-    # a connection we cannot name is refused rather than handled anonymously.
-    # Existence is all this proves: the route is unauthenticated, so the id is
-    # not evidence of who is on the other end.
-    if participant_id is None:
-        log(
-            "Refusing experiment socket for unknown participant {!r}.".format(
-                requested_id
-            ),
-            level="warning",
-        )
-        ws.close(REFUSED_CLOSE_CODE, "unknown participant")
-        return
-    try:
-        experiment = process_experiment()
-    except Exception:
-        log("Could not build the experiment.", level="exception")
-        ws.close(UNAVAILABLE_CLOSE_CODE, "experiment unavailable")
+    except socket_admission.Refused as refusal:
+        _refuse(ws, refusal)
         return
     _serve(ws, participant_id=participant_id, experiment=experiment)
 

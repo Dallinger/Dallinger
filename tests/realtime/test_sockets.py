@@ -8,6 +8,7 @@ from gevent.event import Event
 from redis import ConnectionError as RedisConnectionError
 from simple_websocket import ConnectionClosed
 
+from dallinger.experiment_server import socket_admission
 from dallinger.experiment_server import sockets as sockets_module
 from dallinger.realtime import session_sockets, store
 from dallinger.realtime.core import run_pass
@@ -48,7 +49,7 @@ def sockets(pubsub, monkeypatch):
     monkeypatch.setattr(sockets, "redis_conn", Mock())
     sockets.redis_conn.pubsub.return_value = pubsub
     monkeypatch.setattr(sockets, "chat_backend", sockets.ChatBackend())
-    monkeypatch.setattr(sockets, "_process_experiment", None)
+    monkeypatch.setattr(socket_admission, "_process_experiment", None)
     monkeypatch.setattr(sockets, "_process_games", None)
     yield sockets
     gevent.wait()
@@ -181,8 +182,8 @@ class TestSessionSockets:
         experiment = Mock()
 
         with (
-            patch.object(sockets, "resolve_participant_id", return_value="1"),
-            patch.object(sockets, "Experiment", return_value=experiment),
+            patch.object(socket_admission, "resolve_participant_id", return_value="1"),
+            patch.object(socket_admission, "Experiment", return_value=experiment),
             patch.object(sockets, "request", Mock(args={"session": session_id})),
         ):
             sockets.experiment_socket(ws)
@@ -346,6 +347,36 @@ class TestSessionSockets:
 
         assert entries(session_id) == []
 
+    @pytest.mark.timeout(10)
+    def test_a_socket_with_no_session_closed_while_it_waits_isnt_served(
+        self, sockets, pubsub
+    ):
+        confirm = Event()
+
+        def withheld_listen():
+            confirm.wait()
+            yield SUBSCRIBE_CONFIRMATION
+            Event().wait()
+            yield {}
+
+        pubsub.listen.side_effect = withheld_listen
+        ws = scripted("custom:hello")
+
+        with (
+            patch.object(sockets, "SUBSCRIPTION_TIMEOUT_SECS", 30),
+            patch.object(sockets, "publish_control_event") as control_event,
+        ):
+            serving = gevent.spawn(
+                chat, sockets, ws, channel="custom", participant_id="1"
+            )
+            gevent.sleep(0.05)
+            ws.connected = False
+            confirm.set()
+            serving.join(timeout=5)
+
+        events = [call.args[0].get("event") for call in control_event.mock_calls]
+        assert "connected" not in events
+
     def test_a_join_redis_refuses_asks_the_client_to_retry(self, sockets):
         session_id = session_of()
         ws = scripted("tally:up")
@@ -444,6 +475,8 @@ class TestTimeChannel:
             '{"type": "clock", "browser_time": 1, "server_time": 2, '
             '"round_trip": -0.5}',
             "[" * 1000000,
+            '{"type": "request"}',
+            '{"type": "request", "id": true}',
         ],
         ids=[
             "not JSON",
@@ -456,6 +489,8 @@ class TestTimeChannel:
             "too large for a float",
             "negative round trip",
             "nested too deeply",
+            "request without an id",
+            "request with a boolean id",
         ],
     )
     def test_a_bad_frame_is_dropped_with_a_warning(self, sockets, warning, data):

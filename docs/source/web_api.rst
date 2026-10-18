@@ -84,10 +84,12 @@ names, the directed messages a connection supplying a ``participant_id``
 receives, and the optional ``channel`` the connection still receives broadcasts
 on. In the browser, ``dallinger.openExperimentSocket`` opens this connection.
 
-An experiment socket must carry a ``participant_id`` that exists, or the server
-closes the connection with code ``1008``. If the participant lookup raises, or
-the experiment class cannot be built, the server closes with ``1013`` instead,
-which means the client should try again later.
+An experiment socket must carry a ``participant_id`` that exists, and the
+experiment's ``accept_websocket_connection`` method must accept it, or the
+server closes the connection with code ``1008``. If the participant lookup
+raises, the experiment class cannot be built, or ``accept_websocket_connection``
+raises, the server closes with ``1013`` instead, which means the client should
+try again later.
 
 ``scope`` is passed to ``handle_websocket_message`` as well as being reported in
 control channel events.

@@ -78,6 +78,14 @@ TIME_CHANNEL = "dallinger_time"
 #: send frames on :data:`TIME_CHANNEL`, which the web process handles itself.
 RESERVED_CHANNELS = frozenset({CONTROL_CHANNEL, DIRECT_CHANNEL, TIME_CHANNEL})
 
+
+def channel_frame(channel, text):
+    """Return the websocket frame that carries ``text`` on ``channel``: the
+    channel's name, a colon, then the text.
+    """
+    return "{}:{}".format(channel, text)
+
+
 db_user_warning = """
 *********************************************************
 *********************************************************

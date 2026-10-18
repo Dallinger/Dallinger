@@ -1044,7 +1044,8 @@ var dallinger = (function () {
    * connection.
    *
    * The connection identifies the participant from ``dallinger.identity``,
-   * and the server refuses it if that participant does not exist.
+   * and the server refuses it if that participant does not exist or the
+   * experiment's ``accept_websocket_connection`` method says no.
    *
    * @example
    * var socket = dallinger.openExperimentSocket();

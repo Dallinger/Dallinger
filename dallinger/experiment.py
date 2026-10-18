@@ -568,6 +568,42 @@ class Experiment:
         """
         self.send("{}:{}".format(channel_name, message))
 
+    def accept_websocket_connection(self, participant_id, scope):
+        """Decide whether a ``/experiment-socket`` connection may open.
+
+        Called once per connection, after the participant has been found and
+        before the connection subscribes to anything or joins a real-time
+        session. Return ``False`` to refuse it: the connection is closed with
+        code 1008, and Dallinger's client helpers stop reconnecting. Any
+        falsy return refuses, including ``None``, so remember to return
+        ``True``. The default accepts every connection.
+
+        ``/experiment-socket`` doesn't check who is on the other end, so use
+        this to check something only the participant's page knows, such as a
+        token the server signed when it rendered the page, passed as
+        ``scope``. :doc:`Using WebSockets in Dallinger Experiments
+        <using_websockets>` has an example, and says where the scope is
+        logged and saved. ``/chat`` connections don't call it, and can still
+        join a real-time session as any of its players.
+
+        If this raises, the connection is closed with code 1013 and the
+        browser tries again. Like
+        :func:`~dallinger.experiment.Experiment.handle_websocket_message`, it
+        runs on the one experiment instance that serves every connection on
+        the process, so keep per-participant state off ``self``. It blocks
+        the web process while it waits on the database, and the session is
+        removed after the call, so commit any writes yourself.
+
+        :param participant_id: the id of an existing participant, as a
+            decimal string, so ``int(participant_id)`` is safe
+        :type participant_id: str
+        :param scope: opaque string from the connection's query string
+        :type scope: str or None
+        :returns: whether to accept the connection
+        :rtype: bool
+        """
+        return True
+
     @classmethod
     def handle_recruitment_error(cls, error, **kwargs):
         """Handle errors that occur during recruitment.

@@ -134,14 +134,58 @@ binary frame has no prefix to split on, so the connection is closed with code
 An experiment socket must name a participant that exists, because every message
 is reported to the method as coming from someone. Dallinger closes the socket
 otherwise, with code ``1008`` and the reason ``unknown participant``.
-Two failures that are not the client's fault close with ``1013`` instead, which
-tells the client to try again later: a participant lookup that raises, and an
-experiment class that fails to build.
 
 The lookup proves only that a row with that id exists. ``/experiment-socket`` is
 not authenticated, so the id says which participant the connection claims to be,
 not who is sending the messages. Treat it as Dallinger treats every other
 ``participant_id``.
+
+An experiment that needs more can check each connection as it opens, by
+overriding :func:`~dallinger.experiment.Experiment.accept_websocket_connection`.
+It is given the participant id and the connection's ``scope``. To accept only
+connections from a participant's own pages, render each page with a token the
+server signs, and have the page open its socket with
+``dallinger.openExperimentSocket({scope: token})``. The token below is a random
+nonce and a signature of the participant id and that nonce, so nothing needs to
+be stored, and each page still has a scope of its own, which keeps directed
+sends going to the page that asked::
+
+    import hashlib
+    import hmac
+    import os
+    import secrets
+
+    def signature(participant_id, nonce):
+        key = os.environ["FLASK_SECRET_KEY"].encode()
+        message = "{}:{}".format(participant_id, nonce).encode()
+        return hmac.new(key, message, hashlib.sha256).hexdigest().encode()
+
+    def page_token(participant_id):
+        nonce = secrets.token_hex(16)
+        return nonce + "." + signature(participant_id, nonce).decode()
+
+    class MyExperiment(Experiment):
+        def accept_websocket_connection(self, participant_id, scope):
+            nonce, _, mac = (scope or "").partition(".")
+            expected = signature(participant_id, nonce)
+            return bool(nonce) and hmac.compare_digest(mac.encode(), expected)
+
+Don't keep a token anywhere a route returns it: ``GET /participant/<id>``
+returns a participant's ``property1`` to ``property5`` and ``details`` to anyone
+who asks. The scope isn't hidden from the people running the experiment either.
+Dallinger logs it, includes it in control channel events, and saves it with
+real-time records, so the check stops one participant's page from connecting as
+another participant, not someone who can read the logs or the data.
+
+A falsy return closes the socket with code ``1008`` and the reason
+``refused by the experiment``, before it subscribes to any channel or joins a
+real-time session. ``/chat`` connections are not checked, so a page that opens
+one can still join a real-time session as any of its players without a token.
+
+Three failures that are not the client's fault close with ``1013`` instead,
+which tells the client to try again later: a participant lookup that raises, an
+experiment class that fails to build, and an ``accept_websocket_connection``
+that raises.
 
 A socket opened with ``dallinger.openExperimentSocket`` stops reconnecting when
 the server refuses it, and passes the close code and reason to its
