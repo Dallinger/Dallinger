@@ -26,7 +26,9 @@ It reports what ``benchmarks/realtime.py`` reports where the simulation has
 it: ack latency from the moment a message was due to be sent, view spacing,
 tick lateness, view delay, how late messages were written, and each process's
 CPU, Postgres's included. ``events_saved`` counts the event rows, so the
-variants can be checked for doing the same work.
+variants can be checked for doing the same work, and ``unsent_messages``
+counts the messages a web process fell too far behind to write before the
+run ended.
 
 It needs what ``benchmarks/realtime.py`` needs, and empties the same
 database::
@@ -127,9 +129,10 @@ def run_web(config):
     rconn = redis.Redis.from_url(config["redis_url"])
     pool = None
     if store != "redis":
-        pool = psycopg2.pool.ThreadedConnectionPool(
-            1, len(config["players"]) + 1, config["database_url"]
-        )
+        # psycopg2's pool closes connections returned beyond its minimum, and
+        # SQLAlchemy's, which Dallinger uses, keeps them.
+        size = len(config["players"])
+        pool = psycopg2.pool.ThreadedConnectionPool(size, size, config["database_url"])
     start_at, measure_at, stop_at = config["times"]
     players = {}
     for session_id, player, measures_ticks in config["players"]:
@@ -144,7 +147,7 @@ def run_web(config):
     out = {
         key: [] for key in ("ack", "ack_at", "spacing", "lateness", "delay", "send_lag")
     }
-    out.update(sent=0, unacked=0, views=0, errors=[])
+    out.update(sent=0, unsent=0, unacked=0, views=0, errors=[])
 
     def measuring(moment):
         return measure_at <= moment < stop_at
@@ -176,6 +179,11 @@ def run_web(config):
         interval = 1 / config["rate"]
         due = start_at + random.random() * interval
         while due < stop_at:
+            if time.time() >= stop_at:
+                # A web process that fell behind leaves the rest unsent.
+                first = max(due, measure_at)
+                out["unsent"] += max(0, math.ceil((stop_at - first) / interval))
+                return
             gevent.sleep(max(due - time.time(), 0))
             started = time.time()
             number = len(state["due"])
@@ -248,12 +256,18 @@ def run_web(config):
 
 
 class Session:
-    def __init__(self, session_id, players, tick_rate, origin):
+    """A simulated session. Times are on the session's clock, which starts
+    at 0, since seconds since 1970 are too large a float to place ticks on
+    exactly.
+    """
+
+    def __init__(self, session_id, players, tick_rate):
         self.id = session_id
         self.players = players
         self.state = {"positions": {player: [0, 0] for player in players}, "ticks": 0}
         self.last_processed = {player: None for player in players}
-        self.next_tick = origin + 1 / tick_rate
+        self.next_tick = 1 / tick_rate
+        self.time = 0
         self.position = "0-0"
 
 
@@ -383,23 +397,24 @@ def run_runner(config):
     start_at, _, stop_at = config["times"]
     origin = start_at - interval
     sessions = {
-        session_id: Session(session_id, players, tick_rate, origin)
+        session_id: Session(session_id, players, tick_rate)
         for session_id, players in config["sessions"]
     }
     views_on = config["views_on"]
     end = stop_at + GRACE
     while time.time() < end:
-        due = min(session.next_tick for session in sessions.values())
+        due = origin + min(session.next_tick for session in sessions.values())
         timeout = min(due - time.time(), MAX_WAIT)
         read = store.read(sessions, timeout)
         clock = time.time()
+        now = clock - origin
         passes = []
         items = []
         for session in sessions.values():
             entries = read.get(session.id, [])
-            if not entries and clock < session.next_tick:
+            if not entries and now < session.next_tick:
                 continue
-            session.time = clock - origin
+            session.time = now
             records = []
             senders = set()
             for entry in entries:
@@ -418,7 +433,7 @@ def run_runner(config):
                     }
                 )
             ticked = False
-            while session.next_tick <= clock:
+            while session.next_tick <= now:
                 session.state["ticks"] += 1
                 session.next_tick += interval
                 ticked = True
@@ -688,12 +703,20 @@ class Simulation:
         failed = []
         for name, members in started.items():
             for process, _ in members:
-                if process.wait(120) != 0:
+                try:
+                    code = process.wait(60)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    code = process.wait()
+                if code != 0:
                     failed.append(name)
         drain = time.monotonic() - drain_started
 
-        merged = {}
+        merged = {"ack": [], "ack_at": [], "spacing": [], "lateness": [], "delay": []}
+        merged.update(send_lag=[], errors=[], sent=0, unsent=0, unacked=0, views=0)
         for path in results:
+            if not os.path.exists(path):
+                continue
             with open(path) as file:
                 for key, value in json.load(file).items():
                     merged[key] = merged.get(key, 0 if isinstance(value, int) else [])
@@ -711,6 +734,7 @@ class Simulation:
             "view_delay_ms": summary(merged["delay"]),
             "send_lag_ms": summary(merged["send_lag"]),
             "messages_per_second": round(merged["sent"] / args.duration, 1),
+            "unsent_messages": merged["unsent"],
             "unacked_messages": merged["unacked"],
             "views_received": merged["views"],
             "events_saved": self.events_saved(),
