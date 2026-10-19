@@ -16,7 +16,8 @@
   left gunicorn processes running. Pressing Ctrl+C during startup, or
   sending SIGTERM or SIGHUP (e.g. `kill <pid>`, an IDE stop button, or
   closing the terminal) to a local debug session, now also stops these
-  processes.
+  processes. Repeating Ctrl+C or one of these signals while the processes
+  are stopping no longer cuts the cleanup short.
 - `dallinger develop debug` (used by `psynet debug local`) now runs the
   Flask server in its own process group and stops that whole group when
   interrupted. Ctrl+C prints "Local server stopped." instead of several

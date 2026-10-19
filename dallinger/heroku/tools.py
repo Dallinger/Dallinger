@@ -15,7 +15,12 @@ from shlex import quote
 import psutil
 
 from dallinger.config import SENSITIVE_KEY_NAMES
-from dallinger.utils import check_call, check_output, port_is_open
+from dallinger.utils import (
+    check_call,
+    check_output,
+    ignore_stop_signals,
+    port_is_open,
+)
 
 
 def app_name(experiment_uuid):
@@ -514,12 +519,14 @@ class LocalProcfileWrapper:
         Each Procfile process group, then honcho, gets ``signal`` (SIGINT by
         default, which makes gunicorn shut down quickly). Procfile processes
         still alive after ``stop_grace_secs`` are killed. Concurrent calls
-        (e.g. from a status thread and ``__exit__``) run one at a time.
+        (e.g. from a status thread and ``__exit__``) run one at a time. In the
+        main thread, Ctrl-C, SIGTERM and SIGHUP are ignored meanwhile, so
+        repeating them can't cut the cleanup short.
         """
         # Set before signalling, so a monitor() thread that sees the output end
         # knows the exit was requested.
         self._stop_requested = True
-        with self._stop_lock:
+        with ignore_stop_signals(), self._stop_lock:
             self._stop(signal)
 
     def _stop(self, signal):

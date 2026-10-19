@@ -29,6 +29,7 @@ from dallinger.redis_utils import connect_to_redis
 from dallinger.utils import (
     ExperimentFileSource,
     GitClient,
+    available_signals,
     bootstrap_development_session,
     get_base_url,
     open_browser,
@@ -475,7 +476,7 @@ def stop_signals_raise_keyboard_interrupt():
 
     signums = [
         signum
-        for signum in (signal.SIGTERM, signal.SIGHUP)
+        for signum in available_signals("SIGTERM", "SIGHUP")
         if signal.getsignal(signum) == signal.SIG_DFL
     ]
     for signum in signums:

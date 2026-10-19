@@ -2,6 +2,7 @@ import datetime
 import os
 import signal
 import sys
+import threading
 import time
 from unittest import mock
 
@@ -716,10 +717,8 @@ def test_heroku_local_failure_ends_after_timeout(wrapper):
     assert (time.time() - start_time) < 5
 
 
-STUBBORN_WEB = """
-import os, signal, socket, time
-for sig in (signal.SIGINT, signal.SIGTERM):
-    signal.signal(sig, signal.SIG_IGN)
+LISTENING_WEB = """
+import os, socket, time
 server = socket.socket()
 server.bind(("127.0.0.1", int(os.environ["PORT"])))
 server.listen()
@@ -727,35 +726,83 @@ print("listening", flush=True)
 time.sleep(60)
 """
 
+STUBBORN_WEB = (
+    "import signal\n"
+    "for sig in (signal.SIGINT, signal.SIGTERM):\n"
+    "    signal.signal(sig, signal.SIG_IGN)\n" + LISTENING_WEB
+)
 
-@pytest.mark.slow
-def test_stop_kills_procfile_processes_that_ignore_signals(tmp_path, monkeypatch):
+
+def _toy_procfile_wrapper(tmp_path, monkeypatch, procfile, web=LISTENING_WEB):
+    """A HerokuLocalWrapper that runs ``procfile`` with real honcho."""
     import socket
-
-    import psutil
 
     from dallinger.heroku.tools import HerokuLocalWrapper
 
-    (tmp_path / "web.py").write_text(STUBBORN_WEB)
-    (tmp_path / "Procfile").write_text("web: python web.py\nworker: sleep 60\n")
+    (tmp_path / "web.py").write_text(web)
+    (tmp_path / "Procfile").write_text(procfile)
     monkeypatch.chdir(tmp_path)
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     settings = {"base_port": port, "num_dynos_web": 1, "num_dynos_worker": 1}
-    wrapper = HerokuLocalWrapper(
+    return HerokuLocalWrapper(
         mock.Mock(get=settings.get), mock.Mock(), env=dict(os.environ)
+    )
+
+
+@pytest.mark.slow
+def test_stop_kills_procfile_processes_that_ignore_signals(tmp_path, monkeypatch):
+    import psutil
+
+    wrapper = _toy_procfile_wrapper(
+        tmp_path, monkeypatch, "web: python web.py\nworker: sleep 60\n", STUBBORN_WEB
     )
     wrapper.stop_grace_secs = 1
     wrapper.start(timeout_secs=20)
     runner = wrapper._process
     children = psutil.Process(runner.pid).children(recursive=True)
+    # A repeated Ctrl-C while stop() waits must not cut the cleanup short.
+    threading.Timer(0.3, os.kill, (os.getpid(), signal.SIGINT)).start()
 
     wrapper.stop()
 
     assert runner.returncode != -signal.SIGKILL  # honcho exited by itself
     assert psutil.wait_procs(children, timeout=2)[1] == []
     wrapper.out.error.assert_not_called()
+
+
+@pytest.mark.slow
+def test_start_fails_fast_when_a_procfile_process_exits(tmp_path, monkeypatch):
+    from dallinger.heroku.tools import HerokuStartupError
+
+    wrapper = _toy_procfile_wrapper(
+        tmp_path, monkeypatch, "web: sleep 60\nworker: exit 1\n"
+    )
+    start_time = time.time()
+    with pytest.raises(HerokuStartupError):
+        wrapper.start(timeout_secs=20)
+    assert time.time() - start_time < 15
+    assert not wrapper.is_running
+
+
+@pytest.mark.slow
+def test_monitor_ends_when_a_procfile_process_exits_after_startup(
+    tmp_path, monkeypatch
+):
+    import psutil
+
+    wrapper = _toy_procfile_wrapper(
+        tmp_path, monkeypatch, "web: python web.py\nworker: sleep 2 && exit 1\n"
+    )
+    wrapper.start(timeout_secs=20)
+    children = psutil.Process(wrapper._process.pid).children(recursive=True)
+
+    wrapper.monitor(lambda line: None)
+
+    assert psutil.wait_procs(children, timeout=5)[1] == []
+    assert "stopped producing output" in wrapper.out.error.call_args[0][0]
+    wrapper.stop()
 
 
 @pytest.mark.parametrize("greenlets, max_connections", [(5, 50), (100, 110)])

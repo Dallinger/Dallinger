@@ -1,3 +1,4 @@
+import contextlib
 import functools
 import io
 import json
@@ -7,11 +8,13 @@ import os
 import random
 import re
 import shutil
+import signal
 import socket
 import string
 import subprocess
 import sys
 import tempfile
+import threading
 import warnings
 import webbrowser
 from datetime import datetime
@@ -1355,6 +1358,28 @@ def port_is_open(port, host="127.0.0.1"):
             return True
         except (ConnectionRefusedError, OSError):
             return False
+
+
+def available_signals(*names):
+    """Return the named signals that this platform defines (e.g. Windows has
+    no ``SIGHUP``)."""
+    return [getattr(signal, name) for name in names if hasattr(signal, name)]
+
+
+@contextlib.contextmanager
+def ignore_stop_signals():
+    """Ignore Ctrl-C, SIGTERM and SIGHUP meanwhile, so repeating them can't
+    cut a cleanup short. Does nothing outside the main thread."""
+    previous = {}
+    if threading.current_thread() is threading.main_thread():
+        for signum in available_signals("SIGINT", "SIGTERM", "SIGHUP"):
+            previous[signum] = signal.signal(signum, signal.SIG_IGN)
+    try:
+        yield
+    finally:
+        for signum, handler in previous.items():
+            if handler is not None:
+                signal.signal(signum, handler)
 
 
 def open_for_csv(*args, **kw):

@@ -28,6 +28,7 @@ from dallinger.deployment import (
 )
 from dallinger.utils import (
     develop_target_path,
+    ignore_stop_signals,
     open_browser,
     setup_warning_hooks,
 )
@@ -171,11 +172,7 @@ def _stop_process_group(proc, timeout=5):
     ``timeout`` seconds. In the main thread, Ctrl-C, SIGTERM and SIGHUP are
     ignored meanwhile, so repeating them can't cut the cleanup short.
     """
-    previous = {}
-    if threading.current_thread() is threading.main_thread():
-        for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
-            previous[signum] = signal.signal(signum, signal.SIG_IGN)
-    try:
+    with ignore_stop_signals():
         # macOS reports EPERM for a group that only has zombies left.
         with contextlib.suppress(ProcessLookupError, PermissionError):
             os.killpg(proc.pid, signal.SIGTERM)
@@ -186,10 +183,6 @@ def _stop_process_group(proc, timeout=5):
                 time.sleep(0.1)
             os.killpg(proc.pid, signal.SIGKILL)
         proc.wait()
-    finally:
-        for signum, handler in previous.items():
-            if handler is not None:
-                signal.signal(signum, handler)
 
 
 @develop.command()
