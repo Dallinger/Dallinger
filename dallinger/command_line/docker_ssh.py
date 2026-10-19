@@ -1084,16 +1084,61 @@ def _abort_cloudflare(exc):
     raise click.ClickException(f"Cloudflare error: {exc}") from exc
 
 
-def _preload_cloudflare_token(config, server, ingress, config_options):
-    """Return the API token for a Cloudflare deploy, or ``None`` for classic ingress.
+def check_deploy_credentials(server=None, ingress=None, config_options=None):
+    """Check that a docker-ssh deploy can load the credentials it needs.
 
-    Called before the deploy connects to the server or builds an image there,
-    so a missing token stops it before anything changes. ``-c`` overrides of
-    the token settings apply here as they do later in the deploy, but only
-    for this check, so they don't leak into the image build.
+    ``docker-ssh deploy`` and ``sandbox`` call this before they contact the
+    server. Tools that wrap them can call it earlier, before their own
+    preparation, so a missing Cloudflare API token stops the deploy before
+    anything changes. The server and ingress are resolved as the deploy
+    resolves them, and the token is only loaded for Cloudflare ingress.
+
+    Parameters
+    ----------
+    server : str, optional
+        Configured server name, or its short hostname, as for ``--server``.
+        If omitted and exactly one server is configured, that server is used.
+        If omitted and several are configured, nothing is checked, because
+        the deploy has not chosen a server yet.
+    ingress : str, optional
+        ``"classic"`` or ``"cloudflare"``, as for ``--ingress``. Defaults to
+        the server's ``default_ingress``.
+    config_options : mapping or iterable of (key, value) pairs, optional
+        The deploy's ``-c`` options. Only ``cloudflare_api_token`` and
+        ``cloudflare_keychain_service`` (and their synonyms) are applied, and
+        only while the token is loaded.
+
+    Returns
+    -------
+    str or None
+        The Cloudflare API token, which the caller can reuse instead of
+        reading the Keychain again, or ``None`` if the deploy uses classic
+        ingress or no server was chosen.
+
+    Raises
+    ------
+    click.UsageError
+        If ``server`` is not a configured server, no server is configured,
+        or ``ingress`` is unknown.
+    click.ClickException
+        If the deploy uses Cloudflare ingress and the token can't be loaded.
     """
-    if _resolve_ingress(_resolve_server_info(server), ingress) != INGRESS_CLOUDFLARE:
+    hosts = tuple(CONFIGURED_HOSTS)
+    if server is None:
+        if not hosts:
+            raise click.UsageError(
+                "No server configured. Use `dallinger docker-ssh servers add` to add one."
+            )
+        if len(hosts) > 1:
+            return None
+        server = hosts[0]
+    try:
+        server_info = _resolve_server_info(server)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
+    if _resolve_ingress(server_info, ingress) != INGRESS_CLOUDFLARE:
         return None
+    config = get_config(load=True)
     token_options = {}
     for key, value in dict(config_options or ()).items():
         key = config.synonyms.get(key, key)
@@ -1126,6 +1171,11 @@ def _apply_config_options(config, config_options):
 
 
 def ensure_root_domain_ready(server, update):
+    """Make sure no other host-Caddy experiment holds the server's root domain.
+
+    In a terminal, offers to destroy the experiments that do. Without one,
+    refuses with the destroy commands to run first.
+    """
     if update:
         return True
 
@@ -1136,13 +1186,20 @@ def ensure_root_domain_ready(server, update):
         return True
 
     joined = ", ".join(conflicts)
-    print(
-        f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
-        f"{RED}Found deployed experiments:{END} {joined}"
-    )
     destroy_cmds = "\n".join(
         f"  dallinger docker-ssh destroy --app {name} --server {server}"
         for name in conflicts
+    )
+    if not sys.stdin.isatty():
+        raise click.ClickException(
+            f"Deploying to the root domain of {server} requires destroying its "
+            f"deployed experiments first: {joined}. Without a terminal they "
+            "can't be destroyed automatically. Destroy them, then deploy again:\n"
+            f"{destroy_cmds}"
+        )
+    print(
+        f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
+        f"{RED}Found deployed experiments:{END} {joined}"
     )
     print(
         f"{RED}Please destroy those experiments before deploying to the root domain.{END}\n"
@@ -1163,10 +1220,9 @@ def ensure_root_domain_ready(server, update):
     executor = _executor_for_server(server)
     remaining = _host_caddy_apps(executor)
     if remaining:
-        print(
-            f"{RED}Some experiments are still present: {', '.join(remaining)}. Aborting.{END}"
+        raise click.ClickException(
+            f"Some experiments are still present: {', '.join(remaining)}."
         )
-        raise click.Abort()
 
     return True
 
@@ -1269,11 +1325,8 @@ def build_and_push_image(f):
         if not kwargs.get("allow_private_ip") and not kwargs.get("update"):
             _check_classic_ingress_reachable(kwargs["server"], kwargs.get("ingress"))
         config = get_config(load=True)
-        kwargs["cloudflare_api_token"] = _preload_cloudflare_token(
-            config,
-            kwargs["server"],
-            kwargs.get("ingress"),
-            kwargs.get("config_options"),
+        kwargs["cloudflare_api_token"] = check_deploy_credentials(
+            kwargs["server"], kwargs.get("ingress"), kwargs.get("config_options")
         )
         image_name = config.get("docker_image_name", None)
         local_build = kwargs.get("local_build", False)

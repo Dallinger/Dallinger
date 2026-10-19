@@ -189,7 +189,7 @@ def test_cloudflare_error_prints_one_error_line(monkeypatch):
 @pytest.mark.parametrize(
     "default_ingress, expected", [("cloudflare", "from-file"), ("classic", None)]
 )
-def test_preload_cloudflare_token_reads_file_override(
+def test_check_deploy_credentials_reads_file_override(
     monkeypatch, tmp_path, default_ingress, expected
 ):
     monkeypatch.delenv("CLOUDFLARE_API_TOKEN", raising=False)
@@ -213,8 +213,8 @@ def test_preload_cloudflare_token_reads_file_override(
         return config.get("cloudflare_api_token")
 
     monkeypatch.setattr(docker_ssh_module, "load_api_token", load_api_token)
-    token = docker_ssh_module._preload_cloudflare_token(
-        config,
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    token = docker_ssh_module.check_deploy_credentials(
         "lab",
         None,
         (
@@ -229,7 +229,7 @@ def test_preload_cloudflare_token_reads_file_override(
     assert config.get("cloudflare_keychain_service", None) is None
 
 
-def test_preload_cloudflare_token_reports_a_missing_token_file(monkeypatch, tmp_path):
+def test_check_deploy_credentials_reports_a_missing_token_file(monkeypatch, tmp_path):
     monkeypatch.setattr(
         docker_ssh_module,
         "CONFIGURED_HOSTS",
@@ -238,11 +238,36 @@ def test_preload_cloudflare_token_reports_a_missing_token_file(monkeypatch, tmp_
     config = Configuration()
     config.register("cloudflare_api_token", str)
     config.ready = True
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
     missing = tmp_path / "missing"
     with pytest.raises(click.ClickException, match=f"Could not read {missing}: "):
-        docker_ssh_module._preload_cloudflare_token(
-            config, "lab", None, (("cloudflare_api_token", f"file:{missing}"),)
+        docker_ssh_module.check_deploy_credentials(
+            "lab", None, (("cloudflare_api_token", f"file:{missing}"),)
         )
+
+
+def test_check_deploy_credentials_resolves_the_server_like_the_deploy(monkeypatch):
+    hosts = {
+        "lab.example.org": {"host": "lab", "default_ingress": "cloudflare"},
+        "other.example.org": {"host": "other"},
+    }
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", hosts)
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: Configuration())
+    monkeypatch.setattr(docker_ssh_module, "load_api_token", lambda config: "token")
+    check = docker_ssh_module.check_deploy_credentials
+
+    assert check("lab") == "token"
+    assert check("lab", ingress="classic") is None
+    assert check("other") is None
+    assert check("other", ingress="cloudflare") == "token"
+    # The deploy hasn't chosen one of several servers yet.
+    assert check() is None
+    with pytest.raises(click.UsageError, match="Unknown server 'missing'"):
+        check("missing")
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"lab": hosts["lab.example.org"]}
+    )
+    assert check() == "token"
 
 
 def test_cloudflare_deploy_uses_the_preloaded_token(monkeypatch):
@@ -595,12 +620,47 @@ def test_root_domain_auto_destroy_uses_full_server_name(monkeypatch):
     monkeypatch.setattr(
         docker_ssh_module, "_host_caddy_apps", mock.Mock(side_effect=[["old"], []])
     )
+    monkeypatch.setattr(sys, "stdin", mock.Mock(isatty=lambda: True))
     monkeypatch.setattr(docker_ssh_module.click, "confirm", lambda *a, **k: True)
     destroy = mock.Mock()
     monkeypatch.setattr(docker_ssh_module.destroy, "callback", destroy)
 
     assert docker_ssh_module.ensure_root_domain_ready("pc01", update=False)
     destroy.assert_called_once_with(server="pc01.lab.example.org", app="old")
+
+
+def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatch):
+    from click.testing import CliRunner
+
+    pytest.importorskip("docker")
+    hosts = {"pc01.lab.example.org": {"host": "pc01.lab.example.org"}}
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", hosts)
+    monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: hosts)
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: mock.MagicMock())
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "_host_caddy_apps", lambda executor: ["old", "older"]
+    )
+    destroy = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module.destroy, "callback", destroy)
+
+    result = CliRunner().invoke(
+        docker_ssh_module.deploy, ["--server", "pc01", "--allow-private-ip"]
+    )
+
+    assert result.exit_code == 1
+    assert result.output.startswith(
+        "Error: Deploying to the root domain of pc01.lab.example.org requires "
+        "destroying its deployed experiments first: old, older."
+    )
+    for app in ("old", "older"):
+        assert (
+            f"  dallinger docker-ssh destroy --app {app} --server pc01.lab.example.org"
+            in result.output
+        )
+    assert "Aborted!" not in result.output
+    destroy.assert_not_called()
 
 
 def test_get_apps_raises_for_unknown_server(monkeypatch):
@@ -723,6 +783,7 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
         docker_ssh_module, "CONFIGURED_HOSTS", {"test-server": {"host": "host"}}
     )
     monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
+    monkeypatch.setattr(sys, "stdin", mock.Mock(isatty=lambda: True))
     with (
         mock.patch.object(
             docker_ssh_module,
