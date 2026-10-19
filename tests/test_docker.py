@@ -495,12 +495,18 @@ def test_custom_dockerfile_reinstalls_a_staged_local_wheel_without_base_image(
     assert "--force-reinstall --no-deps" in tools.LOCAL_DALLINGER_WHEEL_SNIPPET
 
 
-def test_generated_dockerfile_uses_the_pinned_base_image(tmp_path):
+@pytest.mark.parametrize(
+    "requirements, tag, message",
+    [("dallinger==12.0.0\n", "12.0.0", ""), ("psynet\n", "latest", "Using latest")],
+)
+def test_generated_dockerfile_uses_the_pinned_base_image(
+    tmp_path, capsys, requirements, tag, message
+):
     import docker
 
     from dallinger.docker import tools
 
-    (tmp_path / "requirements.txt").write_text("dallinger==12.0.0\n")
+    (tmp_path / "requirements.txt").write_text(requirements)
     client = mock.Mock()
     client.api.inspect_image.side_effect = docker.errors.ImageNotFound("missing")
     with (
@@ -511,7 +517,27 @@ def test_generated_dockerfile_uses_the_pinned_base_image(tmp_path):
             tmp_path, "exp", mock.Mock(), needs_chrome=True, image_tag="t"
         )
     dockerfile = (tmp_path / "Dockerfile").read_text()
-    assert "FROM ghcr.io/dallinger/dallinger-bot:12.0.0" in dockerfile
+    assert f"FROM ghcr.io/dallinger/dallinger-bot:{tag}" in dockerfile
+    assert message in capsys.readouterr().out
+
+
+def test_build_image_reuses_an_existing_image_without_resolving_the_base_image(
+    tmp_path,
+):
+    from dallinger.docker import tools
+
+    client = mock.Mock()
+    with (
+        mock.patch("docker.client.from_env", return_value=client),
+        mock.patch.object(tools, "get_base_image") as get_base_image,
+        mock.patch.object(tools, "check_output") as check_output,
+    ):
+        name = tools.build_image(
+            tmp_path, "exp", mock.Mock(), force_build=False, image_tag="t"
+        )
+    assert name == "exp:t"
+    get_base_image.assert_not_called()
+    check_output.assert_not_called()
 
 
 def test_deploy_image_tag_is_unique_per_launch():
