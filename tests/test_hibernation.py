@@ -289,6 +289,16 @@ def test_wait_until_running_waits_for_healthcheck():
     engine.wait_until_running("abc", timeout=2)
 
 
+def test_docker_engine_stop_passes_the_timeout():
+    engine = DockerEngine()
+    requests = []
+    engine._request = lambda method, path, ignore_404=False: requests.append(
+        (method, path)
+    )
+    engine.stop("abc", timeout=60)
+    assert requests == [("POST", "/containers/abc/stop?t=60")]
+
+
 def test_awaken_waits_for_web_health_and_starts_postgres_first(tmp_path):
     docker = FakeDocker(
         [_container("web"), _container("redis"), _container("postgresql")]

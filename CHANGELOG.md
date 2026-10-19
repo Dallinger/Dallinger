@@ -8,7 +8,8 @@
   Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
   deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
   already store the token under another name don't have to copy it. A
-  configured item is found whatever Keychain account it was saved under.
+  configured item is found whatever Keychain account it was saved under,
+  and Keychain errors name the item.
 - Worker processes that hang during start-up now exit after
   `worker_startup_timeout` seconds (default 120; 0 disables) if they
   haven't registered with the job queue, printing what each greenlet was
@@ -123,7 +124,8 @@
   ``<app>_web`` on the shared network now names the front door; web and
   workers also wait for pgbouncer's health check. Waking treats an older
   experiment image without ``/health`` as ready once web answers. Deploy
-  also chowns the front door's state directory.
+  also chowns the front door's state directory. Hibernation gives
+  PostgreSQL 60 seconds to stop and other containers 30.
 - docker-ssh disk cleanup prunes only stopped containers outside Compose
   projects, and the host Caddy image is pinned to ``caddy:2.10.2``.
 - docker-ssh experiment containers built from now on run as the SSH user
@@ -179,7 +181,8 @@
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
   servers registered by IP address (with or without a port) only match their
-  full address. Python
+  full address. Servers registered as ``host:port`` match too, such as
+  ``pc04`` for ``pc04:2200``. Python
   callers of ``get_apps``, ``select_running_app``, ``awaken_app``,
   ``ensure_root_domain_ready`` and the ``destroy`` and ``set-dozzle-password``
   command callbacks can pass short names too. ``--help`` no longer
@@ -260,7 +263,8 @@
   such as a bot runner, can set a bounded pool; its requests then wait up to
   ``DATABASE_POOL_TIMEOUT`` for a free connection. An invalid value, including
   a pool size below 1, makes every ``dallinger`` command fail with an error
-  that names the variable. ``create_db_engine`` also accepts ``pool_size``,
+  that names the variable and its smallest allowed value, for example
+  ``at least -1 (no limit)``. ``create_db_engine`` also accepts ``pool_size``,
   ``max_overflow`` and ``pool_timeout`` arguments, which override the
   variables and are checked the same way. Experiment replay
   (``restore_state_from_replay``) now uses the same pool settings, checks
@@ -318,8 +322,6 @@
   ``up -d`` and ``docker debug`` failures. To turn JIT off in an existing local ``dallinger_postgres``
   container, run ``dallinger docker stop-services`` and then
   ``start-services``; the data volume is kept.
-- docker-ssh hibernation now gives PostgreSQL 60 seconds to stop and other
-  containers 30.
 
 ### Deprecated
 
@@ -336,19 +338,10 @@
 
 ### Fixed
 
-- docker-ssh deploys now wait up to 15 minutes for ``/launch`` instead of 5.
-- docker-ssh deploys no longer launch while the public ``/health`` reports a
-  hibernating or waking app. A hibernating app stops the wait after two
-  answers, with the ``docker-ssh awaken`` command to run.
-- ``--server`` accepts the short name of a server registered as
-  ``host:port``, such as ``pc04`` for ``pc04:2200``.
 - ``dallinger debug`` counts an HTTP error from ``/summary`` as a failed
   status check.
 - ``restore_state_from_replay`` closes its import database connections when
   it fails.
-- The Cloudflare Keychain error includes what ``security`` reported.
-- Invalid database pool settings name their smallest allowed value, for
-  example ``at least -1 (no limit)``.
 - docker-ssh apps no longer fail under load with ``no more connections
   allowed (max_client_conn)``: their pgbouncer now accepts up to 10,000
   client connections instead of 100.
@@ -368,9 +361,12 @@
 - docker-ssh deploys no longer fail to launch when a new Cloudflare tunnel
   takes several minutes to register. After checking the app's ``/health``
   from inside the server, the deploy waits up to 7 minutes for the public
-  ``/health`` to answer 2xx, so recruitment does not open while participants
-  would see an error page. It then launches from inside the server with
-  ``curl`` in the web container, so the app still records its public URL. If
+  ``/health`` to answer 2xx for an awake app, so recruitment does not open
+  while participants would see an error page. If the public ``/health``
+  reports a hibernating app twice in a row, the wait stops and the deploy
+  prints the ``docker-ssh awaken`` command to run. It then launches from
+  inside the server with ``curl`` in the web container, waiting up to 15
+  minutes for ``/launch``, so the app still records its public URL. If
   the URL does not answer 2xx in time, or redirects twice in a row (a login
   such as Cloudflare Access, which waiting does not remove), nothing is
   launched and the deploy prints how to check it, launch by hand and destroy

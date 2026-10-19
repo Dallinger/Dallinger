@@ -427,6 +427,16 @@ def test_load_api_token_reads_the_configured_keychain_item_under_any_account(
     assert "-a" not in args
 
 
+def test_load_api_token_rejects_an_empty_item(security_calls, monkeypatch):
+    monkeypatch.setattr(
+        cf.subprocess, "run", lambda args, **kwargs: mock.Mock(stdout="\n")
+    )
+    with pytest.raises(
+        cf.CloudflareError, match="'org.example.cloudflare-token' contained no token"
+    ):
+        cf.load_api_token(_keychain_config("org.example.cloudflare-token"))
+
+
 @pytest.mark.parametrize("service", ["", "   "])
 def test_load_api_token_defaults_to_the_users_dallinger_item(security_calls, service):
     cf.load_api_token(_keychain_config(service))
@@ -435,19 +445,12 @@ def test_load_api_token_defaults_to_the_users_dallinger_item(security_calls, ser
     assert "-a" in args
 
 
-def test_load_api_token_failure_names_the_item_and_the_reason(
-    security_calls, monkeypatch
-):
+def test_load_api_token_failure_names_the_configured_item(security_calls, monkeypatch):
     def run(args, **kwargs):
-        raise subprocess.CalledProcessError(
-            44, args, stderr="security: SecKeychainSearchCopyNext: not found.\n"
-        )
+        raise subprocess.CalledProcessError(44, args)
 
     monkeypatch.setattr(cf.subprocess, "run", run)
-    with pytest.raises(
-        cf.CloudflareError,
-        match="'org.example.cloudflare-token' could not be read: security: .*not found",
-    ):
+    with pytest.raises(cf.CloudflareError, match="'org.example.cloudflare-token'"):
         cf.load_api_token(_keychain_config("org.example.cloudflare-token"))
 
 

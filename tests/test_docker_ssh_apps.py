@@ -406,6 +406,7 @@ def test_resolve_server_name(name, expected):
         "10.0.0.5",
         "[::1]:2200",
         "pc04:2200",
+        "pc05:abc",
     ]
     assert docker_ssh_module.resolve_server_name(name, hosts) == expected
 

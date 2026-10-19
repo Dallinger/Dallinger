@@ -550,9 +550,9 @@ def _abort_unreachable(executor, target, status, detail, waited):
         )
     elif hibernating:
         reason = (
-            f"The app is hibernating ({detail.strip()}); a hibernation marker "
-            "left by an earlier app with the same name can cause this. Wake it "
-            f"with `{awaken}`."
+            f"The app is hibernating ({detail.strip()}), for example because "
+            "idle sleep (docker_ssh_idle_hibernate) or `dallinger docker-ssh "
+            f"hibernate` put it to sleep during the wait. Wake it with `{awaken}`."
         )
     elif asleep:
         reason = f"The app is hibernating or waking up ({detail.strip()})."
