@@ -273,3 +273,23 @@ def test_destroy_leaves_an_old_root_domain_caddyfile_alone(server, capsys):
     assert checksums(server) == before
     assert not (server / "dallinger/old").exists()
     assert "servers upgrade --host lab" in capsys.readouterr().out
+
+
+def test_ip_server_without_a_saved_dns_host_uses_the_deploy_dns_host(
+    server, monkeypatch, capsys
+):
+    ip_server = {**SERVER, "host": "1.2.3.4"}
+    monkeypatch.setattr(docker_ssh, "CONFIGURED_HOSTS", {"1.2.3.4": ip_server})
+    monkeypatch.setattr(docker_ssh, "_ipv4_addresses", lambda host: ["1.2.3.4"])
+    caddyfile = server / "dallinger/Caddyfile"
+    caddyfile.write_text(OLD_CADDYFILE.replace("lab.example.org", "1.2.3.4.nip.io"))
+
+    with pytest.raises(click.Abort):
+        docker_ssh._classic_preflight("1.2.3.4", "myapp", None, None, False)
+    assert "or pass --dns-host <name> to the deploy" in capsys.readouterr().out
+
+    assert (
+        docker_ssh._classic_preflight("1.2.3.4", "myapp", None, "nip.io", False)
+        == "myapp.1.2.3.4.nip.io"
+    )
+    assert docker_ssh._logs_url(ip_server, "nip.io") == "https://logs.1.2.3.4.nip.io"

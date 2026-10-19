@@ -220,10 +220,13 @@ The server's own sites are its DNS host, which is the ``--dns-host`` saved by
 ``servers add`` or else the server's hostname, and ``logs.<DNS host>`` for the
 Dozzle log viewer. A deploy's ``--dns-host`` only names that app's site, for
 example ``--app exp1 --dns-host 1.2.3.4.nip.io`` serves
-``exp1.1.2.3.4.nip.io``. A server registered by IP address needs a saved
-``--dns-host`` (``--dns-host nip.io`` means ``<ip>.nip.io``) before it can be set up for
-classic ingress. Caddy gives Let's Encrypt the ``--contact-email`` saved with
-the server, which defaults to ``contact_email_on_error``.
+``exp1.1.2.3.4.nip.io``. On a server registered by IP address without a saved
+``--dns-host``, the deploy's ``--dns-host`` is also the server's own host, as
+in older versions (``--dns-host nip.io`` means ``<ip>.nip.io``); ``servers
+upgrade`` needs the saved one. Caddy gives Let's Encrypt the
+``--contact-email`` saved with the server, which defaults to
+``contact_email_on_error``.
+
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app
 tunnel; ``servers add --default-ingress cloudflare`` makes it a server's
 default. Cloudflare apps don't block a classic root-domain deploy.

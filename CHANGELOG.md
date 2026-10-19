@@ -190,8 +190,9 @@
   and names that command. The server's DNS host and the email that Caddy gives
   Let's Encrypt come from the server record: `servers add` saves `--dns-host`
   and `--contact-email`, and the email defaults to `contact_email_on_error`.
-  A server registered by IP address needs a saved `--dns-host` for classic
-  ingress; a deploy's `--dns-host` now only names the app's own site. A deploy
+  A deploy's `--dns-host` now only names the app's own site, except on a
+  server registered by IP address without a saved DNS host, where it also
+  stays the server's own host as before. A deploy
   without `--app` only replaces the server's other experiments when it takes
   the server's own DNS host. The Dozzle log viewer is always
   `https://logs.<server DNS host>`, so the printed URL is right when a deploy

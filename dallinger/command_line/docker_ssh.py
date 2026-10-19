@@ -327,13 +327,16 @@ def _server_tls(server_info):
     return f"tls {email}"
 
 
-def _server_host(server_info):
+def _server_host(server_info, dns_host=None):
     """Return the DNS name of a classic-ingress server's own sites.
 
-    The server's Caddyfile serves this name and ``logs.<name>`` (Dozzle).
-    Aborts for a server registered by IP address without a saved DNS host.
+    The server's Caddyfile serves this name and ``logs.<name>`` (Dozzle). It
+    is the DNS host saved with the server, or the server's hostname. For a
+    server registered by IP address without a saved DNS host, a deploy's
+    ``dns_host`` is used, as older Dallinger versions wrote it into the
+    server's Caddyfile; without one this aborts.
     """
-    host = resolve_dns_host(server_info)
+    host = resolve_dns_host(server_info) or dns_host
     if host == "nip.io":
         return get_dns_host(split_ssh_host_port(server_info["host"])[0])
     if host:
@@ -341,15 +344,15 @@ def _server_host(server_info):
     print(
         f"{RED}Error: {server_info['host']} is an IP address, so classic ingress "
         f"needs a DNS name for the server.{END} Save one with "
-        f"`{_servers_add_command(server_info, dns_host='<name>')}` "
-        "(`--dns-host nip.io` uses <ip>.nip.io)."
+        f"`{_servers_add_command(server_info, dns_host='<name>')}`, or pass "
+        "--dns-host <name> to the deploy (`--dns-host nip.io` uses <ip>.nip.io)."
     )
     raise click.Abort()
 
 
-def _logs_url(server_info):
+def _logs_url(server_info, dns_host=None):
     """Return the Dozzle log viewer URL of a classic-ingress server."""
-    return f"https://logs.{_server_host(server_info)}"
+    return f"https://logs.{_server_host(server_info, dns_host)}"
 
 
 def _write_server_files(server, server_info, *, replace, yes=True):
@@ -1008,11 +1011,13 @@ def _classic_preflight(server, app_name, archive_path, dns_host, allow_private_i
     _check_experiment_hostname_dns(
         split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
     )
-    _check_server_setup(_build_executor(server_info), server, server_info, hostname)
+    _check_server_setup(
+        _build_executor(server_info), server, server_info, hostname, dns_host
+    )
     return hostname
 
 
-def _check_server_setup(executor, server, server_info, hostname):
+def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
     """Abort unless the server's shared services can serve a classic app.
 
     A deploy only adds the app's own Caddy file and reloads Caddy, so the
@@ -1029,8 +1034,10 @@ def _check_server_setup(executor, server, server_info, hostname):
     hostname : str
         Public hostname of the app. An app on the server's own host needs the
         server's ``root.d`` import.
+    dns_host : str, optional
+        The deploy's ``--dns-host``, the server's host if none is saved.
     """
-    host = _server_host(server_info)
+    host = _server_host(server_info, dns_host)
     output = executor.run(
         'for f in Caddyfile docker-compose.yml; do echo "#== $f"; '
         "cat ~/dallinger/$f 2>/dev/null; echo; done; echo '#== services'; "
@@ -1503,7 +1510,9 @@ def build_and_push_image(f):
             kwargs.get("app_name"),
             kwargs.get("archive_path"),
             kwargs.get("ingress"),
-        ) and kwargs.get("classic_hostname") == _server_host(server_info):
+        ) and kwargs.get("classic_hostname") == _server_host(
+            server_info, kwargs.get("dns_host")
+        ):
             preflight_root_clean = ensure_root_domain_ready(
                 server=kwargs["server"], update=kwargs.get("update", False)
             )
@@ -1807,7 +1816,7 @@ def _deploy_in_mode(
     )
 
     executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
-    takes_server_root = experiment_hostname == _server_host(server_info)
+    takes_server_root = experiment_hostname == _server_host(server_info, dns_host)
 
     if takes_server_root and not preflight_root_clean:
         conflicts = _discover_server_apps(executor)
@@ -1831,7 +1840,7 @@ def _deploy_in_mode(
     else:
         print("Restarting experiment.")
 
-    logs_url = _logs_url(server_info)
+    logs_url = _logs_url(server_info, dns_host)
     dozzle_password = get_dotenv_values(executor).get("DOZZLE_PASSWORD")
     dozzle_login = "user = dallinger" + (
         f", password = {dozzle_password}" if dozzle_password else ""
