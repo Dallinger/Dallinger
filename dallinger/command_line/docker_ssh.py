@@ -1098,8 +1098,9 @@ def check_deploy_credentials(server=None, ingress=None, config_options=None):
     server : str, optional
         Configured server name, or its short hostname, as for ``--server``.
         If omitted and exactly one server is configured, that server is used.
-        If omitted and several are configured, nothing is checked, because
-        the deploy has not chosen a server yet.
+        If omitted and several are configured, the token is only checked for
+        an explicit Cloudflare ``ingress``, because the deploy has not chosen
+        a server whose default ingress applies yet.
     ingress : str, optional
         ``"classic"`` or ``"cloudflare"``, as for ``--ingress``. Defaults to
         the server's ``default_ingress``.
@@ -1113,7 +1114,7 @@ def check_deploy_credentials(server=None, ingress=None, config_options=None):
     str or None
         The Cloudflare API token, which the caller can reuse instead of
         reading the Keychain again, or ``None`` if the deploy uses classic
-        ingress or no server was chosen.
+        ingress or its ingress is not known yet.
 
     Raises
     ------
@@ -1124,18 +1125,20 @@ def check_deploy_credentials(server=None, ingress=None, config_options=None):
         If the deploy uses Cloudflare ingress and the token can't be loaded.
     """
     hosts = tuple(CONFIGURED_HOSTS)
-    if server is None:
-        if not hosts:
-            raise click.UsageError(
-                "No server configured. Use `dallinger docker-ssh servers add` to add one."
-            )
-        if len(hosts) > 1:
+    if server is None and not hosts:
+        raise click.UsageError(
+            "No server configured. Use `dallinger docker-ssh servers add` to add one."
+        )
+    if server is None and len(hosts) > 1:
+        # Without a server, only an explicit --ingress tells which ingress is used.
+        server_info = {}
+        if not ingress:
             return None
-        server = hosts[0]
-    try:
-        server_info = _resolve_server_info(server)
-    except ValueError as exc:
-        raise click.UsageError(str(exc)) from exc
+    else:
+        try:
+            server_info = _resolve_server_info(hosts[0] if server is None else server)
+        except ValueError as exc:
+            raise click.UsageError(str(exc)) from exc
     if _resolve_ingress(server_info, ingress) != INGRESS_CLOUDFLARE:
         return None
     config = get_config(load=True)
@@ -1193,7 +1196,7 @@ def ensure_root_domain_ready(server, update):
     if not sys.stdin.isatty():
         raise click.ClickException(
             f"Deploying to the root domain of {server} requires destroying its "
-            f"deployed experiments first: {joined}. Without a terminal they "
+            f"classic-ingress experiments first: {joined}. Without a terminal they "
             "can't be destroyed automatically. Destroy them, then deploy again:\n"
             f"{destroy_cmds}"
         )

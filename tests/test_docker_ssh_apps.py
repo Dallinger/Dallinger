@@ -262,12 +262,16 @@ def test_check_deploy_credentials_resolves_the_server_like_the_deploy(monkeypatc
     assert check("other", ingress="cloudflare") == "token"
     # The deploy hasn't chosen one of several servers yet.
     assert check() is None
+    assert check(ingress="cloudflare") == "token"
     with pytest.raises(click.UsageError, match="Unknown server 'missing'"):
         check("missing")
     monkeypatch.setattr(
         docker_ssh_module, "CONFIGURED_HOSTS", {"lab": hosts["lab.example.org"]}
     )
     assert check() == "token"
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {})
+    with pytest.raises(click.UsageError, match="No server configured"):
+        check()
 
 
 def test_cloudflare_deploy_uses_the_preloaded_token(monkeypatch):
@@ -628,6 +632,10 @@ def test_root_domain_auto_destroy_uses_full_server_name(monkeypatch):
     assert docker_ssh_module.ensure_root_domain_ready("pc01", update=False)
     destroy.assert_called_once_with(server="pc01.lab.example.org", app="old")
 
+    docker_ssh_module._host_caddy_apps.side_effect = [["old"], ["old"]]
+    with pytest.raises(click.ClickException, match="still present: old"):
+        docker_ssh_module.ensure_root_domain_ready("pc01", update=False)
+
 
 def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatch):
     from click.testing import CliRunner
@@ -652,7 +660,7 @@ def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatc
     assert result.exit_code == 1
     assert result.output.startswith(
         "Error: Deploying to the root domain of pc01.lab.example.org requires "
-        "destroying its deployed experiments first: old, older."
+        "destroying its classic-ingress experiments first: old, older."
     )
     for app in ("old", "older"):
         assert (
