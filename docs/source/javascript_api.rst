@@ -102,15 +102,44 @@ WebSocket routes, as described in
 .. js:autofunction:: dallinger.openExperimentSocket
 
 .. js:autoclass:: dallinger.Socket
-   :members: send, onBroadcast, onDirect, onOpen, onRefused, onView, onRejected,
-      onEnded, onResultSaved, resultSaved, onClock, serverTime, sessionTime,
-      predictedView, interpolatedView, close
-
-.. js:autofunction:: dallinger.browserTime
+   :members: send, onBroadcast, onDirect, onOpen, onRefused, close
 
 .. js:autoattribute:: dallinger.pageScope
 
 .. js:autoattribute:: dallinger.DIRECT_CHANNEL
+
+
+Real-time sessions
+~~~~~~~~~~~~~~~~~~
+
+A socket opened with a ``session`` joins a session of one of the experiment's
+:doc:`real-time games <realtime_games>`, and has the methods below. They are
+defined in ``dallinger-realtime.js``, with ``dallinger.browserTime``. The base
+layout loads that script after ``dallinger2.js`` when the experiment's
+``realtime_games`` isn't empty. A page that replaces the layout's ``libs``
+block, or doesn't use the layout, loads it itself.
+
+.. js:autofunction:: dallinger.Socket#onView
+
+.. js:autofunction:: dallinger.Socket#onRejected
+
+.. js:autofunction:: dallinger.Socket#onEnded
+
+.. js:autofunction:: dallinger.Socket#onResultSaved
+
+.. js:autofunction:: dallinger.Socket#resultSaved
+
+.. js:autofunction:: dallinger.Socket#onClock
+
+.. js:autofunction:: dallinger.Socket#serverTime
+
+.. js:autofunction:: dallinger.Socket#sessionTime
+
+.. js:autofunction:: dallinger.Socket#predictedView
+
+.. js:autofunction:: dallinger.Socket#interpolatedView
+
+.. js:autofunction:: dallinger.browserTime
 
 
 Helper functions and properties

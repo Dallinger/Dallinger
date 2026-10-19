@@ -102,6 +102,28 @@ describe("the connection url", () => {
   });
 });
 
+describe("without dallinger-realtime.js, a socket", () => {
+  test("that joins a session throws, naming the script, before connecting", () => {
+    const dallinger = load();
+    dallinger.identity.participantId = 7;
+
+    expect(() => dallinger.openExperimentSocket({ session: 4 })).toThrow(/dallinger-realtime\.js/);
+    expect(() => dallinger.openChatSocket({ gameChannel: "bids" })).toThrow(/dallinger-realtime\.js/);
+    expect(sockets).toEqual([]);
+  });
+
+  test.each(["predict", "interpolate", "interpolationDelay"])(
+    "with the %s option throws, naming the script",
+    (name) => {
+      const dallinger = load();
+
+      expect(() => dallinger.openExperimentSocket({ [name]: () => {} })).toThrow(
+        /dallinger-realtime\.js/,
+      );
+    },
+  );
+});
+
 describe("sending", () => {
   test("encodes an object as JSON after the channel prefix", () => {
     const dallinger = load();

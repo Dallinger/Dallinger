@@ -37,6 +37,9 @@ function load() {
   window.localStorage.clear();
   global.$ = global.jQuery = require("./jquery-4.0.0.min");
   dallinger = require("./dallinger2").dallinger;
+  // The browser global dallinger-realtime.js reads.
+  global.dallinger = dallinger;
+  require("./dallinger-realtime");
   return dallinger;
 }
 
@@ -192,6 +195,27 @@ describe("joining", () => {
     expect(() => dallinger.openExperimentSocket({ session: 4, gameChannel: "bids" })).toThrow(
       /participant id/,
     );
+  });
+});
+
+describe("loading dallinger-realtime.js", () => {
+  test("before dallinger2.js throws, naming the order", () => {
+    jest.resetModules();
+    delete global.dallinger;
+
+    expect(() => require("./dallinger-realtime")).toThrow(/after dallinger2\.js/);
+  });
+
+  test("twice leaves the page's sockets sharing one message count", () => {
+    const first = joined();
+    live().onopen();
+    first.send("bids", "a");
+
+    jest.isolateModules(() => require("./dallinger-realtime"));
+    const second = dallinger.openChatSocket({ session: 4, gameChannel: "bids" });
+    live().onopen();
+
+    expect(second.send("bids", "b")).toBe(2);
   });
 });
 
