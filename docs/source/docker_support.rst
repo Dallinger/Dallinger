@@ -567,23 +567,47 @@ redeploy an app with ``--update``, the image it ran before is removed in the
 same way once the new containers are up. If the update fails before then, the
 old image stays on the server.
 
-Destroy keeps the app's data folder ``~/dallinger-data/$APP_ID``, because it
-may hold files the experiment saved (see the note below), and prints its
-location. Bind mounts that you added with ``docker_volumes`` are kept too. To
-delete the data folder, export anything you need, then run destroy with
-``--remove-data``. This also works after the app has been destroyed:
+Destroy never deletes or keeps the experiment's data without asking you. The
+data is:
+
+- the app's database: for classic ingress, the database ``$APP_ID`` and its
+  Postgres user in the server's shared Postgres; for Cloudflare ingress, the
+  Docker volume ``${APP_ID}_postgres_data``;
+- the app's Redis volume ``${APP_ID}_redis_data``;
+- the app's data folder ``~/dallinger-data/$APP_ID``, which holds files the
+  experiment saved (see the note below).
+
+Before it tears anything down, destroy lists the data it finds, with sizes
+where it can measure them, and asks whether to delete it, for example:
+
+.. code-block:: text
+
+    Experiment data of myapp on lab.example.org:
+      - the database myapp (12 MB) and its user in the shared Postgres
+      - the Redis volume myapp_redis_data
+      - the folder ~/dallinger-data/myapp (3.4G)
+    Delete this data? This cannot be undone. Answer no to keep it. [y/N]:
+
+Answering no keeps the data; destroy then lists what it kept and the command
+that deletes it later. Export anything you need before you delete the data.
+You can also decide up front:
 
 .. code-block:: shell
 
+    # Keep the data
+    dallinger docker-ssh destroy --app $APP_ID --keep-data
+    # Delete the data; asks for confirmation unless you add --yes
     dallinger docker-ssh destroy --app $APP_ID --remove-data
 
-Destroy then shows the folder's size and asks you to confirm before it removes
-anything, so answering no leaves a running app untouched. Add ``--yes`` to skip
-the question; in a non-interactive session, such as a script, ``--yes`` is
-required. The folder is not deleted while the app's containers are still
-running, or if Dallinger can't check whether they are. If
-``~/dallinger-data/$APP_ID`` is a symlink, only the link is removed and its
-target is kept.
+If you decline the confirmation for ``--remove-data``, destroy stops without
+touching the app. In a non-interactive session, such as a script, you must pass
+``--keep-data`` or ``--remove-data --yes``. ``--remove-data`` also works after
+the app has been destroyed, and deletes whatever data is left. Bind mounts that
+you added with ``docker_volumes`` are always kept.
+
+Data is not deleted while the app's containers are still running, or if
+Dallinger can't check whether they are. If ``~/dallinger-data/$APP_ID`` is a
+symlink, only the link is removed and its target is kept.
 
 The data folder's parent is often owned by root, so if the SSH user can't
 delete the folder, Dallinger deletes it with a short-lived root ``alpine``

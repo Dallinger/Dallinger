@@ -4,14 +4,17 @@
 
 ### Added
 
-- `dallinger docker-ssh destroy --remove-data` also deletes the app's data
-  folder `~/dallinger-data/<app>`, using a root container when the SSH user
-  can't. It shows the folder's size and asks before tearing anything down;
-  `--yes` skips the question and is required in non-interactive sessions. It
-  won't delete the folder while the app's containers run, and only unlinks a
-  symlink. It works after the app has been destroyed.
-  Without the flag, destroy keeps the folder and prints where it is and how
-  to delete it.
+- `dallinger docker-ssh destroy` now makes you choose what happens to the
+  experiment's data: its database (with its Postgres user for classic
+  ingress), its Redis volume and its data folder `~/dallinger-data/<app>`.
+  It lists the data it finds, with sizes where it can measure them, and asks
+  whether to delete it before tearing anything down. `--remove-data` deletes
+  it (after confirmation, or straight away with `--yes`) and `--keep-data`
+  keeps it; in non-interactive sessions one of them is required, and
+  `--remove-data` also needs `--yes`. Kept data is listed after destroy with
+  the command that deletes it. `--remove-data` also cleans up the data of an
+  app that has already been destroyed. Data is not deleted while the app's
+  containers run, and a symlinked data folder is only unlinked.
 - Added the `cloudflare_keychain_service` config key, which names the macOS
   Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
   deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
@@ -183,6 +186,11 @@
 
 ### Changed
 
+- `dallinger docker-ssh destroy` no longer deletes a Cloudflare-ingress app's
+  database and Redis volumes unless you choose to delete the experiment's
+  data. Classic-ingress apps' databases are now dropped when you do. Scripts
+  that run destroy without a terminal must now pass `--keep-data` or
+  `--remove-data --yes`.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and

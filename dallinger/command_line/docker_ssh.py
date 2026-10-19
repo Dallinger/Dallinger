@@ -91,6 +91,8 @@ from .utils import get_server_pem_path
 # Hibernated apps keep stopped Compose containers that ``awaken`` restarts.
 CONTAINER_PRUNE = "docker container prune -f --filter label!=com.docker.compose.project"
 SERVER_COMPOSE = "docker compose -f ~/dallinger/docker-compose.yml"
+# Databases in the shared Postgres that are never an app's own.
+SHARED_POSTGRES_DATABASES = {"dallinger", "postgres", "template0", "template1"}
 
 
 @dataclass(frozen=True)
@@ -2464,45 +2466,159 @@ def _stdin_is_tty():
     return sys.stdin.isatty()
 
 
-def _confirm_app_data_removal(executor, app, ssh_host):
-    """Ask before deleting an app's data folder; abort if the user declines."""
-    exists, link_target = _app_data_link_target(executor, app)
-    if not exists:
-        return
-    path = f"~/dallinger-data/{app}"
-    if link_target is not None:
-        question = (
-            f"Delete the symlink {path} (symlink to {link_target}) on {ssh_host}? "
-            "Only the link is removed; its target is kept."
-        )
-    else:
-        size = _app_data_size(executor, app)
-        size_part = f" ({size})" if size else ""
-        question = f"Delete {path}{size_part} on {ssh_host}? This cannot be undone."
-    click.confirm(question, default=False, abort=True)
+def _shared_psql(*statements):
+    """Return a command running SQL ``statements`` in the server's shared Postgres.
 
-
-def _remove_app_data(executor, app):
-    """Delete ``~/dallinger-data/<app>``, falling back to a root container.
-
-    The parent folder is usually root-owned, so the SSH user cannot unlink
-    the app folder itself. Refuses unless Docker confirms that none of the
-    app's containers are running. A symlink is unlinked; its target is kept.
+    Each statement gets its own ``-c``, so DROP DATABASE runs outside a
+    transaction block.
     """
-    path = f"~/dallinger-data/{app}"
+    args = " ".join(f"-c {quote(sql)}" for sql in statements)
+    return (
+        f"timeout 30 {SERVER_COMPOSE} exec -T postgresql "
+        f"psql -U dallinger -v ON_ERROR_STOP=1 -tA {args}"
+    )
+
+
+def _shared_database(executor, app):
+    """Return an experiment data item for ``app``'s database in the shared Postgres.
+
+    Returns None if neither the database nor its user exists.
+    """
+    if app in SHARED_POSTGRES_DATABASES:
+        return None
+    status, out, err = executor.run_with_status(
+        "[ -f ~/dallinger/docker-compose.yml ] || exit 0; "
+        + _shared_psql(
+            "SELECT (SELECT pg_size_pretty(pg_database_size(datname)) "
+            f"FROM pg_database WHERE datname = '{app}'), "
+            f"EXISTS (SELECT FROM pg_roles WHERE rolname = '{app}')"
+        )
+    )
+    if status != 0:
+        return _unchecked(f"the database {app} in the shared Postgres", err)
+    size, _, has_user = (out or "").strip().partition("|")
+    user = " and its user" if has_user == "t" else ""
+    if size:
+        return (
+            "postgres",
+            app,
+            f"the database {app} ({size}){user} in the shared Postgres",
+        )
+    if user:
+        return "postgres", app, f"the Postgres user {app} in the shared Postgres"
+    return None
+
+
+def _unchecked(what, err):
+    """Return an experiment data item for data whose existence is unknown."""
+    reason = (err or "").strip().splitlines()[-1:] or ["unknown error"]
+    return "unchecked", what, f"{what}, if any (could not check: {reason[0]})"
+
+
+def _own_database_size(executor, app):
+    """Return the size of a Cloudflare app's database while its Postgres runs."""
+    sql = f"SELECT pg_size_pretty(pg_database_size('{app}'))"
+    status, out, _ = executor.run_with_status(
+        f"timeout 20 docker exec {quote(app + '_postgresql')} "
+        f"psql -U {quote(app)} -d {quote(app)} -tAc {quote(sql)}"
+    )
+    return (out or "").strip() if status == 0 else ""
+
+
+def _experiment_data(executor, app):
+    """List the experiment data ``app`` has on the server.
+
+    Returns ``(kind, name, label)`` tuples for the app's database and user in
+    the shared Postgres, its Docker volumes and its data folder. Each is
+    checked on its own; one that can't be checked is an ``unchecked`` item.
+    """
+    items = [_shared_database(executor, app)]
+    status, out, err = executor.run_with_status("docker volume ls -q")
+    if status != 0:
+        items.append(_unchecked(f"the Docker volumes of {app}", err))
+        out = ""
+    volumes = set(out.split())
+    project = _compose_project(app)
+    for volume, what in (("postgres_data", "database"), ("redis_data", "Redis")):
+        volume = f"{project}_{volume}"
+        if volume in volumes:
+            size = _own_database_size(executor, app) if what == "database" else ""
+            size_part = f" ({size})" if size else ""
+            items.append(("volume", volume, f"the {what} volume {volume}{size_part}"))
+    exists, link_target = _app_data_link_target(executor, app)
+    if exists:
+        path = f"~/dallinger-data/{app}"
+        if link_target is not None:
+            label = (
+                f"the symlink {path} (only the link; its target {link_target} stays)"
+            )
+        else:
+            size = _app_data_size(executor, app)
+            label = f"the folder {path}" + (f" ({size})" if size else "")
+        items.append(("folder", path, label))
+    return [item for item in items if item]
+
+
+def _print_data(heading, items):
+    print(heading)
+    for _, _, label in items:
+        print(f"  - {label}")
+
+
+def _remove_experiment_data(executor, app, items):
+    """Delete the listed experiment data and return whether all of it is gone.
+
+    Refuses unless Docker confirms that none of the app's containers run.
+    """
     label = f"com.docker.compose.project={_compose_project(app)}"
     status, running, stderr = executor.run_with_status(
         f"docker ps -q --filter {quote(label)}"
     )
-    if status != 0:
-        print(
-            f"Warning: not removing {path}: could not check whether containers "
-            f"of {app} are running. {(stderr or '').strip()}"
+    if status != 0 or (running or "").strip():
+        reason = (
+            "could not check whether its containers are running"
+            if status
+            else "its containers are still running"
         )
-        return
-    if (running or "").strip():
-        print(f"Warning: not removing {path}: containers of {app} are still running.")
-        return
+        print(
+            f"{RED}Not deleting the data of {app}: {reason}.{END} {(stderr or '').strip()}"
+        )
+        return False
+    removed = True
+    for kind, name, label in items:
+        if kind == "folder":
+            removed = _remove_app_data(executor, app) and removed
+            continue
+        if kind == "unchecked":
+            removed = False
+            print(f"{RED}Did not delete {label}.{END}")
+            continue
+        if kind == "postgres":
+            command = _shared_psql(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                f"WHERE datname = '{app}' AND pid <> pg_backend_pid()",
+                f'DROP DATABASE IF EXISTS "{app}"',
+                f'DROP USER IF EXISTS "{app}"',
+            )
+        else:
+            command = f"docker volume rm {quote(name)}"
+        status, _, stderr = executor.run_with_status(command)
+        if status == 0:
+            print(f"Deleted {label}")
+        else:
+            removed = False
+            print(f"{RED}Could not delete {label}.{END} {(stderr or '').strip()}")
+    return removed
+
+
+def _remove_app_data(executor, app):
+    """Delete ``~/dallinger-data/<app>`` and return whether it is gone.
+
+    The parent folder is usually root-owned, so the SSH user cannot unlink
+    the app folder itself; a root container then deletes it. A symlink is
+    unlinked; its target is kept.
+    """
+    path = f"~/dallinger-data/{app}"
     status, stdout, stderr = executor.run_with_status(
         f'app={quote(app)}; parent="$HOME/dallinger-data"; p="$parent/$app"; '
         'if [ -L "$p" ]; then kind="symlink $(readlink "$p")"; '
@@ -2514,16 +2630,14 @@ def _remove_app_data(executor, app):
     )
     result = (stdout or "").strip()
     if result == "removed dir":
-        print(f"Removed {path}")
+        print(f"Deleted the folder {path}")
     elif result.startswith("removed symlink"):
         target = result[len("removed symlink") :].strip()
-        print(f"Removed the symlink {path}; its target {target} was kept.")
-    elif result == "absent":
-        print(f"No data folder {path} to remove")
-    else:
-        print(f"{RED}Could not remove {path}. Remove it on the server by hand.{END}")
-        if (stderr or "").strip():
-            print(stderr.strip())
+        print(f"Deleted the symlink {path}; its target {target} was kept.")
+    elif result != "absent":
+        print(f"{RED}Could not delete {path}.{END} {(stderr or '').strip()}")
+        return False
+    return True
 
 
 @docker_ssh.command()
@@ -2532,23 +2646,41 @@ def _remove_app_data(executor, app):
     "--remove-data",
     is_flag=True,
     help=(
-        "Also delete the app's data folder ~/dallinger-data/<app>. "
-        "Asks for confirmation unless --yes is given. "
+        "Delete the experiment's data: its database, Redis volume and "
+        "~/dallinger-data/<app>. Asks for confirmation unless --yes is given. "
         "Works after the app has been destroyed."
     ),
+)
+@click.option(
+    "--keep-data",
+    is_flag=True,
+    help="Keep the experiment's data on the server and print how to delete it.",
 )
 @click.option(
     "--yes", is_flag=True, help="Don't ask before deleting data with --remove-data."
 )
 @option_server
-def destroy(server, app, remove_data=False, yes=False):
-    """Tear down an experiment run on a server you control via ssh."""
+def destroy(server, app, remove_data=False, keep_data=False, yes=False):
+    """Tear down an experiment run on a server you control via ssh.
+
+    Without --remove-data or --keep-data, asks whether to delete the
+    experiment's data.
+    """
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
-    if remove_data and not yes and not _stdin_is_tty():
-        raise click.UsageError(
-            "--remove-data needs confirmation; pass --yes in non-interactive sessions."
-        )
+    if remove_data and keep_data:
+        raise click.UsageError("Pass only one of --remove-data and --keep-data.")
+    if not _stdin_is_tty():
+        if not (remove_data or keep_data):
+            raise click.UsageError(
+                "Choose what happens to the experiment's data: pass --remove-data "
+                "or --keep-data in non-interactive sessions."
+            )
+        if remove_data and not yes:
+            raise click.UsageError(
+                "--remove-data needs confirmation; pass --yes in non-interactive "
+                "sessions."
+            )
     server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
     ssh_host, _ = split_ssh_host_port(ssh_address)
@@ -2570,31 +2702,63 @@ def destroy(server, app, remove_data=False, yes=False):
         raise_=False,
     )
     deployed = caddy_config_exists or docker_compose_exists or tunnel_token_exists
+    data = _experiment_data(executor, app)
     if not deployed:
         print(f"App {app} is not deployed")
-        if not remove_data:
+        if not data:
+            print(f"No experiment data of {app} is left on {ssh_host}.")
             raise click.Abort()
-    # Ask before teardown, so declining leaves a live app untouched.
-    if remove_data and not yes:
-        _confirm_app_data_removal(executor, app, ssh_host)
-    if not deployed:
-        _remove_app_data(executor, app)
-        return
+    # Ask before teardown, so declining --remove-data leaves a live app untouched.
+    if data and not keep_data and not (remove_data and yes):
+        _print_data(f"Experiment data of {app} on {ssh_host}:", data)
+        remove_data = click.confirm(
+            "Delete this data? This cannot be undone."
+            + ("" if remove_data else " Answer no to keep it."),
+            default=False,
+            abort=remove_data,
+        )
 
+    if deployed:
+        _tear_down_app(
+            executor,
+            app,
+            ssh_address,
+            ssh_user,
+            docker_compose_exists,
+            tunnel_token_exists,
+        )
+    delete_again = (
+        f"dallinger docker-ssh destroy --app {app} --server {server} --remove-data"
+    )
+    if data and remove_data:
+        if not _remove_experiment_data(executor, app, data):
+            raise click.ClickException(
+                f"Some data of {app} was not deleted. Fix the problem above "
+                f"and run: {delete_again}"
+            )
+    elif data:
+        _print_data(f"Kept the experiment data of {app} on {ssh_host}:", data)
+        print(f"To delete it, run: {delete_again}")
+
+
+def _tear_down_app(executor, app, ssh_address, ssh_user, has_compose, has_token):
+    """Stop and remove a deployed app, keeping its data volumes and folder."""
+    ssh_host, _ = split_ssh_host_port(ssh_address)
+    quoted_app = quote(app)
     manifest = _load_remote_manifests(executor, [app]).get(app)
     if manifest:
         ingress = manifest.ingress
-    elif tunnel_token_exists:
+    elif has_token:
         ingress = INGRESS_CLOUDFLARE
     else:
         ingress = INGRESS_CLASSIC
 
     experiment_image = None
-    if docker_compose_exists:
+    if has_compose:
         experiment_image = read_remote_experiment_image(executor, app)
 
     if ingress == INGRESS_CLOUDFLARE:
-        if docker_compose_exists:
+        if has_compose:
             _stop_cloudflare_connector(executor, app)
         own_tunnel_id = (
             executor.run(
@@ -2609,10 +2773,6 @@ def destroy(server, app, remove_data=False, yes=False):
                 "stopped. Fix the problem above and run destroy again."
             )
             raise click.Abort()
-        executor.run(
-            f"docker compose -f ~/dallinger/{quoted_app}/docker-compose.yml down -v",
-            raise_=False,
-        )
     else:
         caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
         uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
@@ -2631,22 +2791,13 @@ def destroy(server, app, remove_data=False, yes=False):
                 "dallinger/Caddyfile",
             )
         executor.reload_caddy()
-        executor.run(
-            f"docker compose -f ~/dallinger/{quoted_app}/docker-compose.yml down",
-            raise_=False,
-        )
-
+    executor.run(
+        f"docker compose -f ~/dallinger/{quoted_app}/docker-compose.yml down",
+        raise_=False,
+    )
     remove_unshared_experiment_image(executor, experiment_image, except_app=app)
     executor.run(f"rm -rf ~/dallinger/{quoted_app}/")
     print(f"App {app} removed")
-    if remove_data:
-        _remove_app_data(executor, app)
-    elif _app_data_link_target(executor, app)[0]:
-        print(
-            f"Kept the app's data folder ~/dallinger-data/{app} on {ssh_host}. "
-            "To delete it, run: dallinger docker-ssh destroy "
-            f"--app {app} --server {server} --remove-data"
-        )
 
 
 def _stop_cloudflare_connector(executor, app):
