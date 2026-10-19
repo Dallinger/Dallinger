@@ -520,8 +520,8 @@ class LocalProcfileWrapper:
         default, which makes gunicorn shut down quickly). Procfile processes
         still alive after ``stop_grace_secs`` are killed. Concurrent calls
         (e.g. from a status thread and ``__exit__``) run one at a time. In the
-        main thread, Ctrl-C, SIGTERM and SIGHUP are ignored meanwhile, so
-        repeating them can't cut the cleanup short.
+        main thread, Ctrl-C, SIGTERM and SIGHUP are ignored (discarded)
+        meanwhile, so repeating them can't cut the cleanup short.
         """
         # Set before signalling, so a monitor() thread that sees the output end
         # knows the exit was requested.

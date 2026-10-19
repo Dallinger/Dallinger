@@ -1369,17 +1369,19 @@ def available_signals(*names):
 @contextlib.contextmanager
 def ignore_stop_signals():
     """Ignore Ctrl-C, SIGTERM and SIGHUP meanwhile, so repeating them can't
-    cut a cleanup short. Does nothing outside the main thread."""
+    cut a cleanup short; signals that arrive meanwhile are discarded. Does
+    nothing outside the main thread, or to a signal whose handler wasn't set
+    from Python (it couldn't be restored)."""
     previous = {}
     if threading.current_thread() is threading.main_thread():
         for signum in available_signals("SIGINT", "SIGTERM", "SIGHUP"):
-            previous[signum] = signal.signal(signum, signal.SIG_IGN)
+            if signal.getsignal(signum) is not None:
+                previous[signum] = signal.signal(signum, signal.SIG_IGN)
     try:
         yield
     finally:
         for signum, handler in previous.items():
-            if handler is not None:
-                signal.signal(signum, handler)
+            signal.signal(signum, handler)
 
 
 def open_for_csv(*args, **kw):

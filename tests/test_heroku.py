@@ -763,10 +763,15 @@ def test_stop_kills_procfile_processes_that_ignore_signals(tmp_path, monkeypatch
     runner = wrapper._process
     children = psutil.Process(runner.pid).children(recursive=True)
     # A repeated Ctrl-C while stop() waits must not cut the cleanup short.
-    threading.Timer(0.3, os.kill, (os.getpid(), signal.SIGINT)).start()
+    timer = threading.Timer(0.3, os.kill, (os.getpid(), signal.SIGINT))
+    start_time = time.time()
+    timer.start()
+    try:
+        wrapper.stop()
+    finally:
+        timer.cancel()
 
-    wrapper.stop()
-
+    assert time.time() - start_time > 0.3  # the SIGINT arrived during stop()
     assert runner.returncode != -signal.SIGKILL  # honcho exited by itself
     assert psutil.wait_procs(children, timeout=2)[1] == []
     wrapper.out.error.assert_not_called()
@@ -793,7 +798,7 @@ def test_monitor_ends_when_a_procfile_process_exits_after_startup(
     import psutil
 
     wrapper = _toy_procfile_wrapper(
-        tmp_path, monkeypatch, "web: python web.py\nworker: sleep 2 && exit 1\n"
+        tmp_path, monkeypatch, "web: python web.py\nworker: sleep 3 && exit 1\n"
     )
     wrapper.start(timeout_secs=20)
     children = psutil.Process(wrapper._process.pid).children(recursive=True)
