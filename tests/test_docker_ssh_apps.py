@@ -917,6 +917,15 @@ def test_destroy_asks_and_reports_kept_data(monkeypatch):
     assert "  - the folder ~/dallinger-data/myapp (3.4G)" in result.output
 
 
+def test_destroy_prints_the_callers_delete_data_command(monkeypatch):
+    _, result = _destroy_with_data(
+        monkeypatch, ["--keep-data", "--delete-data-command", "wrapper rm myapp"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "To delete it, run: wrapper rm myapp" in result.output
+    assert "dallinger docker-ssh destroy" not in result.output
+
+
 def test_destroy_remove_data_asks_before_teardown(monkeypatch):
     commands, result = _destroy_with_data(monkeypatch, ["--remove-data"], input="n\n")
     assert result.exit_code == 1

@@ -2657,8 +2657,23 @@ def _remove_app_data(executor, app):
 @click.option(
     "--yes", is_flag=True, help="Don't ask before deleting data with --remove-data."
 )
+@click.option(
+    "--delete-data-command",
+    hidden=True,
+    help=(
+        "Command printed for deleting the kept data later, for tools that "
+        "wrap this command."
+    ),
+)
 @option_server
-def destroy(server, app, remove_data=False, keep_data=False, yes=False):
+def destroy(
+    server,
+    app,
+    remove_data=False,
+    keep_data=False,
+    yes=False,
+    delete_data_command=None,
+):
     """Tear down an experiment run on a server you control via ssh.
 
     Without --remove-data or --keep-data, asks whether to delete the
@@ -2726,7 +2741,8 @@ def destroy(server, app, remove_data=False, keep_data=False, yes=False):
             tunnel_token_exists,
         )
     delete_again = (
-        f"dallinger docker-ssh destroy --app {app} --server {server} --remove-data"
+        delete_data_command
+        or f"dallinger docker-ssh destroy --app {app} --server {server} --remove-data"
     )
     if data and remove_data:
         if not _remove_experiment_data(executor, app, data):

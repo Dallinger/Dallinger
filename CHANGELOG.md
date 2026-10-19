@@ -12,11 +12,13 @@
   it (after confirmation, or straight away with `--yes`) and `--keep-data`
   keeps it; in non-interactive sessions one of them is required, and
   `--remove-data` also needs `--yes`. Kept data is listed after destroy with
-  the command that deletes it. `--remove-data` also cleans up the data of an
-  app that has already been destroyed. Data is not deleted while the app's
-  containers run, and a symlinked data folder is only unlinked. If
-  `docker compose down` fails, destroy now stops and leaves the app's files
-  in place instead of removing them around running containers.
+  the command that deletes it; tools that wrap destroy can name their own
+  command with the hidden `--delete-data-command` option. `--remove-data`
+  also cleans up the data of an app that has already been destroyed. Data is
+  not deleted while the app's containers run, and a symlinked data folder is
+  only unlinked. If `docker compose down` fails, destroy now stops and leaves
+  the app's files in place instead of removing them around running
+  containers.
 - Added the `cloudflare_keychain_service` config key, which names the macOS
   Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
   deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
