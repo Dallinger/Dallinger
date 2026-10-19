@@ -180,6 +180,7 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
         _upload_app_stack=mock.DEFAULT,
         _bring_up_app_containers=mock.DEFAULT,
         _record_then_launch=mock.DEFAULT,
+        get_server_pem_path=mock.Mock(return_value="key.pem"),
     ):
         result = docker_ssh._deploy_in_mode(
             app_name=app_name,
