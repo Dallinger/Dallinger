@@ -2537,8 +2537,11 @@ def _experiment_data(executor, app):
         volume = f"{project}_{volume}"
         if volume in volumes:
             size = _own_database_size(executor, app) if what == "database" else ""
-            size_part = f" ({size})" if size else ""
-            items.append(("volume", volume, f"the {what} volume {volume}{size_part}"))
+            if size:
+                label = f"the database {app} ({size}) in the volume {volume}"
+            else:
+                label = f"the {what} volume {volume}"
+            items.append(("volume", volume, label))
     exists, link_target = _app_data_link_target(executor, app)
     if exists:
         path = f"~/dallinger-data/{app}"

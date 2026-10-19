@@ -821,6 +821,7 @@ def _destroy_with_data(
     volumes=("myapp_redis_data",),
     folder=True,
     down_status=0,
+    own_db="",
 ):
     commands = []
 
@@ -840,6 +841,8 @@ def _destroy_with_data(
             if db is None:
                 return 1, "", "service postgresql is not running\n"
             return 0, f"{db}|t\n" if db else "|f\n", ""
+        if "docker exec myapp_postgresql" in cmd:
+            return 0, own_db, ""
         if cmd.startswith("docker volume ls"):
             if volumes is None:
                 return 1, "", "Cannot connect to the Docker daemon\n"
@@ -937,9 +940,17 @@ def test_destroy_without_a_tty_needs_an_explicit_choice(monkeypatch, args, messa
 def test_destroy_remove_data_after_destroy_cleans_up_leftovers(monkeypatch):
     volumes = ("myapp_postgres_data", "myapp_redis_data", "otherapp_redis_data")
     commands, result = _destroy_with_data(
-        monkeypatch, ["--remove-data", "--yes"], deployed=False, volumes=volumes
+        monkeypatch,
+        ["--remove-data", "--yes"],
+        deployed=False,
+        volumes=volumes,
+        own_db="11 MB\n",
     )
     assert result.exit_code == 0, result.output
+    assert (
+        "Deleted the database myapp (11 MB) in the volume myapp_postgres_data"
+        in result.output
+    )
     assert not any(" down" in c for c in commands)
     drop_db, drop_user, *volume_rms, folder = _deletes(commands)
     assert volume_rms == [
