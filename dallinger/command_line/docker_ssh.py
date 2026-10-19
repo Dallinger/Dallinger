@@ -2646,7 +2646,8 @@ def _remove_app_data(executor, app):
     help=(
         "Delete the experiment's data: its database, Redis volume and "
         "~/dallinger-data/<app>. Asks for confirmation unless --yes is given. "
-        "Works after the app has been destroyed."
+        "Works after the app has been destroyed; if nothing is left, says so "
+        "and exits successfully."
     ),
 )
 @click.option(
