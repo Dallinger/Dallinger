@@ -249,8 +249,23 @@ LEGACY_ROOT_CADDYFILE = """lab.example.org {
 """
 
 
-def test_upgrade_keeps_an_old_root_domain_app_reachable(server):
-    (server / "dallinger/Caddyfile").write_text(LEGACY_ROOT_CADDYFILE)
+@pytest.mark.parametrize(
+    "old_host, route, content",
+    [
+        ("lab.example.org", "root.d/old", "reverse_proxy old_web:5000\n"),
+        (
+            "1.2.3.4.nip.io",
+            "caddy.d/old",
+            "1.2.3.4.nip.io {\n    tls lab@example.org\n    reverse_proxy old_web:5000\n}",
+        ),
+    ],
+    ids=["server-host", "other-dns-host"],
+)
+def test_upgrade_keeps_an_old_root_domain_app_at_its_address(
+    server, old_host, route, content
+):
+    caddyfile = LEGACY_ROOT_CADDYFILE.replace("lab.example.org", old_host)
+    (server / "dallinger/Caddyfile").write_text(caddyfile)
     (server / "dallinger/old").mkdir()
     (server / "dallinger/old/docker-compose.yml").write_text("services: {}\n")
 
@@ -259,9 +274,18 @@ def test_upgrade_keeps_an_old_root_domain_app_reachable(server):
     )
 
     assert result.exit_code == 0, result.output
-    assert (server / "dallinger/root.d/old").read_text() == (
-        "reverse_proxy old_web:5000\n"
+    assert (server / "dallinger" / route).read_text() == content
+
+
+def test_server_check_accepts_a_site_with_several_addresses(server):
+    caddyfile = server / "dallinger/Caddyfile"
+    caddyfile.write_text(
+        caddyfile.read_text().replace(
+            "lab.example.org {", "https://lab.example.org, www.lab.example.org {", 1
+        )
     )
+    with mock.patch.object(docker_ssh, "_ipv4_addresses", return_value=["1.2.3.4"]):
+        docker_ssh._classic_preflight("lab", "myapp", None, None, False)
 
 
 def test_destroy_leaves_an_old_root_domain_caddyfile_alone(server, capsys):

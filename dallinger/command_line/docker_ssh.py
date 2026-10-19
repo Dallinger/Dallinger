@@ -303,6 +303,34 @@ def upgrade(host, yes):
     _write_server_files(host, get_configured_hosts()[host], replace=True, yes=yes)
 
 
+def _old_root_routes(executor, caddyfile, host, tls):
+    """Return route files that keep old root-domain apps at their address.
+
+    Root-domain deploys by older Dallinger versions routed their host to the
+    app inside the server's Caddyfile. An app on the server's own host moves
+    to ``root.d``; one deployed under another ``--dns-host`` gets a
+    ``caddy.d`` site for that host.
+    """
+    site = re.search(r"(?m)^([^\s{#]\S*) \{$", caddyfile or "")
+    old_host = site.group(1) if site else host
+    routes = {}
+    for app in re.findall(
+        r"handle \{\s*reverse_proxy ([A-Za-z0-9._-]+)_web:5000", caddyfile or ""
+    ):
+        if not executor.run(
+            f"test -f ~/dallinger/{app}/docker-compose.yml && echo yes", raise_=False
+        ):
+            continue
+        route = f"reverse_proxy {app}_web:5000"
+        if old_host == host:
+            routes[f"dallinger/root.d/{app}"] = f"{route}\n"
+        else:
+            routes[f"dallinger/caddy.d/{app}"] = (
+                f"{old_host} {{\n    {tls}\n    {route}\n}}"
+            )
+    return routes
+
+
 def _config_contact_email():
     """Return ``contact_email_on_error`` from Dallinger config, or None."""
     return get_config(load=True).get("contact_email_on_error", None)
@@ -375,24 +403,14 @@ def _write_server_files(server, server_info, *, replace, yes=True):
             f"`dallinger docker-ssh servers upgrade --host {server}`."
         )
         return
+    host, tls = _server_host(server_info), _server_tls(server_info)
     files = {
-        "dallinger/Caddyfile": CADDYFILE_SERVER.format(
-            host=_server_host(server_info), tls=_server_tls(server_info)
-        ),
+        "dallinger/Caddyfile": CADDYFILE_SERVER.format(host=host, tls=tls),
         "dallinger/docker-compose.yml": DOCKER_COMPOSE_SERVER_TPL.render(),
     }
     current = {path: executor.run(f"cat ~/{path}", raise_=False) for path in files}
     changed = [path for path, content in files.items() if current[path] != content]
-    # Root-domain deploys by older Dallinger versions routed the server's own
-    # host to the app inside the Caddyfile; the new Caddyfile imports root.d.
-    root_routes = "".join(
-        f"; [ ! -f ~/dallinger/{app}/docker-compose.yml ] || "
-        f"echo {quote(f'reverse_proxy {app}_web:5000')} > ~/dallinger/root.d/{app}"
-        for app in re.findall(
-            r"handle \{\s*reverse_proxy ([A-Za-z0-9._-]+)_web:5000",
-            current["dallinger/Caddyfile"] or "",
-        )
-    )
+    routes = _old_root_routes(executor, current["dallinger/Caddyfile"], host, tls)
     if changed and replace:
         print(f"These files on {server} will be replaced (keeping a .bak copy):")
         for path in changed:
@@ -408,11 +426,10 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     executor.run(
         "mkdir -p ~/dallinger/caddy.d ~/dallinger/root.d"
         + "".join(f"; [ ! -f ~/{p} ] || cp ~/{p} ~/{p}.{stamp}.bak" for p in changed)
-        + root_routes
     )
     sftp = get_sftp(server_info["host"], user=server_info.get("user"))
-    for path in changed:
-        sftp.putfo(BytesIO(files[path].encode()), path)
+    for path, content in [*((p, files[p]) for p in changed), *routes.items()]:
+        sftp.putfo(BytesIO(content.encode()), path)
     if not executor.run(
         "test -f ~/dallinger/dozzle-users.yml && echo yes", raise_=False
     ):
@@ -1063,7 +1080,8 @@ def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
     if not compose.strip():
         problems.append("it has no ~/dallinger/docker-compose.yml")
     else:
-        if not re.search(rf"(?m)^\s*{re.escape(host)}\s*\{{", caddyfile):
+        address = rf"(?:https://)?{re.escape(host)}(?::443)?"
+        if not re.search(rf"(?m)^\s*(?:\S+[\s,]+)*{address}[\s,][^\n]*\{{", caddyfile):
             problems.append(f"its Caddyfile does not serve {host}")
         if "import caddy.d/*" not in caddyfile:
             problems.append("its Caddyfile does not import caddy.d")

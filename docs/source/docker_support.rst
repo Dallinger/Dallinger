@@ -208,7 +208,8 @@ configuration changed:
 It lists the files it will replace and asks first (``--yes`` skips the
 question), keeps a ``.bak`` copy of each, and keeps the Dozzle login. A
 root-domain app deployed by an older Dallinger, whose route was inside the
-server's ``Caddyfile``, moves to ``root.d``. Recreating
+server's ``Caddyfile``, keeps its address: it moves to ``root.d``, or to its own
+``caddy.d`` site if it was deployed under another ``--dns-host``. Recreating
 the shared Postgres or Caddy briefly interrupts every classic app on the
 server, so upgrade when no classic experiment is live. For example, the Postgres
 ``jit = off`` setting and the persistent Caddy certificate volume
@@ -218,7 +219,9 @@ first upgrade.
 
 The server's own sites are its DNS host, which is the ``--dns-host`` saved by
 ``servers add`` or else the server's hostname, and ``logs.<DNS host>`` for the
-Dozzle log viewer. A deploy's ``--dns-host`` only names that app's site, for
+Dozzle log viewer, so ``logs.<DNS host>`` must also resolve to the server
+(older root-domain servers served Dozzle at ``<DNS host>/logs`` instead). A
+deploy's ``--dns-host`` only names that app's site, for
 example ``--app exp1 --dns-host 1.2.3.4.nip.io`` serves
 ``exp1.1.2.3.4.nip.io``. On a server registered by IP address without a saved
 ``--dns-host``, the deploy's ``--dns-host`` is also the server's own host, as
