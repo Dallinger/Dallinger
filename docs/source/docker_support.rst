@@ -589,6 +589,10 @@ where it can measure them, and asks whether to delete it, for example:
       - the folder ~/dallinger-data/myapp (3.4G)
     Delete this data? This cannot be undone. Answer no to keep it. [y/N]:
 
+For Cloudflare ingress, the database is listed as ``the database myapp (12 MB)
+in the volume myapp_postgres_data``; the size is the database's, and deleting
+it removes the whole volume.
+
 Answering no keeps the data; destroy then prints the command that deletes it
 later. With ``--keep-data``, destroy lists the data it kept along with that
 command. Export anything you need before you delete the data.
