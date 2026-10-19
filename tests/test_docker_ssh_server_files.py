@@ -153,12 +153,21 @@ def test_servers_upgrade_rewrites_server_files_and_keeps_backups(server):
     assert "caddy reload" in docker_calls(server)
 
 
-@pytest.mark.parametrize("app_name", ["myapp", None], ids=["subdomain", "root"])
-def test_classic_deploy_only_writes_its_own_caddy_route(server, app_name, capsys):
-    if app_name is None:
+@pytest.mark.parametrize(
+    "app_name, hostname, route_dir",
+    [
+        ("myapp", "myapp.1.2.3.4.nip.io", "caddy.d"),
+        (None, "1.2.3.4.nip.io", "caddy.d"),
+        (None, "lab.example.org", "root.d"),
+    ],
+    ids=["subdomain", "own-host", "server-root"],
+)
+def test_classic_deploy_only_writes_its_own_caddy_route(
+    server, app_name, hostname, route_dir, capsys
+):
+    if route_dir == "root.d":
         CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
         (server / "docker.log").unlink()
-    hostname = "lab.example.org" if app_name is None else "myapp.1.2.3.4.nip.io"
     before = checksums(server)
     config = Configuration()
     config._reset(register_defaults=True)
@@ -191,7 +200,7 @@ def test_classic_deploy_only_writes_its_own_caddy_route(server, app_name, capsys
     routes = [
         p for d in ("caddy.d", "root.d") for p in (server / "dallinger" / d).glob("*")
     ]
-    assert [p.parent.name for p in routes] == ["caddy.d" if app_name else "root.d"]
+    assert [p.parent.name for p in routes] == [route_dir]
     assert f"reverse_proxy {result['app']}_web:5000" in routes[0].read_text()
     assert "up -d" not in docker_calls(server)
     assert "restart" not in docker_calls(server)
@@ -224,3 +233,43 @@ def test_classic_deploy_checks_the_server_setup_before_building(
     output = capsys.readouterr().out
     assert problem in output
     assert "dallinger docker-ssh servers upgrade --host lab.example.org" in output
+
+
+LEGACY_ROOT_CADDYFILE = """lab.example.org {
+    tls lab@example.org
+    handle /logs* {
+        reverse_proxy dozzle:8080
+    }
+    handle {
+        reverse_proxy old_web:5000
+    }
+}
+"""
+
+
+def test_upgrade_keeps_an_old_root_domain_app_reachable(server):
+    (server / "dallinger/Caddyfile").write_text(LEGACY_ROOT_CADDYFILE)
+    (server / "dallinger/old").mkdir()
+    (server / "dallinger/old/docker-compose.yml").write_text("services: {}\n")
+
+    result = CliRunner().invoke(
+        docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (server / "dallinger/root.d/old").read_text() == (
+        "reverse_proxy old_web:5000\n"
+    )
+
+
+def test_destroy_leaves_an_old_root_domain_caddyfile_alone(server, capsys):
+    (server / "dallinger/Caddyfile").write_text(LEGACY_ROOT_CADDYFILE)
+    (server / "dallinger/old").mkdir()
+    (server / "dallinger/old/docker-compose.yml").write_text("services: {}\n")
+    before = checksums(server)
+
+    docker_ssh.destroy.callback(server="lab", app="old")
+
+    assert checksums(server) == before
+    assert not (server / "dallinger/old").exists()
+    assert "servers upgrade --host lab" in capsys.readouterr().out

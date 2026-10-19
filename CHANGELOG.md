@@ -175,27 +175,32 @@
 
 ### Changed
 
-- Classic-ingress `dallinger docker-ssh deploy` and `sandbox` no longer
-  rewrite a server's shared files (`Caddyfile`, `docker-compose.yml`,
+- Classic-ingress `dallinger docker-ssh deploy`, `sandbox` and `destroy` no
+  longer rewrite a server's shared files (`Caddyfile`, `docker-compose.yml`,
   `dozzle-users.yml`) or restart its shared Caddy, Postgres and Dozzle, which
   briefly took every other app on a shared server offline. A deploy now only
   adds its own Caddy route and reloads Caddy. A root-domain app's route goes in
   `~/dallinger/root.d/<app>`. `servers add` sets up the shared services on a
   server that has none. The new `dallinger docker-ssh servers upgrade --host
   <server>` command sets them up or rewrites them. It lists the files it
-  replaces, asks first unless given `--yes`, and keeps a `.bak` copy of each.
+  replaces, asks first unless given `--yes`, keeps a `.bak` copy of each, and
+  moves a root-domain app deployed by an older Dallinger into `root.d`.
   A deploy to a server that lacks the setup it needs (for example a root-domain
   app on a server set up by an older Dallinger) stops before the image build
   and names that command. The server's DNS host and the email that Caddy gives
   Let's Encrypt come from the server record: `servers add` saves `--dns-host`
   and `--contact-email`, and the email defaults to `contact_email_on_error`.
-  A deploy's `--dns-host` now only names the app's own site. The Dozzle log
-  viewer is always `https://logs.<server DNS host>`, so the printed URL is right
-  when a deploy uses a different `--dns-host`. Caddy keeps its certificates on
-  a `caddy_data` volume, so recreating it does not request new ones. The DNS
-  check now runs before the image build. If a new deploy fails after building
-  an image, the image is removed unless a container or another app uses it.
-  "Reloading Caddy config file" is printed once, as a plain line.
+  A server registered by IP address needs a saved `--dns-host` for classic
+  ingress; a deploy's `--dns-host` now only names the app's own site. A deploy
+  without `--app` only replaces the server's other experiments when it takes
+  the server's own DNS host. The Dozzle log viewer is always
+  `https://logs.<server DNS host>`, so the printed URL is right when a deploy
+  uses a different `--dns-host`. After `servers upgrade`, Caddy keeps its
+  certificates on a `caddy_data` volume, so recreating it later does not
+  request new ones. The DNS check now runs before the image build. If a new
+  deploy fails after building an image, the image is removed unless a container
+  or another app uses it. "Reloading Caddy config file" is printed once, as a
+  plain line.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and

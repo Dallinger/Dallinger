@@ -171,7 +171,7 @@ CONTROLLER_IMAGE = _read_controller_image(
 )
 
 
-CADDYFILE_SUBDOMAIN = """
+CADDYFILE_SERVER = """
 # This is a configuration file for the Caddy http Server
 # Documentation can be found at https://caddyserver.com/docs
 {{
@@ -341,8 +341,8 @@ def _server_host(server_info):
     print(
         f"{RED}Error: {server_info['host']} is an IP address, so classic ingress "
         f"needs a DNS name for the server.{END} Save one with "
-        f"`{_servers_add_command(server_info, dns_host='<name>')}`, or use "
-        "`--dns-host nip.io` for <ip>.nip.io."
+        f"`{_servers_add_command(server_info, dns_host='<name>')}` "
+        "(`--dns-host nip.io` uses <ip>.nip.io)."
     )
     raise click.Abort()
 
@@ -361,7 +361,7 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     """
     host = _server_host(server_info)
     files = {
-        "dallinger/Caddyfile": CADDYFILE_SUBDOMAIN.format(
+        "dallinger/Caddyfile": CADDYFILE_SERVER.format(
             host=host, tls=_server_tls(server_info)
         ),
         "dallinger/docker-compose.yml": DOCKER_COMPOSE_SERVER_TPL.render(),
@@ -376,11 +376,18 @@ def _write_server_files(server, server_info, *, replace, yes=True):
             f"`dallinger docker-ssh servers upgrade --host {server}`."
         )
         return
-    changed = [
-        path
-        for path, content in files.items()
-        if executor.run(f"cat ~/{path}", raise_=False) != content
-    ]
+    current = {path: executor.run(f"cat ~/{path}", raise_=False) for path in files}
+    changed = [path for path, content in files.items() if current[path] != content]
+    # Root-domain deploys by older Dallinger versions routed the server's own
+    # host to the app inside the Caddyfile; the new Caddyfile imports root.d.
+    root_routes = "".join(
+        f"; [ ! -f ~/dallinger/{app}/docker-compose.yml ] || "
+        f"echo {quote(f'reverse_proxy {app}_web:5000')} > ~/dallinger/root.d/{app}"
+        for app in re.findall(
+            r"handle \{\s*reverse_proxy ([A-Za-z0-9._-]+)_web:5000",
+            current["dallinger/Caddyfile"] or "",
+        )
+    )
     if changed and replace:
         print(f"These files on {server} will be replaced (keeping a .bak copy):")
         for path in changed:
@@ -395,6 +402,7 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     executor.run(
         "mkdir -p ~/dallinger/caddy.d ~/dallinger/root.d"
         + "".join(f"; [ ! -f ~/{p} ] || cp ~/{p} ~/{p}.{stamp}.bak" for p in changed)
+        + root_routes
     )
     sftp = get_sftp(server_info["host"], user=server_info.get("user"))
     for path in changed:
@@ -647,9 +655,12 @@ option_archive = click.option(
 option_config = click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 option_dns_host = click.option(
     "--dns-host",
-    help="Classic Caddy DNS name. Must resolve all its subdomains to the IP address "
-    "specified as ssh host. Not used for Cloudflare apps. You can use 'nip.io' to "
-    "automatically generate a nip.io domain from the server's IP address.",
+    help="Classic Caddy DNS name for this app's site (<app>.<dns-host> with --app). "
+    "Must resolve all its subdomains to the IP address specified as ssh host. "
+    "Defaults to the server's DNS host. The server's own sites, including the "
+    "log viewer, always use its saved DNS host. Not used for Cloudflare apps. "
+    "You can use 'nip.io' to automatically generate a nip.io domain from the "
+    "server's IP address.",
 )
 option_server = click.option(
     "--server",
@@ -972,22 +983,7 @@ def _classic_hostname(server_info, app_name, archive_path, dns_host):
     sites keep the host saved with the server.
     """
     ssh_host = split_ssh_host_port(server_info["host"])[0]
-    dns_host = resolve_dns_host(server_info, dns_host)
-    if not dns_host:
-        print(
-            f"""{RED}Error: When using an IP address as server ({ssh_host}), you must specify a DNS host.{END}
-You have two options:
-1. Use nip.io:
-   --dns-host nip.io
-   {RED}Using nip.io as part of the hostname might cause problems:{END}
-   Some browsers might tell users this name is suspicious
-2. Use a custom domain (recommended):
-   Create a DNS A record pointing to {GREEN}{ssh_host}{END}
-   and use option --dns-host to deploy the experiment.
-   {BLUE}For instance to use the name experiment1.my-custom-domain.example.com
-   you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}"""
-        )
-        raise click.Abort()
+    dns_host = dns_host or _server_host(server_info)
     if dns_host == "nip.io":
         dns_host = get_dns_host(ssh_host)
         print(f"""{RED}Using {dns_host} as hostname. This might cause problems:{END}
@@ -1507,7 +1503,7 @@ def build_and_push_image(f):
             kwargs.get("app_name"),
             kwargs.get("archive_path"),
             kwargs.get("ingress"),
-        ):
+        ) and kwargs.get("classic_hostname") == _server_host(server_info):
             preflight_root_clean = ensure_root_domain_ready(
                 server=kwargs["server"], update=kwargs.get("update", False)
             )
@@ -1558,19 +1554,19 @@ def build_and_push_image(f):
             )
             built_image = image_name
 
-            remote_build = not local_build
-            if remote_build and not push_build:
-                # If built remotely and not pushing, the image is only on the remote daemon.
-                # We need to get its full name (repo:tag) for deployment.
-                # The build_image function already returns the image name, so we use that.
-                print(
-                    f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
-                )
-            else:
-                # If it's a local build, or if it's a remote build and push_build, then push.
-                image_name = push_image(image_name)
-
             try:
+                remote_build = not local_build
+                if remote_build and not push_build:
+                    # If built remotely and not pushing, the image is only on the remote daemon.
+                    # We need to get its full name (repo:tag) for deployment.
+                    # The build_image function already returns the image name, so we use that.
+                    print(
+                        f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
+                    )
+                else:
+                    # If it's a local build, or if it's a remote build and push_build, then push.
+                    image_name = push_image(image_name)
+
                 return f(*args, **dict(kwargs, image_name=image_name))
             except BaseException:
                 if not kwargs.get("update"):
@@ -1774,7 +1770,6 @@ def _deploy_in_mode(
     dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
 
     experiment_uuid = str(uuid4())
-    use_subdomain = should_use_subdomain(app_name, archive_path)
     if app_name:
         experiment_id = app_name
     elif archive_path:
@@ -1812,8 +1807,9 @@ def _deploy_in_mode(
     )
 
     executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
+    takes_server_root = experiment_hostname == _server_host(server_info)
 
-    if not use_subdomain and not preflight_root_clean:
+    if takes_server_root and not preflight_root_clean:
         conflicts = _discover_server_apps(executor)
         if conflicts:
             joined = ", ".join(conflicts)
@@ -1938,7 +1934,7 @@ def _deploy_in_mode(
     # We give caddy the alias for the service. If we scale up the service container caddy will
     # send requests to all of them in a round robin fashion.
     route = f"reverse_proxy {experiment_id}_web:5000"
-    if experiment_hostname == _server_host(server_info):
+    if takes_server_root:
         # The server's own site imports root.d, so the app takes over its root.
         sftp.putfo(BytesIO(f"{route}\n".encode()), f"dallinger/root.d/{experiment_id}")
     else:
@@ -2616,7 +2612,6 @@ def destroy(server, app):
     """Tear down an experiment run on a server you control via ssh."""
     server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
-    ssh_host, _ = split_ssh_host_port(ssh_address)
     ssh_user = server_info.get("user")
     executor = Executor(ssh_address, user=ssh_user, app=app)
 
@@ -2670,21 +2665,14 @@ def destroy(server, app):
     else:
         executor.run(f"rm -f ~/dallinger/root.d/{quote(app)}")
         caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
-        uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
-        dns_host = ssh_host
-        executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
-        if uses_root_domain:
-            config = get_config(load=True)
-            email_addr = config.get("contact_email_on_error")
-            has_tls = not is_loopback_host(ssh_host)
-            tls_value = "tls internal" if not has_tls else f"tls {email_addr}"
-            sftp = get_sftp(ssh_address, user=ssh_user)
-            sftp.putfo(
-                BytesIO(
-                    CADDYFILE_SUBDOMAIN.format(host=dns_host, tls=tls_value).encode()
-                ),
-                "dallinger/Caddyfile",
+        if f"reverse_proxy {app}_web:5000" in (caddyfile_content or ""):
+            print(
+                f"The server's Caddyfile still sends the server's own host to {app}, "
+                "as root-domain deploys by older Dallinger versions set it up. "
+                "Destroy leaves that shared file alone. To reset it, run "
+                f"`dallinger docker-ssh servers upgrade --host {server}`."
             )
+        executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
         executor.reload_caddy()
         executor.run(
             f"docker compose -f ~/dallinger/{app}/docker-compose.yml down",

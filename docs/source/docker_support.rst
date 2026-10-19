@@ -191,10 +191,10 @@ classic apps on a server share that Postgres's ~97 non-superuser connection
 slots, so a few busy classic apps can exhaust it; use ``--ingress cloudflare``
 for an app that needs its own Postgres.
 A classic deploy only adds the app's own Caddy route (``~/dallinger/caddy.d/<app>``,
-or ``~/dallinger/root.d/<app>`` for a root-domain app) and reloads Caddy. It
-never writes the server's shared files (``Caddyfile``, ``docker-compose.yml``,
-``dozzle-users.yml``) and never restarts the shared Caddy, Postgres or Dozzle,
-so other apps on the server keep running. ``servers add`` sets these services
+or ``~/dallinger/root.d/<app>`` for a root-domain app) and reloads Caddy, and
+``destroy`` only removes it. Neither writes the server's shared files
+(``Caddyfile``, ``docker-compose.yml``, ``dozzle-users.yml``) or restarts the
+shared Caddy, Postgres or Dozzle, so other apps on the server keep running. ``servers add`` sets these services
 up on a server that doesn't have them. If the server lacks something the deploy
 needs, the deploy stops before building the image and names the command to
 run. That command is ``servers upgrade``, which rewrites the shared files from
@@ -206,7 +206,9 @@ configuration changed:
     dallinger docker-ssh servers upgrade --host $SERVER
 
 It lists the files it will replace and asks first (``--yes`` skips the
-question), keeps a ``.bak`` copy of each, and keeps the Dozzle login. Recreating
+question), keeps a ``.bak`` copy of each, and keeps the Dozzle login. A
+root-domain app deployed by an older Dallinger, whose route was inside the
+server's ``Caddyfile``, moves to ``root.d``. Recreating
 the shared Postgres or Caddy briefly interrupts every classic app on the
 server, so upgrade when no classic experiment is live. For example, the Postgres
 ``jit = off`` setting and the persistent Caddy certificate volume
