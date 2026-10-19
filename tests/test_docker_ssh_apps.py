@@ -980,6 +980,7 @@ def test_destroy_remove_data_after_destroy_cleans_up_leftovers(monkeypatch):
         commands, result = _destroy_with_data(monkeypatch, args, **nothing_left)
         assert result.exit_code == 0, result.output
         assert "Nothing left to delete for myapp on example.com." in result.output
+        assert "Aborted" not in result.output and "not deployed" not in result.output
         assert not _deletes(commands)
 
 

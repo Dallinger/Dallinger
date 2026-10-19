@@ -610,7 +610,8 @@ If you decline the confirmation for ``--remove-data``, destroy stops without
 touching the app. In a non-interactive session, such as a script, you must pass
 ``--keep-data`` or ``--remove-data --yes``. ``--remove-data`` also works after
 the app has been destroyed, and deletes whatever data is left; if nothing is
-left, it says so and exits successfully, so you can rerun it safely. Bind
+left, it says so and exits successfully, so you can safely run it again
+(scripts still need ``--yes``). Bind
 mounts that you added with ``docker_volumes`` are always kept. Volume names use the app
 name as Docker Compose writes it, in lowercase without dots.
 
