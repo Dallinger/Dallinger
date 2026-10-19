@@ -2751,10 +2751,7 @@ def destroy(
                 f"and run: {delete_again}"
             )
     elif data:
-        if keep_data:
-            _print_data(f"Kept the experiment data of {app} on {ssh_host}:", data)
-        else:
-            print("Kept the experiment data listed above.")
+        _print_data(f"Kept the experiment data of {app} on {ssh_host}:", data)
         print(
             f"To delete it, run: {delete_again}\n"
             f"A new deploy of {app} without --update deletes its database and "

@@ -577,8 +577,9 @@ prompt or with a flag. The data is:
 - the app's data folder ``~/dallinger-data/$APP_ID``, which holds files the
   experiment saved (see the note below).
 
-Before it tears anything down, destroy lists the data it finds, with sizes
-where it can measure them, and asks whether to delete it, for example:
+Before it tears anything down, destroy asks whether to delete the data, and
+its prompt lists the data it finds, with sizes where it can measure them, for
+example:
 
 .. code-block:: text
 
@@ -593,9 +594,9 @@ For Cloudflare ingress, the database is listed as ``the database myapp (12 MB)
 in the volume myapp_postgres_data``; the size is the database's, and deleting
 it removes the whole volume.
 
-Answering no keeps the data; destroy then prints the command that deletes it
-later. With ``--keep-data``, destroy lists the data it kept along with that
-command. Export anything you need before you delete the data.
+Answering no, or passing ``--keep-data``, keeps the data; after the teardown,
+destroy lists the data it kept and prints the command that deletes it later.
+Export anything you need before you delete the data.
 You can also decide up front:
 
 .. code-block:: shell

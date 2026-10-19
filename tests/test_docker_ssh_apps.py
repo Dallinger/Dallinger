@@ -904,8 +904,9 @@ def test_destroy_asks_and_reports_kept_data(monkeypatch):
     assert "  - the Redis volume myapp_redis_data" in out
     assert "  - the folder ~/dallinger-data/myapp (3.4G)" in out
     assert "Delete this data? This cannot be undone. Answer no to keep it." in out
-    assert out.count("  - the folder ~/dallinger-data/myapp") == 1
-    assert "Kept the experiment data listed above." in out
+    kept = out.index("Kept the experiment data of myapp on example.com:")
+    assert kept > out.index("Delete this data?")
+    assert "  - the folder ~/dallinger-data/myapp" in out[kept:]
     assert (
         "dallinger docker-ssh destroy --app myapp --server test-server --remove-data"
         in out
