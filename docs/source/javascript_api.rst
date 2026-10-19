@@ -102,7 +102,8 @@ WebSocket routes, as described in
 .. js:autofunction:: dallinger.openExperimentSocket
 
 .. js:autoclass:: dallinger.Socket
-   :members: send, onBroadcast, onDirect, onOpen, onRefused, close
+   :members: send, onBroadcast, onDirect, onOpen, onRefused, onView, onRejected,
+      onEnded, onResultSaved, resultSaved, close
 
 .. js:autoattribute:: dallinger.pageScope
 

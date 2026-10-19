@@ -791,6 +791,10 @@ var dallinger = (function () {
    */
   dlgr.pageScope = Math.random().toString(36).substring(2) + Date.now().toString(36);
 
+  // Sessions count a page's messages by its scope, so the page's sockets
+  // share one count.
+  var lastMessageNumber = 0;
+
   var socketUrl = function (route, params) {
     var scheme = (window.location.protocol === "https:") ? 'wss://' : 'ws://';
     var query = new URLSearchParams();
@@ -812,6 +816,25 @@ var dallinger = (function () {
     }
   };
 
+  // The server splits each message at its first colon to find the channel.
+  var checkSendChannel = function (channel) {
+    if (typeof channel !== 'string' || !channel || channel.indexOf(':') !== -1) {
+      throw new Error("A channel name must be a non-empty string without a colon, not " + JSON.stringify(channel) + ".");
+    }
+    if (RESERVED_CHANNELS.indexOf(channel) !== -1) {
+      throw new Error('The "' + channel + '" channel is reserved for Dallinger\'s own use.');
+    }
+  };
+
+  // The frames dallinger.realtime.delivery sends a page about its session.
+  var SESSION_FRAMES = ["realtime_view", "realtime_ended", "realtime_saved"];
+
+  // Seconds since 1970, from the clock that doesn't jump when the computer's
+  // clock is set.
+  var browserTime = function () {
+    return (performance.timeOrigin + performance.now()) / 1000;
+  };
+
   /**
    * A connection to one of the experiment server's WebSocket routes, created
    * with ``dallinger.openChatSocket`` or ``dallinger.openExperimentSocket``.
@@ -819,6 +842,10 @@ var dallinger = (function () {
    * The connection is a ``ReconnectingWebSocket``, available as the ``raw``
    * property, which reconnects with a growing delay whenever it is dropped.
    * A connection the server refuses is not retried.
+   *
+   * A connection opened with a ``session`` joins that real-time session each
+   * time it opens, and the session sends the page a view straight away, or
+   * its ending if it has ended. See ``onView`` and ``onEnded``.
    *
    * @constructor
    * @param {string} route - Path of the WebSocket route
@@ -833,32 +860,73 @@ var dallinger = (function () {
     }
     this.participantId = dlgr.identity.participantId;
     this.scope = options.scope === undefined ? dlgr.pageScope : options.scope;
+    this.session = options.session == null ? null : options.session;
+    this.gameChannel = options.gameChannel == null ? null : options.gameChannel;
+    if ((this.session === null) !== (this.gameChannel === null)) {
+      throw new Error("A socket that joins a session needs both the session and its game type's gameChannel.");
+    }
+    if (this.session !== null) {
+      if (!/^[0-9]+$/.test(String(this.session))) {
+        throw new Error("A session id is a whole number, not " + JSON.stringify(this.session) + ".");
+      }
+      this.session = Number(this.session);
+      checkSendChannel(this.gameChannel);
+      if (this.participantId == null) {
+        throw new Error("A socket that joins a session needs a participant id.");
+      }
+    }
     this._pending = [];
     this._closed = false;
-    this._callbacks = {broadcast: [], direct: [], open: [], refused: []};
+    this._callbacks = {
+      broadcast: [], direct: [], open: [], refused: [],
+      view: [], rejected: [], ended: [], saved: []
+    };
+    this._connection = 0;
+    // Messages sent on the game channel that no view has acknowledged, each
+    // with the connection it went out on, or null while it is held.
+    this._unacknowledged = [];
+    this._view = null;
+    this._reportedRejections = {};
+    this._ended = false;
+    this._saved = this.session === null ? null : $.Deferred();
     this.raw = new ReconnectingWebSocket(socketUrl(route, {
       channel: this.channel,
       worker_id: dlgr.identity.workerId,
       participant_id: this.participantId,
-      scope: this.scope
+      scope: this.scope,
+      session: this.session
     }));
     this.raw.addEventListener("open", function (event) {
       var pending = self._pending;
+      self._connection += 1;
       self._pending = [];
       pending.forEach(function (frame) { self.raw.send(frame); });
+      self._unacknowledged.forEach(function (message) {
+        if (message.connection === null) { message.connection = self._connection; }
+      });
       self._notify("open", [event]);
     });
     this.raw.addEventListener("message", function (event) {
       self._receive(event.data);
     });
     dlgr.stopReconnectingIfRefused(this.raw, function (code, reason) {
-      self._closed = true;
-      self._pending = [];
+      self._stop(code, reason);
       if (!self._callbacks.refused.length) {
         console.error("The server refused a WebSocket connection to " + route + ": " + reason);
       }
       self._notify("refused", [code, reason]);
     });
+  };
+
+  // Ends the socket for good, discarding held messages, with the close code
+  // and reason of a refusal.
+  dlgr.Socket.prototype._stop = function (code, reason) {
+    this._closed = true;
+    this._pending = [];
+    this._unacknowledged = this._unacknowledged.filter(function (message) {
+      return message.connection !== null;
+    });
+    if (this._saved !== null) { this._saved.reject(code, reason); }
   };
 
   dlgr.Socket.prototype._notify = function (kind, args) {
@@ -877,11 +945,76 @@ var dallinger = (function () {
     } else if (frame.indexOf(dlgr.DIRECT_CHANNEL + ':') === 0) {
       prefix = dlgr.DIRECT_CHANNEL + ':';
       kind = "direct";
+    } else if (frame.indexOf(dlgr.REALTIME_SESSION_CHANNEL + ':') === 0) {
+      // Every socket of the participant gets these, whatever its session.
+      var data = parsePayload(frame.substring(dlgr.REALTIME_SESSION_CHANNEL.length + 1));
+      if (this._isSessionFrame(data)) { this._receiveSessionFrame(data); }
+      return;
     } else {
       return;
     }
     var payload = frame.substring(prefix.length);
     this._notify(kind, [parsePayload(payload), payload]);
+  };
+
+  dlgr.Socket.prototype._isSessionFrame = function (data) {
+    return data != null && data.session_id === this.session &&
+      SESSION_FRAMES.indexOf(data.type) !== -1;
+  };
+
+  dlgr.Socket.prototype._receiveSessionFrame = function (data) {
+    if (data.type === "realtime_view") {
+      this._receiveView(data.view);
+      return;
+    }
+    this._end(data.reason, data.view);
+    if (data.type === "realtime_saved" && this._saved.state() === "pending") {
+      this._notify("saved", [data]);
+      this._saved.resolve(data);
+    }
+  };
+
+  dlgr.Socket.prototype._receiveView = function (envelope) {
+    var self = this;
+    // A view that arrives late still reports its rejections.
+    var rejections = envelope.rejected.filter(function (rejection) {
+      if (self._reportedRejections[rejection.number]) { return false; }
+      self._reportedRejections[rejection.number] = true;
+      return true;
+    });
+    var newest = this._view === null || envelope.number > this._view.number;
+    if (newest) {
+      this._view = envelope;
+      this._acknowledge(envelope.last_processed);
+    }
+    rejections.forEach(function (rejection) {
+      self._notify("rejected", [rejection.number, rejection.reason]);
+    });
+    if (!newest) { return; }
+    this._notify("view", [envelope.view, envelope]);
+    if (envelope.ended !== null) { this._end(envelope.ended, envelope.view); }
+  };
+
+  // last_processed is the latest of the page's messages the game handled, so
+  // it can belong to another socket of the page. This socket's messages reach
+  // the game in the order it sent them, so one it names settles every one sent
+  // before it. A null last_processed after a reconnect means the session has
+  // forgotten the page's numbers, and settles what earlier connections sent.
+  dlgr.Socket.prototype._acknowledge = function (last) {
+    var connection = this._connection;
+    var numbers = this._unacknowledged.map(function (message) { return message.number; });
+    this._unacknowledged = this._unacknowledged.slice(numbers.indexOf(last) + 1);
+    if (last === null) {
+      this._unacknowledged = this._unacknowledged.filter(function (message) {
+        return message.connection === connection;
+      });
+    }
+  };
+
+  dlgr.Socket.prototype._end = function (reason, view) {
+    if (this._ended) { return; }
+    this._ended = true;
+    this._notify("ended", [reason, view]);
   };
 
   /**
@@ -890,6 +1023,16 @@ var dallinger = (function () {
    * the experiment's ``handle_websocket_message`` method, with ``channel`` as
    * the ``channel_name``.
    *
+   * On a socket that joined a session, a message sent on the ``gameChannel``
+   * goes to the session instead, which passes it to the game type's
+   * ``apply`` method. The socket wraps it in an envelope holding the
+   * message's number, and the browser's time and the session time of the
+   * newest view when ``send`` is called, which the game receives as
+   * ``sent``. The page numbers its messages from 1, one more each time,
+   * across all of its sockets, and a reconnect never reuses a number. A
+   * string payload that is JSON reaches ``apply`` parsed, and any other
+   * string as it is.
+   *
    * A message sent while the connection is down is held, and sent in order
    * once the connection reopens. Held messages are discarded if the socket is
    * closed or refused first, as is anything sent after that.
@@ -897,23 +1040,41 @@ var dallinger = (function () {
    * @param {string} channel - Name of the channel to send to
    * @param {Object|string} payload - Message to send, encoded as JSON unless
    *   it is already a string
+   * @returns {number|undefined} The message's number, for a message sent on
+   *   the ``gameChannel`` of a socket that hasn't been closed or refused
    * @alias dallinger.Socket#send
    */
   dlgr.Socket.prototype.send = function (channel, payload) {
-    // The server splits each message at its first colon to find the channel.
-    if (typeof channel !== 'string' || !channel || channel.indexOf(':') !== -1) {
-      throw new Error("A channel name must be a non-empty string without a colon, not " + JSON.stringify(channel) + ".");
-    }
-    if (RESERVED_CHANNELS.indexOf(channel) !== -1) {
-      throw new Error('The "' + channel + '" channel is reserved for Dallinger\'s own use.');
-    }
+    checkSendChannel(channel);
     if (this._closed) { return; }
+    var message = null;
+    if (channel === this.gameChannel) {
+      if (typeof payload === 'string') { payload = parsePayload(payload); }
+      // The session reads an envelope only if it has a payload key, which
+      // JSON.stringify leaves out for undefined.
+      if (payload === undefined) { payload = null; }
+      message = {number: lastMessageNumber + 1, payload: payload, connection: null};
+      payload = {
+        envelope: {
+          number: message.number,
+          browser_time: browserTime(),
+          view_time: this._view === null ? null : this._view.time
+        },
+        payload: payload
+      };
+    }
     var frame = channel + ':' + (typeof payload === 'string' ? payload : JSON.stringify(payload));
+    if (message !== null) {
+      lastMessageNumber = message.number;
+      this._unacknowledged.push(message);
+    }
     if (this.raw.readyState === WebSocket.OPEN) {
       this.raw.send(frame);
+      if (message !== null) { message.connection = this._connection; }
     } else {
       this._pending.push(frame);
     }
+    if (message !== null) { return message.number; }
   };
 
   /**
@@ -986,6 +1147,137 @@ var dallinger = (function () {
     return this;
   };
 
+  dlgr.Socket.prototype._onSession = function (kind, callback) {
+    if (this.session === null) {
+      throw new Error("This socket was opened without a session, so it receives nothing from one.");
+    }
+    this._callbacks[kind].push(callback);
+    return this;
+  };
+
+  /**
+   * Call ``callback`` with each new view of the session, what the game
+   * type's ``view`` method lets this player see. The session sends one each
+   * time the connection opens, unless it has ended, and others as the game
+   * goes on.
+   *
+   * Views can arrive out of order, so only a view newer than the last one
+   * passed to the callback is passed to it, and an older view that arrives
+   * late is dropped. One view is newer than another if the session sent it
+   * later, which its envelope's ``number`` says.
+   *
+   * The callback is passed the view, followed by its envelope, an object
+   * holding:
+   *
+   * - ``view``: the view itself
+   * - ``number``: a later view has a higher number
+   * - ``time``: the session time the view shows, in seconds
+   * - ``kind``: ``"tick"`` for a view sent after a tick, otherwise
+   *   ``"message"``
+   * - ``last_processed``: the number of the latest message from this page that
+   *   the game has handled, or ``null``
+   * - ``rejected``: the messages the game rejected since the page's last view,
+   *   also passed to ``onRejected``
+   * - ``ended``: why the session ended, once it has, otherwise ``null``
+   * - ``clock``: the server's clock when it started playing the session for
+   *   this view, in seconds since 1970. The view leaves a little after.
+   *
+   * When the connection drops and reopens, the socket joins the session again
+   * and the next view shows the game as it is. The session forgets a page's
+   * ``last_processed`` and its unreported rejections when the page's last
+   * connection closes, so that view doesn't say which messages sent before
+   * the drop the game handled, only what they changed, and a rejection made
+   * just before the drop is never reported.
+   *
+   * @param {function} callback - Called with each new view and its envelope
+   * @returns {dallinger.Socket} This socket
+   * @alias dallinger.Socket#onView
+   */
+  dlgr.Socket.prototype.onView = function (callback) {
+    return this._onSession("view", callback);
+  };
+
+  /**
+   * Call ``callback`` once for each message the game type's ``apply`` method
+   * rejected, with the number ``send`` returned for it and the reason the
+   * game gave. A rejection arrives with a view, and is reported even if that
+   * view is older than one already passed to ``onView``. A message sent
+   * without the socket's envelope is never reported, and neither is one
+   * rejected just before the connection dropped (see ``onView``). The session
+   * reports a page's rejections to each of its sockets, so a page with two
+   * sockets in one session hears each rejection on both.
+   *
+   * @param {function} callback - Called with the message's number and the
+   *   reason
+   * @returns {dallinger.Socket} This socket
+   * @alias dallinger.Socket#onRejected
+   */
+  dlgr.Socket.prototype.onRejected = function (callback) {
+    return this._onSession("rejected", callback);
+  };
+
+  /**
+   * Call ``callback`` once, when the page learns that its session has ended,
+   * with why it ended and this player's final view. The page learns it from
+   * the first view that says so, from the ending the session sends instead of
+   * a view to a page that joins once it has ended, or from the saved result,
+   * whichever comes first. The final view can still reach ``onView``
+   * afterwards. The session's result may not be saved yet. See
+   * ``resultSaved``.
+   *
+   * @param {function} callback - Called with the reason and the final view
+   * @returns {dallinger.Socket} This socket
+   * @alias dallinger.Socket#onEnded
+   */
+  dlgr.Socket.prototype.onEnded = function (callback) {
+    return this._onSession("ended", callback);
+  };
+
+  /**
+   * Call ``callback`` once, when the session's result has been saved, so the
+   * page can move on. It is passed the same object ``resultSaved`` resolves
+   * with.
+   *
+   * @param {function} callback - Called with the saved result
+   * @returns {dallinger.Socket} This socket
+   * @alias dallinger.Socket#onResultSaved
+   */
+  dlgr.Socket.prototype.onResultSaved = function (callback) {
+    return this._onSession("saved", callback);
+  };
+
+  /**
+   * Wait for the session's result to be saved. A page should wait for this
+   * before it is submitted, so the experiment can read the result.
+   *
+   * The returned promise resolves with an object holding:
+   *
+   * - ``status``: ``"ended"``, or ``"failed"`` if the game's code failed
+   * - ``reason``: why the session ended
+   * - ``view``: this player's final view
+   *
+   * A failed session's result is saved too, so the page can move on either
+   * way. ``onEnded`` says when the session has ended, for a page that
+   * shouldn't wait for the save indefinitely. The promise is rejected if the
+   * socket is closed first, or if the server refuses it, as it does once an
+   * ended session's record has expired. A refusal passes the close code and
+   * reason.
+   *
+   * @example
+   * socket.resultSaved().done(function (result) {
+   *   dallinger.goToPage('questionnaire');
+   * });
+   *
+   * @returns {jQuery.Promise} See :ref:`deferreds-label`
+   * @alias dallinger.Socket#resultSaved
+   */
+  dlgr.Socket.prototype.resultSaved = function () {
+    if (this.session === null) {
+      throw new Error("This socket was opened without a session, so it has no result.");
+    }
+    return this._saved.promise();
+  };
+
   /**
    * Close the connection for good, discarding any messages held by ``send``.
    *
@@ -1005,8 +1297,7 @@ var dallinger = (function () {
   dlgr.Socket.prototype.close = function () {
     var deferred = $.Deferred();
     var raw = this.raw;
-    this._closed = true;
-    this._pending = [];
+    this._stop();
     // ReconnectingWebSocket's close() leaves an already scheduled reconnect in
     // place, and its timer calls open() on this instance.
     raw.open = function () {};
@@ -1039,6 +1330,13 @@ var dallinger = (function () {
    *   messages are passed to ``onBroadcast`` callbacks
    * @param {string} [options.scope=dallinger.pageScope] - Scope of the
    *   connection; ``null`` sends none
+   * @param {number} [options.session] - Id of the real-time session to join,
+   *   which ``create_realtime_session`` returned. The participant must be
+   *   one of its players. Keep the default scope: with a ``null`` one, the
+   *   session's views for this page reach every page the player has open,
+   *   and those pages take them for their own.
+   * @param {string} [options.gameChannel] - Channel of the session's game
+   *   type, needed with ``session``
    * @returns {dallinger.Socket} The new connection
    */
   dlgr.openChatSocket = function (options) {
