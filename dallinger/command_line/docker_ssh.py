@@ -1010,12 +1010,13 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
 
 
 def _classic_preflight(server, app_name, archive_path, dns_host, allow_private_ip):
-    """Check DNS and the server's shared services for a classic-ingress deploy.
+    """Check TLS email, DNS and the server's shared services for a classic deploy.
 
     Runs before the image build. Returns the app's public hostname.
     """
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     server_info = CONFIGURED_HOSTS[server]
+    _server_tls(server_info)
     hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
     _check_experiment_hostname_dns(
         split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
@@ -1890,7 +1891,7 @@ def _deploy_in_mode(
     )
     # Running "ls" in the `web` container blocks until `web`'s own dependencies
     # (redis and pgbouncer) are healthy. The shared Postgres belongs to another
-    # compose project; the `up --wait` above already waited for it.
+    # compose project; the pre-build server check found it running.
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
     )

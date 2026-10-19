@@ -165,7 +165,8 @@ class DockerSSHServer:
                 self.server,
                 "--user",
                 self.ssh_user,
-            ]
+            ],
+            timeout=600,
         )
 
     def upgrade_server(self):

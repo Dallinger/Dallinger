@@ -315,3 +315,19 @@ def test_a_root_route_occupies_the_app_name(server):
 
     with pytest.raises(click.Abort):
         docker_ssh._check_app_slot(LocalExecutor(server), "myapp", False, "classic")
+
+
+def test_servers_add_needs_a_dns_host_to_set_up_a_fresh_ip_server(server, monkeypatch):
+    (server / "dallinger/docker-compose.yml").unlink()
+    monkeypatch.setattr(docker_ssh, "get_configured_hosts", lambda: {})
+    monkeypatch.setattr(docker_ssh, "_config_contact_email", lambda: None)
+    with (
+        mock.patch.object(docker_ssh, "prepare_server"),
+        mock.patch.object(docker_ssh, "store_host"),
+    ):
+        result = CliRunner().invoke(docker_ssh.servers, ["add", "--host", "1.2.3.4"])
+
+    assert result.exit_code == 1
+    assert "servers add --host 1.2.3.4" in result.output
+    assert "to the deploy" not in result.output
+    assert not (server / "dallinger/docker-compose.yml").exists()
