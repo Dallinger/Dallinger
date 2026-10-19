@@ -27,6 +27,9 @@ object:
     playing the session for this view. The runner sends the view once it has
     played and saved every session that was due with it, so the view leaves a
     little after this.
+  - ``tick_rate``: the game type's
+    :attr:`~dallinger.realtime.RealtimeGame.tick_rate`, so the page knows how
+    far apart tick views are
 
 A message's number is the one its page put in the message's envelope, as
 :mod:`dallinger.realtime.session_sockets` describes.

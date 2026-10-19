@@ -761,6 +761,7 @@ class _Pass:
                         "number": session["view_number"],
                         "time": self.now,
                         "clock": self.clock,
+                        "tick_rate": self.game.tick_rate,
                         "last_processed": page["last_processed"],
                         "rejected": page["rejected"],
                         "ended": None if ended is None else ended["reason"],

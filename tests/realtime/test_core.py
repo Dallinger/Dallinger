@@ -232,6 +232,7 @@ class TestViews:
                     "number": 2,
                     "time": 0.2,
                     "clock": CLOCK,
+                    "tick_rate": 4,
                     "last_processed": 1,
                     "rejected": [],
                     "ended": None,
