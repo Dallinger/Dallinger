@@ -1176,15 +1176,23 @@ def stop(region_name, instance_id):
 
 
 def saved_server(instance_id):
-    """Return the server entry that provisioning saved for ``instance_id``, or ``{}``."""
-    return next(
-        (
-            info
-            for info in get_configured_hosts().values()
-            if instance_id and info.get("ec2_instance_id") == instance_id
-        ),
-        {},
+    """Return the server entry that provisioning saved for ``instance_id``, or ``{}``.
+
+    An entry with a DNS host is preferred if several have this instance id.
+    """
+    matches = [
+        info
+        for info in get_configured_hosts().values()
+        if instance_id and info.get("ec2_instance_id") == instance_id
+    ]
+    return next((info for info in matches if info.get("dns_host")), None) or next(
+        iter(matches), {}
     )
+
+
+def has_route_53_zone(dns_host):
+    """Whether ``dns_host`` is in a Route 53 hosted zone of this account."""
+    return bool(filter_zone_ids(get_domain(dns_host), get_53_client()))
 
 
 def teardown(region_name, instance_id, public_dns_name, dns_host):

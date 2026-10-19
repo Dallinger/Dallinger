@@ -186,8 +186,8 @@
   before terminating the instance. If Route 53 cleanup fails (including a
   missing hosted zone), it warns and still terminates the instance.
   `ec2 stop` and `ec2 start` also use the saved DNS host when `--dns-host`
-  is omitted, so `start` points the records at the instance's new AWS
-  hostname.
+  is omitted: `stop` deletes its records if they point at the instance, and
+  `start` points them at the instance's new AWS hostname.
 - `dallinger docker-ssh servers add` accepts `--dns-host` and saves it with
   the server, so servers added by IP address don't need `--dns-host` on every
   deployment. Re-adding a server keeps its saved DNS host (unless

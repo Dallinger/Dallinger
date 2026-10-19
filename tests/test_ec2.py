@@ -658,8 +658,10 @@ def test_teardown_without_instance_id_or_hosted_zone_does_not_guess(capsys):
     )
 
 
-@pytest.mark.parametrize("command", ["start", "stop"])
-def test_ec2_start_and_stop_use_the_saved_dns_host(command):
+@pytest.mark.parametrize(
+    "command, zone", [("start", True), ("start", False), ("stop", True)]
+)
+def test_ec2_start_and_stop_use_the_saved_dns_host(command, zone):
     import importlib
 
     from click.testing import CliRunner
@@ -667,7 +669,6 @@ def test_ec2_start_and_stop_use_the_saved_dns_host(command):
     from dallinger.command_line.lib import ec2
 
     ec2_cli = importlib.import_module("dallinger.command_line.ec2")
-
     hosts = {
         "alice.example.org": {
             "host": "alice.example.org",
@@ -683,7 +684,7 @@ def test_ec2_start_and_stop_use_the_saved_dns_host(command):
         mock.patch(
             "dallinger.command_line.config.get_configured_hosts", return_value=hosts
         ),
-        mock.patch.object(ec2_cli, "_get_instance_id_from", return_value="i-123"),
+        mock.patch.object(ec2_cli, "has_route_53_zone", return_value=zone),
         mock.patch.object(ec2_cli, "_get_instance_row_from", return_value=stopped),
         mock.patch.object(
             ec2_cli, "wait_for_instance_state_change", side_effect=[stopped, running]
@@ -695,11 +696,14 @@ def test_ec2_start_and_stop_use_the_saved_dns_host(command):
     ):
         result = CliRunner().invoke(ec2_cli.ec2, [command, "--name", "alice"])
     assert result.exit_code == 0, result.output
-    if command == "start":
+    if command == "stop":
+        remove_dns_record.assert_called_once_with(
+            "alice.example.org", remove_dallinger_host=False, target=AWS_HOSTNAME
+        )
+    elif zone:
         create_dns_records.assert_called_once_with(
             "alice.example.org", "alice", AWS_HOSTNAME
         )
     else:
-        remove_dns_record.assert_called_once_with(
-            "alice.example.org", remove_dallinger_host=False
-        )
+        create_dns_records.assert_called_once_with(None, "alice", AWS_HOSTNAME)
+        assert "No Route 53 hosted zone found" in result.output

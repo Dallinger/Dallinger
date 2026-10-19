@@ -198,6 +198,9 @@ Similarly you can start a stopped instance::
 instance's new AWS hostname. Both use the DNS host saved when the instance was
 provisioned with ``--dns-host``; for an instance provisioned without one, or
 by an older Dallinger, pass ``--dns-host <subdomain>.my-experiments.org``.
+With the saved DNS host, ``stop`` deletes only records that point at the
+instance, and ``start`` skips it with a warning if it is not in a Route 53
+hosted zone.
 
 Or restart a running instance::
 
