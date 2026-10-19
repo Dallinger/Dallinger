@@ -357,7 +357,7 @@
   preparation with the new `docker_ssh.check_deploy_credentials(server,
   ingress, config_options)`, which returns the token.
 - A root-domain docker-ssh deploy to a server that still has other
-  host-Caddy experiments now fails without a terminal with an `Error:` line
+  classic-ingress experiments now fails without a terminal with an `Error:` line
   that lists those experiments and the `docker-ssh destroy` commands to run
   first, instead of a bare "Aborted!" from the confirmation prompt. They are
   never destroyed automatically without a terminal; in a terminal, the deploy
