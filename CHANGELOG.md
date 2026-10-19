@@ -345,10 +345,14 @@
   the app's Redis and Postgres volumes. It fails with an `Error:` line that
   says how to provide the token (`CLOUDFLARE_API_TOKEN`, `cloudflare_api_token`
   in the config or via `-c`, including `-c cloudflare_api_token file:<path>`,
-  or a Keychain item, with a `security
-  add-generic-password` command that stores it where the lookup finds it)
-  instead of ending with a bare "Aborted!". Previously the reason went to
-  stdout and, when output was piped, could appear after "Aborted!".
+  or a Keychain item, with a `security add-generic-password` command that
+  stores it where the lookup finds it) instead of ending with a bare
+  "Aborted!". The Keychain error includes the reason `security` gave, and a
+  `-c cloudflare_api_token file:<path>` pointing at a missing file fails with
+  an `Error:` line instead of a traceback. A classic-ingress deploy to a
+  private-network server, or one without a valid `contact_email_on_error`,
+  also fails with an `Error:` line. Previously these reasons went to stdout
+  and, when output was piped, could appear after "Aborted!".
 - `dallinger debug` no longer prints "Error fetching experiment status" while
   the server shuts down or after a single failed request. Once recruitment
   closes, it reports an error only after three failed status checks in a row,

@@ -205,17 +205,82 @@ def test_preload_cloudflare_token_reads_file_override(
     config.register("other", str)
     config.extend({"cloudflare_api_token": "from-config"})
     config.ready = True
+    config.register("cloudflare_keychain_service", str)
+    seen_services = []
+
+    def load_api_token(config):
+        seen_services.append(config.get("cloudflare_keychain_service", None))
+        return config.get("cloudflare_api_token")
+
+    monkeypatch.setattr(docker_ssh_module, "load_api_token", load_api_token)
     token = docker_ssh_module._preload_cloudflare_token(
         config,
         "lab",
         None,
         (
             ("CLOUDFLARE_API_TOKEN", f"file:{token_file}"),
+            ("cloudflare_keychain_service", "org.example.token"),
             ("other", f"file:{tmp_path / 'missing'}"),
         ),
     )
     assert token == expected
+    assert seen_services == (["org.example.token"] if expected else [])
     assert config.get("cloudflare_api_token") == "from-config"
+    assert config.get("cloudflare_keychain_service", None) is None
+
+
+def test_preload_cloudflare_token_reports_a_missing_token_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"lab": {"host": "lab", "default_ingress": "cloudflare"}},
+    )
+    config = Configuration()
+    config.register("cloudflare_api_token", str)
+    config.ready = True
+    missing = tmp_path / "missing"
+    with pytest.raises(click.ClickException, match=f"Could not read {missing}: "):
+        docker_ssh_module._preload_cloudflare_token(
+            config, "lab", None, (("cloudflare_api_token", f"file:{missing}"),)
+        )
+
+
+def test_cloudflare_deploy_uses_the_preloaded_token(monkeypatch):
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.ready = True
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"lab": {"host": "lab", "default_ingress": "cloudflare"}},
+    )
+    checks = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", checks)
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "load_api_token",
+        mock.Mock(side_effect=AssertionError("token loaded twice")),
+    )
+    deploy = mock.Mock(return_value="deployed")
+    monkeypatch.setattr(docker_ssh_module, "_deploy_cloudflare_in_mode", deploy)
+    result = docker_ssh_module._deploy_in_mode(
+        app_name="myapp",
+        archive_path=None,
+        config_options=(),
+        dns_host=None,
+        image_name="image",
+        mode="live",
+        server="lab",
+        update=False,
+        local_build=False,
+        push_build=False,
+        preflight_root_clean=False,
+        cloudflare_api_token="early-token",
+    )
+    assert result == "deployed"
+    assert deploy.call_args.kwargs["api_token"] == "early-token"
+    assert "cloudflare_api_token" not in checks.call_args.kwargs
 
 
 def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch):

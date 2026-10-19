@@ -814,8 +814,7 @@ def _check_classic_ingress_reachable(server, ingress=None):
         server_info.get("host", server), server_info.get("user")
     )
     if advice:
-        print(f"{RED}Error: {advice}{END}")
-        raise click.Abort()
+        raise click.ClickException(advice)
 
 
 def _cloudflare_settings(config, dns_zone=None):
@@ -1105,6 +1104,10 @@ def _preload_cloudflare_token(config, server, ingress, config_options):
             return load_api_token(config)
     except CloudflareError as exc:
         _abort_cloudflare(exc)
+    except OSError as exc:
+        raise click.ClickException(
+            f"Could not read {exc.filename}: {exc.strerror}"
+        ) from exc
 
 
 def _apply_config_options(config, config_options):
@@ -1559,9 +1562,10 @@ def _deploy_in_mode(
     email_addr = config.get("contact_email_on_error")
     if HAS_TLS:
         if "@" not in parseaddr(email_addr)[1]:
-            print(f"Email address absent or invalid. Value {email_addr} found")
-            print("Run `dallinger email-test` to verify your configuration")
-            raise click.Abort
+            raise click.ClickException(
+                f"Email address absent or invalid. Value {email_addr} found. "
+                "Run `dallinger email-test` to verify your configuration."
+            )
     tls = "tls internal" if not HAS_TLS else f"tls {email_addr}"
 
     # Check if server is an IP address

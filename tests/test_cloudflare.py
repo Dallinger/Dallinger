@@ -439,16 +439,20 @@ def test_load_api_token_failure_names_the_configured_item(security_calls, monkey
     monkeypatch.setenv("USER", "alice")
 
     def run(args, **kwargs):
-        raise subprocess.CalledProcessError(44, args, stderr="item not found\n")
+        raise subprocess.CalledProcessError(
+            44,
+            args,
+            stderr="The specified item could not be found in the keychain.\n",
+        )
 
     monkeypatch.setattr(cf.subprocess, "run", run)
     with pytest.raises(cf.CloudflareError) as excinfo:
         cf.load_api_token(_keychain_config("org.example.cloudflare-token"))
     message = str(excinfo.value)
-    assert "'org.example.cloudflare-token' could not be read (item not found)" in (
-        message
-    )
-    assert "Set CLOUDFLARE_API_TOKEN" in message
+    assert (
+        "'org.example.cloudflare-token' could not be read (The specified item "
+        "could not be found in the keychain). Set CLOUDFLARE_API_TOKEN"
+    ) in message
     assert message.endswith(
         "`security add-generic-password -a alice -s org.example.cloudflare-token -w`."
     )
