@@ -27,11 +27,19 @@ def _web_log(server, container_id):
 @pytest.mark.slow
 @pytest.mark.docker_ssh_smoke
 def test_docker_ssh_fixture_sandbox_deploy_destroy(fresh_docker_ssh_server):
+    shared_state = (
+        "cd ~/dallinger && sha256sum Caddyfile docker-compose.yml dozzle-users.yml && "
+        "docker inspect -f '{{.Name}} {{.State.StartedAt}}' "
+        "$(docker compose ps -q httpserver postgresql dozzle)"
+    )
+    before = fresh_docker_ssh_server.run_ssh(shared_state).stdout
     app_id = fresh_docker_ssh_server.deploy_sandbox()
 
     assert app_id.startswith("dlgr-")
+    assert fresh_docker_ssh_server.run_ssh(shared_state).stdout == before
 
     fresh_docker_ssh_server.destroy_app(app_id)
+    assert fresh_docker_ssh_server.run_ssh(shared_state).stdout == before
     apps = fresh_docker_ssh_server.run_apps_command(check=True)
     assert app_id not in f"{apps.stdout}\n{apps.stderr}"
     leftovers = fresh_docker_ssh_server.run_ssh(

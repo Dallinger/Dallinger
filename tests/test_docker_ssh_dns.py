@@ -183,8 +183,12 @@ def test_classic_ingress_check_is_skipped_by_allow_private_ip_and_update(
 
 def test_servers_add_warns_about_private_network(monkeypatch):
     monkeypatch.setattr(docker_ssh_module, "prepare_server", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: {})
+    monkeypatch.setattr(docker_ssh_module, "_config_contact_email", lambda: "a@b.org")
     store_host = mock.Mock()
     monkeypatch.setattr(docker_ssh_module, "store_host", store_host)
+    write_server_files = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "_write_server_files", write_server_files)
     monkeypatch.setattr(
         docker_ssh_module, "gethostbyname_ex", _ipv4_lookup({"lab-pc": "10.0.0.1"})
     )
@@ -195,5 +199,7 @@ def test_servers_add_warns_about_private_network(monkeypatch):
 
     assert result.exit_code == 0, result.output
     store_host.assert_called_once()
+    assert store_host.call_args.args[0]["contact_email"] == "a@b.org"
+    assert write_server_files.call_args.kwargs == {"replace": False}
     assert "Warning: lab-pc has a private IP address (10.0.0.1)" in result.output
     assert "--host lab-pc --user ubuntu --default-ingress cloudflare" in result.output

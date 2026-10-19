@@ -168,6 +168,13 @@ class DockerSSHServer:
             ]
         )
 
+    def upgrade_server(self):
+        """Set up the shared classic-ingress services again after a reset."""
+        self.run_dallinger(
+            ["docker-ssh", "servers", "upgrade", "--host", self.server, "--yes"],
+            timeout=600,
+        )
+
     def remove_server(self):
         self.run_dallinger(
             ["docker-ssh", "servers", "remove", "--host", self.server], check=False
@@ -486,6 +493,7 @@ def docker_ssh_server():
 def fresh_docker_ssh_server(docker_ssh_server):
     docker_ssh_server.ensure_remote_docker_ready()
     docker_ssh_server.reset_remote_state()
+    docker_ssh_server.upgrade_server()
     yield docker_ssh_server
     try:
         docker_ssh_server.ensure_remote_docker_ready()

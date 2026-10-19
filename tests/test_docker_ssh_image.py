@@ -70,6 +70,10 @@ def test_deploy_failure_is_not_reported_as_a_registry_error(monkeypatch, capsys)
     monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
     monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
     monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"server": {"host": "h"}}
+    )
+    monkeypatch.setattr(docker_ssh_module, "_classic_preflight", mock.Mock())
+    monkeypatch.setattr(
         docker_ssh_module,
         "get_config",
         lambda load=False: {"docker_image_name": "img:1"},
@@ -83,3 +87,36 @@ def test_deploy_failure_is_not_reported_as_a_registry_error(monkeypatch, capsys)
 
     assert deployed_with == ["img:1"]
     assert "Error checking remote image" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("update", [False, True], ids=["new-app", "update"])
+def test_failed_new_deploy_removes_the_image_it_built(monkeypatch, capsys, update):
+    @docker_ssh_module.build_and_push_image
+    def deploy(**kwargs):
+        raise click.Abort()
+
+    client = _client()
+    config = mock.Mock()
+    config.get.side_effect = lambda key, default=None: {"id": "a" * 8}.get(key)
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "h"}})
+    monkeypatch.setattr(docker_ssh_module, "_classic_preflight", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load=False: config)
+    monkeypatch.setattr(docker, "from_env", lambda **kwargs: client)
+    monkeypatch.setattr(
+        docker_ssh_module, "setup_experiment", lambda *a, **k: ("id", "/tmp/x")
+    )
+    with (
+        mock.patch("dallinger.docker.tools.build_image", return_value="built:1"),
+        mock.patch("dallinger.command_line.docker.push_image", return_value="pushed"),
+        pytest.raises(click.Abort),
+    ):
+        deploy(app_name="app", server="lab", local_build=True, update=update)
+
+    if update:
+        client.images.remove.assert_not_called()
+    else:
+        client.images.remove.assert_called_once_with("built:1")
+        assert "Removed the image built:1 built for this deploy." in (
+            capsys.readouterr().out
+        )

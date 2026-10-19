@@ -190,10 +190,38 @@ Each classic app's pgbouncer may open up to 20 Postgres connections, and all
 classic apps on a server share that Postgres's ~97 non-superuser connection
 slots, so a few busy classic apps can exhaust it; use ``--ingress cloudflare``
 for an app that needs its own Postgres.
-When the server Postgres settings change, as with ``jit = off``, the next
-classic deploy on that server recreates the shared Postgres once, keeping its
-data volume. This briefly interrupts every classic app on the server, so make
-that deploy when no classic experiment is live.
+A classic deploy only adds the app's own Caddy route (``~/dallinger/caddy.d/<app>``,
+or ``~/dallinger/root.d/<app>`` for a root-domain app) and reloads Caddy. It
+never writes the server's shared files (``Caddyfile``, ``docker-compose.yml``,
+``dozzle-users.yml``) and never restarts the shared Caddy, Postgres or Dozzle,
+so other apps on the server keep running. ``servers add`` sets these services
+up on a server that doesn't have them. If the server lacks something the deploy
+needs, the deploy stops before building the image and names the command to
+run. That command is ``servers upgrade``, which rewrites the shared files from
+the server's saved DNS host and contact email and recreates the services whose
+configuration changed:
+
+.. code-block:: shell
+
+    dallinger docker-ssh servers upgrade --host $SERVER
+
+It lists the files it will replace and asks first (``--yes`` skips the
+question), keeps a ``.bak`` copy of each, and keeps the Dozzle login. Recreating
+the shared Postgres or Caddy briefly interrupts every classic app on the
+server, so upgrade when no classic experiment is live. For example, the Postgres
+``jit = off`` setting and the persistent Caddy certificate volume
+(``caddy_data``) reach a server set up by an older Dallinger only through
+``servers upgrade``. Caddy may re-issue the server's certificates once, on that
+first upgrade.
+
+The server's own sites are its DNS host, which is the ``--dns-host`` saved by
+``servers add`` or else the server's hostname, and ``logs.<DNS host>`` for the
+Dozzle log viewer. A deploy's ``--dns-host`` only names that app's site, for
+example ``--app exp1 --dns-host 1.2.3.4.nip.io`` serves
+``exp1.1.2.3.4.nip.io``. A server registered by IP address needs a saved
+``--dns-host`` (``--dns-host nip.io`` means ``<ip>.nip.io``) before it can be set up for
+classic ingress. Caddy gives Let's Encrypt the ``--contact-email`` saved with
+the server, which defaults to ``contact_email_on_error``.
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app
 tunnel; ``servers add --default-ingress cloudflare`` makes it a server's
 default. Cloudflare apps don't block a classic root-domain deploy.
@@ -398,6 +426,11 @@ Given an IP address or a DNS name of the server and a username, add the host to 
     dallinger docker-ssh servers add --user $SERVER_USER --host $SERVER_HOSTNAME_OR_IP
 
 The ``server_pem`` configuration will be used automatically for SSH authentication when connecting to the server.
+
+For classic ingress (the default), ``servers add`` also starts the shared
+Caddy, Postgres and Dozzle services on a server that has none, and prints the
+Dozzle login. A server that already runs them keeps its files; see
+``servers upgrade`` above to rewrite them.
 
 Server information is stored in ``~/.dallinger/docker-ssh/hosts``. For backward compatibility,
 Dallinger also reads from the old platform-specific location (e.g., ``~/.local/share/dallinger/hosts`` on Linux).

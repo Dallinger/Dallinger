@@ -570,6 +570,10 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
         assert kwargs["experiment_files"] is source
         return "experiment-id", tmp_path / "assembly"
 
+    def classic_preflight(*args):
+        events.append("dns-and-server-check")
+        return "host"
+
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         docker_ssh_module, "CONFIGURED_HOSTS", {"test-server": {"host": "host"}}
@@ -597,6 +601,9 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
             side_effect=destroy_app,
         ),
         mock.patch.object(docker_ssh_module, "setup_experiment", side_effect=setup),
+        mock.patch.object(
+            docker_ssh_module, "_classic_preflight", side_effect=classic_preflight
+        ),
         mock.patch.object(docker_ssh_module, "ensure_remote_host_in_known_hosts"),
         mock.patch.object(docker_ssh_module, "add_server_pem_to_ssh_agent"),
         mock.patch("docker.from_env", return_value=docker_client),
@@ -614,8 +621,10 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
         )
 
     assert result == "deployed"
+    assert wrapped_command.call_args.kwargs["classic_hostname"] == "host"
     assert events == [
         "validate-policy",
+        "dns-and-server-check",
         "remote-discovery",
         "destroy-app",
         "remote-discovery",
@@ -645,7 +654,10 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
     fake_tools.docker_tag_from_experiment_id = docker_tag_from_experiment_id
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"test-server": {"host": "host"}}
+    )
+    monkeypatch.setattr(docker_ssh_module, "_classic_preflight", mock.Mock())
     with (
         mock.patch.object(
             docker_ssh_module, "get_experiment_files", return_value=source
