@@ -7,11 +7,14 @@ import pytest
 from gevent.event import Event
 from redis import ConnectionError as RedisConnectionError
 from simple_websocket import ConnectionClosed
+from sqlalchemy.exc import OperationalError
 
+from dallinger import db
 from dallinger.db import REALTIME_SESSION_CHANNEL
 from dallinger.experiment_server import socket_admission
 from dallinger.experiment_server import sockets as sockets_module
-from dallinger.realtime import session_sockets, store
+from dallinger.models import RealtimeSession
+from dallinger.realtime import delivery, session_sockets, store
 from dallinger.realtime.core import run_pass
 from dallinger.realtime.jobs import write_ending
 from tests.realtime.helpers import CLOCK, TurnTally
@@ -426,6 +429,193 @@ class TestSessionSockets:
 
         assert "leave" in exception.call_args.args[0]
         assert "1" not in sockets.chat_backend.clients_by_participant
+
+
+def started_frame(session_id):
+    payload = {
+        "type": "realtime_started",
+        "session_id": int(session_id),
+        "game_type": "tally",
+    }
+    return "dallinger_realtime_session:" + json.dumps(payload)
+
+
+def wait(sockets, ws, participant_id="1", **args):
+    """Open an experiment socket that waits for a session of TurnTally."""
+    args = {"wait_for_game": "tally", "participant_id": participant_id, **args}
+    with (
+        patch.object(
+            socket_admission, "resolve_participant_id", return_value=participant_id
+        ),
+        patch.object(socket_admission, "Experiment", return_value=Mock()),
+        patch.object(sockets, "request", Mock(args=args)),
+    ):
+        sockets.experiment_socket(ws)
+
+
+def withheld_session_listener(sockets):
+    """Make the session listener wait to confirm its subscription until the
+    returned event is set.
+    """
+    confirm = Event()
+
+    def a_pubsub():
+        pubsub = Mock()
+
+        def listen():
+            [names] = pubsub.subscribe.call_args.args
+            if names == [REALTIME_SESSION_CHANNEL.encode()]:
+                confirm.wait()
+            yield SUBSCRIBE_CONFIRMATION
+            Event().wait()
+            yield {}
+
+        pubsub.listen.side_effect = listen
+        return pubsub
+
+    sockets.redis_conn.pubsub.side_effect = a_pubsub
+    return confirm
+
+
+class TestWaitingForASession:
+    def test_a_waiting_socket_is_sent_the_newest_running_session(self, sockets):
+        session_of()
+        newest = session_of()
+        ws = scripted()
+
+        wait(sockets, ws)
+
+        assert sent_frames(ws) == [started_frame(newest)]
+        ws.close.assert_not_called()
+
+    @pytest.mark.parametrize("participant", ["3", "9"], ids=["not a player", "a bot"])
+    def test_nothing_is_sent_for_a_session_the_page_doesnt_play(
+        self, sockets, participant
+    ):
+        session_of()
+        ws = scripted()
+
+        wait(sockets, ws, participant)
+
+        assert sent_frames(ws) == []
+
+    def test_nothing_is_sent_for_another_game_types_session(
+        self, sockets, realtime_experiment
+    ):
+        realtime_experiment.realtime_games = [TurnTally, Other]
+        session_of(Other)
+        ws = scripted()
+
+        wait(sockets, ws)
+
+        assert sent_frames(ws) == []
+
+    def test_a_page_waiting_after_a_session_is_sent_only_a_newer_one(self, sockets):
+        older = session_of()
+        newer = session_of()
+        sent = {}
+        for after in (older, newer):
+            ws = scripted()
+            wait(sockets, ws, after_session=after)
+            sent[after] = sent_frames(ws)
+
+        assert sent == {older: [started_frame(newer)], newer: []}
+
+    def test_nothing_is_sent_for_a_session_whose_ending_is_saved(self, sockets):
+        session_id = session_of()
+        end_session(session_id)
+        write_ending(int(session_id))
+        ws = scripted()
+
+        wait(sockets, ws)
+
+        assert sent_frames(ws) == []
+
+    def test_a_session_not_yet_in_redis_isnt_sent(self, sockets):
+        with db.session_factory() as own:
+            own.add(RealtimeSession(game_type="tally", members=[1], bots=[]))
+            own.commit()
+        ws = scripted()
+
+        wait(sockets, ws)
+
+        assert sent_frames(ws) == []
+
+    @pytest.mark.timeout(10)
+    def test_the_lookup_waits_for_the_session_listener(self, sockets):
+        confirm = withheld_session_listener(sockets)
+        ws = scripted()
+
+        with patch.object(sockets, "SUBSCRIPTION_TIMEOUT_SECS", 30):
+            serving = gevent.spawn(wait, sockets, ws)
+            gevent.sleep(0.05)
+            # Its announcement goes to a listener that isn't subscribed yet.
+            session_id = session_of()
+            confirm.set()
+            serving.join(timeout=5)
+
+        assert sent_frames(ws) == [started_frame(session_id)]
+
+    def test_a_session_started_on_this_process_reaches_its_waiting_pages(
+        self, sockets, monkeypatch
+    ):
+        published = []
+        monkeypatch.setattr(
+            delivery, "redis_conn", Mock(publish=lambda *args: published.append(args))
+        )
+        pages = {}
+        for participant in ["1", "9"]:
+            page = sockets.Client(Mock(), participant_id=participant)
+            page.session = session_sockets.SessionWait("tally", participant, {})
+            sockets.chat_backend.register(page)
+            pages[participant] = page
+
+        session_id = session_of()
+        ((channel, envelope),) = published
+        listener = sockets.DirectChannel(sockets.chat_backend, channel)
+        listener.relay({"type": "message", "data": envelope})
+        gevent.wait(timeout=1)
+
+        assert sent_frames(pages["1"].ws) == [started_frame(session_id)]
+        assert sent_frames(pages["9"].ws) == []
+
+    @pytest.mark.parametrize(
+        "connect, reason",
+        [
+            (lambda s, ws: wait(s, ws, wait_for_game="nope"), "not a game type"),
+            (
+                lambda s, ws: wait(s, ws, session="1"),
+                "session and wait_for_game together",
+            ),
+            (
+                lambda s, ws: chat(s, ws, wait_for_game="nope", participant_id="1"),
+                "wait_for_game needs /experiment-socket",
+            ),
+            (
+                lambda s, ws: wait(s, ws, after_session="²"),
+                "after_session isn't a session id",
+            ),
+        ],
+        ids=["not a game type", "with a session", "on /chat", "after not a number"],
+    )
+    def test_a_socket_that_cant_wait_is_refused(self, sockets, connect, reason):
+        ws = scripted()
+
+        connect(sockets, ws)
+
+        ws.close.assert_called_once_with(sockets.REFUSED_CLOSE_CODE, reason)
+        ws.receive.assert_not_called()
+
+    def test_a_lookup_postgres_refuses_asks_the_client_to_retry(self, sockets):
+        ws = scripted()
+        lost = OperationalError("SELECT", {}, Exception("lost"))
+
+        with patch.object(store, "newest_running_session", side_effect=lost):
+            wait(sockets, ws)
+
+        ws.close.assert_called_once_with(
+            sockets.UNAVAILABLE_CLOSE_CODE, "session join failed"
+        )
 
 
 class TestTimeChannel:

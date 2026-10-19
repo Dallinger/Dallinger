@@ -48,19 +48,23 @@ The real-time engine needs redis 7.0 or later.
 # watches it.
 
 import json
+import logging
 import threading
 import time
 import traceback
 
-from redis import WatchError
+from redis import RedisError, WatchError
 
 from dallinger import db, experiment
 from dallinger.db import get_queue, redis_conn
 from dallinger.models import RealtimeSession
 from dallinger.realtime.core import new_session
+from dallinger.realtime.delivery import publish_started
 from dallinger.realtime.game import validate_game_types
 from dallinger.realtime.utils import dump_json
 from dallinger.utils import normalized_participant_id
+
+logger = logging.getLogger(__name__)
 
 #: The most entries a session's stream keeps, and redis may keep a few more.
 #: A session whose runner falls this far behind loses its oldest entries
@@ -165,6 +169,9 @@ def create_realtime_session(game_type, players, bots=()):
     picks it up and plays it until it ends. If the session can't then be
     added to redis, its row is marked failed and the error is raised.
 
+    Players' pages that wait with ``dallinger.waitForRealtimeSession`` get
+    the session's id, including those that start waiting later.
+
     :param game_type: one of the experiment's
         :attr:`~dallinger.experiment.Experiment.realtime_games`
     :param players: the participant ids of the session's players, bots
@@ -221,6 +228,16 @@ def create_realtime_session(game_type, players, bots=()):
             )
             own.commit()
         raise
+    try:
+        humans = [player for player in players if player not in bots]
+        # Not this process's token, which its own listener would skip, leaving
+        # its waiting pages without the frame.
+        publish_started("create_realtime_session", session_id, channel, humans)
+    except RedisError:
+        # Pages that connect from now on still find the session.
+        logger.exception(
+            "Could not tell the pages of session %s it started.", session_id
+        )
     return session_id
 
 
@@ -323,6 +340,29 @@ def player_game_channel(session_id, participant_id):
     if is_bot != b"0" or channel is None:
         return None
     return channel.decode()
+
+
+def newest_running_session(game_type, participant_id, after=None):
+    """Return the id of the newest running session of the game type on the
+    channel ``game_type`` that has ``participant_id`` as a player other than
+    a bot, or ``None``.
+
+    :param after: a session id, so only newer sessions count, or ``None``
+    """
+    with db.session_factory() as own:
+        query = own.query(RealtimeSession.id).filter(
+            RealtimeSession.status == "running",
+            RealtimeSession.game_type == game_type,
+            RealtimeSession.members.contains([int(participant_id)]),
+        )
+        if after is not None:
+            query = query.filter(RealtimeSession.id > after)
+        candidates = query.order_by(RealtimeSession.id.desc()).all()
+    # A session's row is committed before its keys are set in redis.
+    for (session_id,) in candidates:
+        if player_game_channel(session_id, participant_id) == game_type:
+            return session_id
+    return None
 
 
 def load_ending(session_id):

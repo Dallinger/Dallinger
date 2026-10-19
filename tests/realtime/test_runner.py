@@ -639,16 +639,20 @@ class TestDelivery:
         assert not thread.is_alive()
         assert acknowledged(current)
         for ws in (unscoped, elsewhere):
-            assert {frame["session_id"] for frame in frames(ws)} == {session_id}
-            assert {frame["view"]["view"]["for"] for frame in frames(ws)} == {"2"}
-        for ws in (stale, outsider):
-            ws.send.assert_not_called()
+            assert {frame["session_id"] for frame in views(ws)} == {session_id}
+            assert {frame["view"]["view"]["for"] for frame in views(ws)} == {"2"}
+        assert views(stale) == []
+        outsider.send.assert_not_called()
 
 
 def frames(ws):
     sent = [call.args[0] for call in ws.send.mock_calls]
     assert all(each.startswith(REALTIME_SESSION_CHANNEL + ":") for each in sent)
     return [json.loads(each.split(":", 1)[1]) for each in sent]
+
+
+def views(ws):
+    return [frame for frame in frames(ws) if frame["type"] == "realtime_view"]
 
 
 def acknowledged(ws):

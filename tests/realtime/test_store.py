@@ -1,6 +1,7 @@
 import json
 import threading
 import time
+from unittest.mock import Mock, patch
 
 import pytest
 from redis import ConnectionError as RedisConnectionError
@@ -127,6 +128,18 @@ class TestSessions:
 
         assert store.running_sessions() == [session_id]
         assert db.session.get(RealtimeSession, session_id).status == "running"
+
+    def test_a_session_whose_start_cant_be_announced_still_runs(self, monkeypatch):
+        monkeypatch.setattr(
+            store, "publish_started", Mock(side_effect=RedisConnectionError("lost"))
+        )
+
+        with patch.object(store.logger, "exception") as exception:
+            session_id = store.create_realtime_session(TurnTally, ["1"])
+
+        assert store.running_sessions() == [session_id]
+        assert db.session.get(RealtimeSession, session_id).status == "running"
+        exception.assert_called_once()
 
     def test_a_session_redis_cant_take_is_marked_failed(self, monkeypatch):
         def lose_redis(pipe, *args, **kwargs):

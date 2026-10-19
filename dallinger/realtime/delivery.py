@@ -1,4 +1,15 @@
-"""Views reach players' pages on the ``dallinger_realtime_session`` channel.
+"""Sessions reach players' pages on the ``dallinger_realtime_session`` channel.
+
+When a session starts, every page of each player who isn't a bot gets a frame
+whose payload is a JSON object:
+
+- ``type``: ``"realtime_started"``
+- ``session_id``: the session that started
+- ``game_type``: the :attr:`~dallinger.realtime.RealtimeGame.channel` of
+  the session's game type
+
+A page waiting for a session of that game type then joins it, as
+:mod:`dallinger.realtime.session_sockets` describes.
 
 Runners send each player's page its views over the websocket the page opened
 to join its session. Each view arrives as a frame whose payload is a JSON
@@ -122,6 +133,30 @@ def ending_payload(session_id, ending, participant):
     if ending["status"] is not None:
         payload.update(type="realtime_saved", status=ending["status"])
     return json.dumps(payload)
+
+
+def started_payload(session_id, game_type):
+    """Return the payload that tells a player's page a session has started.
+
+    :param game_type: the channel of the session's game type
+    """
+    return json.dumps(
+        {"type": "realtime_started", "session_id": session_id, "game_type": game_type}
+    )
+
+
+def publish_started(origin, session_id, game_type, players):
+    """Tell the pages of ``players``, participant ids as strings, that the
+    session has started.
+
+    :param origin: names the sender, a string
+    """
+    send = {
+        "participant_ids": list(players),
+        "scope": None,
+        "payload": started_payload(session_id, game_type),
+    }
+    redis_conn.publish(REALTIME_SESSION_CHANNEL, direct_envelope(origin, [send]))
 
 
 def publish_saved(origin, session_id, ending):

@@ -30,6 +30,25 @@ values, and no view acknowledges it. A frame that is JSON is passed to
 A page whose session has already ended gets no join. Its socket gets the
 session's ending instead, as :mod:`dallinger.realtime.delivery` describes.
 
+A page that doesn't know its session's id yet opens a websocket to
+``/experiment-socket`` with a game type's channel in the ``wait_for_game``
+query parameter, instead of a ``session``. The socket is sent a
+``realtime_started`` frame for the newest running session of that game type
+with the participant as a player other than a bot: at once if there is one,
+otherwise when :func:`~dallinger.realtime.create_realtime_session` starts
+one. A participant's sockets also get the frames of their other game types'
+sessions, so a page checks the frame's ``game_type``. A page whose participant
+plays several sessions of the game type, one after another, gives the id of
+the session it has in ``after_session``, so that only newer sessions count.
+
+A ``wait_for_game`` that isn't one of the experiment's game types, one with a
+``session`` or on ``/chat``, and an ``after_session`` that isn't a whole
+number are refused with code ``1008``. Like any experiment socket, the
+connection is checked by
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection` and
+reported on the control channel. Its frames on game channels and the time
+channel are dropped.
+
 A page measures its clock against the server's with frames on
 :data:`~dallinger.db.TIME_CHANNEL`, each a JSON object:
 
@@ -54,11 +73,11 @@ A socket with no session gets no answers, and its reports are dropped.
 
 The web process only checks that the participant the socket names is one of
 the session's players, and closes the socket with code ``1008`` and the reason
-``not a player in this session`` if not. If redis fails while the session is
-looked up or joined, it closes the socket with ``1013``, which tells the page
-to try again later. Dallinger's sockets don't authenticate anyone, so a page
-that names another player's participant id can play as that player. An
-experiment can check ``/experiment-socket`` connections itself with
+``not a player in this session`` if not. If redis or Postgres fails while a
+session is looked up or joined, it closes the socket with ``1013``, which
+tells the page to try again later. Dallinger's sockets don't authenticate
+anyone, so a page that names another player's participant id can play as that
+player. An experiment can check ``/experiment-socket`` connections itself with
 :func:`~dallinger.experiment.Experiment.accept_websocket_connection`, but a
 ``/chat`` connection can join a session without that check.
 """
@@ -73,7 +92,7 @@ from redis import RedisError
 
 from dallinger.db import REALTIME_SESSION_CHANNEL, TIME_CHANNEL, channel_frame
 from dallinger.realtime import store
-from dallinger.realtime.delivery import ending_payload
+from dallinger.realtime.delivery import ending_payload, started_payload
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +123,19 @@ class TokenBucket:
         return True
 
 
+class Refusal(Exception):
+    """A connection's session can't be opened.
+
+    :param reason: the reason the socket is closed with
+    :param retry: whether the page should try again later
+    """
+
+    def __init__(self, reason, retry=False):
+        super().__init__(reason)
+        self.reason = reason
+        self.retry = retry
+
+
 class SessionExpired(Exception):
     """The session's keys expired after the connection was found to be one of
     its players.
@@ -116,6 +148,10 @@ class NoSession:
 
     :param describe: what the warnings call the connection
     """
+
+    #: Whether the connection's process needs its listener for
+    #: :data:`~dallinger.db.REALTIME_SESSION_CHANNEL`.
+    uses_session_listener = False
 
     def __init__(self, describe):
         self.describe = describe
@@ -157,6 +193,8 @@ class SessionSocket(NoSession):
     :attr:`~dallinger.realtime.RealtimeGame.max_messages_per_second`
     and :attr:`~dallinger.realtime.RealtimeGame.message_burst`.
     """
+
+    uses_session_listener = True
 
     def __init__(self, session_id, game, participant, scope, describe):
         super().__init__(describe)
@@ -261,6 +299,38 @@ class SessionSocket(NoSession):
             self.warn_dropped("for a session that has ended")
 
 
+class SessionWait(NoSession):
+    """The session side of a connection waiting for its participant's
+    session of a game type, which drops every frame on a game channel or the
+    time channel.
+
+    :param game_type: the game type's channel
+    :param after: a session id, so only newer sessions count, or ``None``
+    """
+
+    uses_session_listener = True
+
+    def __init__(self, game_type, participant, describe, after=None):
+        super().__init__(describe)
+        self.game_type = game_type
+        self.participant = participant
+        self.after = after
+
+    def join(self):
+        """Return the frame that tells the page about the newest running
+        session of the game type that has the participant as a player, or
+        ``None`` if there isn't one.
+        """
+        session_id = store.newest_running_session(
+            self.game_type, self.participant, after=self.after
+        )
+        if session_id is None:
+            return None
+        return channel_frame(
+            REALTIME_SESSION_CHANNEL, started_payload(session_id, self.game_type)
+        )
+
+
 def _json_object(data):
     try:
         value = json.loads(data)
@@ -317,3 +387,46 @@ def open_session_socket(requested, participant, scope, games, describe):
     if game is None:
         return None
     return SessionSocket(session_id, game, participant, scope, describe)
+
+
+def open_connection_session(args, participant, scope, games, checked, describe):
+    """Return the session side of a new connection: a :class:`SessionSocket`
+    for one that asks for a ``session``, a :class:`SessionWait` for one that
+    waits for a game type's session, otherwise a :class:`NoSession`.
+
+    :param args: the connection's query parameters
+    :param participant: the connection's participant id, a string, or
+        ``None``
+    :param scope: the connection's scope
+    :param games: the experiment's game types, as
+        :func:`~dallinger.realtime.store.experiment_games` returns them
+    :param checked: whether the experiment checked the connection, as it does
+        on ``/experiment-socket``
+    :param describe: what warnings call the connection
+    :raises Refusal: as the module docstring describes
+    """
+    requested = args.get("session")
+    waiting_for = args.get("wait_for_game")
+    if waiting_for is not None:
+        if not checked:
+            raise Refusal("wait_for_game needs /experiment-socket")
+        if requested is not None:
+            raise Refusal("session and wait_for_game together")
+        if waiting_for not in games:
+            raise Refusal("not a game type")
+        after = args.get("after_session")
+        if after is not None and not (after.isascii() and after.isdigit()):
+            raise Refusal("after_session isn't a session id")
+        after = None if after is None else int(after)
+        return SessionWait(waiting_for, participant, describe, after=after)
+    if requested is None:
+        return NoSession(describe)
+    try:
+        session = open_session_socket(requested, participant, scope, games, describe)
+    except RedisError:
+        logger.exception("Could not look up a real-time session.")
+        raise Refusal("session lookup failed", retry=True)
+    if session is None:
+        logger.warning("Refusing %s for real-time session %r.", describe, requested)
+        raise Refusal("not a player in this session")
+    return session

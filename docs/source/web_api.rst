@@ -53,11 +53,11 @@ Clients may prefix outgoing messages with any channel name except
 ``dallinger_control``, which is reserved for the server's own connection and
 subscription events, ``dallinger_direct``, which is reserved for directed
 messages, ``dallinger_realtime_session``, which carries the views of pages in
-real-time sessions, and ``dallinger_time``, which carries their clock
-measurements. Messages a client addresses to any of the first three are
-discarded. The server handles those on ``dallinger_time`` itself, for a
-connection in a real-time session, and drops them from any other. A
-``channel`` argument naming any of the four is refused.
+real-time sessions and tells pages when their sessions start, and
+``dallinger_time``, which carries their clock measurements. Messages a client
+addresses to any of the first three are discarded. The server handles those on
+``dallinger_time`` itself, for a connection in a real-time session, and drops
+them from any other. A ``channel`` argument naming any of the four is refused.
 
 A connection which supplies a ``participant_id`` also receives any message sent
 to that participant with ``Experiment.publish_to_participants``, prefixed with
@@ -101,6 +101,19 @@ describes. A connection that names a session must also carry a
 ``participant_id`` of one of the session's players, or the server closes it
 with code ``1008``, and with ``1013`` if the session can't be looked up. Frames
 it sends on the session's game channel go to the session, and to nothing else.
+
+An experiment socket can take a ``wait_for_game`` argument instead, naming the
+channel of one of the experiment's game types, for a page that doesn't know its
+session's id yet. The connection is sent the id of the newest running session of
+that game type with the participant as a player, as soon as it connects if there
+is one, or else when one starts. For a participant who plays several sessions of
+the game type, one after another, an ``after_session`` argument naming the
+session the page already has makes only newer sessions count. A
+``wait_for_game`` that isn't a game type's channel, or that comes with a
+``session``, closes the connection with code ``1008``, as does one on ``/chat``
+or an ``after_session`` that isn't a whole number, and a failed lookup closes it
+with ``1013``. In the browser, ``dallinger.waitForRealtimeSession`` opens this
+connection.
 
 Experiment routes
 ^^^^^^^^^^^^^^^^^

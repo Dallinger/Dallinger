@@ -17,6 +17,7 @@ from gevent.lock import Semaphore
 from redis import ConnectionError, RedisError
 from redis import TimeoutError as RedisTimeoutError
 from simple_websocket import ConnectionClosed
+from sqlalchemy.exc import SQLAlchemyError
 
 from dallinger.db import (
     CONTROL_CHANNEL,
@@ -329,9 +330,10 @@ class DirectChannel(Channel):
     A process runs one of these on :data:`~dallinger.db.DIRECT_CHANNEL` while
     it holds any connection that named a participant, and one on
     :data:`~dallinger.db.REALTIME_SESSION_CHANNEL` once it holds a connection
-    that joined a real-time session. It has no subscribers of its own: an
-    envelope names participants, and the backend looks up their connections,
-    so a client is addressable without having subscribed to anything.
+    that joined or waits for a real-time session. It has no subscribers of its
+    own: an envelope names participants, and the backend looks up their
+    connections, so a client is addressable without having subscribed to
+    anything.
     """
 
     #: Registrations live on the backend rather than here, so a listener that
@@ -468,14 +470,15 @@ class ChatBackend:
         than refused: it can still subscribe, send, and receive broadcasts.
         Returns the listeners for directed sends that the client's frames
         arrive through: none for a connection which is not addressable, and
-        the session listener as well for one that joins a real-time session.
+        the session listener as well for one that joins or waits for a
+        real-time session.
         """
         addressable_id = getattr(client, "addressable_id", None)
         if addressable_id is None:
             return []
         self.clients_by_participant.setdefault(addressable_id, set()).add(client)
         names = [DIRECT_CHANNEL]
-        if isinstance(client.session, session_sockets.SessionSocket):
+        if client.session.uses_session_listener:
             names.append(REALTIME_SESSION_CHANNEL)
         return [self.direct_listener(name) for name in names]
 
@@ -839,8 +842,10 @@ def _serve(ws, participant_id=None, experiment=None):
     the runner answers with can't miss it, and a leave when it closes. A session
     that has ended gets no join, and the connection gets its ending instead.
     One whose keys expired after the check is refused like a non-member. A
-    connection that closes while it waits for its subscriptions, with or
-    without a session, isn't served.
+    connection waiting for a session of a game type is sent the newest one, if
+    there is one, once the same listener is confirmed, so a session started
+    in between is found or announced. A connection that closes while it waits
+    for its subscriptions, with or without a session, isn't served.
     """
     try:
         client = _open_client(ws, participant_id, experiment)
@@ -858,12 +863,12 @@ def _serve(ws, participant_id=None, experiment=None):
             # Closed during the wait, by the browser or by a shutdown.
             return
         try:
-            ending = _join_session(client)
+            frame = _join_session(client)
         except socket_admission.Refused as refusal:
             _refuse(ws, refusal)
             return
-        if ending is not None:
-            client.send(ending)
+        if frame is not None:
+            client.send(frame)
         client.publish()
 
 
@@ -874,11 +879,13 @@ def _refuse(ws, refusal):
 
 def _open_client(ws, participant_id, experiment):
     """Return the :class:`Client` for a new connection, with its place in
-    the real-time session it asked for, if any.
+    the real-time session it asked for, or the game type it waits for a
+    session of, if any.
 
     :raises ~dallinger.experiment_server.socket_admission.Refused: if the
-        game types can't be loaded, or the session can't be looked up or
-        doesn't have the connection's participant as a player
+        game types can't be loaded, or as
+        :func:`~dallinger.realtime.session_sockets.open_connection_session`
+        refuses
     """
     try:
         games = process_games()
@@ -893,29 +900,17 @@ def _open_client(ws, participant_id, experiment):
         experiment=experiment,
         games=games,
     )
-    requested = request.args.get("session")
-    if requested is None:
-        return client
     try:
-        session_socket = session_sockets.open_session_socket(
-            requested,
+        client.session = session_sockets.open_connection_session(
+            request.args,
             client.addressable_id,
             client.scope,
             games,
-            client.client_info(),
+            checked=experiment is not None,
+            describe=client.client_info(),
         )
-    except RedisError:
-        log("Could not look up a real-time session.", level="exception")
-        raise socket_admission.Refused("session lookup failed", retry=True)
-    if session_socket is None:
-        log(
-            "Refusing {} for real-time session {!r}.".format(
-                client.client_info(), requested
-            ),
-            level="warning",
-        )
-        raise socket_admission.Refused("not a player in this session")
-    client.session = session_socket
+    except session_sockets.Refusal as refusal:
+        raise socket_admission.Refused(refusal.reason, retry=refusal.retry)
     return client
 
 
@@ -950,18 +945,21 @@ def _registered(client, channel):
 
 def _join_session(client):
     """Add the client's join to its session, if it has one, and return the
-    frame that tells the page how the session ended, if it has, or ``None``.
+    frame the page is sent first, or ``None``: how the session ended, if it
+    has, or for a client waiting for a session, the session it found.
 
     :raises ~dallinger.experiment_server.socket_admission.Refused: if the
-        session's keys have expired, or redis refuses the join
+        session's keys have expired, or redis or Postgres refuses the join
     """
     try:
         return client.session.join()
     except session_sockets.SessionExpired:
         raise socket_admission.Refused("not a player in this session")
-    except RedisError:
+    except (RedisError, SQLAlchemyError):
         log(
-            "Could not join {} to its session.".format(client.client_info()),
+            "Could not join {} to its session or find it one.".format(
+                client.client_info()
+            ),
             level="exception",
         )
         raise socket_admission.Refused("session join failed", retry=True)

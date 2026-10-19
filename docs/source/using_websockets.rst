@@ -424,13 +424,13 @@ to its ``onDirect`` callbacks, and its channel's broadcasts to its
     });
 
 Like ``dallinger_control``, the ``dallinger_direct`` channel and the
-``dallinger_realtime_session`` channel, which carries real-time sessions' views,
-are reserved for Dallinger's own use. Experiments should not publish to them,
-and clients may neither publish to them nor subscribe to them; the server
-discards such a message or subscription and logs a warning. All three carry
-messages in the same format as the ones a client expects to receive, so a
-subscriber would be given other participants' messages as though they were its
-own.
+``dallinger_realtime_session`` channel, which carries real-time sessions' views
+and tells pages when their sessions start, are reserved for Dallinger's own use.
+Experiments should not publish to them, and clients may neither publish to them
+nor subscribe to them; the server discards such a message or subscription and
+logs a warning. All three carry messages in the same format as the ones a client
+expects to receive, so a subscriber would be given other participants' messages
+as though they were its own.
 
 Connection Scope
 ~~~~~~~~~~~~~~~~
