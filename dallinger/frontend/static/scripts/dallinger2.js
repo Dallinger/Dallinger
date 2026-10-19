@@ -846,8 +846,8 @@ var dallinger = (function () {
    * session socket's ``serverTime`` to put it on the server's clock.
    *
    * This clock keeps counting steadily even if someone changes the
-   * computer's clock while the page is open. The browser time in a message
-   * sent to a session (see ``dallinger.Socket#send``) comes from it too.
+   * computer's clock while the page is open. The browser times saved with
+   * a session's messages come from it too.
    *
    * A browser event's ``timeStamp`` comes from the same clock, counted in
    * milliseconds from ``performance.timeOrigin``, so an event's browser time
@@ -941,22 +941,278 @@ var dallinger = (function () {
     return browserTime + measurement.server_time - measurement.browser_time;
   };
 
-  // What a socket that joined a session knows about it.
-  var SessionState = function (socket) {
+  var copyJson = function (value) {
+    return JSON.parse(JSON.stringify(value));
+  };
+
+  // A session's recent tick views, oldest first, back to the newest one that
+  // interpolation can still start from. delay is in tick intervals.
+  var TickBuffer = function (delay) {
+    this._delay = delay;
+    this.views = [];
+  };
+
+  TickBuffer.prototype._behind = function (envelope) {
+    return envelope.tick_rate ? this._delay / envelope.tick_rate : 0;
+  };
+
+  TickBuffer.prototype.add = function (envelope) {
+    var views = this.views;
+    // After a pause or a handover, the session's time can go back.
+    if (views.length && envelope.time < views[views.length - 1].time) {
+      views = this.views = [];
+    }
+    views.push(envelope);
+    // The session time is never behind the newest view's, so nothing earlier
+    // than this is drawn again.
+    var earliest = envelope.time - this._behind(envelope);
+    while (views.length > 1 && views[1].time <= earliest) { views.shift(); }
+  };
+
+  // The session time went back with a message view, so the older tick views
+  // are behind anything that will be drawn.
+  TickBuffer.prototype.keepNewest = function () {
+    this.views = this.views.slice(-1);
+  };
+
+  TickBuffer.prototype.viewAt = function (now, interpolate) {
+    var views = this.views;
+    if (!views.length) { return null; }
+    var newest = views[views.length - 1];
+    // Before the socket's first clock measurement.
+    if (now === null) { return newest.view; }
+    var at = now - this._behind(newest);
+    if (at <= views[0].time) { return views[0].view; }
+    for (var i = 1; i < views.length; i += 1) {
+      if (views[i].time > at) {
+        var a = views[i - 1];
+        var b = views[i];
+        return interpolate(a.view, b.view, (at - a.time) / (b.time - a.time));
+      }
+    }
+    return newest.view;
+  };
+
+  // What a socket knows about the session it joined. The port is how it
+  // reaches the socket: sendTime sends a frame on the time channel, and
+  // notify calls the socket's callbacks of one kind.
+  var SessionState = function (sessionId, options, port) {
+    this.sessionId = sessionId;
+    this._predict = options.predict;
+    this._interpolate = options.interpolate;
+    this._port = port;
+    // Counts the socket's connections, so each message knows which one it
+    // went out on.
+    this._connection = 0;
     // Messages sent on the game channel that no view has acknowledged, each
     // with the connection it went out on, or null while it is held.
     this.unacknowledged = [];
     this.view = null;
-    this.reportedRejections = {};
     this.ended = false;
-    this.saved = $.Deferred();
-    var sendTimeFrame = function (frame) {
-      socket._sendFrame(dlgr.TIME_CHANNEL + ':' + JSON.stringify(frame));
-    };
-    this.clock = new ClockSync(sendTimeFrame, function (measurement) {
-      sendTimeFrame($.extend({type: "clock"}, measurement));
-      socket._notify("clock", [measurement]);
+    this.finalView = null;
+    this._saved = $.Deferred();
+    this._reportedRejections = {};
+    this._prediction = null;
+    this._ticks = new TickBuffer(options.interpolationDelay);
+    this._clock = new ClockSync(port.sendTime, function (measurement) {
+      port.sendTime($.extend({type: "clock"}, measurement));
+      port.notify("clock", [measurement]);
     });
+  };
+
+  SessionState.prototype.opened = function () {
+    var connection = this._connection += 1;
+    this.unacknowledged.forEach(function (message) {
+      if (message.connection === null) { message.connection = connection; }
+    });
+    if (!this.ended) { this._clock.start(); }
+  };
+
+  // A drop abandons the clock's run, and the next open starts another.
+  SessionState.prototype.dropped = function () {
+    this._clock.stop();
+  };
+
+  // The socket has ended for good, so held messages will never be sent.
+  SessionState.prototype.stopped = function (code, reason) {
+    this.unacknowledged = this.unacknowledged.filter(function (message) {
+      return message.connection !== null;
+    });
+    this._clock.stop();
+    this._saved.reject(code, reason);
+  };
+
+  // A message for the game channel, numbered but not yet counted: sent
+  // counts it once it has gone, or been held.
+  SessionState.prototype.envelope = function (payload) {
+    if (typeof payload === 'string') { payload = parsePayload(payload); }
+    // The session reads an envelope only if it has a payload key, which
+    // JSON.stringify leaves out for undefined.
+    if (payload === undefined) { payload = null; }
+    var number = lastMessageNumber + 1;
+    var body = JSON.stringify({
+      envelope: {
+        number: number,
+        browser_time: readBrowserTime(),
+        view_time: this.view === null ? null : this.view.time
+      },
+      payload: payload
+    });
+    // A copy, as the game gets it, so a page that changes the object it
+    // sent doesn't change what is predicted.
+    return {number: number, body: body, payload: copyJson(payload)};
+  };
+
+  SessionState.prototype.sent = function (message, wentNow) {
+    lastMessageNumber = message.number;
+    // No view acknowledges a message sent after the end.
+    if (this.ended) { return; }
+    this.unacknowledged.push({
+      number: message.number,
+      payload: message.payload,
+      connection: wentNow ? this._connection : null
+    });
+  };
+
+  SessionState.prototype.receive = function (data) {
+    if (data == null || data.session_id !== this.sessionId ||
+        SESSION_FRAMES.indexOf(data.type) === -1) {
+      return;
+    }
+    if (data.type === "realtime_view") {
+      this._receiveView(data.view);
+      return;
+    }
+    if (this._markEnded(data.view)) {
+      this._port.notify("ended", [data.reason, data.view]);
+    }
+    if (data.type === "realtime_saved" && this._saved.state() === "pending") {
+      this._port.notify("saved", [data]);
+      this._saved.resolve(data);
+    }
+  };
+
+  SessionState.prototype.receiveTime = function (answer) {
+    this._clock.receive(answer);
+  };
+
+  SessionState.prototype.result = function () {
+    return this._saved.promise();
+  };
+
+  // Views can arrive out of order: only a newer view is passed on, but one
+  // that arrives late still reports its rejections.
+  SessionState.prototype._receiveView = function (envelope) {
+    var self = this;
+    var rejections = envelope.rejected.filter(function (rejection) {
+      if (self._reportedRejections[rejection.number]) { return false; }
+      self._reportedRejections[rejection.number] = true;
+      return true;
+    });
+    var newest = this.view === null || envelope.number > this.view.number;
+    var ending = false;
+    if (newest) {
+      if (this.view !== null && envelope.time < this.view.time) { this._ticks.keepNewest(); }
+      if (envelope.kind === "tick") { this._ticks.add(envelope); }
+      this.view = envelope;
+      this._acknowledge(envelope.last_processed);
+      ending = envelope.ended !== null && this._markEnded(envelope.view);
+    }
+    rejections.forEach(function (rejection) {
+      self._port.notify("rejected", [rejection.number, rejection.reason]);
+    });
+    if (!newest) { return; }
+    this._port.notify("view", [envelope.view, envelope]);
+    if (ending) { this._port.notify("ended", [envelope.ended, envelope.view]); }
+  };
+
+  // last_processed is the latest of the page's messages the game handled, so
+  // it can belong to another socket of the page. This socket's messages reach
+  // the game in the order it sent them, so one it names settles every one sent
+  // before it. A null last_processed after a reconnect means the session has
+  // forgotten the page's numbers, and settles what earlier connections sent.
+  SessionState.prototype._acknowledge = function (last) {
+    var connection = this._connection;
+    var numbers = this.unacknowledged.map(function (message) { return message.number; });
+    this.unacknowledged = this.unacknowledged.slice(numbers.indexOf(last) + 1);
+    if (last === null) {
+      this.unacknowledged = this.unacknowledged.filter(function (message) {
+        return message.connection === connection;
+      });
+    }
+  };
+
+  // Returns false if the session was already known to have ended.
+  SessionState.prototype._markEnded = function (finalView) {
+    if (this.ended) { return false; }
+    this.ended = true;
+    this.finalView = finalView;
+    this._clock.stop();
+    return true;
+  };
+
+  SessionState.prototype.serverTime = function (browserTime) {
+    return this._clock.serverTime(browserTime);
+  };
+
+  SessionState.prototype.sessionTime = function () {
+    var view = this.view;
+    if (view !== null && this.ended) { return view.time; }
+    var now = this._clock.serverTime(readBrowserTime());
+    if (view === null || now === null) { return null; }
+    return view.time + Math.max(0, now - view.clock);
+  };
+
+  SessionState.prototype.predictedView = function () {
+    if (this._predict === null) {
+      throw new Error("This socket was opened without the predict option, so it predicts nothing.");
+    }
+    if (this.ended) { return this.finalView; }
+    if (this.view === null) { return null; }
+    // The prediction is reused until the view or the messages change, so
+    // pages are told not to change it. Messages are only ever added, or
+    // settled when a new view arrives or dropped when the socket stops, so
+    // the count tells whether they changed.
+    var messages = this.unacknowledged;
+    var cached = this._prediction;
+    if (cached === null || cached.view !== this.view || cached.count !== messages.length) {
+      var predict = this._predict;
+      cached = this._prediction = {
+        view: this.view,
+        count: messages.length,
+        predicted: messages.reduce(function (view, message) {
+          var next = predict(view, message.payload);
+          return next === undefined ? view : next;
+        }, copyJson(this.view.view))
+      };
+    }
+    return cached.predicted;
+  };
+
+  SessionState.prototype.interpolatedView = function () {
+    if (this._interpolate === null) {
+      throw new Error("This socket was opened without the interpolate option, so it interpolates nothing.");
+    }
+    if (this.ended) { return this.finalView; }
+    return this._ticks.viewAt(this.sessionTime(), this._interpolate);
+  };
+
+  var sessionOption = function (options, name, fallback, check, expected) {
+    var value = options[name];
+    if (value == null) { return fallback; }
+    if (options.session == null) {
+      throw new Error("The " + name + " option needs a session.");
+    }
+    if (!check(value)) {
+      throw new Error("The " + name + " option must be " + expected + ".");
+    }
+    return value;
+  };
+
+  var isFunction = function (value) { return typeof value === 'function'; };
+
+  var isDelay = function (value) {
+    return typeof value === 'number' && isFinite(value) && value >= 0;
   };
 
   /**
@@ -974,6 +1230,9 @@ var dallinger = (function () {
    * game in ``onView``, and move on once ``resultSaved`` says the game is
    * over and saved. The socket also keeps track of the server's clock, so
    * the page can tell the time as the game sees it (see ``sessionTime``).
+   * A fast game can show the player's own moves at once with
+   * ``predictedView``, and other players moving smoothly with
+   * ``interpolatedView``.
    *
    * @example
    * // sessionId is the id create_realtime_session returned, which the
@@ -1010,6 +1269,14 @@ var dallinger = (function () {
     if ((this.session === null) !== (this.gameChannel === null)) {
       throw new Error("A socket that joins a session needs both the session and its game type's gameChannel.");
     }
+    var sessionOptions = {
+      predict: sessionOption(options, "predict", null, isFunction, "a function"),
+      interpolate: sessionOption(options, "interpolate", null, isFunction, "a function"),
+      interpolationDelay: sessionOption(options, "interpolationDelay", 2, isDelay, "a number, 0 or more")
+    };
+    if (options.interpolationDelay != null && sessionOptions.interpolate === null) {
+      throw new Error("The interpolationDelay option needs the interpolate option.");
+    }
     if (this.session !== null) {
       if (!/^[0-9]+$/.test(String(this.session))) {
         throw new Error("A session id is a whole number, not " + JSON.stringify(this.session) + ".");
@@ -1026,8 +1293,12 @@ var dallinger = (function () {
       broadcast: [], direct: [], open: [], refused: [],
       view: [], rejected: [], ended: [], saved: [], clock: []
     };
-    this._connection = 0;
-    this._state = this.session === null ? null : new SessionState(this);
+    this._state = this.session === null ? null : new SessionState(this.session, sessionOptions, {
+      sendTime: function (frame) {
+        self._sendFrame(dlgr.TIME_CHANNEL + ':' + JSON.stringify(frame));
+      },
+      notify: function (kind, args) { self._notify(kind, args); }
+    });
     this.raw = new ReconnectingWebSocket(socketUrl(route, {
       channel: this.channel,
       worker_id: dlgr.identity.workerId,
@@ -1037,24 +1308,16 @@ var dallinger = (function () {
     }));
     this.raw.addEventListener("open", function (event) {
       var pending = self._pending;
-      self._connection += 1;
       self._pending = [];
       pending.forEach(function (frame) { self.raw.send(frame); });
-      var state = self._state;
-      if (state !== null) {
-        state.unacknowledged.forEach(function (message) {
-          if (message.connection === null) { message.connection = self._connection; }
-        });
-        if (!state.ended) { state.clock.start(); }
-      }
+      if (self._state !== null) { self._state.opened(); }
       self._notify("open", [event]);
     });
     this.raw.addEventListener("message", function (event) {
       self._receive(event.data);
     });
-    // A drop abandons the run, and the next open starts another.
     this.raw.addEventListener("close", function () {
-      if (self._state !== null) { self._state.clock.stop(); }
+      if (self._state !== null) { self._state.dropped(); }
     });
     dlgr.stopReconnectingIfRefused(this.raw, function (code, reason) {
       self._stop(code, reason);
@@ -1070,13 +1333,7 @@ var dallinger = (function () {
   dlgr.Socket.prototype._stop = function (code, reason) {
     this._closed = true;
     this._pending = [];
-    var state = this._state;
-    if (state === null) { return; }
-    state.unacknowledged = state.unacknowledged.filter(function (message) {
-      return message.connection !== null;
-    });
-    state.clock.stop();
-    state.saved.reject(code, reason);
+    if (this._state !== null) { this._state.stopped(code, reason); }
   };
 
   // Sends a frame now, or holds it until the connection opens, and returns
@@ -1108,12 +1365,13 @@ var dallinger = (function () {
       kind = "direct";
     } else if (frame.indexOf(dlgr.REALTIME_SESSION_CHANNEL + ':') === 0) {
       // Every socket of the participant gets these, whatever its session.
-      var data = parsePayload(frame.substring(dlgr.REALTIME_SESSION_CHANNEL.length + 1));
-      if (this._isSessionFrame(data)) { this._receiveSessionFrame(data); }
+      if (this._state !== null) {
+        this._state.receive(parsePayload(frame.substring(dlgr.REALTIME_SESSION_CHANNEL.length + 1)));
+      }
       return;
     } else if (frame.indexOf(dlgr.TIME_CHANNEL + ':') === 0) {
       if (this._state !== null) {
-        this._state.clock.receive(parsePayload(frame.substring(dlgr.TIME_CHANNEL.length + 1)));
+        this._state.receiveTime(parsePayload(frame.substring(dlgr.TIME_CHANNEL.length + 1)));
       }
       return;
     } else {
@@ -1123,74 +1381,10 @@ var dallinger = (function () {
     this._notify(kind, [parsePayload(payload), payload]);
   };
 
-  dlgr.Socket.prototype._isSessionFrame = function (data) {
-    return data != null && data.session_id === this.session &&
-      SESSION_FRAMES.indexOf(data.type) !== -1;
-  };
-
-  dlgr.Socket.prototype._receiveSessionFrame = function (data) {
-    if (data.type === "realtime_view") {
-      this._receiveView(data.view);
-      return;
+  dlgr.Socket.prototype._requireSession = function (consequence) {
+    if (this._state === null) {
+      throw new Error("This socket was opened without a session, so " + consequence + ".");
     }
-    this._end(data.reason, data.view);
-    if (data.type === "realtime_saved" && this._state.saved.state() === "pending") {
-      this._notify("saved", [data]);
-      this._state.saved.resolve(data);
-    }
-  };
-
-  dlgr.Socket.prototype._receiveView = function (envelope) {
-    var self = this;
-    var state = this._state;
-    // A view that arrives late still reports its rejections.
-    var rejections = envelope.rejected.filter(function (rejection) {
-      if (state.reportedRejections[rejection.number]) { return false; }
-      state.reportedRejections[rejection.number] = true;
-      return true;
-    });
-    var newest = state.view === null || envelope.number > state.view.number;
-    var ending = false;
-    if (newest) {
-      state.view = envelope;
-      this._acknowledge(envelope.last_processed);
-      ending = envelope.ended !== null && this._markEnded();
-    }
-    rejections.forEach(function (rejection) {
-      self._notify("rejected", [rejection.number, rejection.reason]);
-    });
-    if (!newest) { return; }
-    this._notify("view", [envelope.view, envelope]);
-    if (ending) { this._notify("ended", [envelope.ended, envelope.view]); }
-  };
-
-  // last_processed is the latest of the page's messages the game handled, so
-  // it can belong to another socket of the page. This socket's messages reach
-  // the game in the order it sent them, so one it names settles every one sent
-  // before it. A null last_processed after a reconnect means the session has
-  // forgotten the page's numbers, and settles what earlier connections sent.
-  dlgr.Socket.prototype._acknowledge = function (last) {
-    var connection = this._connection;
-    var state = this._state;
-    var numbers = state.unacknowledged.map(function (message) { return message.number; });
-    state.unacknowledged = state.unacknowledged.slice(numbers.indexOf(last) + 1);
-    if (last === null) {
-      state.unacknowledged = state.unacknowledged.filter(function (message) {
-        return message.connection === connection;
-      });
-    }
-  };
-
-  dlgr.Socket.prototype._end = function (reason, view) {
-    if (this._markEnded()) { this._notify("ended", [reason, view]); }
-  };
-
-  // Returns false if the socket already knew the session had ended.
-  dlgr.Socket.prototype._markEnded = function () {
-    if (this._state.ended) { return false; }
-    this._state.ended = true;
-    this._state.clock.stop();
-    return true;
   };
 
   /**
@@ -1199,16 +1393,12 @@ var dallinger = (function () {
    * the experiment's ``handle_websocket_message`` method, with ``channel`` as
    * the ``channel_name``.
    *
-   * On a socket that joined a session, a message sent on the ``gameChannel``
-   * goes only to the game, whose ``apply`` method gets it. ``send`` returns
-   * the message's number, which ``onRejected`` uses to say which message
-   * the game refused. A page numbers its messages 1, 2, 3 and so on, across
-   * all of its sockets, and never repeats a number, even after a reconnect.
-   * ``apply`` also gets ``sent``, which holds the message's number, the
-   * browser time it was sent at (see ``dallinger.browserTime``), and the
-   * session time of the newest view the page had then. A string that holds
-   * JSON reaches ``apply`` parsed, and any other string as it is. Messages
-   * over the game type's ``max_messages_per_second`` limit are dropped.
+   * On a socket that joined a session, send the player's moves on the
+   * ``gameChannel``. They go only to the game type's ``apply`` method, which
+   * gets a string that holds JSON parsed. ``send`` returns the message's
+   * number, which ``onRejected`` passes back if the game rejects the move.
+   * Messages over the game type's ``max_messages_per_second`` limit are
+   * dropped.
    *
    * A message sent while the connection is down waits, and goes out in
    * order once the connection reopens. Once the socket is closed or
@@ -1225,31 +1415,13 @@ var dallinger = (function () {
   dlgr.Socket.prototype.send = function (channel, payload) {
     checkSendChannel(channel);
     if (this._closed) { return; }
-    var message = null;
-    if (channel === this.gameChannel) {
-      if (typeof payload === 'string') { payload = parsePayload(payload); }
-      // The session reads an envelope only if it has a payload key, which
-      // JSON.stringify leaves out for undefined.
-      if (payload === undefined) { payload = null; }
-      message = {number: lastMessageNumber + 1, payload: payload, connection: null};
-      payload = {
-        envelope: {
-          number: message.number,
-          browser_time: readBrowserTime(),
-          view_time: this._state.view === null ? null : this._state.view.time
-        },
-        payload: payload
-      };
+    if (channel !== this.gameChannel) {
+      this._sendFrame(channel + ':' + (typeof payload === 'string' ? payload : JSON.stringify(payload)));
+      return;
     }
-    var frame = channel + ':' + (typeof payload === 'string' ? payload : JSON.stringify(payload));
-    if (message !== null) {
-      lastMessageNumber = message.number;
-      this._state.unacknowledged.push(message);
-    }
-    if (this._sendFrame(frame) && message !== null) {
-      message.connection = this._connection;
-    }
-    if (message !== null) { return message.number; }
+    var message = this._state.envelope(payload);
+    this._state.sent(message, this._sendFrame(channel + ':' + message.body));
+    return message.number;
   };
 
   /**
@@ -1323,9 +1495,7 @@ var dallinger = (function () {
   };
 
   dlgr.Socket.prototype._onSession = function (kind, callback) {
-    if (this.session === null) {
-      throw new Error("This socket was opened without a session, so it receives nothing from one.");
-    }
+    this._requireSession("it receives nothing from one");
     this._callbacks[kind].push(callback);
     return this;
   };
@@ -1333,13 +1503,10 @@ var dallinger = (function () {
   /**
    * Call ``callback`` with each new view of the game: what the game type's
    * ``view`` method lets this player see. Draw the game from it. The page
-   * gets a view each time it joins the session, including after a
-   * reconnect, and a new one whenever the game changes, until the session
-   * ends.
-   *
-   * Views can arrive out of order. The callback only ever gets a view newer
-   * than the last one it got, and one that arrives late is skipped, so the
-   * page can always draw the view it is given.
+   * gets a view when it joins the session, again after a reconnect, and
+   * whenever the game changes, until the session ends. The callback only
+   * gets views newer than the last one, so it can always draw what it's
+   * given.
    *
    * The callback is passed the view, then an object with details about it:
    *
@@ -1356,12 +1523,8 @@ var dallinger = (function () {
    * - ``ended``: why the session ended, once it has, otherwise ``null``
    * - ``clock``: the server's clock, in seconds since 1970, when the
    *   session time was ``time``
-   *
-   * When the page's last connection to the session drops, the session
-   * forgets which of the page's messages it has handled. The next view still
-   * shows what those messages changed, but its ``last_processed`` is
-   * ``null`` until the game handles another message, and a message rejected
-   * just before the drop is never reported.
+   * - ``tick_rate``: the game type's ``tick_rate``, how many tick views
+   *   arrive a second
    *
    * @param {function} callback - Called with each new view and its details
    * @returns {dallinger.Socket} This socket
@@ -1377,11 +1540,9 @@ var dallinger = (function () {
    * reason the game type's ``apply`` method gave ``Reject``. Use it to tell
    * the player why a move didn't count.
    *
-   * Each rejection is reported once, even if it arrives with a view too old
-   * to reach ``onView``. A message rejected just before the connection
-   * dropped is never reported (see ``onView``), and neither is one sent
-   * other than with ``send``. A page with two sockets in the same session
-   * hears each rejection on both.
+   * Each rejection is reported once. A message rejected just before the
+   * connection dropped isn't reported. A page with two sockets in the same
+   * session hears each rejection on both.
    *
    * @example
    * socket.onRejected(function (number, reason) {
@@ -1413,9 +1574,9 @@ var dallinger = (function () {
    * - ``"failed"``: the game's code failed
    * - or the reason the experiment passed to ``end_realtime_session``
    *
-   * The callback runs for a page that joins after the session has ended
-   * too, though that page gets no views. For other pages, the final view
-   * can reach ``onView`` after the callback has run.
+   * It also runs for a page that joins after the session has ended, which
+   * gets no views. The final view can reach ``onView`` after this callback,
+   * so show the result from the view passed here.
    *
    * @param {function} callback - Called with the reason and the final view
    * @returns {dallinger.Socket} This socket
@@ -1467,10 +1628,8 @@ var dallinger = (function () {
    * @alias dallinger.Socket#resultSaved
    */
   dlgr.Socket.prototype.resultSaved = function () {
-    if (this.session === null) {
-      throw new Error("This socket was opened without a session, so it has no result.");
-    }
-    return this._state.saved.promise();
+    this._requireSession("it has no result");
+    return this._state.result();
   };
 
   /**
@@ -1479,15 +1638,11 @@ var dallinger = (function () {
    * already use the measurements. It is for a page that wants to show or
    * log how closely its clock matches the server's.
    *
-   * The socket measures the server's clock as soon as it connects, then
-   * about every 30 seconds until the session ends. If the connection drops
-   * partway through a measurement, or the server doesn't answer, that
-   * measurement is skipped.
-   *
-   * Each measurement is also saved with the session's records, so an
-   * analysis can put the browser times of players' messages on the server's
-   * clock. Each one counts as a message toward the game type's
-   * ``max_messages_per_second`` limit.
+   * The socket measures the clock when it connects, then about every 30
+   * seconds until the session ends. Each measurement is saved with the
+   * session's records, so an analysis can put the browser times of players'
+   * messages on the server's clock. Each one counts as a message toward the
+   * game type's ``max_messages_per_second`` limit.
    *
    * The callback is passed an object holding:
    *
@@ -1509,9 +1664,7 @@ var dallinger = (function () {
   /**
    * Convert a time on the browser's clock to the server's clock. The two
    * clocks can be seconds apart or more, so convert times before comparing
-   * what happened on different players' pages. The socket lines the clocks
-   * up using its latest measurement of the server's clock (see
-   * ``onClock``).
+   * what happened on different players' pages.
    *
    * @example
    * var serverNow = socket.serverTime();
@@ -1525,10 +1678,8 @@ var dallinger = (function () {
    * @alias dallinger.Socket#serverTime
    */
   dlgr.Socket.prototype.serverTime = function (browserTime) {
-    if (this.session === null) {
-      throw new Error("This socket was opened without a session, so it has no server clock.");
-    }
-    return this._state.clock.serverTime(browserTime === undefined ? readBrowserTime() : browserTime);
+    this._requireSession("it has no server clock");
+    return this._state.serverTime(browserTime === undefined ? readBrowserTime() : browserTime);
   };
 
   /**
@@ -1537,12 +1688,10 @@ var dallinger = (function () {
    * game puts in its view, or to show how long ago something in the view
    * happened.
    *
-   * The socket works it out from the newest view's ``time`` and its
-   * measurement of the server's clock, so it keeps counting between views.
-   * The session's clock stops while the session is paused, for example
-   * during a redeploy, and the page only finds out from the next view, so
-   * that view can move the time back a little. Once the session has ended,
-   * the time stays at the final view's time.
+   * It keeps counting between views. A session's clock stops while the
+   * session is paused, for example during a redeploy, so the next view can
+   * move the time back a little. Once the session has ended, the time stays
+   * at the final view's time.
    *
    * @example
    * var deadline = null;
@@ -1554,17 +1703,118 @@ var dallinger = (function () {
    *   }
    * }, 250);
    *
-   * @returns {number|null} The session time in seconds, or ``null`` until
-   *   the first view and the first measurement of the server's clock have
-   *   arrived. After the session has ended, only a view is needed.
+   * @returns {number|null} The session time in seconds, or ``null`` for a
+   *   moment after the socket connects, until it has a view and has measured
+   *   the server's clock
    * @alias dallinger.Socket#sessionTime
    */
   dlgr.Socket.prototype.sessionTime = function () {
-    var now = this.serverTime();
-    var view = this._state.view;
-    if (view !== null && this._state.ended) { return view.time; }
-    if (view === null || now === null) { return null; }
-    return view.time + Math.max(0, now - view.clock);
+    this._requireSession("it has no session time");
+    return this._state.sessionTime();
+  };
+
+  /**
+   * The view to draw the player's own piece from, with their moves shown
+   * at once instead of a round trip later. Call it each time the page
+   * draws. Needs the ``predict`` option.
+   *
+   * It is the newest view, with the player's moves that the game hasn't
+   * handled yet applied by ``predict``, in the order they were sent.
+   * ``predict(view, message)`` gets a view and a message as it was passed
+   * to ``send``, and returns the view as it would be once the game applied
+   * the message. It may change the view it's given and return nothing, but
+   * must not change the message.
+   *
+   * ``predict`` has to do to the view what the game type's ``apply`` method
+   * does to the state, or the player's piece jumps when the next view
+   * arrives. So have each movement message say how far, or for how long,
+   * the player moved, rather than having ``tick`` move players while a key
+   * is held, which the page can't predict.
+   *
+   * A move the game rejects is undone by the next view, which in a game
+   * with a ``tick_rate`` above 0 is the next tick's view at the latest. A
+   * message dropped for going over the game type's
+   * ``max_messages_per_second`` limit stays predicted until the game
+   * handles a later message from the page.
+   *
+   * Draw from the returned view without changing it. Once the session has
+   * ended, it is the final view.
+   *
+   * @example
+   * var socket = dallinger.openExperimentSocket({
+   *   session: sessionId,
+   *   gameChannel: 'moves',
+   *   predict: function (view, message) {
+   *     view.me.x += message.dx;
+   *     view.me.y += message.dy;
+   *   }
+   * });
+   * document.addEventListener('keydown', function (event) {
+   *   if (event.key === 'ArrowRight') { socket.send('moves', {dx: 1, dy: 0}); }
+   * });
+   * function draw() {
+   *   var view = socket.predictedView();
+   *   if (view !== null) { drawPlayer(view.me); }
+   *   requestAnimationFrame(draw);
+   * }
+   * requestAnimationFrame(draw);
+   *
+   * @returns {Object|null} The predicted view, or ``null`` before the first
+   *   view (unless the session has ended)
+   * @alias dallinger.Socket#predictedView
+   */
+  dlgr.Socket.prototype.predictedView = function () {
+    this._requireSession("it predicts nothing");
+    return this._state.predictedView();
+  };
+
+  /**
+   * The view to draw other players from, so they move smoothly instead of
+   * jumping from one tick view to the next. Call it each time the page
+   * draws. Needs the ``interpolate`` option and a game type whose
+   * ``tick_rate`` is above 0. A game that also uses prediction draws the
+   * player's own piece from ``predictedView``.
+   *
+   * It shows the game ``interpolationDelay`` tick intervals (two by
+   * default) behind ``sessionTime``. ``interpolate(a, b, fraction)`` gets
+   * the tick views either side of that time and how far between them it
+   * falls, from 0 to 1, and returns a new view in between, leaving ``a`` and
+   * ``b`` unchanged. A longer delay copes better with tick views that
+   * arrive late, but shows the game further in the past.
+   *
+   * Draw from the returned view without changing it. Once the session has
+   * ended, it is the final view.
+   *
+   * @example
+   * var socket = dallinger.openExperimentSocket({
+   *   session: sessionId,
+   *   gameChannel: 'moves',
+   *   interpolate: function (a, b, fraction) {
+   *     return {
+   *       others: a.others.map(function (player, i) {
+   *         var next = b.others[i];
+   *         return {
+   *           x: player.x + (next.x - player.x) * fraction,
+   *           y: player.y + (next.y - player.y) * fraction
+   *         };
+   *       })
+   *     };
+   *   }
+   * });
+   * function draw() {
+   *   var view = socket.interpolatedView();
+   *   if (view !== null) { view.others.forEach(drawPlayer); }
+   *   requestAnimationFrame(draw);
+   * }
+   * requestAnimationFrame(draw);
+   *
+   * @returns {Object|null} The view to draw, or ``null`` before the first
+   *   tick view (unless the session has ended)
+   * @alias dallinger.Socket#interpolatedView
+   */
+  dlgr.Socket.prototype.interpolatedView = function () {
+    this._requireSession("it interpolates nothing");
+    return this._state.interpolatedView();
   };
 
   /**
@@ -1622,12 +1872,22 @@ var dallinger = (function () {
    * @param {number} [options.session] - To play a real-time game, the id of
    *   the session, which ``create_realtime_session`` returned. The
    *   participant must be one of its players, or the server refuses the
-   *   connection. Leave ``scope`` at its default: with a ``null`` scope, the
-   *   game's views for this page reach every page the player has open, and
-   *   each of them treats the views as its own.
+   *   connection. Leave ``scope`` at its default, or the game's views reach
+   *   every page the player has open.
    * @param {string} [options.gameChannel] - Required with ``session``: the
    *   game type's ``channel``, on which ``send`` sends the player's messages
    *   to the game
+   * @param {function} [options.predict] - With ``session``, to show the
+   *   player's own moves at once: ``predict(view, message)`` returns the
+   *   view as it would be once the game applied the message. See
+   *   ``predictedView``.
+   * @param {function} [options.interpolate] - With ``session``, to show
+   *   other players moving smoothly: ``interpolate(a, b, fraction)`` returns
+   *   the view ``fraction`` of the way from tick view ``a`` to tick view
+   *   ``b``. See ``interpolatedView``.
+   * @param {number} [options.interpolationDelay=2] - With ``interpolate``,
+   *   how many tick intervals behind the session time ``interpolatedView``
+   *   draws the game
    * @returns {dallinger.Socket} The new connection
    */
   dlgr.openChatSocket = function (options) {

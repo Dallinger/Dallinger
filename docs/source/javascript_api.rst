@@ -103,7 +103,8 @@ WebSocket routes, as described in
 
 .. js:autoclass:: dallinger.Socket
    :members: send, onBroadcast, onDirect, onOpen, onRefused, onView, onRejected,
-      onEnded, onResultSaved, resultSaved, onClock, serverTime, sessionTime, close
+      onEnded, onResultSaved, resultSaved, onClock, serverTime, sessionTime,
+      predictedView, interpolatedView, close
 
 .. js:autofunction:: dallinger.browserTime
 

@@ -75,6 +75,7 @@ function view(number, fields) {
       rejected: [],
       ended: null,
       clock: 1000 + number,
+      tick_rate: 10,
       ...fields,
     },
   });
@@ -92,6 +93,44 @@ function sentMessages(stub) {
 
 function unacknowledged(socket) {
   return socket._state.unacknowledged.map((message) => message.number);
+}
+
+// How far the fake server's clock is ahead of the browser's, in seconds.
+const OFFSET = 500;
+
+function timeRequests(stub = live()) {
+  return framesOn(stub, "dallinger_time").filter((frame) => frame.type === "request");
+}
+
+function reports(stub = live()) {
+  return framesOn(stub, "dallinger_time").filter((frame) => frame.type === "clock");
+}
+
+// Answer the live connection's latest time request after a round trip of
+// roundTrip ms, the server reading its clock that fraction of the way
+// through, and return the server's clock in the answer.
+function answer(roundTrip, at = 0.5) {
+  const { id } = timeRequests().pop();
+  jest.advanceTimersByTime(roundTrip * at);
+  const clock = dallinger.browserTime() + OFFSET;
+  jest.advanceTimersByTime(roundTrip * (1 - at));
+  deliver({ type: "time", id, clock }, "dallinger_time");
+  return clock;
+}
+
+function synced(roundTrips = [40, 40, 40, 40, 40], at = 0.5, options = {}) {
+  const socket = joined(options);
+  const measurements = [];
+  socket.onClock((measurement) => measurements.push(measurement));
+  live().onopen();
+  roundTrips.forEach((roundTrip) => answer(roundTrip, at));
+  return { socket, measurements };
+}
+
+// A view the server played `ago` seconds ago on its clock, showing session
+// time `time`.
+function viewPlayed(number, time, ago, fields) {
+  view(number, { time, clock: dallinger.browserTime() + OFFSET - ago, ...fields });
 }
 
 beforeEach(() => {
@@ -567,38 +606,6 @@ describe("the ending", () => {
 });
 
 describe("clock sync", () => {
-  // How far the fake server's clock is ahead of the browser's, in seconds.
-  const OFFSET = 500;
-
-  function timeRequests(stub = live()) {
-    return framesOn(stub, "dallinger_time").filter((frame) => frame.type === "request");
-  }
-
-  function reports(stub = live()) {
-    return framesOn(stub, "dallinger_time").filter((frame) => frame.type === "clock");
-  }
-
-  // Answer the live connection's latest time request after a round trip of
-  // roundTrip ms, the server reading its clock that fraction of the way
-  // through, and return the server's clock in the answer.
-  function answer(roundTrip, at = 0.5) {
-    const { id } = timeRequests().pop();
-    jest.advanceTimersByTime(roundTrip * at);
-    const clock = dallinger.browserTime() + OFFSET;
-    jest.advanceTimersByTime(roundTrip * (1 - at));
-    deliver({ type: "time", id, clock }, "dallinger_time");
-    return clock;
-  }
-
-  function synced(roundTrips = [40, 40, 40, 40, 40], at = 0.5) {
-    const socket = joined();
-    const measurements = [];
-    socket.onClock((measurement) => measurements.push(measurement));
-    live().onopen();
-    roundTrips.forEach((roundTrip) => answer(roundTrip, at));
-    return { socket, measurements };
-  }
-
   test("sends five requests on connect, each once the last is answered", () => {
     joined();
     live().onopen();
@@ -782,12 +789,6 @@ describe("clock sync", () => {
   });
 
   describe("the session time", () => {
-    // A view the server played `ago` seconds ago on its clock, showing
-    // session time `time`.
-    function viewPlayed(number, time, ago) {
-      view(number, { time, clock: dallinger.browserTime() + OFFSET - ago });
-    }
-
     test("is unknown without both a view and a measurement", () => {
       const socket = joined();
       live().onopen();
@@ -854,5 +855,274 @@ describe("clock sync", () => {
       expect(socket.serverTime()).toBeNull();
       expect(socket.sessionTime()).toBe(12.5);
     });
+  });
+});
+
+describe("prediction and interpolation options", () => {
+  test.each([
+    ["predict", "x", /predict option must be a function/],
+    ["interpolate", {}, /interpolate option must be a function/],
+    ["interpolationDelay", -1, /must be a number, 0 or more/],
+    ["interpolationDelay", "2", /must be a number, 0 or more/],
+    ["interpolationDelay", Infinity, /must be a number, 0 or more/],
+    ["interpolationDelay", 1, /needs the interpolate option/],
+  ])("refuse a %s of %p", (name, value, error) => {
+    expect(() => joined({ [name]: value })).toThrow(error);
+  });
+
+  test("need a session", () => {
+    const dallinger = load();
+    dallinger.identity.participantId = 7;
+
+    expect(() => dallinger.openExperimentSocket({ predict: () => {} })).toThrow(/needs a session/);
+    expect(sockets).toHaveLength(0);
+  });
+});
+
+describe("prediction", () => {
+  const record = (view, message) => {
+    view.log.push(message);
+  };
+
+  test("applies predict to a copy of the newest view, for each unacknowledged message in order", () => {
+    const socket = joined({ predict: record });
+    const views = [];
+    socket.onView((shown) => views.push(shown));
+    live().onopen();
+    ["a", "b", "c"].forEach((each) => socket.send("bids", each));
+
+    view(1, { last_processed: 1, view: { log: ["a"] } });
+
+    expect(socket.predictedView()).toEqual({ log: ["a", "b", "c"] });
+    expect(views).toEqual([{ log: ["a"] }]);
+  });
+
+  test("takes the view a predict returns", () => {
+    const socket = joined({ predict: (view, message) => ({ n: view.n + message.step }) });
+    live().onopen();
+    socket.send("bids", { step: 1 });
+    socket.send("bids", '{"step": 2}');
+
+    view(1, { view: { n: 10 } });
+
+    expect(socket.predictedView()).toEqual({ n: 13 });
+  });
+
+  test("a rejected prediction is undone by the next view", () => {
+    const socket = joined({ predict: record });
+    live().onopen();
+    view(1, { view: { log: [] } });
+    socket.send("bids", "into the wall");
+    expect(socket.predictedView()).toEqual({ log: ["into the wall"] });
+
+    view(2, { last_processed: 1, rejected: [{ number: 1, reason: "wall" }], view: { log: [] } });
+
+    expect(socket.predictedView()).toEqual({ log: [] });
+  });
+
+  test("is worked out again only after a send or a view", () => {
+    let calls = 0;
+    const socket = joined({
+      predict: (view, message) => {
+        calls += 1;
+        record(view, message);
+      },
+    });
+    live().onopen();
+    view(1, { view: { log: [] } });
+    socket.send("bids", "a");
+
+    const first = socket.predictedView();
+    expect(socket.predictedView()).toBe(first);
+    expect(calls).toBe(1);
+
+    socket.send("bids", "b");
+    expect(socket.predictedView()).toEqual({ log: ["a", "b"] });
+    expect(calls).toBe(3);
+
+    view(2, { view: { log: ["x"] } });
+    expect(socket.predictedView()).toEqual({ log: ["x", "a", "b"] });
+    expect(calls).toBe(5);
+  });
+
+  test("predicts messages held while the connection is down, until the socket is closed", () => {
+    const socket = joined({ predict: record });
+    live().onopen();
+    socket.send("bids", "sent");
+    view(1, { view: { log: [] } });
+    live().onclose({ code: 1006, reason: "" });
+
+    socket.send("bids", "held");
+    expect(socket.predictedView()).toEqual({ log: ["sent", "held"] });
+
+    socket.close();
+    expect(socket.predictedView()).toEqual({ log: ["sent"] });
+  });
+
+  test("is the final view once the session has ended, whatever is sent after", () => {
+    const socket = joined({ predict: record });
+    live().onopen();
+    view(1, { view: { log: [] } });
+
+    deliver({ type: "realtime_ended", session_id: 4, reason: "finished", view: { log: ["final"] } });
+    socket.send("bids", "late");
+
+    expect(socket.predictedView()).toEqual({ log: ["final"] });
+    expect(unacknowledged(socket)).toEqual([]);
+  });
+
+  test("predicts each message as it was sent, even if the page changes the object later", () => {
+    const socket = joined({ predict: (view, message) => ({ n: view.n + message.step }) });
+    live().onopen();
+    view(1, { view: { n: 0 } });
+    const move = { step: 1 };
+
+    socket.send("bids", move);
+    move.step = 10;
+    socket.send("bids", move);
+
+    expect(socket.predictedView()).toEqual({ n: 11 });
+  });
+
+  test("is null until the first view", () => {
+    const socket = joined({ predict: record });
+    live().onopen();
+    socket.send("bids", "a");
+
+    expect(socket.predictedView()).toBeNull();
+  });
+
+  test("needs the predict option", () => {
+    expect(() => joined().predictedView()).toThrow(/without the predict option/);
+    expect(() => load().openExperimentSocket().predictedView()).toThrow(/without a session/);
+  });
+});
+
+describe("interpolation", () => {
+  const between = (a, b, fraction) => ({ from: a.shown, to: b.shown, fraction });
+
+  function interpolating(options) {
+    return synced(undefined, undefined, { interpolate: between, ...options }).socket;
+  }
+
+  // Tick views 1 to 4 at session times 1.0 to 1.3, the last played just now.
+  function fourTicks(fields) {
+    [1, 2, 3, 4].forEach((number) => {
+      viewPlayed(number, 0.9 + number / 10, (4 - number) / 10, fields);
+    });
+  }
+
+  test("draws between the tick views around two tick intervals before the session time, leaving message views out", () => {
+    const socket = interpolating();
+    viewPlayed(1, 1.0, 0.3);
+    viewPlayed(2, 1.1, 0.2);
+    viewPlayed(3, 1.15, 0.15, { kind: "message", view: { shown: "message" } });
+    viewPlayed(4, 1.2, 0.1);
+    viewPlayed(5, 1.3, 0);
+
+    jest.advanceTimersByTime(40);
+
+    expect(socket.interpolatedView()).toEqual({ from: 2, to: 4, fraction: expect.closeTo(0.4, 4) });
+  });
+
+  test.each([
+    [1, 10, { from: 3, to: 4, fraction: expect.closeTo(0.25, 4) }],
+    [2, 0, { shown: 4 }],
+  ])("draws %p tick intervals behind at a tick rate of %p", (interpolationDelay, tickRate, expected) => {
+    const socket = interpolating({ interpolationDelay });
+    fourTicks({ tick_rate: tickRate });
+
+    jest.advanceTimersByTime(25);
+
+    expect(socket.interpolatedView()).toEqual(expected);
+  });
+
+  test("starts again from a tick view whose time goes back", () => {
+    const socket = interpolating();
+    fourTicks();
+
+    viewPlayed(5, 0.9, 0);
+    expect(socket.interpolatedView()).toEqual({ shown: 5 });
+
+    jest.advanceTimersByTime(100);
+    viewPlayed(6, 1.0, 0);
+    jest.advanceTimersByTime(150);
+
+    expect(socket.interpolatedView()).toEqual({ from: 5, to: 6, fraction: expect.closeTo(0.5, 4) });
+  });
+
+  test("keeps a tick view at the previous one's time with those before it", () => {
+    const socket = interpolating();
+    viewPlayed(1, 1.0, 0.2);
+    viewPlayed(2, 1.1, 0.1);
+    viewPlayed(3, 1.2, 0);
+    viewPlayed(4, 1.2, 0);
+
+    jest.advanceTimersByTime(50);
+
+    expect(socket.interpolatedView()).toEqual({ from: 1, to: 2, fraction: expect.closeTo(0.5, 4) });
+  });
+
+  test("is the newest tick view when a message view's time goes back", () => {
+    const socket = interpolating();
+    fourTicks();
+
+    viewPlayed(5, 0.9, 0, { kind: "message" });
+
+    expect(socket.interpolatedView()).toEqual({ shown: 4 });
+  });
+
+  test("is the nearest tick view when there isn't one on each side", () => {
+    const socket = interpolating();
+    viewPlayed(1, 1.0, 0.1);
+    viewPlayed(2, 1.1, 0);
+    expect(socket.interpolatedView()).toEqual({ shown: 1 });
+
+    jest.advanceTimersByTime(500);
+
+    expect(socket.interpolatedView()).toEqual({ shown: 2 });
+  });
+
+  test("is the newest tick view until the server's clock is measured", () => {
+    const socket = joined({ interpolate: between });
+    live().onopen();
+
+    view(1);
+    view(2);
+    view(3, { kind: "message" });
+
+    expect(socket.interpolatedView()).toEqual({ shown: 2 });
+  });
+
+  test("is null until the first tick view", () => {
+    const socket = interpolating();
+
+    viewPlayed(1, 1.0, 0, { kind: "message" });
+
+    expect(socket.interpolatedView()).toBeNull();
+  });
+
+  test("is the final view once the session has ended", () => {
+    const socket = interpolating();
+    fourTicks();
+
+    deliver({ type: "realtime_ended", session_id: 4, reason: "finished", view: { shown: "final" } });
+
+    expect(socket.interpolatedView()).toEqual({ shown: "final" });
+  });
+
+  test("keeps only the tick views it can still draw from", () => {
+    const socket = interpolating();
+
+    for (let number = 1; number <= 20; number += 1) {
+      viewPlayed(number, number, 0, { tick_rate: 1 });
+    }
+
+    expect(socket._state._ticks.views.map((each) => each.time)).toEqual([18, 19, 20]);
+  });
+
+  test("needs the interpolate option", () => {
+    expect(() => joined().interpolatedView()).toThrow(/without the interpolate option/);
+    expect(() => load().openExperimentSocket().interpolatedView()).toThrow(/without a session/);
   });
 });
