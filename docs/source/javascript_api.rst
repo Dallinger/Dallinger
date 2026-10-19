@@ -113,11 +113,15 @@ Real-time sessions
 ~~~~~~~~~~~~~~~~~~
 
 A socket opened with a ``session`` joins a session of one of the experiment's
-:doc:`real-time games <realtime_games>`, and has the methods below. They are
-defined in ``dallinger-realtime.js``, with ``dallinger.browserTime``. The base
-layout loads that script after ``dallinger2.js`` when the experiment's
-``realtime_games`` isn't empty. A page that replaces the layout's ``libs``
-block, or doesn't use the layout, loads it itself.
+:doc:`real-time games <realtime_games>`, and has the methods below. A page
+gets the session's id with ``dallinger.waitForRealtimeSession``. That
+function, the methods and ``dallinger.browserTime`` are defined in
+``dallinger-realtime.js``. The base layout loads that script after
+``dallinger2.js`` when the experiment's ``realtime_games`` isn't empty. A page
+that replaces the layout's ``libs`` block, or doesn't use the layout, loads it
+itself.
+
+.. js:autofunction:: dallinger.waitForRealtimeSession
 
 .. js:autofunction:: dallinger.Socket#onView
 

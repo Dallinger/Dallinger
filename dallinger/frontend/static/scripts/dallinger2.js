@@ -770,8 +770,8 @@ var dallinger = (function () {
 
   /**
    * The channel on which a page in a real-time session receives its views,
-   * and learns that the session has ended. It is reserved for Dallinger's own
-   * use.
+   * and learns that the session has ended. A page waiting for its session
+   * learns the session's id on it. It is reserved for Dallinger's own use.
    */
   dlgr.REALTIME_SESSION_CHANNEL = "dallinger_realtime_session";
 
@@ -836,7 +836,7 @@ var dallinger = (function () {
   dlgr._registerSessionJoin = function (join) {
     if (joinSession !== null) { return null; }
     joinSession = join;
-    return {checkSendChannel: checkSendChannel, parsePayload: parsePayload};
+    return {checkSendChannel: checkSendChannel, parsePayload: parsePayload, socketUrl: socketUrl};
   };
 
   var SESSION_OPTIONS = ["session", "gameChannel", "predict", "interpolate", "interpolationDelay"];
@@ -866,8 +866,7 @@ var dallinger = (function () {
    * it itself, after ``dallinger2.js``.
    *
    * @example
-   * // sessionId is the id create_realtime_session returned, which the
-   * // page gets from the experiment
+   * // sessionId is the id dallinger.waitForRealtimeSession gave the page
    * var socket = dallinger.openExperimentSocket({
    *   session: sessionId,
    *   gameChannel: 'sealed_bid'
@@ -1148,10 +1147,10 @@ var dallinger = (function () {
    * @param {string} [options.scope=dallinger.pageScope] - Scope of the
    *   connection; ``null`` sends none
    * @param {number} [options.session] - To play a real-time game, the id of
-   *   the session, which ``create_realtime_session`` returned. The
-   *   participant must be one of its players, or the server refuses the
-   *   connection. Leave ``scope`` at its default, or the game's views reach
-   *   every page the player has open.
+   *   the session, which ``dallinger.waitForRealtimeSession`` gives the
+   *   page. The participant must be one of its players, or the server
+   *   refuses the connection. Leave ``scope`` at its default, or the
+   *   game's views reach every page the player has open.
    * @param {string} [options.gameChannel] - Required with ``session``: the
    *   game type's ``channel``, on which ``send`` sends the player's messages
    *   to the game

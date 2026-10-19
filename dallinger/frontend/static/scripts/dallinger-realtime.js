@@ -17,12 +17,14 @@
   if (shared === null) { return; }
   var checkSendChannel = shared.checkSendChannel;
   var parsePayload = shared.parsePayload;
+  var socketUrl = shared.socketUrl;
 
   // Sessions count a page's messages by its scope, so the page's sockets
   // share one count.
   var lastMessageNumber = 0;
 
-  // The frames dallinger.realtime.delivery sends a page about its session.
+  // The frames dallinger.realtime.delivery sends a page that joined its
+  // session.
   var SESSION_FRAMES = ["realtime_view", "realtime_ended", "realtime_saved"];
 
   var browserTimeAt = function (performanceNow) {
@@ -62,6 +64,94 @@
    */
   dlgr.browserTime = function () {
     return readBrowserTime();
+  };
+
+  /**
+   * Wait for the experiment to start a session of a game type with this
+   * participant as a player, and get the session's id to open the page's
+   * session socket with. Use it when the page can open before its session
+   * exists, as when the experiment starts the session once a group is
+   * complete.
+   *
+   * If the participant is already a player in a running session of the
+   * game type, the promise resolves at once, with the newest such session,
+   * so a page that is reloaded during a game finds its session again. A
+   * session that has ended isn't reported.
+   *
+   * When the participant plays several sessions of the game type, one
+   * after another, pass the id of the session the page already has as
+   * ``afterSession``, so that only a newer one counts. Otherwise a
+   * still-running earlier session is the answer.
+   *
+   * It waits on a connection of its own to the ``/experiment-socket``
+   * route, which closes once it has the id. Like any experiment socket, that
+   * connection is checked by the experiment's ``accept_websocket_connection``
+   * method and reported on the control channel. The promise is rejected,
+   * with the close code and reason, if the server refuses the connection,
+   * for example when ``gameChannel`` isn't one of the experiment's game
+   * types' channels.
+   *
+   * Call the promise's ``cancel`` method to stop waiting. It closes the
+   * connection and leaves the promise unresolved.
+   *
+   * @example
+   * dallinger.waitForRealtimeSession('sealed_bid').done(function (sessionId) {
+   *   var socket = dallinger.openExperimentSocket({
+   *     session: sessionId,
+   *     gameChannel: 'sealed_bid'
+   *   });
+   *   socket.onView(function (view) {
+   *     $('#bids-made').text(view.bids_made);
+   *   });
+   * });
+   *
+   * @param {string} gameChannel - The game type's ``channel``
+   * @param {Object} [options]
+   * @param {number} [options.afterSession] - The id of a session the page
+   *   already has, so that only a newer one counts
+   * @returns {jQuery.Promise} Resolves with the session's id. See
+   *   :ref:`deferreds-label`
+   * @alias dallinger.waitForRealtimeSession
+   */
+  dlgr.waitForRealtimeSession = function (gameChannel, options) {
+    checkSendChannel(gameChannel);
+    if (dlgr.identity.participantId == null) {
+      throw new Error("Waiting for a session needs a participant id.");
+    }
+    var after = options == null || options.afterSession == null ? null : options.afterSession;
+    if (after !== null && !/^[0-9]+$/.test(String(after))) {
+      throw new Error("afterSession is a session id, a whole number, not " + JSON.stringify(after) + ".");
+    }
+    var deferred = $.Deferred();
+    var raw = new ReconnectingWebSocket(socketUrl("/experiment-socket", {
+      worker_id: dlgr.identity.workerId,
+      participant_id: dlgr.identity.participantId,
+      scope: dlgr.pageScope,
+      wait_for_game: gameChannel,
+      after_session: after
+    }));
+    var prefix = dlgr.REALTIME_SESSION_CHANNEL + ':';
+    raw.addEventListener("message", function (event) {
+      if (event.data.indexOf(prefix) !== 0) { return; }
+      var started = parsePayload(event.data.substring(prefix.length));
+      if (started == null || started.type !== "realtime_started" ||
+          started.game_type !== gameChannel) {
+        return;
+      }
+      raw.close();
+      deferred.resolve(started.session_id);
+    });
+    dlgr.stopReconnectingIfRefused(raw, function (code, reason) {
+      deferred.reject(code, reason);
+    });
+    var promise = deferred.promise();
+    promise.cancel = function () {
+      // ReconnectingWebSocket's close() leaves an already scheduled
+      // reconnect in place, and its timer calls open() on this instance.
+      raw.open = function () {};
+      raw.close();
+    };
+    return promise;
   };
 
   // A run of clock sync sends this many time requests, one after another.

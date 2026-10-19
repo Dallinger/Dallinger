@@ -198,6 +198,112 @@ describe("joining", () => {
   });
 });
 
+describe("waiting for a session", () => {
+  function waiting(options) {
+    const dallinger = load();
+    dallinger.identity.participantId = 7;
+    const outcome = { resolved: null, rejected: null };
+    outcome.promise = dallinger
+      .waitForRealtimeSession("bids", options)
+      .done((sessionId) => {
+        outcome.resolved = sessionId;
+      })
+      .fail((code, reason) => {
+        outcome.rejected = [code, reason];
+      });
+    return outcome;
+  }
+
+  const started = { type: "realtime_started", session_id: 4, game_type: "bids" };
+
+  test("waits on /experiment-socket for the participant's session of the game type", () => {
+    waiting();
+
+    const url = new URL(live().url);
+    expect(url.pathname).toBe("/experiment-socket");
+    expect(url.searchParams.get("wait_for_game")).toBe("bids");
+    expect(url.searchParams.get("participant_id")).toBe("7");
+    expect(url.searchParams.has("after_session")).toBe(false);
+  });
+
+  test("asks only for a session newer than afterSession", () => {
+    waiting({ afterSession: 3 });
+
+    expect(new URL(live().url).searchParams.get("after_session")).toBe("3");
+  });
+
+  test("resolves with the session's id and closes its connection for good", () => {
+    const outcome = waiting();
+    live().onopen();
+    const stub = live();
+    stub.close = jest.fn();
+
+    deliver(started);
+    stub.onclose({ code: 1000, reason: "" });
+    jest.advanceTimersByTime(120000);
+
+    expect(outcome.resolved).toBe(4);
+    expect(stub.close).toHaveBeenCalled();
+    expect(sockets).toHaveLength(1);
+  });
+
+  test.each([
+    ["another game type's session", { ...started, game_type: "other" }, "dallinger_realtime_session"],
+    ["a session frame of another type", { ...started, type: "realtime_paused" }, "dallinger_realtime_session"],
+    ["a directed message", started, "dallinger_direct"],
+  ])("ignores %s", (_, payload, channel) => {
+    const outcome = waiting();
+    live().onopen();
+
+    deliver(payload, channel);
+
+    expect(outcome.resolved).toBe(null);
+  });
+
+  test("is rejected if the server refuses the connection, and doesn't retry", () => {
+    const outcome = waiting();
+
+    live().onclose({ code: 1008, reason: "not a game type" });
+    jest.advanceTimersByTime(120000);
+
+    expect(outcome.rejected).toEqual([1008, "not a game type"]);
+    expect(sockets).toHaveLength(1);
+  });
+
+  test("cancel closes its connection, leaving the promise unresolved", () => {
+    const outcome = waiting();
+    live().onopen();
+    live().close = jest.fn();
+
+    outcome.promise.cancel();
+
+    expect(live().close).toHaveBeenCalled();
+    expect(outcome.promise.state()).toBe("pending");
+  });
+
+  test("cancel between retries stops the next one", () => {
+    const outcome = waiting();
+    live().onclose({ code: 1006, reason: "" });
+
+    outcome.promise.cancel();
+    jest.advanceTimersByTime(120000);
+
+    expect(sockets).toHaveLength(1);
+  });
+
+  test.each([
+    ["refuses a reserved channel", 7, "dallinger_direct", undefined, /reserved/],
+    ["needs a participant id", null, "bids", undefined, /participant id/],
+    ["refuses an afterSession that isn't a session id", 7, "bids", { afterSession: 1.5 }, /afterSession/],
+  ])("%s", (_, participantId, gameChannel, options, error) => {
+    const dallinger = load();
+    dallinger.identity.participantId = participantId;
+
+    expect(() => dallinger.waitForRealtimeSession(gameChannel, options)).toThrow(error);
+    expect(sockets).toHaveLength(0);
+  });
+});
+
 describe("loading dallinger-realtime.js", () => {
   test("before dallinger2.js throws, naming the order", () => {
     jest.resetModules();
