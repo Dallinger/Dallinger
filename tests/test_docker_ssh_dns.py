@@ -176,6 +176,7 @@ def test_missing_dns_host_advice_suits_the_address_family(
 def test_servers_add_saves_dns_host():
     with (
         mock.patch.object(docker_ssh_module, "prepare_server"),
+        mock.patch.object(docker_ssh_module, "get_configured_hosts", return_value={}),
         mock.patch.object(docker_ssh_module, "store_host") as store_host,
     ):
         result = CliRunner().invoke(
@@ -191,6 +192,70 @@ def test_servers_add_saves_dns_host():
             "dns_host": "lab.example.org",
         }
     )
+
+
+def test_servers_add_keeps_the_saved_ec2_fields():
+    saved = {
+        "host": "alice.example.org",
+        "user": "ubuntu",
+        "dns_host": "alice.example.org",
+        "ec2_instance_id": "i-123",
+    }
+    with (
+        mock.patch.object(docker_ssh_module, "prepare_server"),
+        mock.patch.object(
+            docker_ssh_module,
+            "get_configured_hosts",
+            return_value={"alice.example.org": saved},
+        ),
+        mock.patch.object(docker_ssh_module, "store_host") as store_host,
+    ):
+        result = CliRunner().invoke(
+            docker_ssh_module.servers,
+            ["add", "--host", "alice.example.org", "--user", "ubuntu"]
+            + ["--default-ingress", "cloudflare"],
+        )
+    assert result.exit_code == 0, result.output
+    store_host.assert_called_once_with({**saved, "default_ingress": "cloudflare"})
+
+
+@pytest.mark.parametrize(
+    "server_info, aborts",
+    [
+        ({"host": "1.2.3.4", "dns_host": "lab.example.org"}, False),
+        ({"host": "1.2.3.4"}, True),
+    ],
+)
+def test_deploy_to_an_ip_server_needs_a_saved_dns_host(
+    monkeypatch, capsys, server_info, aborts
+):
+    from dallinger.config import Configuration
+
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.extend({"contact_email_on_error": "lab@example.org"})
+    config.ready = True
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {"1.2.3.4": server_info})
+    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "Executor", mock.Mock(side_effect=RuntimeError("ssh"))
+    )
+    with pytest.raises(click.Abort if aborts else RuntimeError):
+        docker_ssh_module._deploy_in_mode(
+            app_name="myapp",
+            archive_path=None,
+            config_options=(),
+            dns_host=None,
+            image_name="image",
+            mode="live",
+            server="1.2.3.4",
+            update=False,
+            local_build=False,
+            push_build=False,
+            preflight_root_clean=False,
+        )
+    assert ("you must specify a DNS host" in capsys.readouterr().out) == aborts
 
 
 @pytest.mark.parametrize(

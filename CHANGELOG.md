@@ -185,9 +185,14 @@
   the instance, warns about records that point elsewhere, and deletes them
   before terminating the instance. If Route 53 cleanup fails (including a
   missing hosted zone), it warns and still terminates the instance.
+  `ec2 stop` and `ec2 start` also use the saved DNS host when `--dns-host`
+  is omitted, so `start` points the records at the instance's new AWS
+  hostname.
 - `dallinger docker-ssh servers add` accepts `--dns-host` and saves it with
   the server, so servers added by IP address don't need `--dns-host` on every
-  deployment. `docker-ssh deploy` and `sandbox` use an explicit `--dns-host`,
+  deployment. Re-adding a server keeps its saved DNS host (unless
+  `--dns-host` is given) and the instance id saved by `ec2 provision`, so
+  `ec2 teardown` still finds it. `docker-ssh deploy` and `sandbox` use an explicit `--dns-host`,
   then the saved DNS host, then the server's own name. Servers added by an
   IPv6 address without a saved DNS host now need `--dns-host` (previously the
   address itself was used). Classic-ingress `destroy` restores the server's

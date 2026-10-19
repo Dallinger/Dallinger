@@ -1175,6 +1175,18 @@ def stop(region_name, instance_id):
     logger.info(f"Stopping of {instance_id} complete!")
 
 
+def saved_server(instance_id):
+    """Return the server entry that provisioning saved for ``instance_id``, or ``{}``."""
+    return next(
+        (
+            info
+            for info in get_configured_hosts().values()
+            if instance_id and info.get("ec2_instance_id") == instance_id
+        ),
+        {},
+    )
+
+
 def teardown(region_name, instance_id, public_dns_name, dns_host):
     """Delete an instance's DNS records, terminate it, and remove its server entries.
 

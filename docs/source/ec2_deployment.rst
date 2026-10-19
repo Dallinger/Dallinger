@@ -173,9 +173,10 @@ You can increase the storage on a running instance by server name::
 
     dallinger ec2 increase-storage --name <server_name> --region <region> --storage 200
 
-Or by DNS name::
+Or by the instance's AWS hostname (such as
+``ec2-1-2-3-4.eu-west-1.compute.amazonaws.com``)::
 
-    dallinger ec2 increase-storage --dns <subdomain>.my-experiments.org --region <region> --storage 200
+    dallinger ec2 increase-storage --dns <aws_hostname> --region <region> --storage 200
 
 
 Stopping and Starting
@@ -185,17 +186,23 @@ You can temporarily stop a running instance to prevent it from incurring hourly
 costs (while retaining its stored data)::
 
     dallinger ec2 stop --name <server_name> --region <region>
-    dallinger ec2 stop --dns <subdomain>.my-experiments.org --region <region>
+    dallinger ec2 stop --dns <aws_hostname> --region <region>
 
 Similarly you can start a stopped instance::
 
     dallinger ec2 start --name <server_name> --region <region>
-    dallinger ec2 start --dns <subdomain>.my-experiments.org --region <region>
+    dallinger ec2 start --dns <aws_hostname> --region <region>
+
+``stop`` deletes the instance's ``<subdomain>.my-experiments.org`` and
+``*.<subdomain>.my-experiments.org`` records, and ``start`` points them at the
+instance's new AWS hostname. Both use the DNS host saved when the instance was
+provisioned with ``--dns-host``; for an instance provisioned without one, or
+by an older Dallinger, pass ``--dns-host <subdomain>.my-experiments.org``.
 
 Or restart a running instance::
 
     dallinger ec2 restart --name <server_name> --region <region>
-    dallinger ec2 restart --dns <subdomain>.my-experiments.org --region <region>
+    dallinger ec2 restart --dns <aws_hostname> --region <region>
 
 
 Teardown an EC2 Instance

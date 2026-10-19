@@ -269,11 +269,18 @@ def add(host, user, default_ingress, dns_host):
 
     Cloudflare tunnel apps also need ``cloudflare_account_id``,
     ``cloudflare_zone_id``, and ``cloudflare_dns_zone`` in Dallinger config.
+
+    Re-adding a server keeps the EC2 instance id saved by ``dallinger ec2
+    provision``, and its saved DNS host unless ``--dns-host`` is given.
     """
     prepare_server(host, user)
+    existing = get_configured_hosts().get(host, {})
     server_info = {"host": host, "user": user, "default_ingress": default_ingress}
+    dns_host = dns_host or existing.get("dns_host")
     if dns_host:
         server_info["dns_host"] = dns_host
+    if existing.get("ec2_instance_id"):
+        server_info["ec2_instance_id"] = existing["ec2_instance_id"]
     store_host(server_info)
     advice = default_ingress == INGRESS_CLASSIC and _private_network_advice(server_info)
     if advice:

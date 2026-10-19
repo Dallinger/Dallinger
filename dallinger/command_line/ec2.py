@@ -16,6 +16,7 @@ from .lib.ec2 import (
     provision,
     remove_dns_record,
     restart,
+    saved_server,
     start,
     stop,
     teardown,
@@ -211,7 +212,7 @@ def ec2__increase_storage(ctx, dns, name, region, storage):
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS).",
+    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS). Defaults to the DNS host saved when the instance was provisioned.",
     default=None,
 )
 @click.pass_context
@@ -221,6 +222,7 @@ def ec2__stop(ctx, dns, name, region, dns_host):
     instance_id = _get_instance_id_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
+    dns_host = dns_host or saved_server(instance_id).get("dns_host")
     # Remove old DNS records, but keep the dallinger host
     remove_dns_record(dns_host, remove_dallinger_host=False)
     stop(region, instance_id)
@@ -236,7 +238,7 @@ def ec2__stop(ctx, dns, name, region, dns_host):
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS).",
+    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS). Defaults to the DNS host saved when the instance was provisioned.",
     default=None,
 )
 @click.pass_context
@@ -263,7 +265,9 @@ def ec2__start(ctx, dns, name, region, dns_host):
     )
     start(region, instance_id)
 
-    old_dns_host = CONFIGURED_HOSTS.get(dns, {})
+    saved = saved_server(instance_id)
+    dns_host = dns_host or saved.get("dns_host")
+    old_dns_host = CONFIGURED_HOSTS.get(dns) or saved
     user = old_dns_host.get("user", "ubuntu")
 
     instance_row = wait_for_instance_state_change(region, name, "running")
