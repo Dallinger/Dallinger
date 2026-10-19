@@ -503,9 +503,9 @@ This example deploys a prebuilt image. Without ``--image``, the deploy first bui
 and prints a single ``Building image ...`` line, followed by ``Built image: ...``.
 If the build fails, the full ``docker build`` log is printed with the path of its saved copy.
 Set ``DALLINGER_VERBOSE_BUILD=1`` to see the build output as it runs.
-Scripts that print their own summary can pass ``--no-summary``, which leaves out the
-links, logs command, passwords and recruitment message; the command's return value
-still contains them.
+Python callers that print their own summary, such as PsyNet, can invoke the command
+with ``show_summary=False``. This leaves out the links, logs command, passwords and
+recruitment message, which are all in the returned dict, unless the launch fails.
 
 Dallinger uses the free service [nip.io](https://nip.io/) to provide a URL for the experiment to get an SSL certificate from Let's Encrypt.
 The experiment URL is a combination of the app id and the server IP. In this case the id of the deployed experiment is ``dlgr-d5543ddd``.

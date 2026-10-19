@@ -986,12 +986,15 @@ class TestSetupExperiment:
 
         assert exp_id == "my-custom-app-id"
 
-    def test_quiet_keeps_the_uid_and_temp_dir_out_of_the_log(self, setup_experiment):
+    @pytest.mark.parametrize("quiet", [False, True])
+    def test_quiet_keeps_the_uid_and_temp_dir_out_of_the_log(
+        self, setup_experiment, quiet
+    ):
         log = mock.Mock()
-        setup_experiment(log=log, quiet=True)
+        setup_experiment(log=log, quiet=quiet)
 
-        assert "Experiment UID" not in str(log.call_args_list)
-        assert "temp directory" not in str(log.call_args_list)
+        assert ("Experiment UID" in str(log.call_args_list)) is not quiet
+        assert ("temp directory" in str(log.call_args_list)) is not quiet
 
     def test_saves_provided_app_uid_to_config(self, active_config, setup_experiment):
         exp_id, dst = setup_experiment(log=mock.Mock(), app="my-custom-app-id")

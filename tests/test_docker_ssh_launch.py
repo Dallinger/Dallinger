@@ -300,20 +300,34 @@ def test_deploy_launches_once_the_public_url_answers(deploy_dir, capsys):
         assert events == ["health", "check", "launch"]
 
 
-@pytest.mark.parametrize("command", [docker_ssh.deploy, docker_ssh.sandbox])
-def test_no_summary_leaves_the_summary_to_the_caller(command, deploy_dir, capsys):
-    assert "show_summary" in {param.name for param in command.params}
-    executor = FakeExecutor([(0, reply(200, {"recruitment_msg": "open"}), "")])
+@pytest.mark.parametrize("show_summary", [True, False])
+def test_no_summary_leaves_the_summary_to_the_caller(show_summary, deploy_dir, capsys):
+    for command in docker_ssh.deploy, docker_ssh.sandbox:
+        assert "show_summary" in {param.name for param in command.params}
+    executor = FakeExecutor([(0, reply(200, {"recruitment_msg": "rmsg"}), "")])
 
     with public_check([], 200):
         launch_data = docker_ssh._record_then_launch(
+            executor, TARGET, ["notes"], "s3cret", False, show_summary
+        )
+
+    assert launch_data["recruitment_msg"] == "rmsg"
+    assert Path("deploy_logs/myapp.txt").read_text() == "notes\n"
+    out = capsys.readouterr().out
+    for text in "notes", "s3cret", "rmsg":
+        assert (text in out) is show_summary
+
+
+def test_no_summary_still_prints_the_summary_if_launching_fails(deploy_dir, capsys):
+    executor = FakeExecutor()
+
+    with public_check([], 530), pytest.raises(click.ClickException):
+        docker_ssh._record_then_launch(
             executor, TARGET, ["notes"], "s3cret", False, show_summary=False
         )
 
-    assert launch_data["recruitment_msg"] == "open"
-    assert Path("deploy_logs/myapp.txt").read_text() == "notes\n"
     out = capsys.readouterr().out
-    assert not {"notes", "s3cret", "open"} & set(out.split())
+    assert "notes" in out and "s3cret" in out
 
 
 def test_public_wait_retries_errors_and_one_redirect_until_2xx(no_sleep):

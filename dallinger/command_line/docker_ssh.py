@@ -557,14 +557,16 @@ option_allow_private_ip = click.option(
         "address."
     ),
 )
+# Hidden because only callers that read the returned dict, via
+# ``ctx.invoke(..., show_summary=False)``, can use the details it hides.
 option_show_summary = click.option(
     "--summary/--no-summary",
     "show_summary",
     default=True,
+    hidden=True,
     help=(
         "Print the closing summary: links, logs command, dashboard password "
-        "and recruitment message. Scripts that print their own summary can "
-        "turn it off; the deploy result still contains these details."
+        "and recruitment message."
     ),
 )
 
@@ -1042,15 +1044,18 @@ def _public_dashboard_url(hostname):
     return f"https://{hostname}/dashboard"
 
 
-def _record_deployment_infos(experiment_id, lines, dashboard_password, show_summary):
-    """Print operator notes, and persist them to deploy_logs/ without secrets."""
-    if show_summary:
-        for line in lines:
-            print_bold(line)
-        print_bold(f"Dashboard password: {dashboard_password}")
+def _record_deployment_infos(experiment_id, lines):
+    """Persist operator notes to deploy_logs/ without secrets."""
     deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
     deploy_log_path.parent.mkdir(exist_ok=True)
     deploy_log_path.write_text("\n".join(lines) + "\n")
+
+
+def _print_deployment_infos(lines, dashboard_password):
+    """Print operator notes and the dashboard password."""
+    for line in lines:
+        print_bold(line)
+    print_bold(f"Dashboard password: {dashboard_password}")
 
 
 def _record_then_launch(
@@ -1065,18 +1070,23 @@ def _record_then_launch(
     reach the public URL; if the bounded wait times out, nothing is launched.
     Returns the ``/launch`` response, or an empty dict in update mode.
     Without ``show_summary``, neither the notes nor the recruitment message
-    are printed.
+    are printed, unless launching fails and so the caller gets no result.
     """
-    _record_deployment_infos(
-        target.app, deployment_infos, dashboard_password, show_summary
-    )
+    _record_deployment_infos(target.app, deployment_infos)
+    if show_summary:
+        _print_deployment_infos(deployment_infos, dashboard_password)
     if update:
         print("Skipping experiment launch logic because we are in update mode.")
         return {}
-    check_internal_health(executor, target)
-    wait_for_public_url(executor, target)
-    print("Launching experiment")
-    launch_data = launch_from_server(executor, target)
+    try:
+        check_internal_health(executor, target)
+        wait_for_public_url(executor, target)
+        print("Launching experiment")
+        launch_data = launch_from_server(executor, target)
+    except BaseException:
+        if not show_summary:
+            _print_deployment_infos(deployment_infos, dashboard_password)
+        raise
     if show_summary:
         print(launch_data.get("recruitment_msg"))
     return launch_data

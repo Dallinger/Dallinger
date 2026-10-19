@@ -191,12 +191,13 @@
   recruitment message as `recruitment_msg` in their result dict, or `None`
   if there isn't one (for example with `--update`), plus `image_name` and,
   for classic ingress, the Dozzle `logs_url` and `logs_password`.
-- `dallinger docker-ssh deploy` and `sandbox` accept `--no-summary`
-  (`show_summary=False` when invoked from Python), which skips the closing
-  summary (logs command and URL, public origin, dashboard link and password,
-  recruitment message) for callers such as PsyNet that print their own. The
-  deploy log file and the returned dict are unchanged. By default the
-  summary is printed as before.
+- `dallinger docker-ssh deploy` and `sandbox` accept a hidden
+  `--no-summary` option, for callers such as PsyNet that invoke them with
+  `show_summary=False` and print their own summary from the returned dict.
+  It skips the closing summary (logs command and URL, public origin,
+  dashboard link and password, recruitment message) unless the launch fails.
+  The deploy log file is still written. By default the summary is printed as
+  before.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
