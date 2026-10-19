@@ -909,6 +909,7 @@ def test_destroy_asks_and_reports_kept_data(monkeypatch):
     )
 
     _, result = _destroy_with_data(monkeypatch, ["--keep-data"])
+    assert result.exit_code == 0, result.output
     assert "Kept the experiment data of myapp on example.com:" in result.output
     assert "  - the folder ~/dallinger-data/myapp (3.4G)" in result.output
 
