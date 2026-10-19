@@ -222,8 +222,8 @@ Dallinger config, then a macOS Keychain item: the one named by
 is unset. It is never written to host records, the
 manifest, or the app's Compose file. The deploy loads the token before it
 contacts the server; tools that wrap the deploy can do the same check earlier
-with ``dallinger.command_line.docker_ssh.check_deploy_credentials``. Tunnel names do not include the server,
-so a deploy refuses an app name whose tunnel already exists, unless it is the
+with ``dallinger.command_line.docker_ssh.check_deploy_credentials``.
+Tunnel names do not include the server, so a deploy refuses an app name whose tunnel already exists, unless it is the
 tunnel this server recorded for that app (in its manifest, or next to the
 connector token from an earlier attempt). Destroy stops the connector, then deletes the DNS record and
 tunnel, but never a same-named tunnel with a different id. If that cleanup fails, destroy leaves the app's files in place so it

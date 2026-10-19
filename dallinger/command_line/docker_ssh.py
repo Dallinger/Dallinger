@@ -1144,6 +1144,8 @@ def check_deploy_credentials(server=None, ingress=None, config_options=None):
     config = get_config(load=True)
     token_options = {}
     for key, value in dict(config_options or ()).items():
+        # Not canonical_key(): it warns about deprecated names, and the deploy
+        # applies the same options again later.
         key = config.synonyms.get(key, key)
         if key in _CLOUDFLARE_TOKEN_KEYS:
             token_options[key] = value

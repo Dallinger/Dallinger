@@ -265,6 +265,8 @@ def test_check_deploy_credentials_resolves_the_server_like_the_deploy(monkeypatc
     assert check(ingress="cloudflare") == "token"
     with pytest.raises(click.UsageError, match="Unknown server 'missing'"):
         check("missing")
+    with pytest.raises(click.UsageError, match="Unknown ingress mode 'tunnel'"):
+        check("lab", ingress="tunnel")
     monkeypatch.setattr(
         docker_ssh_module, "CONFIGURED_HOSTS", {"lab": hosts["lab.example.org"]}
     )
@@ -272,6 +274,33 @@ def test_check_deploy_credentials_resolves_the_server_like_the_deploy(monkeypatc
     monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {})
     with pytest.raises(click.UsageError, match="No server configured"):
         check()
+
+
+def test_classic_deploy_without_contact_email_prints_an_error_line(monkeypatch):
+    config = Configuration()
+    config._reset(register_defaults=True)
+    # The value from global_config_defaults.txt.
+    config.extend({"contact_email_on_error": "???"})
+    config.ready = True
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example"}}
+    )
+    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", mock.Mock())
+    with pytest.raises(click.ClickException, match="Email address absent or invalid"):
+        docker_ssh_module._deploy_in_mode(
+            app_name="myapp",
+            archive_path=None,
+            config_options=(),
+            dns_host=None,
+            image_name="image",
+            mode="live",
+            server="lab",
+            update=False,
+            local_build=False,
+            push_build=False,
+            preflight_root_clean=False,
+        )
 
 
 def test_cloudflare_deploy_uses_the_preloaded_token(monkeypatch):

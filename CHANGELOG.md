@@ -4,6 +4,11 @@
 
 ### Added
 
+- Added `dallinger.command_line.docker_ssh.check_deploy_credentials(server,
+  ingress, config_options)`, which runs the docker-ssh deploy's Cloudflare
+  API token check on its own and returns the token. Tools that wrap
+  `docker-ssh deploy`, such as PsyNet, can call it before their own
+  preparation so a missing token stops them before they change anything.
 - Added the `cloudflare_keychain_service` config key, which names the macOS
   Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
   deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
@@ -352,16 +357,14 @@
   an `Error:` line instead of a traceback. A classic-ingress deploy to a
   private-network server, or one without a valid `contact_email_on_error`,
   also fails with an `Error:` line. Previously these reasons went to stdout
-  and, when output was piped, could appear after "Aborted!". Tools that wrap
-  `docker-ssh deploy` can run the same token check before their own
-  preparation with the new `docker_ssh.check_deploy_credentials(server,
-  ingress, config_options)`, which returns the token.
+  and, when output was piped, could appear after "Aborted!".
 - A root-domain docker-ssh deploy to a server that still has other
   classic-ingress experiments now fails without a terminal with an `Error:` line
   that lists those experiments and the `docker-ssh destroy` commands to run
   first, instead of a bare "Aborted!" from the confirmation prompt. They are
-  never destroyed automatically without a terminal; in a terminal, the deploy
-  still offers to destroy them.
+  never destroyed automatically without a terminal, so a piped answer such as
+  `yes | dallinger docker-ssh deploy` is refused too; in a terminal, the
+  deploy still offers to destroy them.
 - `dallinger debug` no longer prints "Error fetching experiment status" while
   the server shuts down or after a single failed request. Once recruitment
   closes, it reports an error only after three failed status checks in a row,
