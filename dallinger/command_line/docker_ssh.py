@@ -311,8 +311,11 @@ def _old_root_routes(executor, caddyfile, host, tls):
     to ``root.d``; one deployed under another ``--dns-host`` gets a
     ``caddy.d`` site for that host.
     """
-    site = re.search(r"(?m)^([^\s{#]\S*) \{$", caddyfile or "")
-    old_host = site.group(1) if site else host
+    sites = [
+        names for names in map(_site_names, (caddyfile or "").splitlines()) if names
+    ]
+    old_names = sites[0] if sites else [host]
+    old_host = host if host in old_names else old_names[0]
     routes = {}
     for app in re.findall(
         r"handle \{\s*reverse_proxy ([A-Za-z0-9._-]+)_web:5000", caddyfile or ""
@@ -329,6 +332,21 @@ def _old_root_routes(executor, caddyfile, host, tls):
                 f"{old_host} {{\n    {tls}\n    {route}\n}}"
             )
     return routes
+
+
+def _site_names(line):
+    """Return the host names a Caddyfile site line such as ``a, https://b {`` serves.
+
+    Returns an empty list for other lines, including comments.
+    """
+    match = re.fullmatch(r"\s*([^#\s{][^{]*?)\s*\{\s*", line)
+    if not match:
+        return []
+    return [
+        re.sub(r"^https?://|:443$", "", name)
+        for name in re.split(r"[\s,]+", match.group(1))
+        if name
+    ]
 
 
 def _config_contact_email():
@@ -1080,8 +1098,7 @@ def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
     if not compose.strip():
         problems.append("it has no ~/dallinger/docker-compose.yml")
     else:
-        address = rf"(?:https://)?{re.escape(host)}(?::443)?"
-        if not re.search(rf"(?m)^\s*(?:\S+[\s,]+)*{address}[\s,][^\n]*\{{", caddyfile):
+        if not any(host in _site_names(line) for line in caddyfile.splitlines()):
             problems.append(f"its Caddyfile does not serve {host}")
         if "import caddy.d/*" not in caddyfile:
             problems.append("its Caddyfile does not import caddy.d")
