@@ -589,8 +589,9 @@ where it can measure them, and asks whether to delete it, for example:
       - the folder ~/dallinger-data/myapp (3.4G)
     Delete this data? This cannot be undone. Answer no to keep it. [y/N]:
 
-Answering no keeps the data; destroy then lists what it kept and the command
-that deletes it later. Export anything you need before you delete the data.
+Answering no keeps the data; destroy then prints the command that deletes it
+later. With ``--keep-data``, destroy lists the data it kept along with that
+command. Export anything you need before you delete the data.
 You can also decide up front:
 
 .. code-block:: shell
