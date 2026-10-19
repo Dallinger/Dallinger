@@ -14,7 +14,9 @@
   `--remove-data` also needs `--yes`. Kept data is listed after destroy with
   the command that deletes it. `--remove-data` also cleans up the data of an
   app that has already been destroyed. Data is not deleted while the app's
-  containers run, and a symlinked data folder is only unlinked.
+  containers run, and a symlinked data folder is only unlinked. If
+  `docker compose down` fails, destroy now stops and leaves the app's files
+  in place instead of removing them around running containers.
 - Added the `cloudflare_keychain_service` config key, which names the macOS
   Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
   deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
@@ -360,6 +362,8 @@
   experiment image once the new containers are up, unless another app still
   uses it. Previously each update left the old image on the server. Image
   cleanup now reports when an image is kept because it is still in use.
+- A new classic-ingress deploy of an app whose name has capitals or dots now
+  removes its old Redis volume, which Compose names in lowercase without dots.
 - `dallinger docker-ssh destroy` now rejects app names that aren't valid
   docker-ssh app names. Previously the name went unquoted into remote shell
   commands, so `--app '*'` could delete every app's folder on the server.

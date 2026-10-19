@@ -2088,7 +2088,7 @@ def remove_named_volume(volume_name, executor):
 
 
 def remove_redis_volumes(app_name, executor):
-    remove_named_volume(f"{app_name}_redis_data", executor)
+    remove_named_volume(f"{_compose_project(app_name)}_redis_data", executor)
 
 
 def get_apps(server):
@@ -2480,12 +2480,9 @@ def _shared_psql(*statements):
 
 
 def _shared_database(executor, app):
-    """Return an experiment data item for ``app``'s database in the shared Postgres.
-
-    Returns None if neither the database nor its user exists.
-    """
+    """Return experiment data items for ``app``'s database and user in the shared Postgres."""
     if app in SHARED_POSTGRES_DATABASES:
-        return None
+        return []
     status, out, err = executor.run_with_status(
         "[ -f ~/dallinger/docker-compose.yml ] || exit 0; "
         + _shared_psql(
@@ -2495,18 +2492,15 @@ def _shared_database(executor, app):
         )
     )
     if status != 0:
-        return _unchecked(f"the database {app} in the shared Postgres", err)
+        return [_unchecked(f"the database {app} in the shared Postgres", err)]
     size, _, has_user = (out or "").strip().partition("|")
-    user = " and its user" if has_user == "t" else ""
+    items = []
     if size:
-        return (
-            "postgres",
-            app,
-            f"the database {app} ({size}){user} in the shared Postgres",
-        )
-    if user:
-        return "postgres", app, f"the Postgres user {app} in the shared Postgres"
-    return None
+        label = f"the database {app} ({size}) in the shared Postgres"
+        items.append(("database", app, label))
+    if has_user == "t":
+        items.append(("user", app, f"the Postgres user {app}"))
+    return items
 
 
 def _unchecked(what, err):
@@ -2532,7 +2526,7 @@ def _experiment_data(executor, app):
     the shared Postgres, its Docker volumes and its data folder. Each is
     checked on its own; one that can't be checked is an ``unchecked`` item.
     """
-    items = [_shared_database(executor, app)]
+    items = _shared_database(executor, app)
     status, out, err = executor.run_with_status("docker volume ls -q")
     if status != 0:
         items.append(_unchecked(f"the Docker volumes of {app}", err))
@@ -2556,7 +2550,7 @@ def _experiment_data(executor, app):
             size = _app_data_size(executor, app)
             label = f"the folder {path}" + (f" ({size})" if size else "")
         items.append(("folder", path, label))
-    return [item for item in items if item]
+    return items
 
 
 def _print_data(heading, items):
@@ -2593,13 +2587,14 @@ def _remove_experiment_data(executor, app, items):
             removed = False
             print(f"{RED}Did not delete {label}.{END}")
             continue
-        if kind == "postgres":
+        if kind == "database":
             command = _shared_psql(
                 "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
                 f"WHERE datname = '{app}' AND pid <> pg_backend_pid()",
                 f'DROP DATABASE IF EXISTS "{app}"',
-                f'DROP USER IF EXISTS "{app}"',
             )
+        elif kind == "user":
+            command = _shared_psql(f'DROP USER IF EXISTS "{app}"')
         else:
             command = f"docker volume rm {quote(name)}"
         status, _, stderr = executor.run_with_status(command)
@@ -2738,7 +2733,10 @@ def destroy(server, app, remove_data=False, keep_data=False, yes=False):
             )
     elif data:
         _print_data(f"Kept the experiment data of {app} on {ssh_host}:", data)
-        print(f"To delete it, run: {delete_again}")
+        print(
+            f"To delete it, run: {delete_again}\n"
+            f"Deploying a new app named {app} (without --update) deletes it too."
+        )
 
 
 def _tear_down_app(executor, app, ssh_address, ssh_user, has_compose, has_token):
@@ -2791,10 +2789,17 @@ def _tear_down_app(executor, app, ssh_address, ssh_user, has_compose, has_token)
                 "dallinger/Caddyfile",
             )
         executor.reload_caddy()
-    executor.run(
-        f"docker compose -f ~/dallinger/{quoted_app}/docker-compose.yml down",
-        raise_=False,
-    )
+    if has_compose:
+        status, _, stderr = executor.run_with_status(
+            f"docker compose -f ~/dallinger/{quoted_app}/docker-compose.yml down"
+        )
+        if status != 0:
+            print(
+                f"{RED}Could not stop the containers of {app}:{END} "
+                f"{(stderr or '').strip()}\nIts files are left on the server. "
+                "Fix the problem and run destroy again."
+            )
+            raise click.Abort()
     remove_unshared_experiment_image(executor, experiment_image, except_app=app)
     executor.run(f"rm -rf ~/dallinger/{quoted_app}/")
     print(f"App {app} removed")

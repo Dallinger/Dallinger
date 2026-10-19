@@ -757,7 +757,7 @@ def test_remove_unshared_skips_rmi_when_another_app_pins_the_image():
 def _patch_destroy_executor(monkeypatch, run):
     executor = mock.Mock()
     executor.run.side_effect = run
-    executor.run_with_status.return_value = (0, "", "")
+    executor.run_with_status.side_effect = lambda cmd: (0, run(cmd), "")
     monkeypatch.setattr(
         docker_ssh_module,
         "CONFIGURED_HOSTS",
@@ -836,6 +836,8 @@ def _destroy_with_data(
     def run_with_status(cmd):
         commands.append(cmd)
         if "pg_database_size(datname)" in cmd:
+            if db is None:
+                return 1, "", "service postgresql is not running\n"
             return 0, f"{db}|t\n" if db else "|f\n", ""
         if cmd.startswith("docker volume ls"):
             if volumes is None:
@@ -872,13 +874,14 @@ def _deletes(commands):
 def test_destroy_remove_data_deletes_classic_database_redis_and_folder(monkeypatch):
     commands, result = _destroy_with_data(monkeypatch, ["--remove-data", "--yes"])
     assert result.exit_code == 0, result.output
-    drop, volume, folder = _deletes(commands)
+    drop_db, drop_user, volume, folder = _deletes(commands)
     down = "docker compose -f ~/dallinger/myapp/docker-compose.yml down"
-    assert commands.index(down) < commands.index(drop)
-    args = shlex.split(drop)
-    sql = [args[i + 1] for i, arg in enumerate(args) if arg == "-c"]
-    assert sql[1:] == ['DROP DATABASE IF EXISTS "myapp"', 'DROP USER IF EXISTS "myapp"']
-    assert "pg_terminate_backend" in sql[0] and "datname = 'myapp'" in sql[0]
+    assert commands.index(down) < commands.index(drop_db)
+    args = shlex.split(drop_db)
+    terminate, drop = [args[i + 1] for i, arg in enumerate(args) if arg == "-c"]
+    assert "pg_terminate_backend" in terminate and "datname = 'myapp'" in terminate
+    assert drop == 'DROP DATABASE IF EXISTS "myapp"'
+    assert shlex.split(drop_user)[-1] == 'DROP USER IF EXISTS "myapp"'
     assert volume == "docker volume rm myapp_redis_data"
     assert "Deleted the database myapp (12 MB)" in result.output
 
@@ -888,7 +891,8 @@ def test_destroy_asks_and_reports_kept_data(monkeypatch):
     assert result.exit_code == 0, result.output
     assert not _deletes(commands)
     out = result.output
-    assert "  - the database myapp (12 MB) and its user in the shared Postgres" in out
+    assert "  - the database myapp (12 MB) in the shared Postgres" in out
+    assert "  - the Postgres user myapp" in out
     assert "  - the Redis volume myapp_redis_data" in out
     assert "  - the folder ~/dallinger-data/myapp (3.4G)" in out
     assert "Delete this data? This cannot be undone. Answer no to keep it." in out
@@ -926,7 +930,7 @@ def test_destroy_remove_data_after_destroy_cleans_up_leftovers(monkeypatch):
     )
     assert result.exit_code == 0, result.output
     assert not any(" down" in c for c in commands)
-    drop, *volume_rms, folder = _deletes(commands)
+    drop_db, drop_user, *volume_rms, folder = _deletes(commands)
     assert volume_rms == [
         "docker volume rm myapp_postgres_data",
         "docker volume rm myapp_redis_data",
@@ -938,15 +942,19 @@ def test_destroy_remove_data_after_destroy_cleans_up_leftovers(monkeypatch):
     assert "No experiment data of myapp is left on example.com." in result.output
 
 
-def test_destroy_remove_data_fails_if_some_data_cant_be_checked(monkeypatch):
-    _, result = _destroy_with_data(
-        monkeypatch, ["--remove-data", "--yes"], volumes=None
-    )
+@pytest.mark.parametrize(
+    "unchecked, label",
+    [
+        ({"volumes": None}, "the Docker volumes of myapp, if any"),
+        ({"db": None}, "the database myapp in the shared Postgres, if any"),
+    ],
+)
+def test_destroy_remove_data_fails_if_some_data_cant_be_checked(
+    monkeypatch, unchecked, label
+):
+    _, result = _destroy_with_data(monkeypatch, ["--remove-data", "--yes"], **unchecked)
     assert result.exit_code == 1
-    assert (
-        "Did not delete the Docker volumes of myapp, if any (could not check: "
-        "Cannot connect to the Docker daemon)" in result.output
-    )
+    assert f"Did not delete {label} (could not check:" in result.output
     assert "Some data of myapp was not deleted" in result.output
 
 

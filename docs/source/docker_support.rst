@@ -567,8 +567,8 @@ redeploy an app with ``--update``, the image it ran before is removed in the
 same way once the new containers are up. If the update fails before then, the
 old image stays on the server.
 
-Destroy never deletes or keeps the experiment's data without asking you. The
-data is:
+Destroy only deletes or keeps the experiment's data when you choose to, at its
+prompt or with a flag. The data is:
 
 - the app's database: for classic ingress, the database ``$APP_ID`` and its
   Postgres user in the server's shared Postgres; for Cloudflare ingress, the
@@ -583,7 +583,8 @@ where it can measure them, and asks whether to delete it, for example:
 .. code-block:: text
 
     Experiment data of myapp on lab.example.org:
-      - the database myapp (12 MB) and its user in the shared Postgres
+      - the database myapp (12 MB) in the shared Postgres
+      - the Postgres user myapp
       - the Redis volume myapp_redis_data
       - the folder ~/dallinger-data/myapp (3.4G)
     Delete this data? This cannot be undone. Answer no to keep it. [y/N]:
@@ -603,7 +604,12 @@ If you decline the confirmation for ``--remove-data``, destroy stops without
 touching the app. In a non-interactive session, such as a script, you must pass
 ``--keep-data`` or ``--remove-data --yes``. ``--remove-data`` also works after
 the app has been destroyed, and deletes whatever data is left. Bind mounts that
-you added with ``docker_volumes`` are always kept.
+you added with ``docker_volumes`` are always kept. Volume names use the app
+name as Docker Compose writes it, in lowercase without dots.
+
+Kept data stays on the server until you delete it, or until you deploy a new
+app with the same name: a deploy without ``--update`` replaces any database and
+volumes left under its name.
 
 Data is not deleted while the app's containers are still running, or if
 Dallinger can't check whether they are. If ``~/dallinger-data/$APP_ID`` is a
