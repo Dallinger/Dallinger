@@ -14,7 +14,7 @@ import sys
 import threading
 import warnings
 import zipfile
-from contextlib import contextmanager, redirect_stdout
+from contextlib import ExitStack, contextmanager, redirect_stdout
 from dataclasses import dataclass
 from email.utils import parseaddr
 from functools import wraps
@@ -1099,15 +1099,17 @@ def _preload_cloudflare_token(config, server, ingress, config_options):
         key = config.synonyms.get(key, key)
         if key in _CLOUDFLARE_TOKEN_KEYS:
             token_options[key] = value
-    try:
-        with config.override(token_options, cast_types=True):
+    with ExitStack() as stack:
+        try:
+            stack.enter_context(config.override(token_options, cast_types=True))
+        except OSError as exc:
+            raise click.ClickException(
+                f"Could not read {exc.filename}: {exc.strerror}"
+            ) from exc
+        try:
             return load_api_token(config)
-    except CloudflareError as exc:
-        _abort_cloudflare(exc)
-    except OSError as exc:
-        raise click.ClickException(
-            f"Could not read {exc.filename}: {exc.strerror}"
-        ) from exc
+        except CloudflareError as exc:
+            _abort_cloudflare(exc)
 
 
 def _apply_config_options(config, config_options):
