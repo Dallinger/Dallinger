@@ -29,7 +29,11 @@ def copy_json(value, what=None):
 
 
 def is_number(value):
-    return isinstance(value, numbers.Real) and math.isfinite(value)
+    return (
+        isinstance(value, numbers.Real)
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
 
 
 def is_int(value):

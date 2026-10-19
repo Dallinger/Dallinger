@@ -25,7 +25,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 
 from dallinger.db import RESERVED_CHANNELS
-from dallinger.realtime.utils import copy_json, is_number
+from dallinger.realtime.utils import copy_json, is_int, is_number
 
 #: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
 #: :meth:`~dallinger.realtime.RealtimeGame.is_over` returned true.
@@ -395,7 +395,7 @@ def _check_game(name, game):
         raise ValueError(
             "{}'s max_messages_per_second must be a positive number.".format(name)
         )
-    if not isinstance(game.message_burst, int) or game.message_burst < 1:
+    if not is_int(game.message_burst) or game.message_burst < 1:
         raise ValueError(
             "{}'s message_burst must be a whole number, 1 or more.".format(name)
         )
