@@ -911,9 +911,18 @@ def test_destroy_asks_and_reports_kept_data(monkeypatch):
         in out
     )
 
-    _, result = _destroy_with_data(monkeypatch, ["--keep-data"])
+    _, result = _destroy_with_data(
+        monkeypatch,
+        ["--keep-data"],
+        volumes=("myapp_postgres_data",),
+        own_db="11 MB\n",
+    )
     assert result.exit_code == 0, result.output
     assert "Kept the experiment data of myapp on example.com:" in result.output
+    assert (
+        "  - the database myapp (11 MB) in the volume myapp_postgres_data"
+        in result.output
+    )
     assert "  - the folder ~/dallinger-data/myapp (3.4G)" in result.output
 
 
@@ -940,17 +949,10 @@ def test_destroy_without_a_tty_needs_an_explicit_choice(monkeypatch, args, messa
 def test_destroy_remove_data_after_destroy_cleans_up_leftovers(monkeypatch):
     volumes = ("myapp_postgres_data", "myapp_redis_data", "otherapp_redis_data")
     commands, result = _destroy_with_data(
-        monkeypatch,
-        ["--remove-data", "--yes"],
-        deployed=False,
-        volumes=volumes,
-        own_db="11 MB\n",
+        monkeypatch, ["--remove-data", "--yes"], deployed=False, volumes=volumes
     )
     assert result.exit_code == 0, result.output
-    assert (
-        "Deleted the database myapp (11 MB) in the volume myapp_postgres_data"
-        in result.output
-    )
+    assert "Deleted the database volume myapp_postgres_data" in result.output
     assert not any(" down" in c for c in commands)
     drop_db, drop_user, *volume_rms, folder = _deletes(commands)
     assert volume_rms == [
