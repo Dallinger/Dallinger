@@ -27,7 +27,7 @@ channel subscribers (generally either participants or the experiment itself).
 When a client makes a WebSocket connection to the `/chat?channel=<channel>`
 route (see :doc:`The Web API <web_api>`) it opens a persistent connection to the
 experiment over which it can send messages (to any channel except the reserved
-`"dallinger_control"`, `"dallinger_direct"` and `"dallinger_time"` channels)
+``"dallinger_control"``, ``"dallinger_direct"`` and ``"dallinger_time"`` channels)
 and will receive all messages published to the `channel` named in the initial
 request.
 
