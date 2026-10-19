@@ -8,6 +8,7 @@ from gevent.event import Event
 from redis import ConnectionError as RedisConnectionError
 from simple_websocket import ConnectionClosed
 
+from dallinger.db import REALTIME_SESSION_CHANNEL
 from dallinger.experiment_server import socket_admission
 from dallinger.experiment_server import sockets as sockets_module
 from dallinger.realtime import session_sockets, store
@@ -307,17 +308,25 @@ class TestSessionSockets:
         assert len(set(joins)) == 2
 
     @pytest.mark.timeout(10)
-    def test_the_join_waits_for_the_direct_listener(self, sockets, pubsub):
+    def test_the_join_waits_for_the_session_listener(self, sockets):
         session_id = session_of()
         confirm = Event()
 
-        def withheld_listen():
-            confirm.wait()
-            yield SUBSCRIBE_CONFIRMATION
-            Event().wait()
-            yield {}
+        def a_pubsub():
+            pubsub = Mock()
 
-        pubsub.listen.side_effect = withheld_listen
+            def listen():
+                [names] = pubsub.subscribe.call_args.args
+                if names == [REALTIME_SESSION_CHANNEL.encode()]:
+                    confirm.wait()
+                yield SUBSCRIBE_CONFIRMATION
+                Event().wait()
+                yield {}
+
+            pubsub.listen.side_effect = listen
+            return pubsub
+
+        sockets.redis_conn.pubsub.side_effect = a_pubsub
         ws = scripted()
 
         with patch.object(sockets, "SUBSCRIPTION_TIMEOUT_SECS", 30):
@@ -551,7 +560,7 @@ class TestEndedSessions:
             ending.update(type="realtime_saved", status="ended")
         else:
             ending.update(type="realtime_ended")
-        assert (channel, json.loads(payload)) == ("dallinger_direct", ending)
+        assert (channel, json.loads(payload)) == ("dallinger_realtime_session", ending)
         assert entries(session_id) == []
         ws.close.assert_not_called()
         assert "has ended" in warning.call_args.args[-1]

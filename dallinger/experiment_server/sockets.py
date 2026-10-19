@@ -21,6 +21,7 @@ from simple_websocket import ConnectionClosed
 from dallinger.db import (
     CONTROL_CHANNEL,
     DIRECT_CHANNEL,
+    REALTIME_SESSION_CHANNEL,
     RESERVED_CHANNELS,
     TIME_CHANNEL,
     channel_frame,
@@ -325,19 +326,21 @@ class Channel:
 class DirectChannel(Channel):
     """Relays directed sends published by other processes to local clients.
 
-    A process runs one of these while it holds any connection that named a
-    participant. It has no subscribers of its own: an envelope names
-    participants, and the backend looks up their connections, so a client is
-    addressable without having subscribed to anything.
+    A process runs one of these on :data:`~dallinger.db.DIRECT_CHANNEL` while
+    it holds any connection that named a participant, and one on
+    :data:`~dallinger.db.REALTIME_SESSION_CHANNEL` once it holds a connection
+    that joined a real-time session. It has no subscribers of its own: an
+    envelope names participants, and the backend looks up their connections,
+    so a client is addressable without having subscribed to anything.
     """
 
     #: Registrations live on the backend rather than here, so a listener that
     #: ended would leave every one of them unreachable from other processes
-    #: until the next connection named a participant.
+    #: until the next connection that needs the listener starts another.
     rebuilds_on_protocol_error = True
 
-    def __init__(self, backend):
-        super().__init__(DIRECT_CHANNEL)
+    def __init__(self, backend, name):
+        super().__init__(name)
         self.backend = backend
 
     def relay(self, message):
@@ -358,7 +361,7 @@ class DirectChannel(Channel):
         if envelope["origin"] == process_token():
             return
         for send in envelope["items"]:
-            self.backend.deliver_direct(send)
+            self.backend.deliver_direct(self.name, send)
 
 
 def parsed_envelope(data):
@@ -373,10 +376,10 @@ def parsed_envelope(data):
     Every field ``deliver_direct`` reads is checked here, because this is where
     an envelope enters the process. Neither clients nor
     :func:`~dallinger.experiment.Experiment.publish_to_subscribers` can publish
-    to the channel, but anything else holding the redis credentials can. An
-    exception raised in a relay unwinds
+    to the channels of directed sends, but anything else holding the redis
+    credentials can. An exception raised in a relay unwinds
     ``Channel.listen``, which catches redis errors only, and the process is
-    then left with no listener until its next addressable connection.
+    then left without that listener until its next connection that needs it.
     """
     try:
         envelope = json.loads(data)
@@ -391,12 +394,7 @@ def parsed_envelope(data):
         if _is_send(item):
             sends.append(item)
         else:
-            log(
-                "Discarding an unreadable send on the {} channel.".format(
-                    DIRECT_CHANNEL
-                ),
-                level="warning",
-            )
+            log("Discarding an unreadable directed send.", level="warning")
     return {"origin": envelope["origin"], "items": sends}
 
 
@@ -427,7 +425,8 @@ class ChatBackend:
         #: both websocket routes, or a reload that connects before the old
         #: socket times out.
         self.clients_by_participant = {}
-        self.direct_channel = None
+        #: The listener for each channel of directed sends, by its name.
+        self.direct_channels = {}
         #: Every client connected to this process, to close when it shuts
         #: down.
         self.open_clients = set()
@@ -467,22 +466,33 @@ class ChatBackend:
 
         A connection that named no usable id is left unaddressable rather
         than refused: it can still subscribe, send, and receive broadcasts.
-        Returns the listener for directed sends, or ``None`` for a connection
-        which is not addressable.
+        Returns the listeners for directed sends that the client's frames
+        arrive through: none for a connection which is not addressable, and
+        the session listener as well for one that joins a real-time session.
         """
         addressable_id = getattr(client, "addressable_id", None)
         if addressable_id is None:
-            return None
+            return []
         self.clients_by_participant.setdefault(addressable_id, set()).add(client)
-        if self.direct_channel is None:
-            self.direct_channel = DirectChannel(self)
-            self.direct_channel.start()
-        return self.direct_channel
+        names = [DIRECT_CHANNEL]
+        if isinstance(client.session, session_sockets.SessionSocket):
+            names.append(REALTIME_SESSION_CHANNEL)
+        return [self.direct_listener(name) for name in names]
+
+    def direct_listener(self, name):
+        """Return the running listener for directed sends on the channel
+        ``name``, starting one if there is none.
+        """
+        listener = self.direct_channels.get(name)
+        if listener is None:
+            listener = self.direct_channels[name] = DirectChannel(self, name)
+            listener.start()
+        return listener
 
     def deregister(self, client):
         """Stop addressing a client.
 
-        The listener is left running once started. Stopping it with the last
+        Each listener is left running once started. Stopping it with the last
         addressable client and starting it again with the next costs a window,
         during ``Greenlet.kill``, in which a registration either attaches to a
         dying listener and is never reached, or starts a second one that
@@ -497,8 +507,9 @@ class ChatBackend:
         if not clients:
             del self.clients_by_participant[addressable_id]
 
-    def deliver_direct(self, send):
-        """Deliver one directed send to this process's matching connections.
+    def deliver_direct(self, channel, send):
+        """Deliver one directed send to this process's matching connections,
+        in a frame on ``channel``.
 
         A send carrying a ``scope`` reaches only the connections opened with
         that same scope. One without reaches every connection of the
@@ -508,7 +519,7 @@ class ChatBackend:
         who are connected elsewhere, or nowhere, is ordinary.
         """
         scope = send["scope"]
-        frame = channel_frame(DIRECT_CHANNEL, send["payload"])
+        frame = channel_frame(channel, send["payload"])
         for participant_id in send["participant_ids"]:
             for client in list(self.clients_by_participant.get(participant_id, ())):
                 if scope is not None and client.scope != scope:
@@ -538,8 +549,8 @@ class ChatBackend:
         one. The identity check keeps a replacement already registered under
         the same name.
         """
-        if self.direct_channel is channel:
-            self.direct_channel = None
+        if self.direct_channels.get(channel.name) is channel:
+            del self.direct_channels[channel.name]
             return
         if self.channels.get(channel.name) is channel:
             del self.channels[channel.name]
@@ -794,7 +805,7 @@ def publish_to_participants(payload, participant_ids, scope=None):
     # costs nothing, and a redis failure then reaches nobody rather than
     # leaving this process's connections served and every other process's not.
     redis_conn.publish(DIRECT_CHANNEL, direct_envelope(process_token(), [send]))
-    chat_backend.deliver_direct(send)
+    chat_backend.deliver_direct(DIRECT_CHANNEL, send)
 
 
 def wait_until_listening(*channels):
@@ -824,8 +835,8 @@ def _serve(ws, participant_id=None, experiment=None):
 
     A connection that asks for a real-time ``session`` is refused unless its
     participant is one of the session's players. Its session gets a join
-    once the connection's direct listener is confirmed, so the view the
-    runner answers with can't miss it, and a leave when it closes. A session
+    once the process's listener for session frames is confirmed, so the view
+    the runner answers with can't miss it, and a leave when it closes. A session
     that has ended gets no join, and the connection gets its ending instead.
     One whose keys expired after the check is refused like a non-member. A
     connection that closes while it waits for its subscriptions, with or
@@ -911,16 +922,16 @@ def _open_client(ws, participant_id, experiment):
 @contextmanager
 def _registered(client, channel):
     """Subscribe ``client`` to ``channel``, register it for directed sends
-    and add it to the open clients. Yield the two channels to wait for.
+    and add it to the open clients. Yield the channels to wait for.
 
     Afterwards, unsubscribe and deregister it, remove it from the open
     clients, and add its leave to its session if it joined.
     """
     subscribed = client.subscribe(channel)
-    direct = chat_backend.register(client)
+    listeners = chat_backend.register(client)
     chat_backend.open_clients.add(client)
     try:
-        yield subscribed, direct
+        yield [subscribed, *listeners]
     finally:
         # The caller's wait for the subscriptions hands control to the hub, so
         # a greenlet killed during it would otherwise leave the registrations

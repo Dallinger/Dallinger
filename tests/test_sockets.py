@@ -94,11 +94,15 @@ def client(sockets):
 def registered(sockets):
     """Build a connection for a participant and make it addressable."""
 
-    def build(participant_id, scope=None):
+    from dallinger.realtime import session_sockets
+
+    def build(participant_id, scope=None, in_session=False):
         ws = Mock()
         ws.close_reason = None
         ws.close_message = None
         client = sockets.Client(ws, participant_id=participant_id, scope=scope)
+        if in_session:
+            client.session = Mock(spec=session_sockets.SessionSocket)
         sockets.chat_backend.register(client)
         return client
 
@@ -1509,7 +1513,7 @@ class TestParticipantRegistry:
             sockets.chat(mocksocket)
 
         assert addressed == [{}]
-        assert sockets.chat_backend.direct_channel is None
+        assert sockets.chat_backend.direct_channels == {}
 
     def test_an_experiment_socket_is_addressable(self, sockets, admission, mocksocket):
         addressed = []
@@ -1586,44 +1590,52 @@ class TestParticipantRegistry:
         pubsub.listen.side_effect = parking_listen
         registered("42")
 
-        assert isinstance(sockets.chat_backend.direct_channel, sockets.DirectChannel)
+        # The session listener waits for a connection that joins a session.
+        assert list(sockets.chat_backend.direct_channels) == ["dallinger_direct"]
+        assert isinstance(
+            sockets.chat_backend.direct_channels["dallinger_direct"],
+            sockets.DirectChannel,
+        )
 
     def test_a_second_client_joins_the_running_listener(
         self, sockets, registered, pubsub
     ):
         pubsub.listen.side_effect = parking_listen
         registered("42")
-        listener = sockets.chat_backend.direct_channel
+        listener = sockets.chat_backend.direct_channels.get("dallinger_direct")
 
         registered("43")
 
         # A listener per registration would relay every envelope once per
         # listener.
-        assert sockets.chat_backend.direct_channel is listener
+        assert sockets.chat_backend.direct_channels.get("dallinger_direct") is listener
 
     def test_the_listener_outlives_the_last_one(self, sockets, registered, pubsub):
         pubsub.listen.side_effect = parking_listen
         client = registered("42")
-        listener = sockets.chat_backend.direct_channel
+        listener = sockets.chat_backend.direct_channels.get("dallinger_direct")
 
         sockets.chat_backend.deregister(client)
 
         # Stopping here would leave a registration during ``Greenlet.kill``
         # either attached to a dying listener or served by a second one.
-        assert sockets.chat_backend.direct_channel is listener
+        assert sockets.chat_backend.direct_channels.get("dallinger_direct") is listener
 
+    @pytest.mark.parametrize(
+        "channel", ["dallinger_direct", "dallinger_realtime_session"]
+    )
     def test_a_client_arriving_after_a_dead_listener_gets_a_live_one(
-        self, sockets, registered
+        self, sockets, registered, channel
     ):
-        registered("42")
-        first = sockets.chat_backend.direct_channel
+        registered("42", in_session=True)
+        first = sockets.chat_backend.direct_channels.get(channel)
         gevent.wait(timeout=1)
 
-        assert sockets.chat_backend.direct_channel is None
+        assert sockets.chat_backend.direct_channels.get(channel) is None
 
-        registered("43")
+        registered("43", in_session=True)
 
-        assert sockets.chat_backend.direct_channel is not first
+        assert sockets.chat_backend.direct_channels.get(channel) is not first
 
 
 class TestDirectedSend:
@@ -1829,7 +1841,9 @@ class TestDirectedSend:
 
 class TestDirectChannelListener:
     def listener(self, sockets, backend=None):
-        return sockets.DirectChannel(backend or sockets.chat_backend)
+        return sockets.DirectChannel(
+            backend or sockets.chat_backend, "dallinger_direct"
+        )
 
     def test_an_envelope_from_another_process_is_delivered(self, sockets, registered):
         client = registered("42")
@@ -2007,7 +2021,7 @@ class TestDirectChannelListener:
 
         with patch.object(sockets.DirectChannel, "RECONNECT_DELAY_SECS", 0):
             client = registered("42")
-            listener = sockets.chat_backend.direct_channel
+            listener = sockets.chat_backend.direct_channels.get("dallinger_direct")
             gevent.wait(timeout=1)
 
         # redis-py leaves the broken connection as it was, so the listener
@@ -2015,7 +2029,7 @@ class TestDirectChannelListener:
         broken.close.assert_called_once_with()
         healthy.subscribe.assert_called_once_with([b"dallinger_direct"])
         client.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
-        assert sockets.chat_backend.direct_channel is listener
+        assert sockets.chat_backend.direct_channels.get("dallinger_direct") is listener
 
 
 class TestProcessToken:

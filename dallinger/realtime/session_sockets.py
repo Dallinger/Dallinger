@@ -71,7 +71,7 @@ import uuid
 
 from redis import RedisError
 
-from dallinger.db import DIRECT_CHANNEL, TIME_CHANNEL, channel_frame
+from dallinger.db import REALTIME_SESSION_CHANNEL, TIME_CHANNEL, channel_frame
 from dallinger.realtime import store
 from dallinger.realtime.delivery import ending_payload
 
@@ -186,7 +186,8 @@ class SessionSocket(NoSession):
         if ending is None:
             raise SessionExpired(self.session_id)
         return channel_frame(
-            DIRECT_CHANNEL, ending_payload(self.session_id, ending, self.participant)
+            REALTIME_SESSION_CHANNEL,
+            ending_payload(self.session_id, ending, self.participant),
         )
 
     def leave(self):

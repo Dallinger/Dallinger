@@ -3,7 +3,7 @@ import json
 import pytest
 
 from dallinger import experiment
-from dallinger.db import DIRECT_CHANNEL
+from dallinger.db import REALTIME_SESSION_CHANNEL
 from dallinger.realtime import store
 from tests.realtime import helpers
 from tests.realtime.helpers import TurnTally
@@ -36,7 +36,7 @@ def saved_frames():
     since the test started, as its ``(participant_ids, scope, payload)``.
     """
     pubsub = store.redis_conn.pubsub(ignore_subscribe_messages=True)
-    pubsub.subscribe(DIRECT_CHANNEL)
+    pubsub.subscribe(REALTIME_SESSION_CHANNEL)
     # The confirmation, which get_message consumes and returns as None.
     pubsub.get_message(timeout=1)
 

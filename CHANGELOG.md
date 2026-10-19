@@ -195,13 +195,14 @@
 - Clients may no longer subscribe to Dallinger's own channels. The `channel`
   argument may not name `dallinger_control`, which reports every connection's
   worker and participant ids, the new `dallinger_direct`, which carries the
-  directed messages published to every participant on the deployment, or the
-  new `dallinger_time`, on which real-time pages send time requests and clock
-  reports that the web process handles itself. A connection naming one of them
-  is logged and left unsubscribed rather than refused,
-  and may still send and receive otherwise. Client messages addressed to
-  `dallinger_control` were already discarded, and the same now applies to
-  `dallinger_direct`.
+  directed messages published to every participant on the deployment, the new
+  `dallinger_realtime_session`, which carries real-time sessions' views to
+  their players' pages, or the new `dallinger_time`, on which real-time pages
+  send time requests and clock reports that the web process handles itself. A
+  connection naming one of them is logged and left unsubscribed rather than
+  refused, and may still send and receive otherwise. Client messages addressed
+  to `dallinger_control` were already discarded, and the same now applies to
+  `dallinger_direct` and `dallinger_realtime_session`.
 - The `/chat` WebSocket route no longer sleeps between reads. The client
   receive loop slept for 0.1s (or whatever `?tolerance=` asked for) before
   each `receive()`, and the redis relay greenlet slept 0.001s per message.

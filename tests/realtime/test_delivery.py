@@ -1,7 +1,7 @@
 import json
 from unittest.mock import Mock
 
-from dallinger.db import DIRECT_CHANNEL
+from dallinger.db import REALTIME_SESSION_CHANNEL
 from dallinger.realtime import delivery
 
 
@@ -56,5 +56,5 @@ def test_views_go_out_in_one_message_and_none_go_out_without_views(monkeypatch):
     delivery.publish_views("a runner", passes)
 
     redis_conn.publish.assert_called_once_with(
-        DIRECT_CHANNEL, delivery.view_batch("a runner", passes)
+        REALTIME_SESSION_CHANNEL, delivery.view_batch("a runner", passes)
     )

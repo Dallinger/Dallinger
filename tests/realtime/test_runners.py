@@ -15,7 +15,7 @@ import time
 import psutil
 import pytest
 
-from dallinger.db import DIRECT_CHANNEL, get_queue
+from dallinger.db import REALTIME_SESSION_CHANNEL, get_queue
 from dallinger.realtime import store, supervisor
 from dallinger.realtime.game import FAILED
 from dallinger.realtime.runner import owner
@@ -277,7 +277,7 @@ def test_a_runner_that_wakes_after_its_claims_expired_cannot_save_or_send(
     send([session_id], [1])
     wait_until(lambda: seen(session_id) == [1])
     listener = store.redis_conn.pubsub(ignore_subscribe_messages=True)
-    listener.subscribe(DIRECT_CHANNEL)
+    listener.subscribe(REALTIME_SESSION_CHANNEL)
     views_sent(listener)
     send([session_id], ["nap"])
     time.sleep(0.1)

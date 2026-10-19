@@ -768,9 +768,17 @@ var dallinger = (function () {
    */
   dlgr.TIME_CHANNEL = "dallinger_time";
 
+  /**
+   * The channel on which a page in a real-time session receives its views,
+   * and learns that the session has ended. It is reserved for Dallinger's own
+   * use.
+   */
+  dlgr.REALTIME_SESSION_CHANNEL = "dallinger_realtime_session";
+
   var RESERVED_CHANNELS = [
     "dallinger_control",
     dlgr.DIRECT_CHANNEL,
+    dlgr.REALTIME_SESSION_CHANNEL,
     dlgr.TIME_CHANNEL,
   ];
 

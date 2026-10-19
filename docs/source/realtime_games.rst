@@ -121,8 +121,8 @@ An experiment lists its game types in its
         realtime_games = [SealedBid]
 
 Each game type needs a channel of its own, which can't be one of Dallinger's
-reserved channels, ``dallinger_control``, ``dallinger_direct`` and
-``dallinger_time``, or the experiment's own
+reserved channels, ``dallinger_control``, ``dallinger_direct``,
+``dallinger_realtime_session`` and ``dallinger_time``, or the experiment's own
 :attr:`~dallinger.experiment.Experiment.channel`. ``dallinger verify`` and
 every deploy check the game types. If one is invalid, the experiment's web
 processes and ``dallinger develop``'s server won't start, and a worker logs
@@ -476,5 +476,7 @@ Socket Protocol Reference
 .. automodule:: dallinger.realtime.session_sockets
 
 .. automodule:: dallinger.realtime.delivery
+
+.. autodata:: dallinger.db.REALTIME_SESSION_CHANNEL
 
 .. autodata:: dallinger.db.TIME_CHANNEL

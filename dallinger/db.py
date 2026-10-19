@@ -57,9 +57,14 @@ CONTROL_CHANNEL = "dallinger_control"
 #: recipients, and on the wire to the browser, one item's payload alone.
 DIRECT_CHANNEL = "dallinger_direct"
 
+#: Carries a real-time session's views and endings to its players' pages, in
+#: the same two shapes as :data:`DIRECT_CHANNEL`, and prefixes their frames.
+REALTIME_SESSION_CHANNEL = "dallinger_realtime_session"
+
 
 def direct_envelope(origin, sends):
-    """Return the JSON text of a :data:`DIRECT_CHANNEL` envelope.
+    """Return the JSON text of an envelope for :data:`DIRECT_CHANNEL` or
+    :data:`REALTIME_SESSION_CHANNEL`.
 
     :param origin: names the publisher, a string. A web process ignores the
         envelopes it published itself.
@@ -76,7 +81,9 @@ TIME_CHANNEL = "dallinger_time"
 
 #: Channels Dallinger owns. A client may not subscribe to one, and may only
 #: send frames on :data:`TIME_CHANNEL`, which the web process handles itself.
-RESERVED_CHANNELS = frozenset({CONTROL_CHANNEL, DIRECT_CHANNEL, TIME_CHANNEL})
+RESERVED_CHANNELS = frozenset(
+    {CONTROL_CHANNEL, DIRECT_CHANNEL, REALTIME_SESSION_CHANNEL, TIME_CHANNEL}
+)
 
 
 def channel_frame(channel, text):

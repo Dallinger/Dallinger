@@ -1,4 +1,4 @@
-"""Views reach players' pages on the ``dallinger_direct`` channel.
+"""Views reach players' pages on the ``dallinger_realtime_session`` channel.
 
 Runners send each player's page its views over the websocket the page opened
 to join its session. Each view arrives as a frame whose payload is a JSON
@@ -68,7 +68,7 @@ every page that player has open, whatever their scopes.
 
 import json
 
-from dallinger.db import DIRECT_CHANNEL, direct_envelope, redis_conn
+from dallinger.db import REALTIME_SESSION_CHANNEL, direct_envelope, redis_conn
 
 
 def view_batch(origin, passes):
@@ -137,7 +137,7 @@ def publish_saved(origin, session_id, ending):
         }
         for player in ending["views"]
     ]
-    redis_conn.publish(DIRECT_CHANNEL, direct_envelope(origin, items))
+    redis_conn.publish(REALTIME_SESSION_CHANNEL, direct_envelope(origin, items))
 
 
 def publish_views(origin, passes):
@@ -146,4 +146,4 @@ def publish_views(origin, passes):
     """
     batch = view_batch(origin, passes)
     if batch is not None:
-        redis_conn.publish(DIRECT_CHANNEL, batch)
+        redis_conn.publish(REALTIME_SESSION_CHANNEL, batch)

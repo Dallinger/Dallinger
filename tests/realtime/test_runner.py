@@ -9,7 +9,7 @@ import gevent
 import pytest
 from redis import ConnectionError as RedisConnectionError
 
-from dallinger.db import DIRECT_CHANNEL
+from dallinger.db import REALTIME_SESSION_CHANNEL
 from dallinger.experiment_server import sockets
 from dallinger.realtime import runner as runner_module
 from dallinger.realtime import store
@@ -605,7 +605,7 @@ class TestDelivery:
             return ws
 
         backend.connect = connect
-        backend.listener = sockets.DirectChannel(backend)
+        backend.listener = sockets.DirectChannel(backend, REALTIME_SESSION_CHANNEL)
         return backend
 
     @pytest.mark.timeout(20)
@@ -617,7 +617,7 @@ class TestDelivery:
         elsewhere = backend.connect("2", scope="other page")
         outsider = backend.connect("3")
         pubsub = store.redis_conn.pubsub(ignore_subscribe_messages=True)
-        pubsub.subscribe(DIRECT_CHANNEL)
+        pubsub.subscribe(REALTIME_SESSION_CHANNEL)
         thread = threading.Thread(target=runner.run)
         thread.start()
         try:
@@ -647,7 +647,7 @@ class TestDelivery:
 
 def frames(ws):
     sent = [call.args[0] for call in ws.send.mock_calls]
-    assert all(each.startswith(DIRECT_CHANNEL + ":") for each in sent)
+    assert all(each.startswith(REALTIME_SESSION_CHANNEL + ":") for each in sent)
     return [json.loads(each.split(":", 1)[1]) for each in sent]
 
 
