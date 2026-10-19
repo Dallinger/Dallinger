@@ -820,6 +820,7 @@ def _destroy_with_data(
     db="12 MB",
     volumes=("myapp_redis_data",),
     folder=True,
+    down_status=0,
 ):
     commands = []
 
@@ -845,6 +846,8 @@ def _destroy_with_data(
             return 0, "\n".join(volumes), ""
         if "removed $kind" in cmd:
             return 0, "removed dir\n", ""
+        if cmd.endswith("docker-compose.yml down"):
+            return down_status, "", "network in use\n"
         return 0, "", ""
 
     executor = _patch_destroy_executor(monkeypatch, run)
@@ -940,6 +943,15 @@ def test_destroy_remove_data_after_destroy_cleans_up_leftovers(monkeypatch):
         monkeypatch, deployed=False, db="", volumes=(), folder=False
     )
     assert "No experiment data of myapp is left on example.com." in result.output
+
+
+def test_destroy_stops_if_compose_down_fails(monkeypatch):
+    commands, result = _destroy_with_data(
+        monkeypatch, ["--remove-data", "--yes"], down_status=1
+    )
+    assert result.exit_code == 1
+    assert "Could not stop the containers of myapp" in result.output
+    assert "rm -rf ~/dallinger/myapp/" not in commands and not _deletes(commands)
 
 
 @pytest.mark.parametrize(

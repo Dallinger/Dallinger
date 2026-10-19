@@ -607,9 +607,9 @@ the app has been destroyed, and deletes whatever data is left. Bind mounts that
 you added with ``docker_volumes`` are always kept. Volume names use the app
 name as Docker Compose writes it, in lowercase without dots.
 
-Kept data stays on the server until you delete it, or until you deploy a new
-app with the same name: a deploy without ``--update`` replaces any database and
-volumes left under its name.
+Kept data stays on the server until you delete it. A new deploy with the same
+app name and without ``--update`` deletes the database and volumes left under
+that name, but reuses the data folder ``~/dallinger-data/$APP_ID``.
 
 Data is not deleted while the app's containers are still running, or if
 Dallinger can't check whether they are. If ``~/dallinger-data/$APP_ID`` is a

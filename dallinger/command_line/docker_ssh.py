@@ -2735,7 +2735,8 @@ def destroy(server, app, remove_data=False, keep_data=False, yes=False):
         _print_data(f"Kept the experiment data of {app} on {ssh_host}:", data)
         print(
             f"To delete it, run: {delete_again}\n"
-            f"Deploying a new app named {app} (without --update) deletes it too."
+            f"A new deploy of {app} without --update deletes its database and "
+            f"volumes, but reuses ~/dallinger-data/{app}."
         )
 
 
