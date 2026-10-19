@@ -155,20 +155,25 @@ def test_servers_upgrade_rewrites_server_files_and_keeps_backups(server):
 
 
 @pytest.mark.parametrize(
-    "app_name, hostname, route_dir",
+    "app_name, hostname, route_dir, update",
     [
-        ("myapp", "myapp.1.2.3.4.nip.io", "caddy.d"),
-        (None, "1.2.3.4.nip.io", "caddy.d"),
-        (None, "lab.example.org", "root.d"),
+        ("myapp", "myapp.1.2.3.4.nip.io", "caddy.d", False),
+        (None, "1.2.3.4.nip.io", "caddy.d", False),
+        (None, "lab.example.org", "root.d", False),
+        ("myapp", "myapp.1.2.3.4.nip.io", "root.d", True),
     ],
-    ids=["subdomain", "own-host", "server-root"],
+    ids=["subdomain", "own-host", "server-root", "update-server-root"],
 )
 def test_classic_deploy_only_writes_its_own_caddy_route(
-    server, app_name, hostname, route_dir, capsys
+    server, app_name, hostname, route_dir, update, capsys
 ):
     if route_dir == "root.d":
         CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
         (server / "docker.log").unlink()
+    if update:
+        (server / "dallinger/myapp").mkdir()
+        (server / "dallinger/myapp/docker-compose.yml").write_text("services: {}\n")
+        (server / "dallinger/root.d/myapp").write_text("old route\n")
     before = checksums(server)
     config = Configuration()
     config._reset(register_defaults=True)
@@ -191,7 +196,7 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
             image_name="image",
             mode="live",
             server="lab",
-            update=False,
+            update=update,
             local_build=False,
             push_build=False,
             preflight_root_clean=True,

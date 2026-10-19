@@ -337,9 +337,10 @@ def _old_root_routes(executor, caddyfile, host, tls):
 def _site_names(line):
     """Return the host names a Caddyfile site line such as ``a, https://b {`` serves.
 
-    Returns an empty list for other lines, including comments.
+    Site lines are unindented; other lines, including comments, snippets and
+    directives inside a site, give an empty list.
     """
-    match = re.fullmatch(r"\s*([^#\s{][^{]*?)\s*\{\s*", line)
+    match = re.match(r"([^#\s{(@][^{#]*?)\s*\{", line)
     if not match:
         return []
     return [
@@ -1886,6 +1887,12 @@ def _deploy_in_mode(
             raise click.Abort()
 
     _check_app_slot(executor, app_identifier, update, INGRESS_CLASSIC)
+    if update and executor.run(
+        f"test -f ~/dallinger/root.d/{quote(app_identifier)} && echo yes", raise_=False
+    ):
+        # --update needs --app, but this app was deployed on the server's root.
+        experiment_hostname = _server_host(server_info, dns_host)
+        takes_server_root = True
     if not update:
         print("Removing any pre-existing Redis volumes.")
         remove_redis_volumes(app_identifier, executor)
@@ -2000,7 +2007,11 @@ def _deploy_in_mode(
     # We give caddy the alias for the service. If we scale up the service container caddy will
     # send requests to all of them in a round robin fashion.
     route = f"reverse_proxy {experiment_id}_web:5000"
-    executor.run("mkdir -p ~/dallinger/caddy.d ~/dallinger/root.d")
+    other_route = "caddy.d" if takes_server_root else "root.d"
+    executor.run(
+        "mkdir -p ~/dallinger/caddy.d ~/dallinger/root.d && "
+        f"rm -f ~/dallinger/{other_route}/{quote(experiment_id)}"
+    )
     if takes_server_root:
         # The server's own site imports root.d, so the app takes over its root.
         sftp.putfo(BytesIO(f"{route}\n".encode()), f"dallinger/root.d/{experiment_id}")
