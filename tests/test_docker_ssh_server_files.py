@@ -307,3 +307,11 @@ def test_servers_add_accepts_a_set_up_ip_server_without_a_dns_host(server, monke
 
     assert result.exit_code == 0, result.output
     assert "left unchanged" in result.output
+
+
+def test_a_root_route_occupies_the_app_name(server):
+    (server / "dallinger/root.d").mkdir()
+    (server / "dallinger/root.d/myapp").write_text("reverse_proxy myapp_web:5000\n")
+
+    with pytest.raises(click.Abort):
+        docker_ssh._check_app_slot(LocalExecutor(server), "myapp", False, "classic")

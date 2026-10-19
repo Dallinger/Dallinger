@@ -368,8 +368,9 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         "test -f ~/dallinger/docker-compose.yml && echo yes", raise_=False
     ):
         print(
-            f"{server} already runs the shared classic-ingress services, so their "
-            "files were left unchanged. To rewrite them, run "
+            f"{server} already has a server compose file "
+            "(~/dallinger/docker-compose.yml), so the shared classic-ingress files "
+            "were left unchanged. To rewrite them and start the services, run "
             f"`dallinger docker-ssh servers upgrade --host {server}`."
         )
         return
@@ -425,7 +426,14 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         set_dozzle_password(executor, sftp, dozzle_password)
     print("Starting the shared Caddy, Postgres and Dozzle services.")
     _start_server_services(executor)
-    executor.reload_caddy()
+    if "dallinger/Caddyfile" in changed:
+        # A just-recreated Caddy may not answer its admin API yet.
+        print("Reloading Caddy config file")
+        executor.run(
+            "for i in $(seq 10); do "
+            f"{SERVER_COMPOSE} exec -T httpserver caddy reload "
+            "--config /etc/caddy/Caddyfile && exit 0; sleep 2; done; exit 1"
+        )
 
 
 @servers.command()
@@ -661,7 +669,8 @@ option_dns_host = click.option(
     help="Classic Caddy DNS name for this app's site (<app>.<dns-host> with --app). "
     "Must resolve all its subdomains to the IP address specified as ssh host. "
     "Defaults to the server's DNS host. The server's own sites, including the "
-    "log viewer, always use its saved DNS host. Not used for Cloudflare apps. "
+    "log viewer, use its saved DNS host, or this one on a server registered by "
+    "IP address without a saved DNS host. Not used for Cloudflare apps. "
     "You can use 'nip.io' to automatically generate a nip.io domain from the "
     "server's IP address.",
 )
@@ -2635,7 +2644,8 @@ def destroy(server, app):
     executor = Executor(ssh_address, user=ssh_user, app=app)
 
     caddy_config_exists = executor.run(
-        f"test -f ~/dallinger/caddy.d/{app} -o -f ~/dallinger/root.d/{app} && echo Yes",
+        f"test -f ~/dallinger/caddy.d/{quote(app)} -o "
+        f"-f ~/dallinger/root.d/{quote(app)} && echo Yes",
         raise_=False,
     )
     docker_compose_exists = executor.run(
@@ -2692,7 +2702,7 @@ def destroy(server, app):
                 "Destroy leaves that shared file alone. To reset it, run "
                 f"`dallinger docker-ssh servers upgrade --host {server}`."
             )
-        executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
+        executor.run(f"rm -f ~/dallinger/caddy.d/{quote(app)}")
         executor.reload_caddy()
         executor.run(
             f"docker compose -f ~/dallinger/{app}/docker-compose.yml down",
