@@ -433,9 +433,10 @@ Given an IP address or a DNS name of the server and a username, add the host to 
 The ``server_pem`` configuration will be used automatically for SSH authentication when connecting to the server.
 
 For classic ingress (the default), ``servers add`` also starts the shared
-Caddy, Postgres and Dozzle services on a server that has none, and prints the
-Dozzle login. A server that already runs them keeps its files; see
-``servers upgrade`` above to rewrite them.
+Caddy, Postgres and Dozzle services on a server without
+``~/dallinger/docker-compose.yml``, and prints the Dozzle login. A server that
+already has that file keeps its files; see ``servers upgrade`` above to
+rewrite them.
 
 Server information is stored in ``~/.dallinger/docker-ssh/hosts``. For backward compatibility,
 Dallinger also reads from the old platform-specific location (e.g., ``~/.local/share/dallinger/hosts`` on Linux).

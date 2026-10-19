@@ -185,9 +185,10 @@
   <server>` command sets them up or rewrites them. It lists the files it
   replaces, asks first unless given `--yes`, keeps a `.bak` copy of each, and
   moves a root-domain app deployed by an older Dallinger into `root.d`.
-  A deploy to a server that lacks the setup it needs (for example a root-domain
-  app on a server set up by an older Dallinger) stops before the image build
-  and names that command. The server's DNS host and the email that Caddy gives
+  A deploy to a server that lacks the setup it needs stops before the image
+  build and names that command: for example a root-domain app on a server set
+  up by an older Dallinger, or any app on a server whose last classic deploy
+  by an older Dallinger was a root-domain one. The server's DNS host and the email that Caddy gives
   Let's Encrypt come from the server record: `servers add` saves `--dns-host`
   and `--contact-email`, and the email defaults to `contact_email_on_error`.
   A deploy's `--dns-host` now only names the app's own site, except on a

@@ -244,9 +244,10 @@ def add(host, user, default_ingress, dns_host, contact_email):
     In case `docker` and/or `docker compose` are missing, dallinger will try to
     install them using `sudo`. The given user must have passwordless sudo rights.
 
-    With classic default ingress, a server without the shared Caddy, Postgres
-    and Dozzle services gets them. A server that already runs them keeps its
-    files; use `dallinger docker-ssh servers upgrade` to rewrite them.
+    With classic default ingress, a server without ~/dallinger/docker-compose.yml
+    gets the shared Caddy, Postgres and Dozzle services. A server that already
+    has that file keeps its files; use `dallinger docker-ssh servers upgrade`
+    to rewrite them.
 
     You can configure SSH authentication using a PEM file by setting the `server_pem`
     configuration variable in your config.txt or ~/.dallingerconfig:
@@ -396,10 +397,11 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         print(f"These files on {server} will be replaced (keeping a .bak copy):")
         for path in changed:
             print(f"  ~/{path}")
-        print(
-            "Shared services whose configuration changed are recreated, which "
-            "briefly interrupts every classic app on the server."
-        )
+        if "dallinger/docker-compose.yml" in changed:
+            print(
+                "Shared services whose configuration changed are recreated, which "
+                "briefly interrupts every classic app on the server."
+            )
         if not yes and not click.confirm("Continue?", default=False):
             raise click.Abort()
     stamp = "$(date +%Y%m%dT%H%M%S)"
