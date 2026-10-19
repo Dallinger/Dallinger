@@ -1072,9 +1072,9 @@ def _record_then_launch(
     Without ``show_summary``, neither the notes nor the recruitment message
     are printed, unless launching fails and so the caller gets no result.
     """
-    _record_deployment_infos(target.app, deployment_infos)
     if show_summary:
         _print_deployment_infos(deployment_infos, dashboard_password)
+    _record_deployment_infos(target.app, deployment_infos)
     if update:
         print("Skipping experiment launch logic because we are in update mode.")
         return {}

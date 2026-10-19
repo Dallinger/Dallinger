@@ -195,9 +195,11 @@
   `--no-summary` option, for callers such as PsyNet that invoke them with
   `show_summary=False` and print their own summary from the returned dict.
   It skips the closing summary (logs command and URL, public origin,
-  dashboard link and password, recruitment message) unless the launch fails.
-  The deploy log file is still written. By default the summary is printed as
-  before.
+  dashboard link and password, recruitment message) and the classic-ingress
+  Dozzle line with its password. If the health check, public URL wait or
+  launch fails, the notes and dashboard password are printed before the
+  error. The deploy log file is still written. By default the summary is
+  printed as before.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
