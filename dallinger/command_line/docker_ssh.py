@@ -2564,7 +2564,7 @@ def _remove_experiment_data(executor, app, items):
 
     Refuses unless Docker confirms that none of the app's containers run.
     """
-    label = f"com.docker.compose.project={_compose_project(app)}"
+    label = f"label=com.docker.compose.project={_compose_project(app)}"
     status, running, stderr = executor.run_with_status(
         f"docker ps -q --filter {quote(label)}"
     )

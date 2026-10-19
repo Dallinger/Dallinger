@@ -886,6 +886,8 @@ def test_destroy_remove_data_deletes_classic_database_redis_and_folder(monkeypat
     assert drop == 'DROP DATABASE IF EXISTS "myapp"'
     assert shlex.split(drop_user)[-1] == 'DROP USER IF EXISTS "myapp"'
     assert volume == "docker volume rm myapp_redis_data"
+    ps = "docker ps -q --filter label=com.docker.compose.project=myapp"
+    assert commands.index(down) < commands.index(ps) < commands.index(drop_db)
     assert "Deleted the database myapp (12 MB)" in result.output
 
 
