@@ -10,7 +10,11 @@ import subprocess  # noqa: E402
 import psutil  # noqa: E402
 import werkzeug  # noqa: E402
 
+from dallinger.experiment_server import sockets  # noqa: E402
 from dallinger.experiment_server.experiment_server import app  # noqa: E402, F401
+
+# Raises for invalid game types, so the server doesn't start.
+sockets.process_games()
 
 os.environ["FLASK_SECRET_KEY"] = codecs.encode(os.urandom(16), "hex").decode("ascii")
 

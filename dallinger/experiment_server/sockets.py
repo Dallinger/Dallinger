@@ -109,7 +109,8 @@ _process_games = None
 def process_games():
     """The experiment's game types, as
     :func:`~dallinger.realtime.store.experiment_games` returns them, loaded
-    once per process, when its gunicorn worker starts.
+    once per process, when its gunicorn worker or the ``dallinger develop``
+    server starts.
     """
     global _process_games
     if _process_games is None:

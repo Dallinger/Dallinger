@@ -91,17 +91,19 @@ def start_runner_supervisor():
 
 def experiment_has_realtime_games():
     """Whether the experiment has game types, so the worker should keep a
-    runner going. An experiment that can't be loaded is logged, and has none.
+    runner going. An experiment that can't be loaded, or whose game types
+    are invalid, is logged, and has none.
     """
     import logging
 
-    from dallinger import experiment
+    from dallinger.realtime.store import experiment_games
 
     try:
-        return bool(experiment.load().realtime_games)
+        return bool(experiment_games())
     except Exception:
         logging.getLogger(__name__).exception(
-            "Couldn't load the experiment, so no real-time runner is started."
+            "Couldn't load the experiment's game types, so no real-time runner "
+            "is started."
         )
         return False
 

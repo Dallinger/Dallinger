@@ -164,7 +164,8 @@
   runner dies. A page joins a session by opening its websocket with the
   session's id as a `session` query parameter, on `/chat` or
   `/experiment-socket`, and sends its moves on the game type's channel, within
-  a per-socket rate limit the game type sets. The engine needs Redis 7.0 or
+  a per-socket rate limit the game type sets. `dallinger verify` and deploys
+  check an experiment's game types. The engine needs Redis 7.0 or
   later. `RealtimeGame`, `Reject` and the session functions import from
   `dallinger.realtime`, and the new "Real-Time Games" docs page describes the
   engine.

@@ -123,9 +123,10 @@ An experiment lists its game types in its
 Each game type needs a channel of its own, which can't be one of Dallinger's
 reserved channels, ``dallinger_control``, ``dallinger_direct`` and
 ``dallinger_time``, or the experiment's own
-:attr:`~dallinger.experiment.Experiment.channel`. The experiment's web
-processes check the game types when they start, and won't start if one is
-invalid.
+:attr:`~dallinger.experiment.Experiment.channel`. ``dallinger verify`` and
+every deploy check the game types. If one is invalid, the experiment's web
+processes and ``dallinger develop``'s server won't start, and a worker logs
+the error and plays no sessions.
 
 Frames a page sends on a game type's channel go only to the page's session,
 or are dropped if the page hasn't joined one. They are never broadcast to the

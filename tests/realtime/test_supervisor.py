@@ -11,6 +11,7 @@ import pytest
 from dallinger import experiment
 from dallinger.realtime.supervisor import RunnerSupervisor
 from dallinger_scripts.worker import experiment_has_realtime_games
+from tests.realtime.helpers import Tally
 
 pytestmark = pytest.mark.timeout(10)
 
@@ -116,11 +117,18 @@ def test_a_runner_that_cannot_start_is_tried_again(quick_restarts, caplog):
 
 
 class WithGames:
-    realtime_games = [object]
+    realtime_games = [Tally]
+    channel = None
 
 
 class WithoutGames:
     realtime_games = []
+    channel = None
+
+
+class WithInvalidGames:
+    realtime_games = [object]
+    channel = None
 
 
 def broken():
@@ -128,14 +136,23 @@ def broken():
 
 
 @pytest.mark.parametrize(
-    "load, expected",
-    [(lambda: WithGames, True), (lambda: WithoutGames, False), (broken, False)],
+    "load, expected, error",
+    [
+        (lambda: WithGames, True, None),
+        (lambda: WithoutGames, False, None),
+        (lambda: WithInvalidGames, False, "is not a RealtimeGame subclass"),
+        (broken, False, "no experiment here"),
+    ],
 )
 def test_the_worker_supervises_a_runner_when_the_experiment_has_game_types(
-    monkeypatch, caplog, load, expected
+    monkeypatch, caplog, load, expected, error
 ):
     monkeypatch.setattr(experiment, "load", load)
     caplog.set_level(logging.ERROR)
 
     assert experiment_has_realtime_games() is expected
-    assert ("no experiment here" in caplog.text) is (load is broken)
+    if error is None:
+        assert caplog.text == ""
+    else:
+        assert error in caplog.text
+        assert "no real-time runner is started" in caplog.text
