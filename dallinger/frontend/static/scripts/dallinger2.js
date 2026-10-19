@@ -829,10 +829,134 @@ var dallinger = (function () {
   // The frames dallinger.realtime.delivery sends a page about its session.
   var SESSION_FRAMES = ["realtime_view", "realtime_ended", "realtime_saved"];
 
-  // Seconds since 1970, from the clock that doesn't jump when the computer's
-  // clock is set.
-  var browserTime = function () {
-    return (performance.timeOrigin + performance.now()) / 1000;
+  var browserTimeAt = function (performanceNow) {
+    return (performance.timeOrigin + performanceNow) / 1000;
+  };
+
+  // The library reads the clock through this, not the public name, so that
+  // a page replacing dallinger.browserTime can't split envelopes from
+  // measurements.
+  var readBrowserTime = function () {
+    return browserTimeAt(performance.now());
+  };
+
+  /**
+   * The time now on the browser's clock, in seconds since 1970. Use it to
+   * note when something happened on the page, and pass that time to a
+   * session socket's ``serverTime`` to put it on the server's clock.
+   *
+   * This clock keeps counting steadily even if someone changes the
+   * computer's clock while the page is open. The browser time in a message
+   * sent to a session (see ``dallinger.Socket#send``) comes from it too.
+   *
+   * A browser event's ``timeStamp`` comes from the same clock, counted in
+   * milliseconds from ``performance.timeOrigin``, so an event's browser time
+   * is ``(performance.timeOrigin + event.timeStamp) / 1000``. That is closer
+   * to the moment a key was pressed or the mouse clicked than calling
+   * ``browserTime`` in the event handler.
+   *
+   * @example
+   * document.addEventListener('keydown', function (event) {
+   *   var pressedAt = (performance.timeOrigin + event.timeStamp) / 1000;
+   *   var pressedAtOnServer = socket.serverTime(pressedAt);
+   * });
+   *
+   * @returns {number} Seconds since 1970
+   */
+  dlgr.browserTime = function () {
+    return readBrowserTime();
+  };
+
+  // A run of clock sync sends this many time requests, one after another.
+  var CLOCK_REQUESTS = 5;
+  // A request with no answer by then is given up, and the next one sent.
+  var CLOCK_ANSWER_TIMEOUT_MS = 2000;
+  // The time from the end of one run to the start of the next.
+  var CLOCK_SYNC_INTERVAL_MS = 30000;
+
+  // Measures the server's clock against the browser's, keeping the answer
+  // with the shortest round trip of each run, the one least delayed on the
+  // way, and taking the server's clock to have been read halfway through it.
+  // measured gets each run's measurement.
+  var ClockSync = function (sendRequest, measured) {
+    this._sendRequest = sendRequest;
+    this._measured = measured;
+    this.measurement = null;
+    this._run = null;
+    this._timer = null;
+    this._lastId = 0;
+  };
+
+  ClockSync.prototype.start = function () {
+    this.stop();
+    this._run = {answers: [], left: CLOCK_REQUESTS, request: null};
+    this._request();
+  };
+
+  ClockSync.prototype.stop = function () {
+    clearTimeout(this._timer);
+    this._timer = null;
+    this._run = null;
+  };
+
+  ClockSync.prototype._request = function () {
+    var self = this;
+    var run = this._run;
+    if (run.left === 0) { return this._finish(); }
+    run.left -= 1;
+    this._lastId += 1;
+    run.request = {id: this._lastId, sentAt: performance.now()};
+    this._sendRequest({type: "request", id: this._lastId});
+    this._timer = setTimeout(function () { self._request(); }, CLOCK_ANSWER_TIMEOUT_MS);
+  };
+
+  ClockSync.prototype.receive = function (answer) {
+    var receivedAt = performance.now();
+    var request = this._run === null ? null : this._run.request;
+    if (request === null || answer.id !== request.id) { return; }
+    clearTimeout(this._timer);
+    this._run.answers.push({
+      browser_time: browserTimeAt((request.sentAt + receivedAt) / 2),
+      server_time: answer.clock,
+      round_trip: (receivedAt - request.sentAt) / 1000
+    });
+    this._request();
+  };
+
+  ClockSync.prototype._finish = function () {
+    var self = this;
+    var answers = this._run.answers;
+    this._run = null;
+    this._timer = setTimeout(function () { self.start(); }, CLOCK_SYNC_INTERVAL_MS);
+    if (!answers.length) { return; }
+    this.measurement = answers.reduce(function (best, answer) {
+      return answer.round_trip < best.round_trip ? answer : best;
+    });
+    this._measured(this.measurement);
+  };
+
+  ClockSync.prototype.serverTime = function (browserTime) {
+    var measurement = this.measurement;
+    if (measurement === null) { return null; }
+    return browserTime + measurement.server_time - measurement.browser_time;
+  };
+
+  // What a socket that joined a session knows about it.
+  var SessionState = function (socket) {
+    // Messages sent on the game channel that no view has acknowledged, each
+    // with the connection it went out on, or null while it is held.
+    this.unacknowledged = [];
+    this.view = null;
+    this.reportedRejections = {};
+    this.ended = false;
+    this.saved = $.Deferred();
+    var sendTimeFrame = function (frame) {
+      socket._sendFrame(dlgr.TIME_CHANNEL + ':' + JSON.stringify(frame));
+    };
+    this.clock = new ClockSync(sendTimeFrame, function (measurement) {
+      sendTimeFrame($.extend({type: "clock"}, measurement));
+      socket._notify("clock", [measurement]);
+    });
   };
 
   /**
@@ -843,9 +967,30 @@ var dallinger = (function () {
    * property, which reconnects with a growing delay whenever it is dropped.
    * A connection the server refuses is not retried.
    *
-   * A connection opened with a ``session`` joins that real-time session each
-   * time it opens, and the session sends the page a view straight away, or
-   * its ending if it has ended. See ``onView`` and ``onEnded``.
+   * A socket opened with a ``session`` is a player's page in a real-time
+   * game. Each time it connects, it joins the session and is sent the game
+   * as it stands, so a player whose connection drops carries on from where
+   * the game has got to. Send the player's moves with ``send``, draw the
+   * game in ``onView``, and move on once ``resultSaved`` says the game is
+   * over and saved. The socket also keeps track of the server's clock, so
+   * the page can tell the time as the game sees it (see ``sessionTime``).
+   *
+   * @example
+   * // sessionId is the id create_realtime_session returned, which the
+   * // page gets from the experiment
+   * var socket = dallinger.openExperimentSocket({
+   *   session: sessionId,
+   *   gameChannel: 'sealed_bid'
+   * });
+   * socket.onView(function (view) {
+   *   $('#bids-made').text(view.bids_made);
+   * });
+   * $('#bid').on('click', function () {
+   *   socket.send('sealed_bid', {bid: Number($('#amount').val())});
+   * });
+   * socket.resultSaved().done(function () {
+   *   dallinger.goToPage('questionnaire');
+   * });
    *
    * @constructor
    * @param {string} route - Path of the WebSocket route
@@ -879,16 +1024,10 @@ var dallinger = (function () {
     this._closed = false;
     this._callbacks = {
       broadcast: [], direct: [], open: [], refused: [],
-      view: [], rejected: [], ended: [], saved: []
+      view: [], rejected: [], ended: [], saved: [], clock: []
     };
     this._connection = 0;
-    // Messages sent on the game channel that no view has acknowledged, each
-    // with the connection it went out on, or null while it is held.
-    this._unacknowledged = [];
-    this._view = null;
-    this._reportedRejections = {};
-    this._ended = false;
-    this._saved = this.session === null ? null : $.Deferred();
+    this._state = this.session === null ? null : new SessionState(this);
     this.raw = new ReconnectingWebSocket(socketUrl(route, {
       channel: this.channel,
       worker_id: dlgr.identity.workerId,
@@ -901,13 +1040,21 @@ var dallinger = (function () {
       self._connection += 1;
       self._pending = [];
       pending.forEach(function (frame) { self.raw.send(frame); });
-      self._unacknowledged.forEach(function (message) {
-        if (message.connection === null) { message.connection = self._connection; }
-      });
+      var state = self._state;
+      if (state !== null) {
+        state.unacknowledged.forEach(function (message) {
+          if (message.connection === null) { message.connection = self._connection; }
+        });
+        if (!state.ended) { state.clock.start(); }
+      }
       self._notify("open", [event]);
     });
     this.raw.addEventListener("message", function (event) {
       self._receive(event.data);
+    });
+    // A drop abandons the run, and the next open starts another.
+    this.raw.addEventListener("close", function () {
+      if (self._state !== null) { self._state.clock.stop(); }
     });
     dlgr.stopReconnectingIfRefused(this.raw, function (code, reason) {
       self._stop(code, reason);
@@ -923,10 +1070,24 @@ var dallinger = (function () {
   dlgr.Socket.prototype._stop = function (code, reason) {
     this._closed = true;
     this._pending = [];
-    this._unacknowledged = this._unacknowledged.filter(function (message) {
+    var state = this._state;
+    if (state === null) { return; }
+    state.unacknowledged = state.unacknowledged.filter(function (message) {
       return message.connection !== null;
     });
-    if (this._saved !== null) { this._saved.reject(code, reason); }
+    state.clock.stop();
+    state.saved.reject(code, reason);
+  };
+
+  // Sends a frame now, or holds it until the connection opens, and returns
+  // whether it went now.
+  dlgr.Socket.prototype._sendFrame = function (frame) {
+    if (this.raw.readyState === WebSocket.OPEN) {
+      this.raw.send(frame);
+      return true;
+    }
+    this._pending.push(frame);
+    return false;
   };
 
   dlgr.Socket.prototype._notify = function (kind, args) {
@@ -950,6 +1111,11 @@ var dallinger = (function () {
       var data = parsePayload(frame.substring(dlgr.REALTIME_SESSION_CHANNEL.length + 1));
       if (this._isSessionFrame(data)) { this._receiveSessionFrame(data); }
       return;
+    } else if (frame.indexOf(dlgr.TIME_CHANNEL + ':') === 0) {
+      if (this._state !== null) {
+        this._state.clock.receive(parsePayload(frame.substring(dlgr.TIME_CHANNEL.length + 1)));
+      }
+      return;
     } else {
       return;
     }
@@ -968,31 +1134,34 @@ var dallinger = (function () {
       return;
     }
     this._end(data.reason, data.view);
-    if (data.type === "realtime_saved" && this._saved.state() === "pending") {
+    if (data.type === "realtime_saved" && this._state.saved.state() === "pending") {
       this._notify("saved", [data]);
-      this._saved.resolve(data);
+      this._state.saved.resolve(data);
     }
   };
 
   dlgr.Socket.prototype._receiveView = function (envelope) {
     var self = this;
+    var state = this._state;
     // A view that arrives late still reports its rejections.
     var rejections = envelope.rejected.filter(function (rejection) {
-      if (self._reportedRejections[rejection.number]) { return false; }
-      self._reportedRejections[rejection.number] = true;
+      if (state.reportedRejections[rejection.number]) { return false; }
+      state.reportedRejections[rejection.number] = true;
       return true;
     });
-    var newest = this._view === null || envelope.number > this._view.number;
+    var newest = state.view === null || envelope.number > state.view.number;
+    var ending = false;
     if (newest) {
-      this._view = envelope;
+      state.view = envelope;
       this._acknowledge(envelope.last_processed);
+      ending = envelope.ended !== null && this._markEnded();
     }
     rejections.forEach(function (rejection) {
       self._notify("rejected", [rejection.number, rejection.reason]);
     });
     if (!newest) { return; }
     this._notify("view", [envelope.view, envelope]);
-    if (envelope.ended !== null) { this._end(envelope.ended, envelope.view); }
+    if (ending) { this._notify("ended", [envelope.ended, envelope.view]); }
   };
 
   // last_processed is the latest of the page's messages the game handled, so
@@ -1002,19 +1171,26 @@ var dallinger = (function () {
   // forgotten the page's numbers, and settles what earlier connections sent.
   dlgr.Socket.prototype._acknowledge = function (last) {
     var connection = this._connection;
-    var numbers = this._unacknowledged.map(function (message) { return message.number; });
-    this._unacknowledged = this._unacknowledged.slice(numbers.indexOf(last) + 1);
+    var state = this._state;
+    var numbers = state.unacknowledged.map(function (message) { return message.number; });
+    state.unacknowledged = state.unacknowledged.slice(numbers.indexOf(last) + 1);
     if (last === null) {
-      this._unacknowledged = this._unacknowledged.filter(function (message) {
+      state.unacknowledged = state.unacknowledged.filter(function (message) {
         return message.connection === connection;
       });
     }
   };
 
   dlgr.Socket.prototype._end = function (reason, view) {
-    if (this._ended) { return; }
-    this._ended = true;
-    this._notify("ended", [reason, view]);
+    if (this._markEnded()) { this._notify("ended", [reason, view]); }
+  };
+
+  // Returns false if the socket already knew the session had ended.
+  dlgr.Socket.prototype._markEnded = function () {
+    if (this._state.ended) { return false; }
+    this._state.ended = true;
+    this._state.clock.stop();
+    return true;
   };
 
   /**
@@ -1024,24 +1200,26 @@ var dallinger = (function () {
    * the ``channel_name``.
    *
    * On a socket that joined a session, a message sent on the ``gameChannel``
-   * goes to the session instead, which passes it to the game type's
-   * ``apply`` method. The socket wraps it in an envelope holding the
-   * message's number, and the browser's time and the session time of the
-   * newest view when ``send`` is called, which the game receives as
-   * ``sent``. The page numbers its messages from 1, one more each time,
-   * across all of its sockets, and a reconnect never reuses a number. A
-   * string payload that is JSON reaches ``apply`` parsed, and any other
-   * string as it is.
+   * goes only to the game, whose ``apply`` method gets it. ``send`` returns
+   * the message's number, which ``onRejected`` uses to say which message
+   * the game refused. A page numbers its messages 1, 2, 3 and so on, across
+   * all of its sockets, and never repeats a number, even after a reconnect.
+   * ``apply`` also gets ``sent``, which holds the message's number, the
+   * browser time it was sent at (see ``dallinger.browserTime``), and the
+   * session time of the newest view the page had then. A string that holds
+   * JSON reaches ``apply`` parsed, and any other string as it is. Messages
+   * over the game type's ``max_messages_per_second`` limit are dropped.
    *
-   * A message sent while the connection is down is held, and sent in order
-   * once the connection reopens. Held messages are discarded if the socket is
-   * closed or refused first, as is anything sent after that.
+   * A message sent while the connection is down waits, and goes out in
+   * order once the connection reopens. Once the socket is closed or
+   * refused, waiting messages are dropped and ``send`` sends nothing.
    *
-   * @param {string} channel - Name of the channel to send to
-   * @param {Object|string} payload - Message to send, encoded as JSON unless
-   *   it is already a string
+   * @param {string} channel - The channel to send on
+   * @param {Object|string} payload - The message. Anything but a string is
+   *   sent as JSON.
    * @returns {number|undefined} The message's number, for a message sent on
-   *   the ``gameChannel`` of a socket that hasn't been closed or refused
+   *   a session's ``gameChannel``. Nothing for any other message, or once
+   *   the socket is closed or refused.
    * @alias dallinger.Socket#send
    */
   dlgr.Socket.prototype.send = function (channel, payload) {
@@ -1057,8 +1235,8 @@ var dallinger = (function () {
       payload = {
         envelope: {
           number: message.number,
-          browser_time: browserTime(),
-          view_time: this._view === null ? null : this._view.time
+          browser_time: readBrowserTime(),
+          view_time: this._state.view === null ? null : this._state.view.time
         },
         payload: payload
       };
@@ -1066,13 +1244,10 @@ var dallinger = (function () {
     var frame = channel + ':' + (typeof payload === 'string' ? payload : JSON.stringify(payload));
     if (message !== null) {
       lastMessageNumber = message.number;
-      this._unacknowledged.push(message);
+      this._state.unacknowledged.push(message);
     }
-    if (this.raw.readyState === WebSocket.OPEN) {
-      this.raw.send(frame);
-      if (message !== null) { message.connection = this._connection; }
-    } else {
-      this._pending.push(frame);
+    if (this._sendFrame(frame) && message !== null) {
+      message.connection = this._connection;
     }
     if (message !== null) { return message.number; }
   };
@@ -1156,40 +1331,39 @@ var dallinger = (function () {
   };
 
   /**
-   * Call ``callback`` with each new view of the session, what the game
-   * type's ``view`` method lets this player see. The session sends one each
-   * time the connection opens, unless it has ended, and others as the game
-   * goes on.
+   * Call ``callback`` with each new view of the game: what the game type's
+   * ``view`` method lets this player see. Draw the game from it. The page
+   * gets a view each time it joins the session, including after a
+   * reconnect, and a new one whenever the game changes, until the session
+   * ends.
    *
-   * Views can arrive out of order, so only a view newer than the last one
-   * passed to the callback is passed to it, and an older view that arrives
-   * late is dropped. One view is newer than another if the session sent it
-   * later, which its envelope's ``number`` says.
+   * Views can arrive out of order. The callback only ever gets a view newer
+   * than the last one it got, and one that arrives late is skipped, so the
+   * page can always draw the view it is given.
    *
-   * The callback is passed the view, followed by its envelope, an object
-   * holding:
+   * The callback is passed the view, then an object with details about it:
    *
    * - ``view``: the view itself
    * - ``number``: a later view has a higher number
-   * - ``time``: the session time the view shows, in seconds
-   * - ``kind``: ``"tick"`` for a view sent after a tick, otherwise
-   *   ``"message"``
-   * - ``last_processed``: the number of the latest message from this page that
-   *   the game has handled, or ``null``
-   * - ``rejected``: the messages the game rejected since the page's last view,
-   *   also passed to ``onRejected``
+   * - ``time``: the session time the view shows, in seconds (see
+   *   ``sessionTime``)
+   * - ``kind``: ``"tick"`` if the game type's ``tick`` method made the
+   *   change, otherwise ``"message"``
+   * - ``last_processed``: the number of this page's latest message that the
+   *   game has applied or rejected (see ``send``), or ``null``
+   * - ``rejected``: this page's messages the game rejected since its last
+   *   view, also passed to ``onRejected``
    * - ``ended``: why the session ended, once it has, otherwise ``null``
-   * - ``clock``: the server's clock when it started playing the session for
-   *   this view, in seconds since 1970. The view leaves a little after.
+   * - ``clock``: the server's clock, in seconds since 1970, when the
+   *   session time was ``time``
    *
-   * When the connection drops and reopens, the socket joins the session again
-   * and the next view shows the game as it is. The session forgets a page's
-   * ``last_processed`` and its unreported rejections when the page's last
-   * connection closes, so that view doesn't say which messages sent before
-   * the drop the game handled, only what they changed, and a rejection made
+   * When the page's last connection to the session drops, the session
+   * forgets which of the page's messages it has handled. The next view still
+   * shows what those messages changed, but its ``last_processed`` is
+   * ``null`` until the game handles another message, and a message rejected
    * just before the drop is never reported.
    *
-   * @param {function} callback - Called with each new view and its envelope
+   * @param {function} callback - Called with each new view and its details
    * @returns {dallinger.Socket} This socket
    * @alias dallinger.Socket#onView
    */
@@ -1198,14 +1372,21 @@ var dallinger = (function () {
   };
 
   /**
-   * Call ``callback`` once for each message the game type's ``apply`` method
-   * rejected, with the number ``send`` returned for it and the reason the
-   * game gave. A rejection arrives with a view, and is reported even if that
-   * view is older than one already passed to ``onView``. A message sent
-   * without the socket's envelope is never reported, and neither is one
-   * rejected just before the connection dropped (see ``onView``). The session
-   * reports a page's rejections to each of its sockets, so a page with two
-   * sockets in one session hears each rejection on both.
+   * Call ``callback`` each time the game rejects one of this page's
+   * messages, with the number ``send`` returned for the message and the
+   * reason the game type's ``apply`` method gave ``Reject``. Use it to tell
+   * the player why a move didn't count.
+   *
+   * Each rejection is reported once, even if it arrives with a view too old
+   * to reach ``onView``. A message rejected just before the connection
+   * dropped is never reported (see ``onView``), and neither is one sent
+   * other than with ``send``. A page with two sockets in the same session
+   * hears each rejection on both.
+   *
+   * @example
+   * socket.onRejected(function (number, reason) {
+   *   $('#error').text('That bid didn\'t count: ' + reason);
+   * });
    *
    * @param {function} callback - Called with the message's number and the
    *   reason
@@ -1217,13 +1398,24 @@ var dallinger = (function () {
   };
 
   /**
-   * Call ``callback`` once, when the page learns that its session has ended,
-   * with why it ended and this player's final view. The page learns it from
-   * the first view that says so, from the ending the session sends instead of
-   * a view to a page that joins once it has ended, or from the saved result,
-   * whichever comes first. The final view can still reach ``onView``
-   * afterwards. The session's result may not be saved yet. See
-   * ``resultSaved``.
+   * Call ``callback`` once, as soon as the page learns the session has
+   * ended, with the reason it ended and this player's final view. Use it to
+   * stop taking moves and show how the game turned out. Don't submit the
+   * page yet, since the result may not be saved (see ``resultSaved``).
+   *
+   * The reason is the one the game type's ``outcome`` method was passed:
+   *
+   * - ``"finished"``: the game type's ``is_over`` method returned true
+   * - ``"max_duration"``: the session ran for the game type's
+   *   ``max_duration``
+   * - ``"not_joined"``: no player other than a bot joined within the game
+   *   type's ``join_timeout``
+   * - ``"failed"``: the game's code failed
+   * - or the reason the experiment passed to ``end_realtime_session``
+   *
+   * The callback runs for a page that joins after the session has ended
+   * too, though that page gets no views. For other pages, the final view
+   * can reach ``onView`` after the callback has run.
    *
    * @param {function} callback - Called with the reason and the final view
    * @returns {dallinger.Socket} This socket
@@ -1235,8 +1427,8 @@ var dallinger = (function () {
 
   /**
    * Call ``callback`` once, when the session's result has been saved, so the
-   * page can move on. It is passed the same object ``resultSaved`` resolves
-   * with.
+   * page can move on. It does what ``resultSaved`` does, as a callback, and
+   * is passed the same object.
    *
    * @param {function} callback - Called with the saved result
    * @returns {dallinger.Socket} This socket
@@ -1247,21 +1439,24 @@ var dallinger = (function () {
   };
 
   /**
-   * Wait for the session's result to be saved. A page should wait for this
-   * before it is submitted, so the experiment can read the result.
+   * Wait for the session's result to be saved. Wait for this before the
+   * page is submitted or moves on, so that the experiment can read the
+   * result, for example to pay a bonus.
    *
    * The returned promise resolves with an object holding:
    *
    * - ``status``: ``"ended"``, or ``"failed"`` if the game's code failed
-   * - ``reason``: why the session ended
+   * - ``reason``: why the session ended (see ``onEnded``)
    * - ``view``: this player's final view
    *
    * A failed session's result is saved too, so the page can move on either
-   * way. ``onEnded`` says when the session has ended, for a page that
-   * shouldn't wait for the save indefinitely. The promise is rejected if the
-   * socket is closed first, or if the server refuses it, as it does once an
-   * ended session's record has expired. A refusal passes the close code and
-   * reason.
+   * way. The result is usually saved a moment after the session ends. A page
+   * that shouldn't wait indefinitely can use ``onEnded`` to learn that the
+   * game is over before then.
+   *
+   * The promise is rejected if the socket is closed first, or if the server
+   * refuses the connection, for example to a page that joins long after the
+   * session ended. A refusal passes the close code and reason.
    *
    * @example
    * socket.resultSaved().done(function (result) {
@@ -1275,7 +1470,101 @@ var dallinger = (function () {
     if (this.session === null) {
       throw new Error("This socket was opened without a session, so it has no result.");
     }
-    return this._saved.promise();
+    return this._state.saved.promise();
+  };
+
+  /**
+   * Call ``callback`` each time the socket measures the server's clock.
+   * Most pages don't need this, since ``serverTime`` and ``sessionTime``
+   * already use the measurements. It is for a page that wants to show or
+   * log how closely its clock matches the server's.
+   *
+   * The socket measures the server's clock as soon as it connects, then
+   * about every 30 seconds until the session ends. If the connection drops
+   * partway through a measurement, or the server doesn't answer, that
+   * measurement is skipped.
+   *
+   * Each measurement is also saved with the session's records, so an
+   * analysis can put the browser times of players' messages on the server's
+   * clock. Each one counts as a message toward the game type's
+   * ``max_messages_per_second`` limit.
+   *
+   * The callback is passed an object holding:
+   *
+   * - ``browser_time``: a moment on the browser's clock (see
+   *   ``dallinger.browserTime``), in seconds since 1970
+   * - ``server_time``: the server's clock at that same moment, in seconds
+   *   since 1970
+   * - ``round_trip``: how long the server took to answer, in seconds.
+   *   ``server_time`` can be off by up to half of this.
+   *
+   * @param {function} callback - Called with each measurement
+   * @returns {dallinger.Socket} This socket
+   * @alias dallinger.Socket#onClock
+   */
+  dlgr.Socket.prototype.onClock = function (callback) {
+    return this._onSession("clock", callback);
+  };
+
+  /**
+   * Convert a time on the browser's clock to the server's clock. The two
+   * clocks can be seconds apart or more, so convert times before comparing
+   * what happened on different players' pages. The socket lines the clocks
+   * up using its latest measurement of the server's clock (see
+   * ``onClock``).
+   *
+   * @example
+   * var serverNow = socket.serverTime();
+   * var clickedOnServer = socket.serverTime(clickedAt);
+   *
+   * @param {number} [browserTime] - A time from ``dallinger.browserTime``,
+   *   in seconds since 1970. Leave it out to convert the time now.
+   * @returns {number|null} The same moment on the server's clock, in seconds
+   *   since 1970, or ``null`` until the socket's first measurement, which
+   *   arrives shortly after it connects
+   * @alias dallinger.Socket#serverTime
+   */
+  dlgr.Socket.prototype.serverTime = function (browserTime) {
+    if (this.session === null) {
+      throw new Error("This socket was opened without a session, so it has no server clock.");
+    }
+    return this._state.clock.serverTime(browserTime === undefined ? readBrowserTime() : browserTime);
+  };
+
+  /**
+   * The session's time now, in seconds: the ``now`` the game type's methods
+   * would be passed at this moment. Use it to count down to a deadline the
+   * game puts in its view, or to show how long ago something in the view
+   * happened.
+   *
+   * The socket works it out from the newest view's ``time`` and its
+   * measurement of the server's clock, so it keeps counting between views.
+   * The session's clock stops while the session is paused, for example
+   * during a redeploy, and the page only finds out from the next view, so
+   * that view can move the time back a little. Once the session has ended,
+   * the time stays at the final view's time.
+   *
+   * @example
+   * var deadline = null;
+   * socket.onView(function (view) { deadline = view.deadline; });
+   * setInterval(function () {
+   *   var now = socket.sessionTime();
+   *   if (now !== null && deadline !== null) {
+   *     $('#timer').text(Math.ceil(Math.max(0, deadline - now)));
+   *   }
+   * }, 250);
+   *
+   * @returns {number|null} The session time in seconds, or ``null`` until
+   *   the first view and the first measurement of the server's clock have
+   *   arrived. After the session has ended, only a view is needed.
+   * @alias dallinger.Socket#sessionTime
+   */
+  dlgr.Socket.prototype.sessionTime = function () {
+    var now = this.serverTime();
+    var view = this._state.view;
+    if (view !== null && this._state.ended) { return view.time; }
+    if (view === null || now === null) { return null; }
+    return view.time + Math.max(0, now - view.clock);
   };
 
   /**
@@ -1330,13 +1619,15 @@ var dallinger = (function () {
    *   messages are passed to ``onBroadcast`` callbacks
    * @param {string} [options.scope=dallinger.pageScope] - Scope of the
    *   connection; ``null`` sends none
-   * @param {number} [options.session] - Id of the real-time session to join,
-   *   which ``create_realtime_session`` returned. The participant must be
-   *   one of its players. Keep the default scope: with a ``null`` one, the
-   *   session's views for this page reach every page the player has open,
-   *   and those pages take them for their own.
-   * @param {string} [options.gameChannel] - Channel of the session's game
-   *   type, needed with ``session``
+   * @param {number} [options.session] - To play a real-time game, the id of
+   *   the session, which ``create_realtime_session`` returned. The
+   *   participant must be one of its players, or the server refuses the
+   *   connection. Leave ``scope`` at its default: with a ``null`` scope, the
+   *   game's views for this page reach every page the player has open, and
+   *   each of them treats the views as its own.
+   * @param {string} [options.gameChannel] - Required with ``session``: the
+   *   game type's ``channel``, on which ``send`` sends the player's messages
+   *   to the game
    * @returns {dallinger.Socket} The new connection
    */
   dlgr.openChatSocket = function (options) {

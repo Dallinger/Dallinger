@@ -8,6 +8,7 @@
 global.window.alert = () => {};
 
 let sockets;
+let dallinger;
 
 class StubWebSocket {
   constructor(url) {
@@ -35,7 +36,8 @@ function load() {
   global.store = require("./store+json2.min");
   window.localStorage.clear();
   global.$ = global.jQuery = require("./jquery-4.0.0.min");
-  return require("./dallinger2").dallinger;
+  dallinger = require("./dallinger2").dallinger;
+  return dallinger;
 }
 
 function joined(options) {
@@ -78,15 +80,18 @@ function view(number, fields) {
   });
 }
 
+function framesOn(stub, channel) {
+  return stub.sent
+    .filter((frame) => frame.indexOf(channel + ":") === 0)
+    .map((frame) => JSON.parse(frame.substring(channel.length + 1)));
+}
+
 function sentMessages(stub) {
-  return stub.sent.map((frame) => {
-    expect(frame.indexOf("bids:")).toBe(0);
-    return JSON.parse(frame.substring("bids:".length));
-  });
+  return framesOn(stub, "bids");
 }
 
 function unacknowledged(socket) {
-  return socket._unacknowledged.map((message) => message.number);
+  return socket._state.unacknowledged.map((message) => message.number);
 }
 
 beforeEach(() => {
@@ -261,7 +266,9 @@ describe("sending on the game channel", () => {
 
     expect(socket.send("chat", { text: "hi" })).toBeUndefined();
 
-    expect(live().sent).toEqual(['chat:{"text":"hi"}']);
+    expect(live().sent.filter((frame) => !frame.startsWith("dallinger_time:"))).toEqual([
+      'chat:{"text":"hi"}',
+    ]);
   });
 });
 
@@ -324,6 +331,9 @@ describe("views", () => {
     expect(() => socket.onEnded(() => {})).toThrow();
     expect(() => socket.onResultSaved(() => {})).toThrow();
     expect(() => socket.resultSaved()).toThrow(/without a session/);
+    expect(() => socket.onClock(() => {})).toThrow();
+    expect(() => socket.serverTime()).toThrow(/without a session/);
+    expect(() => socket.sessionTime()).toThrow(/without a session/);
   });
 
   test("a socket without a session passes no session frame to onDirect", () => {
@@ -553,5 +563,296 @@ describe("the ending", () => {
 
     expect(socket.resultSaved().state()).toBe("pending");
     expect(events).toEqual([]);
+  });
+});
+
+describe("clock sync", () => {
+  // How far the fake server's clock is ahead of the browser's, in seconds.
+  const OFFSET = 500;
+
+  function timeRequests(stub = live()) {
+    return framesOn(stub, "dallinger_time").filter((frame) => frame.type === "request");
+  }
+
+  function reports(stub = live()) {
+    return framesOn(stub, "dallinger_time").filter((frame) => frame.type === "clock");
+  }
+
+  // Answer the live connection's latest time request after a round trip of
+  // roundTrip ms, the server reading its clock that fraction of the way
+  // through, and return the server's clock in the answer.
+  function answer(roundTrip, at = 0.5) {
+    const { id } = timeRequests().pop();
+    jest.advanceTimersByTime(roundTrip * at);
+    const clock = dallinger.browserTime() + OFFSET;
+    jest.advanceTimersByTime(roundTrip * (1 - at));
+    deliver({ type: "time", id, clock }, "dallinger_time");
+    return clock;
+  }
+
+  function synced(roundTrips = [40, 40, 40, 40, 40], at = 0.5) {
+    const socket = joined();
+    const measurements = [];
+    socket.onClock((measurement) => measurements.push(measurement));
+    live().onopen();
+    roundTrips.forEach((roundTrip) => answer(roundTrip, at));
+    return { socket, measurements };
+  }
+
+  test("sends five requests on connect, each once the last is answered", () => {
+    joined();
+    live().onopen();
+
+    const counts = [timeRequests().length];
+    for (let i = 0; i < 5; i += 1) {
+      answer(20);
+      counts.push(timeRequests().length);
+    }
+
+    expect(counts).toEqual([1, 2, 3, 4, 5, 5]);
+    expect(new Set(timeRequests().map((request) => request.id)).size).toBe(5);
+  });
+
+  test("keeps the answer with the shortest round trip, and reports it once", () => {
+    const socket = joined();
+    const measurements = [];
+    socket.onClock((measurement) => measurements.push(measurement));
+    live().onopen();
+    // The server reads its clock early on the slower requests, so only the
+    // fastest one gives the clock exactly.
+    answer(80, 0.1);
+    answer(60, 0.1);
+    const clock = answer(20, 0.5);
+    answer(70, 0.1);
+    answer(90, 0.1);
+
+    expect(measurements).toHaveLength(1);
+    const [{ browser_time, server_time, round_trip }] = measurements;
+    expect([server_time, round_trip]).toEqual([clock, expect.closeTo(0.02, 6)]);
+    expect(browser_time).toBeCloseTo(clock - OFFSET, 6);
+    expect(reports()).toEqual([{ type: "clock", ...measurements[0] }]);
+    expect(socket.serverTime() - dallinger.browserTime()).toBeCloseTo(OFFSET, 6);
+  });
+
+  test("converts a browser time to the server's", () => {
+    const { socket } = synced();
+    const then = dallinger.browserTime() - 30;
+
+    expect(socket.serverTime(then)).toBeCloseTo(then + OFFSET, 6);
+  });
+
+  test("measures again every 30 s, the newest measurement replacing the last", () => {
+    const { socket, measurements } = synced([10, 10, 10, 10, 10]);
+
+    jest.advanceTimersByTime(29999);
+    expect(timeRequests()).toHaveLength(5);
+    jest.advanceTimersByTime(1);
+    expect(timeRequests()).toHaveLength(6);
+    // The server reads its clock 30 ms into a 100 ms round trip, so this
+    // measurement puts the server 20 ms further behind than the last.
+    [100, 100, 100, 100, 100].forEach((roundTrip) => answer(roundTrip, 0.3));
+
+    expect(measurements.map((each) => each.round_trip)).toEqual([
+      expect.closeTo(0.01, 6),
+      expect.closeTo(0.1, 6),
+    ]);
+    expect(reports()).toHaveLength(2);
+    expect(socket.serverTime() - dallinger.browserTime()).toBeCloseTo(OFFSET - 0.02, 6);
+  });
+
+  test("keeps measuring every 30 s when an onClock callback throws", () => {
+    const errors = [];
+    const caught = (event) => {
+      errors.push(event.error.message);
+      event.preventDefault();
+    };
+    window.addEventListener("error", caught);
+    const socket = joined();
+    socket.onClock(() => {
+      throw new Error("page bug");
+    });
+    live().onopen();
+    [10, 10, 10, 10, 10].forEach((roundTrip) => answer(roundTrip));
+    window.removeEventListener("error", caught);
+
+    jest.advanceTimersByTime(30000);
+
+    expect(errors).toEqual(["page bug"]);
+    expect(timeRequests()).toHaveLength(6);
+  });
+
+  test("abandons a run when the connection drops, keeping the last measurement", () => {
+    const { socket, measurements } = synced();
+    jest.advanceTimersByTime(30000);
+    answer(30);
+    answer(30);
+    const before = live();
+    const outstanding = timeRequests().pop();
+
+    before.onclose({ code: 1006, reason: "" });
+    jest.advanceTimersByTime(120000);
+    live().onopen();
+    deliver({ type: "time", id: outstanding.id, clock: 0 }, "dallinger_time");
+
+    expect(timeRequests(before)).toHaveLength(8);
+    expect(measurements).toHaveLength(1);
+    expect(reports(before)).toHaveLength(1);
+    expect(socket.serverTime() - dallinger.browserTime()).toBeCloseTo(OFFSET, 6);
+    expect(timeRequests()).toHaveLength(1);
+    expect(reports()).toEqual([]);
+  });
+
+  test("gives up on each request after 2 s, ignoring a late answer", () => {
+    const { socket, measurements } = synced([]);
+    const [first] = timeRequests();
+
+    jest.advanceTimersByTime(2000);
+    deliver({ type: "time", id: first.id, clock: 0 }, "dallinger_time");
+    expect(timeRequests()).toHaveLength(2);
+    jest.advanceTimersByTime(8000);
+    expect(timeRequests()).toHaveLength(5);
+    jest.advanceTimersByTime(29999);
+    expect(timeRequests()).toHaveLength(5);
+    jest.advanceTimersByTime(1);
+
+    expect(timeRequests()).toHaveLength(6);
+    expect(measurements).toEqual([]);
+    expect(reports()).toEqual([]);
+    expect(socket.serverTime()).toBeNull();
+  });
+
+  test("stops at the view that ends the session, even if an onView callback throws", () => {
+    const errors = [];
+    const caught = (event) => {
+      errors.push(event.error.message);
+      event.preventDefault();
+    };
+    window.addEventListener("error", caught);
+    const { socket } = synced();
+    const seen = [];
+    socket.onView(() => {
+      seen.push(socket.sessionTime());
+      throw new Error("page bug");
+    });
+
+    view(1, { ended: "finished" });
+    window.removeEventListener("error", caught);
+    jest.advanceTimersByTime(60000);
+
+    expect(errors).toEqual(["page bug"]);
+    expect(seen).toEqual([0.1]);
+    expect(timeRequests()).toHaveLength(5);
+    expect(socket.sessionTime()).toBe(0.1);
+  });
+
+  test("keeps its own clock when a page replaces dallinger.browserTime", () => {
+    const { socket } = synced();
+    const now = dallinger.browserTime();
+
+    dallinger.browserTime = () => 0;
+    socket.send("bids", "a");
+
+    expect(sentMessages(live())[0].envelope.browser_time).toBeCloseTo(now, 6);
+    expect(socket.serverTime()).toBeCloseTo(now + OFFSET, 6);
+  });
+
+  test("stops when the session ends, and doesn't start again on a reconnect", () => {
+    const { socket } = synced([20]);
+    view(1, { ended: "finished" });
+    answer(20);
+
+    jest.advanceTimersByTime(60000);
+    reconnect();
+    jest.advanceTimersByTime(60000);
+
+    expect(timeRequests(sockets[0])).toHaveLength(2);
+    expect(timeRequests()).toEqual([]);
+    expect(reports(sockets[0])).toEqual([]);
+    expect(socket.serverTime()).toBeNull();
+  });
+
+  test("stops when the socket is closed", () => {
+    const socket = joined();
+    live().onopen();
+
+    socket.close();
+    jest.advanceTimersByTime(60000);
+
+    expect(timeRequests()).toHaveLength(1);
+  });
+
+  describe("the session time", () => {
+    // A view the server played `ago` seconds ago on its clock, showing
+    // session time `time`.
+    function viewPlayed(number, time, ago) {
+      view(number, { time, clock: dallinger.browserTime() + OFFSET - ago });
+    }
+
+    test("is unknown without both a view and a measurement", () => {
+      const socket = joined();
+      live().onopen();
+      answer(20);
+      viewPlayed(1, 12, 0);
+      expect(socket.serverTime()).toBeNull();
+      expect(socket.sessionTime()).toBeNull();
+
+      const { socket: unseen } = synced();
+      expect(unseen.sessionTime()).toBeNull();
+    });
+
+    test("goes on from the newest view's time, within half a round trip", () => {
+      // The server reads its clock 35 ms into each 50 ms round trip, 10 ms
+      // after the midpoint the page assumes.
+      const { socket } = synced([50, 50, 50, 50, 50], 0.7);
+      viewPlayed(2, 12, 0.08);
+      viewPlayed(1, 99, 0);
+
+      expect(Math.abs(socket.sessionTime() - 12.08)).toBeLessThanOrEqual(0.025);
+      jest.advanceTimersByTime(1500);
+      expect(Math.abs(socket.sessionTime() - 13.58)).toBeLessThanOrEqual(0.025);
+    });
+
+    test("follows the newest view back after the session's clock stopped", () => {
+      const { socket } = synced();
+      viewPlayed(1, 12, 0);
+      jest.advanceTimersByTime(3000);
+      expect(socket.sessionTime()).toBeCloseTo(15, 6);
+
+      // The session's clock stopped for 2 s, so the view after the pause
+      // shows 1 s on from the last one.
+      viewPlayed(2, 13, 0);
+
+      expect(socket.sessionTime()).toBeCloseTo(13, 6);
+    });
+
+    test("is never behind the newest view's time", () => {
+      const { socket } = synced();
+
+      viewPlayed(1, 12, -0.5);
+
+      expect(socket.sessionTime()).toBe(12);
+    });
+
+    test("stays at the newest view's time once the session has ended", () => {
+      const { socket } = synced();
+      viewPlayed(1, 12, 0);
+      viewPlayed(2, 12.5, 0);
+      deliver({ type: "realtime_ended", session_id: 4, reason: "finished", view: {} });
+
+      jest.advanceTimersByTime(5000);
+
+      expect(socket.sessionTime()).toBe(12.5);
+    });
+
+    test("is the ending view's time when the session ends before a measurement", () => {
+      const socket = joined();
+      live().onopen();
+
+      viewPlayed(1, 12, 0);
+      view(2, { time: 12.5, ended: "finished" });
+
+      expect(socket.serverTime()).toBeNull();
+      expect(socket.sessionTime()).toBe(12.5);
+    });
   });
 });
