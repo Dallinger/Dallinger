@@ -411,11 +411,10 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     sftp = get_sftp(server_info["host"], user=server_info.get("user"))
     for path in changed:
         sftp.putfo(BytesIO(files[path].encode()), path)
-    dozzle_password = get_dotenv_values(executor).get("DOZZLE_PASSWORD")
-    has_users = executor.run(
+    if not executor.run(
         "test -f ~/dallinger/dozzle-users.yml && echo yes", raise_=False
-    )
-    if not (dozzle_password and has_users):
+    ):
+        dozzle_password = get_dotenv_values(executor).get("DOZZLE_PASSWORD")
         if not dozzle_password:
             dozzle_password = secrets.token_urlsafe(12)
             print(
@@ -426,14 +425,13 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         set_dozzle_password(executor, sftp, dozzle_password)
     print("Starting the shared Caddy, Postgres and Dozzle services.")
     _start_server_services(executor)
-    if "dallinger/Caddyfile" in changed:
-        # A just-recreated Caddy may not answer its admin API yet.
-        print("Reloading Caddy config file")
-        executor.run(
-            "for i in $(seq 10); do "
-            f"{SERVER_COMPOSE} exec -T httpserver caddy reload "
-            "--config /etc/caddy/Caddyfile && exit 0; sleep 2; done; exit 1"
-        )
+    # A just-recreated Caddy may not answer its admin API yet.
+    print("Reloading Caddy config file")
+    executor.run(
+        "for i in $(seq 10); do "
+        f"{SERVER_COMPOSE} exec -T httpserver caddy reload "
+        "--config /etc/caddy/Caddyfile && exit 0; sleep 2; done; exit 1"
+    )
 
 
 @servers.command()
@@ -1658,7 +1656,10 @@ def get_dotenv_values(executor):
         "test -f ~/dallinger/.env.json && cat ~/dallinger/.env.json", raise_=False
     )
     if dotenv_content:
-        return json.loads(dotenv_content)
+        try:
+            return json.loads(dotenv_content)
+        except ValueError:
+            print("Warning: ~/dallinger/.env.json on the server is not valid JSON.")
     return {}
 
 

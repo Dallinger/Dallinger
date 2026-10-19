@@ -135,6 +135,7 @@ def test_servers_add_sets_up_a_fresh_server_but_leaves_a_set_up_one(server):
 
 
 def test_servers_upgrade_rewrites_server_files_and_keeps_backups(server):
+    (server / "dallinger/.env.json").unlink()
     result = CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab"])
     assert result.exit_code == 1
     assert (server / "dallinger/Caddyfile").read_text() == OLD_CADDYFILE
@@ -331,3 +332,16 @@ def test_servers_add_needs_a_dns_host_to_set_up_a_fresh_ip_server(server, monkey
     assert "servers add --host 1.2.3.4" in result.output
     assert "to the deploy" not in result.output
     assert not (server / "dallinger/docker-compose.yml").exists()
+
+
+def test_destroy_removes_a_root_route_but_not_the_server_files(server):
+    (server / "dallinger/root.d").mkdir()
+    (server / "dallinger/root.d/myapp").write_text("reverse_proxy myapp_web:5000\n")
+    (server / "dallinger/myapp").mkdir()
+    (server / "dallinger/myapp/docker-compose.yml").write_text("services: {}\n")
+    before = checksums(server)
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert checksums(server) == before
+    assert not (server / "dallinger/root.d/myapp").exists()
