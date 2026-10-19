@@ -293,3 +293,16 @@ def test_ip_server_without_a_saved_dns_host_uses_the_deploy_dns_host(
         == "myapp.1.2.3.4.nip.io"
     )
     assert docker_ssh._logs_url(ip_server, "nip.io") == "https://logs.1.2.3.4.nip.io"
+
+
+def test_servers_add_accepts_a_set_up_ip_server_without_a_dns_host(server, monkeypatch):
+    monkeypatch.setattr(docker_ssh, "get_configured_hosts", lambda: {})
+    monkeypatch.setattr(docker_ssh, "_config_contact_email", lambda: None)
+    with (
+        mock.patch.object(docker_ssh, "prepare_server"),
+        mock.patch.object(docker_ssh, "store_host"),
+    ):
+        result = CliRunner().invoke(docker_ssh.servers, ["add", "--host", "1.2.3.4"])
+
+    assert result.exit_code == 0, result.output
+    assert "left unchanged" in result.output

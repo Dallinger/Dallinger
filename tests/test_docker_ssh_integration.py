@@ -44,7 +44,8 @@ def test_docker_ssh_fixture_sandbox_deploy_destroy(fresh_docker_ssh_server):
     assert app_id not in f"{apps.stdout}\n{apps.stderr}"
     leftovers = fresh_docker_ssh_server.run_ssh(
         f"docker ps -a --format '{{{{.Names}}}}' | grep '^{app_id}' || true; "
-        f"ls -d ~/dallinger/{app_id} ~/dallinger/caddy.d/{app_id} 2>/dev/null || true"
+        f"ls -d ~/dallinger/{app_id} ~/dallinger/caddy.d/{app_id} "
+        f"~/dallinger/root.d/{app_id} 2>/dev/null || true"
     ).stdout.strip()
     assert leftovers == "", f"destroy left these behind:\n{leftovers}"
 

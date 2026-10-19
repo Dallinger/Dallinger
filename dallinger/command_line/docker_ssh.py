@@ -327,7 +327,7 @@ def _server_tls(server_info):
     return f"tls {email}"
 
 
-def _server_host(server_info, dns_host=None):
+def _server_host(server_info, dns_host=None, *, deploy=False):
     """Return the DNS name of a classic-ingress server's own sites.
 
     The server's Caddyfile serves this name and ``logs.<name>`` (Dozzle). It
@@ -344,8 +344,9 @@ def _server_host(server_info, dns_host=None):
     print(
         f"{RED}Error: {server_info['host']} is an IP address, so classic ingress "
         f"needs a DNS name for the server.{END} Save one with "
-        f"`{_servers_add_command(server_info, dns_host='<name>')}`, or pass "
-        "--dns-host <name> to the deploy (`--dns-host nip.io` uses <ip>.nip.io)."
+        f"`{_servers_add_command(server_info, dns_host='<name>')}`"
+        + (", or pass --dns-host <name> to the deploy" if deploy else "")
+        + " (`--dns-host nip.io` uses <ip>.nip.io)."
     )
     raise click.Abort()
 
@@ -362,13 +363,6 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     left alone. With it, changed files are listed and, unless ``yes``,
     confirmed before they are replaced.
     """
-    host = _server_host(server_info)
-    files = {
-        "dallinger/Caddyfile": CADDYFILE_SERVER.format(
-            host=host, tls=_server_tls(server_info)
-        ),
-        "dallinger/docker-compose.yml": DOCKER_COMPOSE_SERVER_TPL.render(),
-    }
     executor = _build_executor(server_info)
     if not replace and executor.run(
         "test -f ~/dallinger/docker-compose.yml && echo yes", raise_=False
@@ -379,6 +373,12 @@ def _write_server_files(server, server_info, *, replace, yes=True):
             f"`dallinger docker-ssh servers upgrade --host {server}`."
         )
         return
+    files = {
+        "dallinger/Caddyfile": CADDYFILE_SERVER.format(
+            host=_server_host(server_info), tls=_server_tls(server_info)
+        ),
+        "dallinger/docker-compose.yml": DOCKER_COMPOSE_SERVER_TPL.render(),
+    }
     current = {path: executor.run(f"cat ~/{path}", raise_=False) for path in files}
     changed = [path for path, content in files.items() if current[path] != content]
     # Root-domain deploys by older Dallinger versions routed the server's own
@@ -986,7 +986,7 @@ def _classic_hostname(server_info, app_name, archive_path, dns_host):
     sites keep the host saved with the server.
     """
     ssh_host = split_ssh_host_port(server_info["host"])[0]
-    dns_host = dns_host or _server_host(server_info)
+    dns_host = dns_host or _server_host(server_info, deploy=True)
     if dns_host == "nip.io":
         dns_host = get_dns_host(ssh_host)
         print(f"""{RED}Using {dns_host} as hostname. This might cause problems:{END}
@@ -1184,7 +1184,11 @@ def _check_app_slot(executor, app, update, ingress):
         return
     found = [
         path
-        for path in (compose_path, f"~/dallinger/caddy.d/{app}")
+        for path in (
+            compose_path,
+            f"~/dallinger/caddy.d/{app}",
+            f"~/dallinger/root.d/{app}",
+        )
         if executor.run(f"ls {path}", raise_=False)
     ]
     if found:
@@ -1580,7 +1584,11 @@ def build_and_push_image(f):
             except BaseException:
                 if not kwargs.get("update"):
                     _remove_aborted_build(
-                        docker_client, built_image, kwargs["server"], local_build
+                        docker_client,
+                        built_image,
+                        kwargs["server"],
+                        local_build,
+                        kwargs.get("app_name") or "",
                     )
                 raise
         finally:
@@ -1600,15 +1608,16 @@ def build_and_push_image(f):
     return wrapper
 
 
-def _remove_aborted_build(docker_client, image_name, server, local_build):
-    """Remove the image built for a new deploy that then failed.
+def _remove_aborted_build(docker_client, image_name, server, local_build, app):
+    """Remove the image built for a new deploy of ``app`` that then failed.
 
-    The image is kept if a container uses it, or if an app's compose file on
-    the server pins it. Errors here only warn, so the deploy error stays visible.
+    The image is kept if a container uses it, or if another app's compose file
+    on the server pins it. Errors here only warn, so the deploy error stays
+    visible.
     """
     try:
         if not local_build and image_pinned_by_other_apps(
-            _executor_for_server(server), image_name, except_app=""
+            _executor_for_server(server), image_name, except_app=app
         ):
             return
         docker_client.images.remove(image_name)
@@ -1943,6 +1952,7 @@ def _deploy_in_mode(
     # We give caddy the alias for the service. If we scale up the service container caddy will
     # send requests to all of them in a round robin fashion.
     route = f"reverse_proxy {experiment_id}_web:5000"
+    executor.run("mkdir -p ~/dallinger/caddy.d ~/dallinger/root.d")
     if takes_server_root:
         # The server's own site imports root.d, so the app takes over its root.
         sftp.putfo(BytesIO(f"{route}\n".encode()), f"dallinger/root.d/{experiment_id}")
@@ -2625,7 +2635,8 @@ def destroy(server, app):
     executor = Executor(ssh_address, user=ssh_user, app=app)
 
     caddy_config_exists = executor.run(
-        f"test -f ~/dallinger/caddy.d/{app} && echo Yes", raise_=False
+        f"test -f ~/dallinger/caddy.d/{app} -o -f ~/dallinger/root.d/{app} && echo Yes",
+        raise_=False,
     )
     docker_compose_exists = executor.run(
         f"test -f ~/dallinger/{app}/docker-compose.yml && echo Yes", raise_=False
