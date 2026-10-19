@@ -300,6 +300,22 @@ def test_deploy_launches_once_the_public_url_answers(deploy_dir, capsys):
         assert events == ["health", "check", "launch"]
 
 
+@pytest.mark.parametrize("command", [docker_ssh.deploy, docker_ssh.sandbox])
+def test_no_summary_leaves_the_summary_to_the_caller(command, deploy_dir, capsys):
+    assert "show_summary" in {param.name for param in command.params}
+    executor = FakeExecutor([(0, reply(200, {"recruitment_msg": "open"}), "")])
+
+    with public_check([], 200):
+        launch_data = docker_ssh._record_then_launch(
+            executor, TARGET, ["notes"], "s3cret", False, show_summary=False
+        )
+
+    assert launch_data["recruitment_msg"] == "open"
+    assert Path("deploy_logs/myapp.txt").read_text() == "notes\n"
+    out = capsys.readouterr().out
+    assert not {"notes", "s3cret", "open"} & set(out.split())
+
+
 def test_public_wait_retries_errors_and_one_redirect_until_2xx(no_sleep):
     events = []
     with public_check(events, 530, 302, 530, 200):

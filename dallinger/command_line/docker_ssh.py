@@ -557,6 +557,16 @@ option_allow_private_ip = click.option(
         "address."
     ),
 )
+option_show_summary = click.option(
+    "--summary/--no-summary",
+    "show_summary",
+    default=True,
+    help=(
+        "Print the closing summary: links, logs command, dashboard password "
+        "and recruitment message. Scripts that print their own summary can "
+        "turn it off; the deploy result still contains these details."
+    ),
+)
 
 
 def should_use_subdomain(app_name, archive_path):
@@ -1032,17 +1042,20 @@ def _public_dashboard_url(hostname):
     return f"https://{hostname}/dashboard"
 
 
-def _record_deployment_infos(experiment_id, lines, dashboard_password):
+def _record_deployment_infos(experiment_id, lines, dashboard_password, show_summary):
     """Print operator notes, and persist them to deploy_logs/ without secrets."""
-    for line in lines:
-        print_bold(line)
-    print_bold(f"Dashboard password: {dashboard_password}")
+    if show_summary:
+        for line in lines:
+            print_bold(line)
+        print_bold(f"Dashboard password: {dashboard_password}")
     deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
     deploy_log_path.parent.mkdir(exist_ok=True)
     deploy_log_path.write_text("\n".join(lines) + "\n")
 
 
-def _record_then_launch(executor, target, deployment_infos, dashboard_password, update):
+def _record_then_launch(
+    executor, target, deployment_infos, dashboard_password, update, show_summary=True
+):
     """Record the deployment, wait for the public URL, then launch the experiment.
 
     The record comes first so it exists even if the deploy stops here. A
@@ -1051,8 +1064,12 @@ def _record_then_launch(executor, target, deployment_infos, dashboard_password, 
     Launching opens recruitment, so it only happens once participants can
     reach the public URL; if the bounded wait times out, nothing is launched.
     Returns the ``/launch`` response, or an empty dict in update mode.
+    Without ``show_summary``, neither the notes nor the recruitment message
+    are printed.
     """
-    _record_deployment_infos(target.app, deployment_infos, dashboard_password)
+    _record_deployment_infos(
+        target.app, deployment_infos, dashboard_password, show_summary
+    )
     if update:
         print("Skipping experiment launch logic because we are in update mode.")
         return {}
@@ -1060,7 +1077,8 @@ def _record_then_launch(executor, target, deployment_infos, dashboard_password, 
     wait_for_public_url(executor, target)
     print("Launching experiment")
     launch_data = launch_from_server(executor, target)
-    print(launch_data.get("recruitment_msg"))
+    if show_summary:
+        print(launch_data.get("recruitment_msg"))
     return launch_data
 
 
@@ -1285,6 +1303,7 @@ def build_and_push_image(f):
                 local_checks=False,
                 app=app_name,
                 experiment_files=files,
+                quiet=True,
             )
             image_name = build_image(
                 tmp_dir,
@@ -1299,8 +1318,10 @@ def build_and_push_image(f):
                 # If built remotely and not pushing, the image is only on the remote daemon.
                 # We need to get its full name (repo:tag) for deployment.
                 # The build_image function already returns the image name, so we use that.
-                print(
-                    f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
+                logging.getLogger(__name__).debug(
+                    "Image %s built remotely, skipping push to registry "
+                    "because --push-build was not selected.",
+                    image_name,
                 )
             else:
                 # If it's a local build, or if it's a remote build and push_build, then push.
@@ -1427,6 +1448,7 @@ def set_dozzle_password_cmd(server, password):
 @option_push_build
 @option_ingress
 @option_allow_private_ip
+@option_show_summary
 @validate_update
 @build_and_push_image
 def sandbox(**kwargs):  # pragma: no cover
@@ -1445,6 +1467,7 @@ def sandbox(**kwargs):  # pragma: no cover
 @option_push_build
 @option_ingress
 @option_allow_private_ip
+@option_show_summary
 @validate_update
 @build_and_push_image
 def deploy(**kwargs):  # pragma: no cover
@@ -1466,6 +1489,7 @@ def _deploy_in_mode(
     preflight_root_clean,
     ingress=None,
     allow_private_ip=False,
+    show_summary=True,
 ):
     config = get_config(load=True)
     server = resolve_server_name(server, CONFIGURED_HOSTS)
@@ -1510,6 +1534,7 @@ def _deploy_in_mode(
             server=server,
             server_info=server_info,
             update=update,
+            show_summary=show_summary,
         )
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
@@ -1580,7 +1605,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
 
     _check_app_slot(executor, app_identifier, update, INGRESS_CLASSIC)
     if not update:
-        print("Removing any pre-existing Redis volumes.")
+        logging.getLogger(__name__).debug("Removing any pre-existing Redis volumes.")
         remove_redis_volumes(app_identifier, executor)
 
     sftp = get_sftp(ssh_address, user=ssh_user)
@@ -1612,9 +1637,10 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     logs_url = (
         f"https://{dns_host}/logs" if not use_subdomain else f"https://logs.{dns_host}"
     )
-    print_bold(
-        f"To view the logs for this experiment go to {logs_url} (user = dallinger, password = {dozzle_password})"
-    )
+    if show_summary:
+        print_bold(
+            f"To view the logs for this experiment go to {logs_url} (user = dallinger, password = {dozzle_password})"
+        )
     app_secrets = _app_secrets(executor, experiment_id, update)
     postgresql_password = app_secrets["POSTGRES_PASSWORD"]
     cfg = _compose_environment(
@@ -1740,13 +1766,21 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
     launch_data = _record_then_launch(
-        executor, launch_target, deployment_infos, dashboard_password, update
+        executor,
+        launch_target,
+        deployment_infos,
+        dashboard_password,
+        update,
+        show_summary,
     )
     return {
         "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,
         "dashboard_link": dashboard_link,
         "log_command": log_command,
+        "logs_url": logs_url,
+        "logs_password": dozzle_password,
+        "image_name": image_name,
         "app": experiment_id,
         "server": server,
         "ingress": INGRESS_CLASSIC,
@@ -1806,6 +1840,7 @@ def _deploy_cloudflare_in_mode(
     server,
     server_info,
     update,
+    show_summary=True,
 ):
     """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host."""
     try:
@@ -1823,7 +1858,9 @@ def _deploy_cloudflare_in_mode(
 
     _check_app_slot(executor, experiment_id, update, INGRESS_CLOUDFLARE)
     if not update:
-        print("Removing any pre-existing Redis and Postgres volumes.")
+        logging.getLogger(__name__).debug(
+            "Removing any pre-existing Redis and Postgres volumes."
+        )
         remove_named_volume(f"{experiment_id}_redis_data", executor)
         remove_named_volume(f"{experiment_id}_postgres_data", executor)
     app_secrets = _app_secrets(executor, experiment_id, update)
@@ -1941,13 +1978,19 @@ def _deploy_cloudflare_in_mode(
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
     launch_data = _record_then_launch(
-        executor, launch_target, deployment_infos, dashboard_password, update
+        executor,
+        launch_target,
+        deployment_infos,
+        dashboard_password,
+        update,
+        show_summary,
     )
     return {
         "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,
         "dashboard_link": dashboard_link,
         "log_command": log_command,
+        "image_name": image_name,
         "app": experiment_id,
         "server": server,
         "ingress": INGRESS_CLOUDFLARE,

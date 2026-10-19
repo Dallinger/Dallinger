@@ -590,12 +590,14 @@ def setup_experiment(
     exp_config=None,
     local_checks=True,
     experiment_files=None,
+    quiet=False,
 ):
     """Checks the experiment's python dependencies, then prepares a temp directory
     with files merged from the custom experiment and Dallinger.
 
     The resulting directory includes all the files necessary to deploy to
-    Heroku.
+    Heroku. With ``quiet``, the experiment UID and temp directory are logged
+    at debug level instead of passed to ``log``.
 
     Commands that verify before assembly may pass the same
     ``ExperimentFileSource`` to ``verify_package`` and this function to retain
@@ -611,8 +613,14 @@ def setup_experiment(
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
 
+    def detail(message, **kwargs):
+        if quiet:
+            logging.getLogger(__name__).debug(message)
+        else:
+            log(message, **kwargs)
+
     experiment_uid = heroku_app_id = Experiment.make_uuid(app)
-    log("Experiment UID: {}".format(experiment_uid))
+    detail("Experiment UID: {}".format(experiment_uid))
 
     # Load and update the config
     config = get_config(load=True)
@@ -644,7 +652,7 @@ def setup_experiment(
         for_remote=not local_checks,
         experiment_files=source,
     )
-    log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
+    detail("Deployment temp directory: {}".format(temp_dir), chevrons=False)
 
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
@@ -726,15 +734,15 @@ def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files
                     log(
                         f"DALLINGER_SOURCE is set, so the Dallinger tree at {source} "
                         "will be deployed in its current state, ignoring the "
-                        "dallinger version specified in your experiment's "
-                        "requirements.txt file."
+                        "dallinger version pinned in your experiment's "
+                        "constraints.txt file."
                     )
                 else:
                     log(
                         "Dallinger is installed as an editable package, "
                         "and so will be copied and deployed in its current state, "
-                        "ignoring the dallinger version specified in your experiment's "
-                        "requirements.txt file!\n"
+                        "ignoring the dallinger version pinned in your experiment's "
+                        "constraints.txt file!\n"
                         "If you don't need this you can speed up startup time by setting "
                         "the environment variable DALLINGER_NO_EGG_BUILD:\n"
                         "    export DALLINGER_NO_EGG_BUILD=1\n"

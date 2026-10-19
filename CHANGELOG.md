@@ -181,13 +181,22 @@
   reconnects if that connection drops. The image build prints one line; if it
   fails, the full build log is printed and kept in a file (set
   `DALLINGER_VERBOSE_BUILD=1` to stream it instead). Build messages now
-  appear in order, each on its own line. The
-  `DOCKER_HOST` and "custom Heroku ID root" lines are now debug-level logs,
-  and `/launch` omits empty "Initial recruitment list" and "Additional
-  details" headings.
+  appear in order, each on its own line. The `DOCKER_HOST`, "custom Heroku
+  ID root", experiment UID, deployment temp directory, "skipping push to
+  registry" and "Removing any pre-existing ... volumes" lines are now
+  debug-level logs, and `/launch` omits empty "Initial recruitment list" and
+  "Additional details" headings. The `DALLINGER_SOURCE` and editable-install
+  messages now point at the Dallinger pin in `constraints.txt`.
 - docker-ssh deploys (classic and Cloudflare) also return the launch
   recruitment message as `recruitment_msg` in their result dict, or `None`
-  if there isn't one (for example with `--update`). It is still printed.
+  if there isn't one (for example with `--update`), plus `image_name` and,
+  for classic ingress, the Dozzle `logs_url` and `logs_password`.
+- `dallinger docker-ssh deploy` and `sandbox` accept `--no-summary`
+  (`show_summary=False` when invoked from Python), which skips the closing
+  summary (logs command and URL, public origin, dashboard link and password,
+  recruitment message) for callers such as PsyNet that print their own. The
+  deploy log file and the returned dict are unchanged. By default the
+  summary is printed as before.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and

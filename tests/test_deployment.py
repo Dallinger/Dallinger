@@ -986,6 +986,13 @@ class TestSetupExperiment:
 
         assert exp_id == "my-custom-app-id"
 
+    def test_quiet_keeps_the_uid_and_temp_dir_out_of_the_log(self, setup_experiment):
+        log = mock.Mock()
+        setup_experiment(log=log, quiet=True)
+
+        assert "Experiment UID" not in str(log.call_args_list)
+        assert "temp directory" not in str(log.call_args_list)
+
     def test_saves_provided_app_uid_to_config(self, active_config, setup_experiment):
         exp_id, dst = setup_experiment(log=mock.Mock(), app="my-custom-app-id")
 
