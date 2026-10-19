@@ -970,10 +970,17 @@ def test_destroy_remove_data_after_destroy_cleans_up_leftovers(monkeypatch):
         "docker volume rm myapp_redis_data",
     ]
 
-    _, result = _destroy_with_data(
-        monkeypatch, deployed=False, db="", volumes=(), folder=False
-    )
+    nothing_left = dict(deployed=False, db="", volumes=(), folder=False)
+    _, result = _destroy_with_data(monkeypatch, **nothing_left)
+    assert result.exit_code == 1
     assert "No experiment data of myapp is left on example.com." in result.output
+
+    commands, result = _destroy_with_data(
+        monkeypatch, ["--remove-data", "--yes"], **nothing_left
+    )
+    assert result.exit_code == 0, result.output
+    assert "Nothing left to delete for myapp on example.com." in result.output
+    assert not _deletes(commands)
 
 
 def test_destroy_stops_if_compose_down_fails(monkeypatch):

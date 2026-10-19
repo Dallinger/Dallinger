@@ -14,7 +14,8 @@
   `--remove-data` also needs `--yes`. Kept data is listed after destroy with
   the command that deletes it; tools that wrap destroy can name their own
   command with the hidden `--delete-data-command` option. `--remove-data`
-  also cleans up the data of an app that has already been destroyed. Data is
+  also cleans up the data of an app that has already been destroyed, and
+  exits successfully with "Nothing left to delete" when nothing is left. Data is
   not deleted while the app's containers run, and a symlinked data folder is
   only unlinked. If `docker compose down` fails, destroy now stops and leaves
   the app's files in place instead of removing them around running

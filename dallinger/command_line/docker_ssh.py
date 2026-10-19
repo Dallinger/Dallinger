@@ -2716,6 +2716,9 @@ def destroy(
     )
     deployed = caddy_config_exists or docker_compose_exists or tunnel_token_exists
     data = _experiment_data(executor, app)
+    if not deployed and not data and remove_data:
+        print(f"Nothing left to delete for {app} on {ssh_host}.")
+        return
     if not deployed:
         print(f"App {app} is not deployed")
         if not data:
