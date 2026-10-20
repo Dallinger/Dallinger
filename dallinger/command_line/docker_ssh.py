@@ -313,7 +313,9 @@ def upgrade(host, yes):
     adds a Dozzle login if there is none, and starts the shared Caddy,
     Postgres and Dozzle services. Services whose configuration changed are
     recreated, which briefly interrupts every classic app on the server.
-    Deploys never write these files.
+    Deploys never write these files. They are left read-only, so that an
+    older Dallinger's deploy fails instead of rewriting them; if one did
+    rewrite them, deploys stop until this command restores them.
     """
     _write_server_files(host, get_configured_hosts()[host], replace=True, yes=yes)
 
@@ -430,16 +432,16 @@ SHARED_SERVER_FILES = (
 
 
 @contextmanager
-def _unlocked_server_files(executor, *, lock=False):
+def _unlocked_server_files(executor, files=SHARED_SERVER_FILES, *, lock=False):
     """Let the block rewrite the shared server files in ``~/dallinger``.
 
     ``servers add`` and ``servers upgrade`` leave these files read-only
     (mode 0444). Older Dallinger versions rewrite them on every classic
     deploy with SFTP, which then fails before it changes anything shared.
-    Files that were read-only are made read-only again afterwards; with
-    ``lock``, every existing shared file is.
+    Of ``files``, those that were read-only are made read-only again
+    afterwards; with ``lock``, every existing one is.
     """
-    names = " ".join(SHARED_SERVER_FILES)
+    names = " ".join(files)
     locked = (
         executor.run(
             f"cd ~/dallinger 2>/dev/null && for f in {names}; do "
@@ -453,7 +455,7 @@ def _unlocked_server_files(executor, *, lock=False):
             executor.run(f"cd ~/dallinger && chmod u+w {' '.join(locked)}")
         yield
     finally:
-        relock = SHARED_SERVER_FILES if lock else locked
+        relock = files if lock else locked
         status, _, error = (
             executor.run_with_status(
                 f"cd ~/dallinger || exit 1; s=0; for f in {' '.join(relock)}; do "
@@ -1891,7 +1893,7 @@ def set_dozzle_password(executor, sftp, new_password):
             }
         }
     }
-    with _unlocked_server_files(executor):
+    with _unlocked_server_files(executor, (".env.json", "dozzle-users.yml")):
         sftp.putfo(BytesIO(json.dumps(dotenv_values).encode()), "dallinger/.env.json")
         sftp.putfo(
             BytesIO(json.dumps(dozzle_users).encode()), "dallinger/dozzle-users.yml"

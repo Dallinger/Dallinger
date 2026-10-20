@@ -197,8 +197,9 @@
   an email address is rejected, and a saved or configured email that is not
   one (such as the default `???`) is ignored and not saved, so setting
   `contact_email_on_error` later takes effect. A deploy's `--dns-host` now
-  only names the app's own site, except on a server registered by IP address without a saved DNS
-  host, where it also stays the server's own host as before. A deploy without
+  only names the app's own site, except on a server registered by IP address
+  without a saved DNS host, where it also stays the server's own host as
+  before. A deploy without
   `--app` only replaces the server's other experiments when it takes the
   server's own DNS host. The Dozzle log viewer is always `https://logs.<server
   DNS host>`, so the printed URL is right when a deploy uses a different

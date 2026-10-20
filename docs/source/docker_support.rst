@@ -217,21 +217,25 @@ server, so upgrade when no classic experiment is live. For example, the Postgres
 ``servers upgrade``. Caddy may re-issue the server's certificates once, on that
 first upgrade.
 
-``servers add`` and ``servers upgrade`` leave the shared files ``Caddyfile``,
-``docker-compose.yml``, ``dozzle-users.yml`` and ``.env.json`` read-only (mode
-0444); Dallinger makes them writable only while it rewrites them. Older
-Dallinger versions rewrite these files on every classic deploy, which takes a
-root-domain app offline and drops the ``caddy_data`` volume so that Caddy
-requests new certificates for every site (Let's Encrypt allows 5 duplicate
-certificates per week). On a set-up server, such a deploy instead fails before
-it changes anything shared or creates the app, ending with
+``servers add`` (on a fresh server) and ``servers upgrade`` leave the shared
+files ``Caddyfile``, ``docker-compose.yml``, ``dozzle-users.yml`` and
+``.env.json`` read-only (mode 0444); Dallinger makes them writable only while
+it rewrites them. Older Dallinger versions rewrite these files on every
+classic deploy, which on a server set up this way takes a root-domain app
+offline and drops the ``caddy_data`` volume, so Caddy requests new
+certificates for every site (Let's Encrypt allows 5 duplicate certificates per
+week). Against read-only files, such a deploy fails after building its image
+but before it creates the app or changes anything shared, ending with
 ``PermissionError: [Errno 13] Permission denied`` raised by
 ``sftp.putfo(..., "dallinger/docker-compose.yml")``. Update Dallinger on that
-machine and deploy again. The older version's ``set-dozzle-password`` fails the
-same way. Read-only files don't stop an SSH user that is ``root``. If an older
-Dallinger did rewrite the files (before they were read-only, or as root), a
-deploy with this version stops before the image build and says so; ``destroy``
-warns and carries on. Run ``servers upgrade`` to restore them.
+machine and deploy again. An older root-domain deploy still offers to destroy
+the server's other experiments before it fails, so decline that prompt. The
+older version's ``set-dozzle-password`` fails the same way. Read-only files
+don't stop an SSH user that is ``root``, and re-running ``servers add`` on a
+server that already has the files leaves them writable. If an older Dallinger
+did rewrite the files (before they were read-only, or as root), a deploy with
+this version stops before the image build and says so; ``destroy`` warns and
+carries on. Run ``servers upgrade`` to restore them.
 
 The server's own sites are its DNS host, which is the ``--dns-host`` saved by
 ``servers add`` or else the server's hostname, and ``logs.<DNS host>`` for the

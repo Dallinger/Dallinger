@@ -133,6 +133,7 @@ def test_servers_add_sets_up_a_fresh_server_but_leaves_a_set_up_one(server):
     assert "caddy_data:/data" in (server / "dallinger/docker-compose.yml").read_text()
     for name in SERVER_FILES:
         assert (server / "dallinger" / name).stat().st_mode & 0o777 == 0o444
+    assert (server / "dallinger/root.d").is_dir()
     assert "https://logs.lab.example.org (user = dallinger, password = " in (
         result.output
     )
@@ -488,3 +489,25 @@ def test_deploy_refuses_a_set_up_server_that_older_dallinger_rewrote(
     assert "An older Dallinger version has rewritten these files" in result.output
     with mock.patch.object(docker_ssh, "_ipv4_addresses", return_value=["1.2.3.4"]):
         docker_ssh._classic_preflight("lab", "myapp", None, None, False)
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root can write read-only files")
+def test_a_failed_upgrade_leaves_the_server_files_read_only(server, monkeypatch):
+    CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
+    monkeypatch.setitem(SERVER, "contact_email", "new@example.org")
+
+    class FailingSftp(LocalSftp):
+        def putfo(self, fo, path):
+            if path == "dallinger/Caddyfile":
+                raise OSError("connection lost")
+            super().putfo(fo, path)
+
+    monkeypatch.setattr(docker_ssh, "get_sftp", lambda *a, **k: FailingSftp(server))
+    result = CliRunner().invoke(
+        docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
+    )
+
+    assert isinstance(result.exception, OSError)
+    assert "tls lab@example.org" in (server / "dallinger/Caddyfile").read_text()
+    for name in SERVER_FILES:
+        assert (server / "dallinger" / name).stat().st_mode & 0o777 == 0o444
