@@ -160,8 +160,6 @@ def load_api_token(config: Any | None = None) -> str:
             "cloudflare_api_token in your Dallinger config, or store the token "
             f"with `security add-generic-password -a {account} -s {service} -w`."
         ) from exc
-    if not token:
-        raise CloudflareError("The Cloudflare Keychain item contained no token.")
     return token
 
 
@@ -171,7 +169,8 @@ def _read_keychain(security, service, account_args):
 
     A wrapper such as PsyNet checks the token before it calls the deploy in the
     same process, so the deploy reuses the token instead of asking the Keychain
-    (and possibly the user) again. Failed reads raise and are not cached.
+    (and possibly the user) again. Failed reads and empty items raise, so they
+    are not cached and a later call reads the item again.
     """
     result = subprocess.run(
         [security, "find-generic-password", *account_args, "-s", service, "-w"],
@@ -179,7 +178,12 @@ def _read_keychain(security, service, account_args):
         capture_output=True,
         check=True,
     )
-    return result.stdout.strip()
+    token = result.stdout.strip()
+    if not token:
+        raise CloudflareError(
+            f"The Cloudflare Keychain item {service!r} contained no token."
+        )
+    return token
 
 
 def request(

@@ -426,6 +426,20 @@ def test_load_api_token_reads_each_keychain_item_once(security_calls):
     assert len(security_calls) == 2
 
 
+def test_load_api_token_reads_an_empty_keychain_item_again(monkeypatch, security_calls):
+    outputs = iter(["\n", "filled\n"])
+
+    def run(args, **kwargs):
+        security_calls.append(args)
+        return mock.Mock(stdout=next(outputs))
+
+    monkeypatch.setattr(cf.subprocess, "run", run)
+    config = _keychain_config("org.example.cloudflare-token")
+    with pytest.raises(cf.CloudflareError, match="contained no token"):
+        cf.load_api_token(config)
+    assert cf.load_api_token(config) == "filled"
+
+
 def test_load_api_token_reads_the_configured_keychain_item_under_any_account(
     security_calls,
 ):
