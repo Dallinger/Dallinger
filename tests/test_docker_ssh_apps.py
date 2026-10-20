@@ -598,10 +598,12 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         ("run_pre_launch_checks", "recruiter", None),
         ("_classic_tls_and_dns_host", "tls", ("tls internal", "lab.example.org")),
         ("_check_experiment_hostname_dns", "dns", None),
-        ("ensure_root_domain_ready", "root-domain", True),
-        ("_check_app_slot", "app-slot", None),
     ):
         monkeypatch.setattr(docker_ssh_module, name, step(event, result))
+    root_domain = mock.Mock(side_effect=step("root-domain", True))
+    app_slot = mock.Mock(side_effect=step("app-slot"))
+    monkeypatch.setattr(docker_ssh_module, "ensure_root_domain_ready", root_domain)
+    monkeypatch.setattr(docker_ssh_module, "_check_app_slot", app_slot)
     monkeypatch.setattr(docker_ssh_module, "Executor", mock.Mock())
     monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
 
@@ -622,6 +624,7 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         "app-slot",
         "build",
     ]
+    assert root_domain.call_args.kwargs["new_app"] == app_slot.call_args.args[1]
 
 
 def test_cloudflare_deploy_without_api_token_stops_before_the_build(monkeypatch):
