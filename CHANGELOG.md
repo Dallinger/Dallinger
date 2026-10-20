@@ -195,9 +195,10 @@
   `--dns-host` name, so a resolver that still caches a negative answer for
   it can't stop them; if Route 53 can't create the DNS records, provision
   warns and sets the server up anyway. If anything fails once the instance
-  is running, including Ctrl-C, it prints the `servers add` commands that
-  finish the setup or, before setup started, the `ec2 teardown --name <name>
-  [--region <region>]` command, and it explains a key that the instance
+  is launched, including Ctrl-C, it prints the `servers add` commands that
+  finish the setup or, before setup started, how to remove the instance
+  (`ec2 teardown --name <name> [--region <region>]`, or the EC2 console
+  while it is still starting), and it explains a key that the instance
   rejected. It prints its total time in whole seconds.
   The new `dallinger docker-ssh servers upgrade --host <server>` command sets
   them up or rewrites them. It lists the files it replaces and the routes it

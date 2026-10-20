@@ -688,9 +688,9 @@ def _print_teardown_hint(instance_name, instance_id, region_name, starting=False
     if starting:
         print(
             f"{instance_name} ({instance_id}) was launched but may still be "
-            "starting. Once `dallinger ec2 list instances --running"
-            f"{region}` shows it, remove it with {teardown} (or terminate "
-            f"{instance_id} in the EC2 console), then provision it again."
+            f"starting. Terminate {instance_id} in the EC2 console now, or run "
+            f"{teardown} once `dallinger ec2 list instances --running{region}` "
+            "shows it; then provision it again."
         )
     else:
         print(

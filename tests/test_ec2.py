@@ -676,6 +676,7 @@ def test_provision_failure_before_setup_names_teardown(
     output = capsys.readouterr().out
     callback.assert_not_called()
     assert ("rejected server_pem" in output) is rejected
+    assert "is running but was not set up" in output
     assert "dallinger ec2 teardown --name exp --region eu-west-3" in output
 
 
@@ -692,4 +693,5 @@ def test_interrupted_boot_wait_names_teardown(monkeypatch, capsys):
 
     output = capsys.readouterr().out
     assert "exp (i-9) was launched but may still be starting" in output
+    assert "`dallinger ec2 list instances --running --region eu-west-3`" in output
     assert "dallinger ec2 teardown --name exp --region eu-west-3" in output
