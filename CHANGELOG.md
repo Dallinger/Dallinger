@@ -349,6 +349,12 @@
 
 ### Fixed
 
+- A participant who signs up through `POST /participant`, as the page's
+  `dallinger.createParticipant()` does, keeps the recruiter named in their
+  ad URL. They had been given the configured recruiter, and with
+  `recruiter = multi` their questionnaire submission failed with
+  `NotImplementedError` from `MultiRecruiter.on_task_completion`.
+
 - `dallinger debug` no longer prints "Error fetching experiment status" while
   the server shuts down or after a single failed request. Once recruitment
   closes, it reports an error only after three failed status checks in a row,
