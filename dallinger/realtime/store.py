@@ -51,6 +51,7 @@ import logging
 import threading
 import time
 import traceback
+from functools import partial
 
 from redis import RedisError, WatchError
 
@@ -162,11 +163,19 @@ def create_realtime_session(game_type, players, bots=()):
     """Start a session of ``game_type`` and return its session id, an
     integer.
 
-    The session has started when this returns, and keeps running even if the
-    code that called it later fails. Dallinger plays it until it ends. If the
-    session's :class:`~dallinger.models.RealtimeSession` row is saved but the
-    session can't then be started, the row is marked failed and the error is
-    raised.
+    The session starts once the database transaction the call is made in
+    commits, so the code that calls it commits afterwards. Dallinger commits
+    for the experiment methods its routes call, such as
+    :meth:`~dallinger.experiment.Experiment.add_node_to_network`. If the
+    transaction rolls back instead, as when Dallinger retries a request, the
+    session never starts and its :class:`~dallinger.models.RealtimeSession`
+    row is rolled back too. A transaction that ends without either, as when
+    the session is closed, drops the start with a warning. Until the commit,
+    the other session functions don't know the session id.
+
+    Once started, the session is played until it ends. If it can't be
+    started after the commit, its row is marked failed and the error is
+    logged.
 
     Players' pages that wait with ``dallinger.waitForRealtimeSession`` get
     the session's id, including those that start waiting later.
@@ -189,15 +198,22 @@ def create_realtime_session(game_type, players, bots=()):
         raise ValueError("A session needs at least one player.")
     bots = _participant_ids(bots, "bots")
     saved = new_session(game, players, bots)
-    with db.session_factory() as own:
-        row = RealtimeSession(
-            game_type=channel,
-            members=[int(player) for player in players],
-            bots=[int(bot) for bot in bots],
-        )
-        own.add(row)
-        own.commit()
-        session_id = row.id
+    row = RealtimeSession(
+        game_type=channel,
+        members=[int(player) for player in players],
+        bots=[int(bot) for bot in bots],
+    )
+    db.session.add(row)
+    db.session.flush()
+    session_id = row.id
+    db.run_after_commit(
+        partial(_start_session, session_id, channel, players, bots, saved),
+        "starting real-time session {}".format(session_id),
+    )
+    return session_id
+
+
+def _start_session(session_id, channel, players, bots, saved):
     try:
         # A pipeline runs as one transaction, so a runner never finds the
         # session in the running set before its state is there.
@@ -213,6 +229,7 @@ def create_realtime_session(game_type, players, bots=()):
             pipe.sadd(RUNNING, session_id)
             pipe.execute()
     except Exception as error:
+        logger.exception("Could not start session %s.", session_id)
         with db.session_factory() as own:
             own.query(RealtimeSession).filter_by(id=session_id).update(
                 {
@@ -221,7 +238,7 @@ def create_realtime_session(game_type, players, bots=()):
                 }
             )
             own.commit()
-        raise
+        return
     try:
         humans = [player for player in players if player not in bots]
         # Not this process's token, which its own listener would skip, leaving
@@ -232,7 +249,6 @@ def create_realtime_session(game_type, players, bots=()):
         logger.exception(
             "Could not tell the pages of session %s it started.", session_id
         )
-    return session_id
 
 
 def clear_realtime_sessions():

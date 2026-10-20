@@ -16,7 +16,15 @@ from dallinger.realtime import store
 from dallinger.realtime.game import FAILED, MAX_TIME_LIMIT
 from dallinger.realtime.runner import Runner
 from dallinger.realtime.time_limit import GIVE_UP_AFTER
-from tests.realtime.helpers import Tally, TurnTally, add, jobs, join, message
+from tests.realtime.helpers import (
+    Tally,
+    TurnTally,
+    add,
+    create_session,
+    jobs,
+    join,
+    message,
+)
 
 pytestmark = pytest.mark.usefixtures("redis_conn")
 
@@ -78,7 +86,7 @@ def moves(session_id):
 
 class TestPlaying:
     def test_a_session_is_saved_before_its_views_are_sent(self, runner, monkeypatch):
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         add(session_id, join(0, "1"))
         events = []
         save = store.save_passes
@@ -101,7 +109,7 @@ class TestPlaying:
 
     def test_entries_and_ticks_take_turns_on_the_session_clock(self, runner, published):
         """The session resumes at the time an earlier runner saved it at."""
-        session_id = store.create_realtime_session(Ticker, ["1"])
+        session_id = create_session(Ticker, ["1"])
         token, _ = store.claim(session_id, "earlier", 30)
         add(session_id, message(0, "1", "early"))
         [item] = store.read_entries({session_id: None}, 0)[session_id]
@@ -131,7 +139,7 @@ class TestPlaying:
             time=lambda: time.time() + 100, monotonic=time.monotonic
         )
         monkeypatch.setattr(runner_module, "time", ahead)
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         add(session_id, message(0, "1", "a"))
 
         runner.step()
@@ -143,7 +151,7 @@ class TestPlaying:
     def test_a_read_waits_until_the_next_tick(self, runner, published, monkeypatch):
         monkeypatch.setattr(runner_module, "CLAIM_INTERVAL", 30)
         monkeypatch.setattr(runner_module, "RECORDS_INTERVAL", 30)
-        store.create_realtime_session(Ticker, ["1"])
+        create_session(Ticker, ["1"])
         timeouts = []
         read = store.read_entries
         monkeypatch.setattr(
@@ -165,7 +173,7 @@ class TestPlaying:
     ):
         monkeypatch.setattr(runner_module, "SESSION_RENEW_INTERVAL", 0.05)
         monkeypatch.setattr(runner_module, "CLAIM_TTL", 1)
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         runner.step()
         time.sleep(0.3)
 
@@ -177,7 +185,7 @@ class TestPlaying:
         self, runner, published, monkeypatch
     ):
         monkeypatch.setattr(runner_module, "MAX_PASS_ENTRIES", 2)
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         runner.step()
         for move in "abcde":
             add(session_id, message(0, "1", move))
@@ -189,7 +197,7 @@ class TestPlaying:
         assert (first, moves(session_id)) == (["a", "b"], ["a", "b", "c", "d"])
 
     def test_a_session_that_ends_is_let_go(self, runner, published):
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         add(session_id, message(0, "1", "stop"))
 
         runner.step()
@@ -201,9 +209,7 @@ class TestPlaying:
     def test_records_are_queued_every_interval(self, runner, published, monkeypatch):
         monkeypatch.setattr(runner_module, "RECORDS_INTERVAL", 0.3)
         monkeypatch.setattr(runner_module, "SESSION_RENEW_INTERVAL", 0.05)
-        quiet, busy = [
-            store.create_realtime_session(TurnTally, ["1"]) for _ in range(2)
-        ]
+        quiet, busy = [create_session(TurnTally, ["1"]) for _ in range(2)]
         job = "dallinger.realtime.jobs.write_records"
         runner.step()
         # A runner taking over a session queues a job for it at once.
@@ -230,7 +236,7 @@ class TestPlaying:
     ):
         monkeypatch.setattr(runner_module, "RECORDS_INTERVAL", 0)
         monkeypatch.setattr(runner_module, "RECORDS_QUEUED_TTL", 0.3)
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         runner.step()
         add(session_id, message(0, "1", "a"))
         runner.step()
@@ -251,7 +257,7 @@ class TestPlaying:
         started = time.monotonic()
         runner.step()
         assert time.monotonic() - started >= 0.15
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
 
         runner.step()
 
@@ -270,7 +276,7 @@ class TestPlaying:
                 timeouts.append(timeout) or read(positions, timeout, count)
             ),
         )
-        store.create_realtime_session(TurnTally, ["1"])
+        create_session(TurnTally, ["1"])
 
         runner.step()
         runner.step()
@@ -298,7 +304,7 @@ class TestOwnership:
         own once it sees the second running.
         """
         other = Runner(store.experiment_games(), name="other")
-        sessions = [store.create_realtime_session(TurnTally, ["1"]) for _ in range(10)]
+        sessions = [create_session(TurnTally, ["1"]) for _ in range(10)]
         runner.step()
         other.step()
         runner.next_claim = 0
@@ -323,7 +329,7 @@ class TestOwnership:
         assert all(70 < list(three.values()).count(runner) < 130 for runner in "abc")
 
     def test_a_stopped_runner_gives_its_sessions_up(self, runner, published):
-        sessions = [store.create_realtime_session(TurnTally, ["1"]) for _ in "ab"]
+        sessions = [create_session(TurnTally, ["1"]) for _ in "ab"]
         thread = threading.Thread(target=runner.run)
         thread.start()
         deadline = time.monotonic() + 5
@@ -345,7 +351,7 @@ class TestLostClaims:
         monkeypatch.setattr(runner_module, "CLAIM_TTL", 0.5)
         monkeypatch.setattr(runner_module, "HEARTBEAT_TTL", 0.5)
         monkeypatch.setattr(runner_module, "SESSION_RENEW_INTERVAL", 0.15)
-        sessions = [store.create_realtime_session(Sleeper, ["1"]) for _ in range(4)]
+        sessions = [create_session(Sleeper, ["1"]) for _ in range(4)]
         runner.step()
         for session_id in sessions:
             add(session_id, message(0, "1", "a"))
@@ -359,7 +365,7 @@ class TestLostClaims:
     def test_a_lost_claim_sends_no_views_and_drops_the_session(
         self, runner, published, monkeypatch
     ):
-        kept, stolen = [store.create_realtime_session(TurnTally, ["1"]) for _ in "ab"]
+        kept, stolen = [create_session(TurnTally, ["1"]) for _ in "ab"]
         runner.step()
         for session_id in (kept, stolen):
             add(session_id, join(0, "1"))
@@ -377,9 +383,7 @@ class TestFailures:
     def test_a_failing_session_is_logged_and_the_others_play_on(
         self, runner, published, caplog
     ):
-        failing, other = [
-            store.create_realtime_session(Crasher, ["1"]) for _ in range(2)
-        ]
+        failing, other = [create_session(Crasher, ["1"]) for _ in range(2)]
         add(failing, message(0, "1", "crash"))
         add(other, message(0, "1", "a"))
 
@@ -399,7 +403,7 @@ class TestFailures:
     def test_a_session_ended_as_failed_from_outside_isnt_logged_again(
         self, runner, published, caplog
     ):
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         store.end_realtime_session(session_id, FAILED)
 
         with caplog.at_level(logging.ERROR, logger=runner_module.__name__):
@@ -415,7 +419,7 @@ class TestFailures:
         """Past the limit, the runner failing the session stopped too, so it
         ends without game code.
         """
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         for number in range(handovers):
             handover(session_id, "stopped {}".format(number))
 
@@ -447,9 +451,7 @@ class TestFailures:
     def test_a_session_that_cannot_be_played_fails_in_the_store(
         self, runner, published, field, value, error
     ):
-        broken, other = [
-            store.create_realtime_session(TurnTally, ["1"]) for _ in range(2)
-        ]
+        broken, other = [create_session(TurnTally, ["1"]) for _ in range(2)]
         state_key = store.session_key(broken, "state")
         if field is None:
             store.redis_conn.delete(state_key)
@@ -474,7 +476,7 @@ class TestFailures:
         self, runner, published, monkeypatch
     ):
         monkeypatch.setattr(store, "MAX_ENTRIES", 10)
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         for n in range(300):
             add(session_id, message(0, "1", n))
 
@@ -491,7 +493,7 @@ class TestFailures:
         self, runner, published, monkeypatch
     ):
         monkeypatch.setattr(runner_module, "MAX_ENTRY_WAIT", 0.1)
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         add(session_id, message(0, "1", "a"))
         time.sleep(0.2)
         add(session_id, message(0, "1", "b"))
@@ -520,7 +522,7 @@ def test_a_time_limit_ends_before_the_claims_it_started_with_expire():
 def test_a_runner_that_loses_redis_stops_and_leaves_its_claims(
     runner, published, monkeypatch
 ):
-    session_id = store.create_realtime_session(TurnTally, ["1"])
+    session_id = create_session(TurnTally, ["1"])
     runner.step()
     monkeypatch.setattr(
         store, "read_entries", Mock(side_effect=RedisConnectionError("gone"))
@@ -548,7 +550,7 @@ class TestSlowPasses:
         self, runner, published, monkeypatch, caplog
     ):
         monkeypatch.setattr(runner_module, "SLOW", 30)
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         add(session_id, message(0, "1", "a"))
 
         with caplog.at_level(logging.WARNING, logger=runner_module.__name__):
@@ -560,10 +562,10 @@ class TestSlowPasses:
         self, runner, published, monkeypatch, caplog
     ):
         monkeypatch.setattr(runner_module, "SLOW", 30)
-        slow = [store.create_realtime_session(Paced, ["1"])] + [
-            store.create_realtime_session(Sleeper, ["1"]) for _ in range(2)
+        slow = [create_session(Paced, ["1"])] + [
+            create_session(Sleeper, ["1"]) for _ in range(2)
         ]
-        fast = store.create_realtime_session(TurnTally, ["1"])
+        fast = create_session(TurnTally, ["1"])
         for session_id in slow + [fast]:
             add(session_id, message(0, "1", "a"))
 
@@ -580,7 +582,7 @@ class TestSlowPasses:
     ):
         monkeypatch.setattr(runner_module, "SLOW", 0)
         monkeypatch.setattr(runner_module, "SESSION_RENEW_INTERVAL", 0.01)
-        store.create_realtime_session(TurnTally, ["1"])
+        create_session(TurnTally, ["1"])
 
         with caplog.at_level(logging.WARNING, logger=runner_module.__name__):
             runner.step()
@@ -621,7 +623,7 @@ class TestDelivery:
         thread = threading.Thread(target=runner.run)
         thread.start()
         try:
-            session_id = store.create_realtime_session(TurnTally, ["1", "2"])
+            session_id = create_session(TurnTally, ["1", "2"])
             add(session_id, join(0, "1"))
             add(session_id, join(0, "2", scope=None))
             add(session_id, message(0, "1", "a", number=1))

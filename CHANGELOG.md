@@ -156,8 +156,10 @@
   `Experiment.realtime_games`, and starts a session with
   `create_realtime_session`, then finds a player's sessions and their outcomes
   with `realtime_sessions_for(participant, game_type)`, or reads one session's
-  outcome with `realtime_result(session_id)`. Runner processes play the
-  sessions, keeping the game state in Redis.
+  outcome with `realtime_result(session_id)`. A session starts once the
+  transaction that created it commits, so a request Dallinger rolls back and
+  retries starts only one. Runner processes play the sessions, keeping the
+  game state in Redis.
   Each worker process of an experiment with game types
   starts one with the new `dallinger_realtime` command, and starts another
   whenever it exits. Each session's messages, clock measurements, effects,
@@ -178,7 +180,8 @@
   stop reconnecting.
 - `db.run_after_commit` runs a function once the outermost transaction
   commits, and never if the transaction, or the savepoint it was added in,
-  rolls back.
+  rolls back. Its optional `description` names the function in the warning
+  logged when the transaction ends without a commit.
 
 ### Changed
 

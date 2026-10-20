@@ -91,10 +91,14 @@ def test_run_after_commit_waits_for_the_commit(db_session, caplog):
     assert caplog.records == []
 
     run_after_commit(lambda: calls.append("closed"))
+    run_after_commit(lambda: calls.append("closed"), "starting session 4")
     db_session.close()
     db_session.commit()
     assert calls == ["committed"]
-    assert "Dropped 1 callbacks" in caplog.text
+    assert caplog.messages == [
+        "Dropped 2 callbacks waiting for a commit, because their transaction "
+        "ended without one: starting session 4."
+    ]
 
 
 def test_a_failing_callback_is_logged_and_the_rest_run(db_session, caplog):

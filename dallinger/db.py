@@ -363,20 +363,23 @@ def serialized(func):
     return wrapper
 
 
-def run_after_commit(callback):
+def run_after_commit(callback, description=None):
     """Call ``callback`` with no arguments once the session's transaction
     commits. It's never called if the transaction, or the savepoint it was
     added in, rolls back. A callback that raises is logged, and the rest
     still run.
 
     A callback still waiting when its transaction ends without a commit, as
-    when the session is closed, is dropped with a warning.
+    when the session is closed, is dropped with a warning, which includes
+    ``description`` if one is given.
     """
     current = session()
     # Begins the transaction if none has begun.
     current.connection()
     transaction = current.get_nested_transaction() or current.get_transaction()
-    session.info.setdefault("after_commit", []).append((transaction, callback))
+    session.info.setdefault("after_commit", []).append(
+        (transaction, callback, description)
+    )
 
 
 def queue_message(channel, message):
@@ -397,7 +400,7 @@ def after_commit(session):
     # after_commit also fires when a savepoint is released.
     if session.in_nested_transaction():
         return
-    for _, callback in session.info.pop("after_commit", ()):
+    for _, callback, _ in session.info.pop("after_commit", ()):
         # An exception here would leave the session unusable, even by
         # rollback, since SQLAlchemy closes the transaction only after this
         # event.
@@ -418,9 +421,9 @@ def after_rollback(session):
 @event.listens_for(Session, "after_soft_rollback")
 def after_soft_rollback(session, previous_transaction):
     session.info["after_commit"] = [
-        (transaction, callback)
-        for transaction, callback in session.info.get("after_commit", ())
-        if not _within(transaction, previous_transaction)
+        waiting
+        for waiting in session.info.get("after_commit", ())
+        if not _within(waiting[0], previous_transaction)
     ]
 
 
@@ -434,10 +437,13 @@ def _within(transaction, outer):
 
 @event.listens_for(Session, "after_transaction_end")
 def after_transaction_end(session, transaction):
-    if transaction.parent is None and session.info.get("after_commit"):
+    waiting = session.info.get("after_commit")
+    if transaction.parent is None and waiting:
+        described = [description for _, _, description in waiting if description]
         logger.warning(
             "Dropped %s callbacks waiting for a commit, because their "
-            "transaction ended without one.",
-            len(session.info["after_commit"]),
+            "transaction ended without one%s",
+            len(waiting),
+            ": " + "; ".join(described) + "." if described else ".",
         )
         session.info["after_commit"] = []

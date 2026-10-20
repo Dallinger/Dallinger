@@ -9,7 +9,14 @@ from dallinger.models import RealtimeSession
 from dallinger.realtime import store
 from dallinger.realtime.game import FINISHED, MAX_DURATION
 from dallinger.realtime.runner import Runner
-from tests.realtime.helpers import TurnTally, add, join, keys_expire, message
+from tests.realtime.helpers import (
+    TurnTally,
+    add,
+    create_session,
+    join,
+    keys_expire,
+    message,
+)
 
 pytestmark = pytest.mark.usefixtures("redis_conn")
 
@@ -39,7 +46,7 @@ def test_a_game_that_ends_is_saved_and_its_pages_are_told(
     realtime_experiment, saved_frames, game_type, end, reason
 ):
     realtime_experiment.realtime_games = [TurnTally, Brief]
-    session_id = store.create_realtime_session(game_type, ["1"])
+    session_id = create_session(game_type, ["1"])
     add(session_id, join(0, "1"))
     runner = Runner(store.experiment_games(), name="test-runner")
     playing = threading.Thread(target=runner.run)

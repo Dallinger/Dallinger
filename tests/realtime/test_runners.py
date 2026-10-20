@@ -19,7 +19,7 @@ from dallinger.db import REALTIME_SESSION_CHANNEL, get_queue
 from dallinger.realtime import store, supervisor
 from dallinger.realtime.game import FAILED
 from dallinger.realtime.runner import owner
-from tests.realtime.helpers import add, handovers, join, message
+from tests.realtime.helpers import add, create_session, handovers, join, message
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(120)]
 
@@ -164,7 +164,7 @@ def settled(sessions, processes):
 
 
 def new_sessions(game_type, count):
-    sessions = [store.create_realtime_session(game_type, ["1"]) for _ in range(count)]
+    sessions = [create_session(game_type, ["1"]) for _ in range(count)]
     for session_id in sessions:
         add(session_id, join(0, "1"))
     return sessions

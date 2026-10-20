@@ -17,7 +17,7 @@ from dallinger.models import RealtimeSession
 from dallinger.realtime import delivery, session_sockets, store
 from dallinger.realtime.core import run_pass
 from dallinger.realtime.jobs import write_ending
-from tests.realtime.helpers import CLOCK, TurnTally
+from tests.realtime.helpers import CLOCK, TurnTally, create_session
 
 pytestmark = pytest.mark.usefixtures("redis_conn", "realtime_experiment")
 
@@ -131,7 +131,7 @@ def types_of(session_id):
 
 
 def session_of(game_type=TurnTally):
-    return str(store.create_realtime_session(game_type, ["1", "2", "9"], bots=["9"]))
+    return str(create_session(game_type, ["1", "2", "9"], bots=["9"]))
 
 
 def end_session(session_id):

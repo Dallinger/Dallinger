@@ -4,6 +4,7 @@ import json
 
 from rq import Queue
 
+from dallinger import db
 from dallinger.realtime import RealtimeGame, Reject, store
 from dallinger.realtime.core import new_session, run_pass
 from dallinger.realtime.game import FAILED
@@ -68,6 +69,13 @@ class Tally(RealtimeGame):
 
 class TurnTally(Tally):
     tick_rate = 0
+
+
+def create_session(game_type, players, bots=()):
+    """Create a session and commit, which starts it."""
+    session_id = store.create_realtime_session(game_type, players, bots)
+    db.session.commit()
+    return session_id
 
 
 def message(time, participant, payload, number=None, scope="page"):

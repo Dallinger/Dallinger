@@ -17,7 +17,14 @@ from dallinger.realtime import store
 from dallinger.realtime.core import fail_session, run_pass
 from dallinger.realtime.jobs import write_ending, write_records
 from dallinger.realtime.utils import dump_json
-from tests.realtime.helpers import CLOCK, TurnTally, clock, keys_expire, message
+from tests.realtime.helpers import (
+    CLOCK,
+    TurnTally,
+    clock,
+    create_session,
+    keys_expire,
+    message,
+)
 
 pytestmark = pytest.mark.usefixtures("redis_conn", "realtime_experiment")
 
@@ -137,7 +144,7 @@ class TestWritingRecords:
         self, realtime_experiment
     ):
         realtime_experiment.realtime_games = [Scoring]
-        session_id = store.create_realtime_session(Scoring, ["1", "2"])
+        session_id = create_session(Scoring, ["1", "2"])
         state = save(
             session_id,
             [
@@ -191,7 +198,7 @@ class TestWritingRecords:
         assert store.mark_records_queued(session_id, 30)
 
     def test_a_clock_measurement_becomes_an_event(self):
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         save(session_id, [clock(1, "1")], now=1)
         assert store.mark_records_queued(session_id, 30)
 
@@ -217,7 +224,7 @@ class TestWritingRecords:
         )
 
     def test_a_later_job_writes_only_the_records_added_since(self):
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         save(session_id, [message(1, "1", "up")], now=1)
         write_records(session_id)
         save(session_id, [message(2, "1", "down")], now=2, error=KeyError("down"))
@@ -253,7 +260,7 @@ class TestWritingRecords:
         def fail_to_trim(*args):
             raise RedisConnectionError("lost")
 
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         save(session_id, [message(1, "1", "up")], now=1)
         with monkeypatch.context() as patched:
             patched.setattr(store, "trim_records", fail_to_trim)
@@ -278,7 +285,7 @@ class TestWritingRecords:
                 assert self.release.wait(5)
 
         realtime_experiment.realtime_games = [Waiting]
-        session_id = store.create_realtime_session(Waiting, ["1"])
+        session_id = create_session(Waiting, ["1"])
         save(session_id, [message(1, "1", "effect"), message(2, "1", "up")], now=2)
         errors = []
 
@@ -310,9 +317,7 @@ class TestEnding:
     def test_the_final_job_tells_the_players_pages_and_expires_the_sessions_keys(
         self, saved_frames
     ):
-        session_id = store.create_realtime_session(
-            TurnTally, ["1", "2", "9"], bots=["9"]
-        )
+        session_id = create_session(TurnTally, ["1", "2", "9"], bots=["9"])
         before = datetime.now()
         save(session_id, [message(1, "1", "up"), message(2, "1", "stop")], now=2)
         after = datetime.now()
@@ -352,7 +357,7 @@ class TestEnding:
     def test_a_final_job_that_fails_still_tells_the_pages_and_expires_the_keys(
         self, saved_frames
     ):
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         save(session_id, [message(1, "1", "effect"), message(2, "1", "stop")], now=2)
 
         with pytest.raises(NotImplementedError):
@@ -367,7 +372,7 @@ class TestEnding:
 
 @pytest.mark.slow
 def test_a_gevent_worker_runs_a_job_waiting_for_the_lock_beside_its_holder():
-    session_id = store.create_realtime_session(TurnTally, ["1"])
+    session_id = create_session(TurnTally, ["1"])
     save(session_id, [message(1, "1", "effect"), message(2, "1", "up")], now=2)
 
     # A wait on the lock that blocks the whole process times out instead of
@@ -391,7 +396,7 @@ class TestFailing:
         def lose_redis(*args):
             raise RedisConnectionError("lost")
 
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         save(session_id, [message(1, "1", "up"), message(2, "1", "effect")], now=2)
 
         with pytest.raises(NotImplementedError):
@@ -426,7 +431,7 @@ class TestFailing:
                 getattr(db.session, ending)()
 
         realtime_experiment.realtime_games = [Committing]
-        session_id = store.create_realtime_session(Committing, ["1"])
+        session_id = create_session(Committing, ["1"])
         save(session_id, [message(1, "1", "up"), message(2, "1", "effect")], now=2)
 
         with pytest.raises(RuntimeError) as raised:
@@ -444,7 +449,7 @@ class TestFailing:
         def lose_redis(*args):
             raise RedisConnectionError("lost")
 
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         save(session_id, [message(1, "1", "effect")], now=1)
         with monkeypatch.context() as patched:
             patched.setattr(store, "end_realtime_session", lose_redis)
@@ -457,7 +462,7 @@ class TestFailing:
         assert entries(session_id) == [{"type": "end", "reason": "failed"}]
 
     def test_a_job_that_fails_once_the_ending_is_saved_leaves_it_saved(self):
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         save(session_id, [message(1, "1", "stop")], now=1)
         write_records(session_id)
         store.redis_conn.xadd(
@@ -476,7 +481,7 @@ class TestFailing:
         )
 
     def test_records_that_repeat_written_sequence_numbers_fail_the_session(self):
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         save(session_id, [message(1, "1", "up")], now=1)
         before = store.load_session(session_id)["saved"]
         save(session_id, [message(2, "1", "down")], now=2)
@@ -495,7 +500,7 @@ class TestFailing:
         assert entries(session_id) == [{"type": "end", "reason": "failed"}]
 
     def test_a_session_whose_state_cant_be_read_fails_without_an_end_event(self):
-        session_id = store.create_realtime_session(TurnTally, ["1"])
+        session_id = create_session(TurnTally, ["1"])
         save(session_id, [message(1, "1", "up")], now=1)
         result = fail_session(
             None, "unreadable", [], 0, CLOCK, RuntimeError("no saved state")

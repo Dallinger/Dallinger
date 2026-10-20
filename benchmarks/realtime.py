@@ -537,6 +537,7 @@ class Bench:
         self.next_player = 1
 
     def run(self, views_on, cpu_load):
+        from dallinger import db
         from dallinger.db import get_queue
         from dallinger.realtime import create_realtime_session, end_realtime_session
         from dallinger.realtime.store import experiment_games
@@ -554,6 +555,7 @@ class Bench:
             players += [
                 (session_id, member, member == members[0]) for member in members
             ]
+        db.session.commit()
 
         start_at = time.time() + CONNECT_TIME
         measure_at = start_at + args.warmup
