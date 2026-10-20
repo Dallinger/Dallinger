@@ -210,8 +210,7 @@
   `--dns-host`; a server that served it at `<host>/logs` needs `logs.<host>`
   to resolve to it after `servers upgrade`. After `servers upgrade`, Caddy
   keeps its certificates on a `caddy_data` volume, so recreating it later does
-  not request new ones. The DNS check and the contact-email check now run
-  before the image build. If a new deploy fails after building an image, the
+  not request new ones. If a new deploy fails after building an image, the
   image is removed unless a container or another app uses it. "Reloading Caddy
   config file" is printed once, as a plain line. `servers upgrade`, and
   `servers add` when it sets up a server, leave the shared files, plus
@@ -223,6 +222,15 @@
   root-domain app offline and can make Caddy request new certificates, a
   deploy stops before the image build and asks for `servers upgrade`;
   `destroy` warns and carries on.
+- ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
+  config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
+  Cloudflare settings and API token, and whether the app name is already
+  taken on the server before they build the experiment image, so these
+  mistakes are reported in seconds rather than after a build of several
+  minutes. The offer to destroy experiments for a root-domain deploy comes
+  after these checks. Because ``-c`` values are applied before the build,
+  ``-c docker_image_name`` now chooses the image to reuse.
+  ([#9846](https://github.com/Dallinger/Dallinger/issues/9846))
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and

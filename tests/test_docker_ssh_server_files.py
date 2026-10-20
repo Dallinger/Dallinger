@@ -1,5 +1,6 @@
 """Shared classic-ingress server files: written by setup and upgrade, never by deploys."""
 
+import contextlib
 import hashlib
 import importlib
 import io
@@ -44,6 +45,8 @@ case "$*" in *"ps --services"*) printf 'httpserver\\npostgresql\\ndozzle\\n';; e
 
 class LocalExecutor(docker_ssh.Executor):
     """Run the server's commands with bash in ``home``, with a fake ``docker``."""
+
+    client = mock.Mock()
 
     def __init__(self, home):
         self.home, self.app, self.host = home, None, SERVER["host"]
@@ -197,20 +200,22 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
         _bring_up_app_containers=mock.DEFAULT,
         _record_then_launch=mock.DEFAULT,
         get_server_pem_path=mock.Mock(return_value="key.pem"),
+        get_experiment_files=mock.DEFAULT,
+        _check_classic_ingress_reachable=mock.DEFAULT,
+        _classic_preflight=mock.Mock(return_value=hostname),
+        ensure_root_domain_ready=mock.DEFAULT,
+        _built_image=lambda *args, **kwargs: contextlib.nullcontext("image"),
     ):
         result = docker_ssh._deploy_in_mode(
             app_name=app_name,
             archive_path=None,
             config_options=(),
             dns_host="1.2.3.4.nip.io",
-            image_name="image",
             mode="live",
             server="lab",
             update=update,
             local_build=False,
             push_build=False,
-            preflight_root_clean=True,
-            classic_hostname=hostname,
         )
 
     assert checksums(server) == before

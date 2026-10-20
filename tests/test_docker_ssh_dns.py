@@ -167,17 +167,27 @@ def test_classic_ingress_requires_a_public_server(
 def test_classic_ingress_check_is_skipped_by_allow_private_ip_and_update(
     monkeypatch, allow_private_ip, update, checked
 ):
-    pytest.importorskip("docker")
     check = mock.Mock()
     monkeypatch.setattr(docker_ssh_module, "_check_classic_ingress_reachable", check)
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {"lab-pc": {}})
     monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
     monkeypatch.setattr(
         docker_ssh_module, "get_config", mock.Mock(side_effect=LookupError)
     )
-    deploy = docker_ssh_module.build_and_push_image(mock.Mock())
 
     with pytest.raises(LookupError):
-        deploy(server="lab-pc", allow_private_ip=allow_private_ip, update=update)
+        docker_ssh_module._deploy_in_mode(
+            app_name=None,
+            archive_path=None,
+            config_options=(),
+            dns_host=None,
+            mode="live",
+            server="lab-pc",
+            update=update,
+            local_build=False,
+            push_build=False,
+            allow_private_ip=allow_private_ip,
+        )
     assert check.called == checked
 
 
