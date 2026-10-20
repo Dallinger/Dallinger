@@ -563,7 +563,7 @@ Now you can deploy an experiment image to the server:
         dallinger docker start-services
 
 In this example we use the ``hotair`` recruiter and set the dashboard password to ``foobar``.
-The above command will output:
+The output looks like this (abridged; details vary between versions):
 
 .. code-block:: shell
 

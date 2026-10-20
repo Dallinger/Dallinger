@@ -672,19 +672,32 @@ def boot_instance(ec2, image_id, instance_type, key_name, instance_name, region_
             waiter.wait(InstanceIds=[instance_id])
             sp.ok("✔")
     except BaseException:
-        _print_teardown_hint(instance_name, instance_id, region_name)
+        _print_teardown_hint(instance_name, instance_id, region_name, starting=True)
         raise
     return instance_id
 
 
-def _print_teardown_hint(instance_name, instance_id, region_name):
-    """Say how to remove an instance that booted but was not set up."""
+def _print_teardown_hint(instance_name, instance_id, region_name, starting=False):
+    """Say how to remove an instance that booted but was not set up.
+
+    ``ec2 teardown --name`` finds only running instances, so an instance that
+    may still be ``pending`` gets that caveat.
+    """
     region = f" --region {region_name}" if region_name else ""
-    print(
-        f"{instance_name} ({instance_id}) is running but was not set up. Fix "
-        "the problem above, then remove it with `dallinger ec2 teardown "
-        f"--name {instance_name}{region}` and provision it again."
-    )
+    teardown = f"`dallinger ec2 teardown --name {instance_name}{region}`"
+    if starting:
+        print(
+            f"{instance_name} ({instance_id}) was launched but may still be "
+            "starting. Once `dallinger ec2 list instances --running"
+            f"{region}` shows it, remove it with {teardown} (or terminate "
+            f"{instance_id} in the EC2 console), then provision it again."
+        )
+    else:
+        print(
+            f"{instance_name} ({instance_id}) is running but was not set up. Fix "
+            f"the problem above, then remove it with {teardown} and provision it "
+            "again."
+        )
 
 
 def set_security_group(

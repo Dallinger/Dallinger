@@ -691,5 +691,5 @@ def test_interrupted_boot_wait_names_teardown(monkeypatch, capsys):
         lib.boot_instance(ec2, "ami-1", "m5.large", "lab", "exp", "eu-west-3")
 
     output = capsys.readouterr().out
-    assert "exp (i-9) is running" in output
+    assert "exp (i-9) was launched but may still be starting" in output
     assert "dallinger ec2 teardown --name exp --region eu-west-3" in output
