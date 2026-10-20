@@ -266,6 +266,11 @@
 
 ### Fixed
 
+- `HighPerformanceBotBase` bots can sign up again. `sign_up` subscribes the
+  bot to the `quorum` channel, which has raised `AttributeError` since the
+  control events added in v9.10.0 asked each subscriber for its
+  `client_info()`. The bot now has `client_info()`, and a `send()` that
+  receives channel messages and does nothing until a subclass overrides it.
 - A WebSocket connection waits for redis to confirm its channel subscription
   before it relays anything. A process subscribes to a channel the first time
   one of its connections names it, and the publish travels on a different redis
