@@ -534,16 +534,18 @@ def check_server_pem_matches_key_pair(key_name):
     logs in to every server with ``server_pem``, which can't have a passphrase.
     """
     pair_path, server_pem = get_pem_path(key_name), get_server_pem_path()
-    if pair_path.resolve() == server_pem.resolve():
-        return
-    try:
-        keys = [paramiko.PKey.from_path(path) for path in (pair_path, server_pem)]
-    except Exception as exc:
-        raise click.UsageError(
-            f"Could not read the SSH keys {pair_path} (ec2_default_pem) and "
-            f"{server_pem} (server_pem): {exc}"
-        ) from exc
-    if keys[0].get_base64() != keys[1].get_base64():
+    same_file = pair_path.resolve() == server_pem.resolve()
+    keys = []
+    for path in [server_pem] if same_file else [server_pem, pair_path]:
+        try:
+            keys.append(paramiko.PKey.from_path(path))
+        except Exception as exc:
+            raise click.UsageError(
+                f"Could not read the SSH key {path}: {exc}. server_pem and the "
+                "ec2_default_pem key file must be unencrypted RSA, ECDSA or "
+                "Ed25519 private keys."
+            ) from exc
+    if not same_file and keys[0].get_base64() != keys[1].get_base64():
         raise click.UsageError(
             f"server_pem ({server_pem}) is not the private key of the EC2 key pair "
             f"ec2_default_pem = {key_name} ({pair_path}). New instances accept only "
@@ -974,7 +976,11 @@ def prepare_instance(
             instance_id, instance_name, storage_in_gb, ec2
         )
     except BaseException as exc:
-        if isinstance(exc, pse.AuthenticationException) or "Invalid key" in str(exc):
+        # With a key that loads, paramiko reports a rejection as "Invalid key"
+        # after also trying the file as other key types.
+        if isinstance(exc, pse.AuthenticationException) or (
+            isinstance(exc, pse.SSHException) and "Invalid key" in str(exc)
+        ):
             print(
                 f"The instance rejected server_pem. It accepts only the EC2 key pair "
                 f"{key_name} it booted with. If that key pair in AWS was imported "
@@ -1026,16 +1032,16 @@ def prepare_docker_experiment_setup(
     that finish the setup.
     """
     server_dns_host = dns_host or f"{ip_address}.nip.io"
-    if dns_host:
-        try:
-            create_dns_records(dns_host, user, host)
-        except Exception as exc:
-            print(
-                f"Warning: Could not create the DNS records {dns_host} and "
-                f"*.{dns_host} ({exc}). Create them in Route 53 as CNAME records "
-                f"pointing to {host}."
-            )
     try:
+        if dns_host:
+            try:
+                create_dns_records(dns_host, user, host)
+            except Exception as exc:
+                print(
+                    f"Warning: Could not create the DNS records {dns_host} and "
+                    f"*.{dns_host} ({exc}). Create them in Route 53 as CNAME "
+                    f"records pointing to {host}."
+                )
         dallinger_prepare_server(host, user)
         print("Registering the server and starting its shared services.")
         server_info = dallinger_register_server(

@@ -551,6 +551,15 @@ def test_server_pem_must_be_the_key_pairs_private_key(tmp_path, monkeypatch):
     monkeypatch.setattr(lib, "get_server_pem_path", lambda: pair)
     lib.check_server_pem_matches_key_pair("pair")
 
+    # Dallinger can't use a key with a passphrase, even as the key pair's file.
+    encrypted = tmp_path / "encrypted.pem"
+    paramiko.RSAKey.generate(1024).write_private_key_file(str(encrypted), "pw")
+    for name in ("get_pem_path", "get_server_pem_path"):
+        monkeypatch.setattr(lib, name, lambda *a: encrypted)
+    with pytest.raises(click.UsageError, match="must be unencrypted"):
+        lib.check_server_pem_matches_key_pair("encrypted")
+    monkeypatch.setattr(lib, "get_pem_path", lambda key_name: pair)
+
     monkeypatch.setattr(lib, "get_server_pem_path", lambda: other)
     with pytest.raises(click.UsageError) as error:
         lib.check_server_pem_matches_key_pair("pair")
@@ -586,6 +595,19 @@ def test_dns_records_are_created_without_connecting_through_them(monkeypatch, ca
     assert "had not synced the DNS record" in capsys.readouterr().out
 
 
+def test_interrupted_dns_wait_names_the_repair_commands(monkeypatch, capsys):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    monkeypatch.setattr(
+        lib, "create_dns_records", mock.Mock(side_effect=KeyboardInterrupt)
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        lib.prepare_docker_experiment_setup(
+            "ec2-host", "ubuntu", "1.2.3.4", None, dns_host="exp.example.org"
+        )
+    assert "servers add --host ec2-host --user ubuntu" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("dns_host", [None, "exp.example.org"])
 def test_provision_setup_failure_names_the_repair_commands(
     dns_host, monkeypatch, capsys
@@ -617,7 +639,17 @@ def test_provision_setup_failure_names_the_repair_commands(
     assert (alias in output) == bool(dns_host)
 
 
-def test_provision_failure_before_setup_names_teardown(monkeypatch, capsys):
+@pytest.mark.parametrize(
+    "error, rejected",
+    [
+        (paramiko.SSHException("Invalid key"), True),
+        (paramiko.AuthenticationException("Authentication failed."), True),
+        (KeyboardInterrupt(), False),
+    ],
+)
+def test_provision_failure_before_setup_names_teardown(
+    monkeypatch, capsys, error, rejected
+):
     lib = importlib.import_module("dallinger.command_line.lib.ec2")
     monkeypatch.setattr(lib, "get_all_instances", lambda region: [])
     for name in ("get_ec2_client", "get_security_group_id", "get_image_id"):
@@ -628,16 +660,16 @@ def test_provision_failure_before_setup_names_teardown(monkeypatch, capsys):
     monkeypatch.setattr(
         lib,
         "increase_storage",
-        mock.Mock(side_effect=paramiko.SSHException("Invalid key")),
+        mock.Mock(side_effect=error),
     )
     callback = mock.Mock()
 
-    with pytest.raises(paramiko.SSHException):
+    with pytest.raises(type(error)):
         lib.prepare_instance(
             "exp", "eu-west-3", "m5.large", 32, "lab", "ami-1", "sg", callback=callback
         )
 
     output = capsys.readouterr().out
     callback.assert_not_called()
-    assert "rejected server_pem" in output
+    assert ("rejected server_pem" in output) is rejected
     assert "dallinger ec2 teardown --name exp --region eu-west-3" in output

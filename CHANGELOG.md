@@ -194,9 +194,10 @@
   through the new `--dns-host` name, so a resolver that still caches a
   negative answer for it can't stop provisioning; if Route 53 can't create
   the DNS records, it warns and sets the server up anyway. If anything fails
-  after boot, it prints the commands that finish the setup or, before setup
-  started, the `ec2 teardown` command. It prints its total time in whole
-  seconds.
+  after boot, including Ctrl-C, it prints the `servers add` commands that
+  finish the setup or, before setup started, the `ec2 teardown --name <name>
+  [--region <region>]` command, and it explains a key that the instance
+  rejected. It prints its total time in whole seconds.
   The new `dallinger docker-ssh servers upgrade --host <server>` command sets
   them up or rewrites them. It lists the files it replaces and the routes it
   adds, asks first unless given `--yes`, keeps a `.bak` copy of each replaced
