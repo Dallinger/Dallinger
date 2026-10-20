@@ -3,6 +3,7 @@
 import json
 import logging
 import random
+import time
 import uuid
 from functools import cached_property
 from urllib import parse
@@ -341,6 +342,53 @@ class HighPerformanceBotBase(BotBase):
     def stochastic_sleep(self):
         delay = max(1.0 / random.expovariate(0.5), 10.0)
         gevent.sleep(delay)
+
+    def wait_for_realtime_sessions(self, game_type, timeout=600, interval=1):
+        """Wait for the bot's real-time sessions of ``game_type`` to end.
+
+        A bot whose moves a game type's
+        :meth:`~dallinger.realtime.RealtimeGame.bot` method makes calls this at
+        the end of ``participate``, after joining the game. The bot signs off
+        when ``participate`` returns, and the experiment is complete once every
+        participant has signed off, so a bot that doesn't wait can end the
+        experiment, and ``dallinger debug --bot``, while its game is still
+        being played.
+
+        It returns once the bot is a player in at least one session of
+        ``game_type`` and none of its sessions of it is still running, whether
+        they ended or failed.
+
+        It reads the sessions from the experiment's database, so it works only
+        in bots that the bots recruiter runs on the experiment's workers, as
+        under ``dallinger debug --bot``. A bot that plays the game itself from
+        outside the experiment, such as one started with ``dallinger bot`` or
+        one that drives a browser, plays as a page does: it joins the session
+        with the game page's JavaScript or the web API, and learns that the
+        game is over from the session's ending.
+
+        :param game_type: one of the experiment's
+            :attr:`~dallinger.experiment.Experiment.realtime_games`
+        :param timeout: seconds to wait before giving up
+        :param interval: seconds between checks
+        :returns: ``True`` once the sessions have ended, or ``False`` if
+            ``timeout`` passed first
+        """
+        from dallinger.db import session
+        from dallinger.realtime import realtime_sessions_for
+
+        deadline = time.monotonic() + timeout
+        while True:
+            statuses = [
+                s.status for s in realtime_sessions_for(self.participant_id, game_type)
+            ]
+            # Don't hold a transaction open for the length of a game
+            session.rollback()
+            if statuses and "running" not in statuses:
+                return True
+            if time.monotonic() >= deadline:
+                self.log("Gave up waiting for real-time sessions to end.")
+                return False
+            gevent.sleep(interval)
 
     def subscribe_to_quorum_channel(self):
         """In case the experiment enforces a quorum, listen for notifications

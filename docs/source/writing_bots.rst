@@ -41,6 +41,13 @@ These bots interact primarily via websockets rather than HTTP.
 
 .. _`Griduniverse bots`: https://github.com/Dallinger/Griduniverse/blob/master/dlgr/griduniverse/bots.py
 
+In an experiment with real-time games, a game type's ``bot`` method can make
+the moves of a high-performance bot that the bots recruiter runs on the
+experiment's workers, and the bot waits for its game to end with
+:meth:`~HighPerformanceBotBase.wait_for_realtime_sessions`. A bot that plays
+the game itself over HTTP and WebSockets joins the session as the game's page
+does instead, as :doc:`realtime_games` describes.
+
 API documentation
 *****************
 

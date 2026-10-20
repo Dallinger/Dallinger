@@ -172,7 +172,9 @@
   check an experiment's game types. Dallinger now needs Redis 7.0 or
   later. `RealtimeGame`, `Reject` and the session functions import from
   `dallinger.realtime`, and the new "Real-Time Games" docs page describes the
-  engine.
+  engine. A `HighPerformanceBotBase` bot that a game type plays for calls
+  `wait_for_realtime_sessions(game_type)` before signing off, so the
+  experiment doesn't complete while its game is still being played.
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
   experiment refuse an `/experiment-socket` connection when it opens. A falsy
   return closes the socket with code `1008`, and Dallinger's client helpers

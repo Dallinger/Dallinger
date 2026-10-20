@@ -371,9 +371,34 @@ without opening a browser, and their ``recruiter_id`` starts with
         SealedBid, [p.id for p in players], bots=bots
     )
 
-A bot that drives a browser, such as one built on ``BotBase``, opens the
-game's page as a person would, so it plays as an ordinary player and makes its
-moves on the page.
+A ``HighPerformanceBotBase`` bot signs off when its ``participate`` method
+returns, and the experiment is complete once every participant has signed off,
+so a bot that the game type plays for waits for its game to end first, with
+:meth:`~dallinger.bots.HighPerformanceBotBase.wait_for_realtime_sessions`.
+It reads the sessions from the experiment's database, so it works for bots the
+bots recruiter runs on the experiment's workers, as under
+``dallinger debug --bot``::
+
+    import requests
+
+    from dallinger.bots import HighPerformanceBotBase
+
+
+    class Bot(HighPerformanceBotBase):
+        def participate(self):
+            # Creating the bot's node puts it in a network, as createAgent
+            # does for a page
+            requests.post("{}/node/{}".format(self.host, self.participant_id))
+            self.wait_for_realtime_sessions(SealedBid)
+
+A bot that plays the game itself, from outside the experiment's processes,
+is an ordinary player and isn't listed in ``bots``. One that drives a browser,
+such as one built on ``BotBase``, opens the game's page as a person would and
+makes its moves on the page. One that talks to the experiment over HTTP and
+WebSockets, such as one started with ``dallinger bot``, uses the web API and
+the session's socket the way the game's page does, and finds out the game is
+over from the session's ending, as the page does, rather than waiting with
+``wait_for_realtime_sessions``.
 
 Each player's page joins the session by opening a WebSocket, on either
 ``/experiment-socket`` or ``/chat``, with the session's id as its ``session``
