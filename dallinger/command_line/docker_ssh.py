@@ -247,7 +247,8 @@ def _validate_contact_email(ctx, param, value):
     "--contact-email",
     callback=_validate_contact_email,
     help="Email address that Caddy gives Let's Encrypt for classic-ingress "
-    "certificates. Defaults to contact_email_on_error from Dallinger config.",
+    "certificates. Defaults to the saved email, then to contact_email_on_error "
+    "from Dallinger config if that is an email address.",
 )
 def add(host, user, default_ingress, dns_host, contact_email):
     """Add a server to deploy experiments through ssh using docker.
@@ -281,11 +282,10 @@ def add(host, user, default_ingress, dns_host, contact_email):
     if dns_host:
         server_info["dns_host"] = dns_host
     contact_email = contact_email or existing.get("contact_email")
-    if not contact_email and default_ingress == INGRESS_CLASSIC:
-        # Not saved unless valid, so fixing contact_email_on_error later works.
+    if not _is_email(contact_email) and default_ingress == INGRESS_CLASSIC:
         contact_email = _config_contact_email()
-        contact_email = contact_email if _is_email(contact_email) else None
-    if contact_email:
+    # Only a valid email is saved, so fixing contact_email_on_error later works.
+    if _is_email(contact_email):
         server_info["contact_email"] = contact_email
     store_host(server_info)
     advice = default_ingress == INGRESS_CLASSIC and _private_network_advice(host, user)
@@ -374,11 +374,13 @@ def _server_tls(server_info):
     """Return the Caddy ``tls`` directive for sites on a classic-ingress server.
 
     The email comes from the server record, or from Dallinger config for
-    servers registered without one.
+    servers registered without a valid one.
     """
     if is_loopback_host(split_ssh_host_port(server_info["host"])[0]):
         return "tls internal"
-    email = server_info.get("contact_email") or _config_contact_email()
+    email = server_info.get("contact_email")
+    if not _is_email(email):
+        email = _config_contact_email()
     if not _is_email(email):
         print(f"Email address absent or invalid. Value {email} found")
         command = _servers_add_command(server_info)

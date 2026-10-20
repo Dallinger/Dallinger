@@ -219,6 +219,17 @@ def test_servers_add_saves_only_a_valid_contact_email(monkeypatch):
     assert result.exit_code == 0, result.output
     assert "contact_email" not in store_host.call_args.args[0]
 
+    # A placeholder saved by an earlier version gives way to a fixed config.
+    saved = {"host": "lab.example.org", "contact_email": "???"}
+    monkeypatch.setattr(
+        docker_ssh_module, "get_configured_hosts", lambda: {saved["host"]: saved}
+    )
+    monkeypatch.setattr(docker_ssh_module, "_config_contact_email", lambda: "a@b.org")
+    result = CliRunner().invoke(docker_ssh_module.servers, add)
+    assert result.exit_code == 0, result.output
+    assert store_host.call_args.args[0]["contact_email"] == "a@b.org"
+    assert docker_ssh_module._server_tls(saved) == "tls a@b.org"
+
     store_host.reset_mock()
     result = CliRunner().invoke(
         docker_ssh_module.servers, add + ["--contact-email", "nobody"]
