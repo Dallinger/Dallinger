@@ -122,6 +122,9 @@ def test_servers_add_sets_up_a_fresh_server_but_leaves_a_set_up_one(server):
         assert checksums(server) == before
         assert docker_calls(server) == ""
         assert "servers upgrade --host lab.example.org" in result.output
+        assert "lab@example.org (from the saved server record), saved with" in (
+            result.output
+        )
 
         for name in SERVER_FILES:
             (server / "dallinger" / name).unlink()
@@ -186,6 +189,7 @@ def test_servers_upgrade_saves_a_given_contact_email(server, monkeypatch):
         input="n\n",
     )
     assert result.exit_code == 1
+    assert "Let's Encrypt contact email" not in result.output
     store_host.assert_not_called()
 
     result = CliRunner().invoke(

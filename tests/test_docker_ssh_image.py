@@ -139,3 +139,16 @@ def test_aborted_build_cleanup_explains_an_image_a_container_uses(
     assert explanation in output or in_use
     destroy_hint = "`dallinger docker-ssh destroy --server lab --app app`"
     assert (destroy_hint in output) is (in_use and not local_build)
+
+
+def test_aborted_build_cleanup_keeps_an_image_another_app_uses(monkeypatch, capsys):
+    client = _client()
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "image_pinned_by_other_apps", lambda *a, **k: True
+    )
+
+    docker_ssh_module._remove_aborted_build(client, "built:1", "lab", False, "app")
+
+    client.images.remove.assert_not_called()
+    assert "because another app on the server uses it" in capsys.readouterr().out

@@ -334,14 +334,14 @@ def register_server(
     # Only a valid email is saved, so fixing contact_email_on_error later works.
     if _is_email(contact_email):
         server_info["contact_email"] = contact_email
-        if classic:
-            _print_contact_email(server_info, source)
     store_host(server_info)
     advice = classic and network_advice and _private_network_advice(host, user)
     if advice:
         print(f"{RED}Warning: {advice}{END}")
     if classic:
-        _write_server_files(host, server_info, replace=False)
+        written = _write_server_files(host, server_info, replace=False)
+        if _is_email(contact_email):
+            _print_contact_email(server_info, source, written=written)
     return server_info
 
 
@@ -373,11 +373,11 @@ def upgrade(host, contact_email, yes):
     saved = get_configured_hosts()[host]
     email, source = _contact_email(saved, contact_email)
     server_info = {**saved, "contact_email": email} if _is_email(email) else saved
-    if _is_email(email):
-        _print_contact_email(server_info, source)
     _write_server_files(host, server_info, replace=True, yes=yes)
     if server_info != saved:
         store_host(server_info)
+    if _is_email(email):
+        _print_contact_email(server_info, source)
 
 
 def _old_root_routes(executor, caddyfile, host, tls):
@@ -478,13 +478,23 @@ def _contact_email(server_info, contact_email=None, *, config=True):
     return _config_contact_email() if config else (None, None)
 
 
-def _print_contact_email(server_info, source):
-    """Say which Let's Encrypt email a server uses, unless it uses internal TLS."""
-    if not is_loopback_host(split_ssh_host_port(server_info["host"])[0]):
-        print(
-            f"Let's Encrypt contact email: {server_info['contact_email']} "
-            f"(from {source})."
+def _print_contact_email(server_info, source, *, written=True):
+    """Say which Let's Encrypt email a server uses, unless it uses internal TLS.
+
+    Without ``written``, the email was only saved with the server, and its
+    Caddyfile was left as it was.
+    """
+    if is_loopback_host(split_ssh_host_port(server_info["host"])[0]):
+        return
+    message = (
+        f"Let's Encrypt contact email: {server_info['contact_email']} (from {source})"
+    )
+    if not written:
+        message += (
+            ", saved with the server; `servers upgrade` writes it to the "
+            "server's Caddyfile"
         )
+    print(f"{message}.")
 
 
 def _server_tls(server_info, *, experiment=False, command=None):
@@ -666,6 +676,7 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     Without ``replace``, a server that already has a server compose file is
     left alone. With it, changed files are listed and, unless ``yes``,
     confirmed before they are replaced. The shared files are left read-only.
+    Returns whether the files were written.
     """
     executor = _build_executor(server_info)
     if not replace and executor.run(
@@ -674,11 +685,10 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         print(
             f"{server} already has a server compose file "
             "(~/dallinger/docker-compose.yml), so the shared classic-ingress files "
-            "were left unchanged. To rewrite them from the saved DNS host and "
-            "contact email and start the services, run "
+            "were left unchanged. To rewrite them and start the services, run "
             f"`dallinger docker-ssh servers upgrade --host {server}`."
         )
-        return
+        return False
     upgrade_command = f"dallinger docker-ssh servers upgrade --host {quote(server)}"
     host = _server_host(server_info)
     tls = _server_tls(server_info, command=upgrade_command if replace else None)
@@ -757,6 +767,7 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         f"{SERVER_COMPOSE} exec -T httpserver caddy reload "
         "--config /etc/caddy/Caddyfile && exit 0; sleep 2; done; exit 1"
     )
+    return True
 
 
 @servers.command()

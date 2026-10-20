@@ -238,7 +238,7 @@ def test_servers_add_saves_only_a_valid_contact_email(monkeypatch):
     assert "contact_email" not in store_host.call_args.args[0]
 
     # A placeholder saved by an earlier version gives way to a fixed config.
-    saved = {"host": "lab.example.org", "contact_email": "???"}
+    saved = {"host": "lab.example.org", "contact_email": "XXX@gmail.com"}
     monkeypatch.setattr(
         docker_ssh_module, "get_configured_hosts", lambda: {saved["host"]: saved}
     )
