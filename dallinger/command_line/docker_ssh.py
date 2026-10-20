@@ -2738,6 +2738,8 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         transport = client.get_transport() if client is not None else None
         if transport is not None and transport.is_active():
             return client
+        if client is not None:
+            client.close()
         client = _connect_ssh_client(host, user)
         _ssh_clients[key] = client
         return client

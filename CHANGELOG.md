@@ -178,13 +178,14 @@
 - docker-ssh commands print much less. Spinners only animate in a terminal,
   and errors no longer interleave with spinner frames. Each command shares one
   SSH connection per server instead of reconnecting for every step, and
-  reconnects if that connection drops. The image build prints one line; if it
-  fails, the full build log is printed and kept in a file (set
-  `DALLINGER_VERBOSE_BUILD=1` to stream it instead). Build messages now
-  appear in order, each on its own line. The `DOCKER_HOST`, "custom Heroku
-  ID root", experiment UID, deployment temp directory, "skipping push to
+  reconnects if that connection drops. The image build prints a "Building
+  image" line instead of the BuildKit output; if it fails, the full build log
+  is printed and kept in a file (set `DALLINGER_VERBOSE_BUILD=1` to stream it
+  instead). Build messages now appear in order, each on its own line. The
+  `DOCKER_HOST`, experiment UID, deployment temp directory, "skipping push to
   registry" and "Removing any pre-existing ... volumes" lines are now
-  debug-level logs, and `/launch` omits empty "Initial recruitment list" and
+  debug-level logs, as is "Using custom Heroku ID root" in every command that
+  prints it, and `/launch` omits empty "Initial recruitment list" and
   "Additional details" headings. The `DALLINGER_SOURCE` and editable-install
   messages now point at the Dallinger pin in `constraints.txt`.
 - docker-ssh deploys (classic and Cloudflare) also return the launch

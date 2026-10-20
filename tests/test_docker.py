@@ -607,6 +607,10 @@ def test_get_connected_ssh_client_reuses_one_quiet_connection(
     class DummyClient:
         def __init__(self):
             self.transport = mock.Mock()
+            self.closed = False
+
+        def close(self):
+            self.closed = True
 
         def load_host_keys(self, filename):
             if not Path(filename).exists():
@@ -635,9 +639,16 @@ def test_get_connected_ssh_client_reuses_one_quiet_connection(
     assert docker_ssh.get_connected_ssh_client("localhost:2222", user="root") is client
     assert capsys.readouterr().out == "Connecting to localhost:2222\nConnected.\n"
 
+    local = docker_ssh.get_connected_ssh_client("localhost")
+    assert local is not client
+    assert docker_ssh.get_connected_ssh_client(
+        "localhost:22", docker_ssh.getuser()
+    ) is (local)
+
     executor = docker_ssh.Executor("localhost:2222", user="root")
     client.transport.is_active.return_value = False
     assert executor.client is not client
+    assert client.closed
     assert executor.client is docker_ssh.get_connected_ssh_client(
         "localhost:2222", "root"
     )
