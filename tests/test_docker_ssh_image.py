@@ -78,7 +78,7 @@ def test_registry_image_is_deployed_without_building(monkeypatch):
     setup.assert_not_called()
 
 
-@pytest.mark.parametrize("remove", [True, False], ids=["new-app", "update"])
+@pytest.mark.parametrize("remove", ["dlgr-1", None], ids=["new-app", "update"])
 def test_failed_new_deploy_removes_the_image_it_built(monkeypatch, capsys, remove):
     client = _client()
     config = mock.Mock()
@@ -93,7 +93,7 @@ def test_failed_new_deploy_removes_the_image_it_built(monkeypatch, capsys, remov
         mock.patch("dallinger.command_line.docker.push_image", return_value="pushed"),
         pytest.raises(click.Abort),
         docker_ssh_module._built_image(
-            config, [], "app", "lab", True, False, remove_on_error=remove
+            config, [], None, "lab", True, False, remove_for_app=remove
         ) as image_name,
     ):
         assert image_name == "pushed"

@@ -165,7 +165,7 @@ def ec2__provision(
     from .docker_ssh import _config_contact_email, _is_email
 
     # The shared services set up at the end need an email for Let's Encrypt.
-    if not _is_email(_config_contact_email()):
+    if not _is_email(_config_contact_email()[0]):
         raise click.UsageError(
             "Set contact_email_on_error in ~/.dallingerconfig to an email address "
             "for Let's Encrypt certificates (check it with `dallinger email-test`)."

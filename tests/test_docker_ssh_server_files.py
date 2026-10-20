@@ -167,6 +167,31 @@ def test_servers_upgrade_rewrites_server_files_and_keeps_backups(server):
     assert "files on lab.example.org are up to date." in result.output
 
 
+def test_servers_upgrade_saves_a_given_contact_email(server, monkeypatch):
+    saved = {key: value for key, value in SERVER.items() if key != "contact_email"}
+    monkeypatch.setattr(docker_ssh, "get_configured_hosts", lambda: {"lab": saved})
+    monkeypatch.setattr(docker_ssh, "_config_contact_email", lambda *a: (None, None))
+    store_host = mock.Mock()
+    monkeypatch.setattr(docker_ssh, "store_host", store_host)
+    upgrade = ["upgrade", "--host", "lab", "--yes"]
+
+    result = CliRunner().invoke(docker_ssh.servers, upgrade)
+    assert result.exit_code == 1
+    assert "servers upgrade --host lab --contact-email <email>" in result.output
+    store_host.assert_not_called()
+
+    result = CliRunner().invoke(
+        docker_ssh.servers, upgrade + ["--contact-email", "new@example.org"]
+    )
+    assert result.exit_code == 0, result.output
+    assert store_host.call_args.args[0]["contact_email"] == "new@example.org"
+    assert (
+        "Let's Encrypt contact email: new@example.org (from --contact-email)."
+        in result.output
+    )
+    assert "tls new@example.org" in (server / "dallinger/Caddyfile").read_text()
+
+
 @pytest.mark.parametrize(
     "app_name, hostname, route_dir, update",
     [
@@ -223,7 +248,9 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
     # Only an app that takes the server's own host replaces its other apps.
     assert mocks["ensure_root_domain_ready"].called == (hostname == "lab.example.org")
     # A failed new deploy removes the image it built; an update keeps it.
-    assert built_image.call_args.kwargs["remove_on_error"] is not update
+    assert built_image.call_args.kwargs["remove_for_app"] == (
+        None if update else result["app"]
+    )
     routes = [
         p for d in ("caddy.d", "root.d") for p in (server / "dallinger" / d).glob("*")
     ]
@@ -373,7 +400,7 @@ def test_ip_server_without_a_saved_dns_host_uses_the_deploy_dns_host(
 
 def test_servers_add_accepts_a_set_up_ip_server_without_a_dns_host(server, monkeypatch):
     monkeypatch.setattr(docker_ssh, "get_configured_hosts", lambda: {})
-    monkeypatch.setattr(docker_ssh, "_config_contact_email", lambda: None)
+    monkeypatch.setattr(docker_ssh, "_config_contact_email", lambda *a: (None, None))
     with (
         mock.patch.object(docker_ssh, "prepare_server"),
         mock.patch.object(docker_ssh, "store_host"),
@@ -395,7 +422,7 @@ def test_a_root_route_occupies_the_app_name(server):
 def test_servers_add_needs_a_dns_host_to_set_up_a_fresh_ip_server(server, monkeypatch):
     (server / "dallinger/docker-compose.yml").unlink()
     monkeypatch.setattr(docker_ssh, "get_configured_hosts", lambda: {})
-    monkeypatch.setattr(docker_ssh, "_config_contact_email", lambda: None)
+    monkeypatch.setattr(docker_ssh, "_config_contact_email", lambda *a: (None, None))
     with (
         mock.patch.object(docker_ssh, "prepare_server"),
         mock.patch.object(docker_ssh, "store_host"),
@@ -541,7 +568,11 @@ def test_ec2_provision_sets_up_the_shared_services(
         lambda host, **k: ssh_hosts.append(host) or LocalSftp(server),
     )
     monkeypatch.setattr(docker_ssh, "get_configured_hosts", lambda: {})
-    monkeypatch.setattr(docker_ssh, "_config_contact_email", lambda: "me@example.org")
+    monkeypatch.setattr(
+        docker_ssh,
+        "_config_contact_email",
+        lambda *a: ("me@example.org", "~/.dallingerconfig"),
+    )
     # Inside AWS, the AWS hostname can resolve to the private IP.
     monkeypatch.setattr(docker_ssh, "gethostbyname_ex", lambda h: (h, [], ["10.0.0.5"]))
     monkeypatch.setattr(docker_ssh, "store_host", stored.append)

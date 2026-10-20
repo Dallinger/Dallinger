@@ -510,7 +510,9 @@ def test_provision_needs_a_contact_email_before_booting(monkeypatch):
     monkeypatch.setattr(ec2, "get_instance_config", lambda: {"pem": "key"})
     monkeypatch.setattr(ec2, "get_pem_path", mock.Mock())
     monkeypatch.setattr(ec2, "get_server_pem_path", mock.Mock())
-    monkeypatch.setattr(docker_ssh, "_config_contact_email", lambda: "???")
+    monkeypatch.setattr(
+        docker_ssh, "_config_contact_email", lambda *a: ("???", "~/.dallingerconfig")
+    )
     monkeypatch.setattr(ec2, "provision", mock.Mock())
 
     result = CliRunner().invoke(ec2.ec2__provision, ["--name", "exp"])

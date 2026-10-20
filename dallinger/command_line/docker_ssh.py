@@ -44,7 +44,7 @@ from dallinger.command_line.utils import (
     render_rich_table,
     run_pre_launch_checks,
 )
-from dallinger.config import get_config
+from dallinger.config import ConfigSource, get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import setup_experiment
@@ -214,8 +214,12 @@ def list_servers():
 
 
 def _is_email(value):
-    """Return whether ``value`` looks like an email address."""
-    return "@" in parseaddr(value or "")[1]
+    """Return whether ``value`` looks like an email address.
+
+    Placeholders such as ``XXX@gmail.com`` from experiment templates don't count.
+    """
+    local, _, domain = parseaddr(value or "")[1].rpartition("@")
+    return bool(local and domain) and not re.fullmatch(r"x+", local, re.IGNORECASE)
 
 
 def _validate_contact_email(ctx, param, value):
@@ -223,6 +227,16 @@ def _validate_contact_email(ctx, param, value):
     if value is not None and not _is_email(value):
         raise click.BadParameter(f"{value!r} is not an email address.")
     return value
+
+
+_CONTACT_EMAIL_OPTION = click.option(
+    "--contact-email",
+    callback=_validate_contact_email,
+    help="Email address that Caddy gives Let's Encrypt for classic-ingress "
+    "certificates, saved with the server. Defaults to a valid saved email, then "
+    "to contact_email_on_error from ~/.dallingerconfig or the environment if "
+    "that is an email address.",
+)
 
 
 @servers.command()
@@ -243,13 +257,7 @@ def _validate_contact_email(ctx, param, value):
     "Saved with the server so deployments don't need --dns-host; "
     "needed when --host is an IP address.",
 )
-@click.option(
-    "--contact-email",
-    callback=_validate_contact_email,
-    help="Email address that Caddy gives Let's Encrypt for classic-ingress "
-    "certificates. Defaults to a valid saved email, then to contact_email_on_error "
-    "from Dallinger config if that is an email address.",
-)
+@_CONTACT_EMAIL_OPTION
 def add(host, user, default_ingress, dns_host, contact_email):
     """Add a server to deploy experiments through ssh using docker.
     The server needs `docker` and `docker compose` usable by the current user.
@@ -307,7 +315,7 @@ def register_server(
         DNS name that experiments on the server are served under.
     contact_email : str, optional
         Email that Caddy gives Let's Encrypt; defaults to
-        ``contact_email_on_error`` for classic ingress.
+        ``contact_email_on_error`` from the user's config for classic ingress.
     network_advice : bool
         Warn if ``host`` resolves only to private addresses.
 
@@ -321,14 +329,14 @@ def register_server(
     dns_host = dns_host or existing.get("dns_host")
     if dns_host:
         server_info["dns_host"] = dns_host
-    contact_email = contact_email or existing.get("contact_email")
-    if not _is_email(contact_email) and default_ingress == INGRESS_CLASSIC:
-        contact_email = _config_contact_email()
+    classic = default_ingress == INGRESS_CLASSIC
+    contact_email, source = _contact_email(existing, contact_email, config=classic)
     # Only a valid email is saved, so fixing contact_email_on_error later works.
     if _is_email(contact_email):
         server_info["contact_email"] = contact_email
+        if classic:
+            _print_contact_email(server_info, source)
     store_host(server_info)
-    classic = default_ingress == INGRESS_CLASSIC
     advice = classic and network_advice and _private_network_advice(host, user)
     if advice:
         print(f"{RED}Warning: {advice}{END}")
@@ -346,20 +354,30 @@ def register_server(
     type=str,
     help="IP address or dns name of the remote server",
 )
+@_CONTACT_EMAIL_OPTION
 @click.option("--yes", is_flag=True, help="Don't ask for confirmation.")
-def upgrade(host, yes):
+def upgrade(host, contact_email, yes):
     """Set up or rewrite a server's shared classic-ingress files.
 
     Writes the server's Caddyfile and docker-compose.yml from its saved host
-    and contact email (keeping a ``.bak`` copy of each file it replaces),
-    adds a Dozzle login if there is none, and starts the shared Caddy,
-    Postgres and Dozzle services. Services whose configuration changed are
-    recreated, which briefly interrupts every classic app on the server.
+    and contact email (``--contact-email`` saves a new one, and a server saved
+    without one gets contact_email_on_error from ~/.dallingerconfig). It keeps
+    a ``.bak`` copy of each file it replaces, adds a Dozzle login if there is
+    none, and starts the shared Caddy, Postgres and Dozzle services. Services
+    whose configuration changed are recreated, which briefly interrupts every
+    classic app on the server.
     Deploys never write these files. They are left read-only, so that an
     older Dallinger's deploy fails instead of rewriting them; if one did
     rewrite them, deploys stop until this command restores them.
     """
-    _write_server_files(host, get_configured_hosts()[host], replace=True, yes=yes)
+    server_info = get_configured_hosts()[host]
+    email, source = _contact_email(server_info, contact_email)
+    if _is_email(email) and email != server_info.get("contact_email"):
+        server_info = {**server_info, "contact_email": email}
+        store_host(server_info)
+    if _is_email(email):
+        _print_contact_email(server_info, source)
+    _write_server_files(host, server_info, replace=True, yes=yes)
 
 
 def _old_root_routes(executor, caddyfile, host, tls):
@@ -409,28 +427,91 @@ def _site_names(line):
     ]
 
 
-def _config_contact_email():
-    """Return ``contact_email_on_error`` from Dallinger config, or None."""
-    return get_config(load=True).get("contact_email_on_error", None)
+_CONFIG_SOURCE_NAMES = {
+    ConfigSource.RUNTIME: "Dallinger config",
+    ConfigSource.ENVIRONMENT: "the contact_email_on_error environment variable",
+    ConfigSource.USER_CONFIG: "~/.dallingerconfig",
+    ConfigSource.EXPERIMENT_CONFIG: "the experiment's config.txt",
+    ConfigSource.EXPERIMENT_SETTINGS: "the experiment's config settings",
+    ConfigSource.EXPERIMENT_DEFAULTS: "the experiment's config defaults",
+    ConfigSource.PACKAGE_DEFAULTS: "Dallinger's defaults",
+}
+_USER_CONFIG_SOURCES = (
+    ConfigSource.RUNTIME,
+    ConfigSource.ENVIRONMENT,
+    ConfigSource.USER_CONFIG,
+)
 
 
-def _server_tls(server_info):
+def _config_contact_email(experiment=False):
+    """Return ``contact_email_on_error`` and where it was set, or ``(None, None)``.
+
+    Server setup isn't specific to an experiment, so by default only the
+    user's config and environment count, not an experiment's config.txt or
+    the package default (``???``). With ``experiment``, as in a deploy, every
+    source counts.
+    """
+    for layer in get_config(load=True)._layers_by_priority():
+        if "contact_email_on_error" in layer and (
+            experiment or layer.source in _USER_CONFIG_SOURCES
+        ):
+            value = str(layer["contact_email_on_error"]).strip()
+            return value, _CONFIG_SOURCE_NAMES[layer.source]
+    return None, None
+
+
+def _contact_email(server_info, contact_email=None, *, config=True):
+    """Return a server's Let's Encrypt email and where it came from.
+
+    In order: ``contact_email``, a valid email saved with the server, then
+    (with ``config``) ``contact_email_on_error`` from the user's config.
+    """
+    if contact_email:
+        return contact_email, "--contact-email"
+    if _is_email(server_info.get("contact_email")):
+        return server_info["contact_email"], "the saved server record"
+    return _config_contact_email() if config else (None, None)
+
+
+def _print_contact_email(server_info, source):
+    """Say which Let's Encrypt email a server uses, unless it uses internal TLS."""
+    if not is_loopback_host(split_ssh_host_port(server_info["host"])[0]):
+        print(
+            f"Let's Encrypt contact email: {server_info['contact_email']} "
+            f"(from {source})."
+        )
+
+
+def _server_tls(server_info, *, experiment=False, command=None):
     """Return the Caddy ``tls`` directive for sites on a classic-ingress server.
 
-    The email comes from the server record, or from Dallinger config for
-    servers registered without a valid one.
+    The email comes from the server record, or from ``contact_email_on_error``
+    for servers registered without a valid one. Only a deploy (``experiment``)
+    reads it from the experiment's config. Without an email, the error names
+    ``command`` (default: ``servers add``) with ``--contact-email``.
     """
     if is_loopback_host(split_ssh_host_port(server_info["host"])[0]):
         return "tls internal"
     email = server_info.get("contact_email")
     if not _is_email(email):
-        email = _config_contact_email()
+        email, source = _config_contact_email(experiment)
     if not _is_email(email):
-        command = _servers_add_command(server_info)
+        where = (
+            "the experiment's config.txt or ~/.dallingerconfig"
+            if experiment
+            else "~/.dallingerconfig"
+        )
+        reason = (
+            f"contact_email_on_error from {source} is {email!r}, not an email address"
+            if email
+            else f"contact_email_on_error is not set in {where}"
+        )
+        command = command or _servers_add_command(server_info)
         raise click.ClickException(
-            f"Email address absent or invalid. Value {email} found. "
-            f"Save one with `{command} --contact-email <email>`, or set "
-            "contact_email_on_error and run `dallinger email-test` to verify it."
+            f"No Let's Encrypt contact email for {server_info['host']}: none is "
+            f"saved with the server, and {reason}. Run "
+            f"`{command} --contact-email <email>`, or set contact_email_on_error "
+            f"in {where}."
         )
     return f"tls {email}"
 
@@ -592,7 +673,9 @@ def _write_server_files(server, server_info, *, replace, yes=True):
             f"`dallinger docker-ssh servers upgrade --host {server}`."
         )
         return
-    host, tls = _server_host(server_info), _server_tls(server_info)
+    upgrade_command = f"dallinger docker-ssh servers upgrade --host {quote(server)}"
+    host = _server_host(server_info)
+    tls = _server_tls(server_info, command=upgrade_command if replace else None)
     # The Caddyfile goes last, just before root.d, which it imports.
     files = {
         "dallinger/docker-compose.yml": DOCKER_COMPOSE_SERVER_TPL.render(),
@@ -1250,7 +1333,7 @@ def _classic_preflight(server, app_name, archive_path, dns_host, allow_private_i
     """
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     server_info = CONFIGURED_HOSTS[server]
-    _server_tls(server_info)
+    _server_tls(server_info, experiment=True)
     hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
     _check_experiment_hostname_dns(
         split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
@@ -1739,15 +1822,16 @@ def _built_image(
     local_build,
     push_build,
     *,
-    remove_on_error=False,
+    remove_for_app=None,
 ):
     """Yield the experiment image to deploy, building and pushing it if needed.
 
     Reuses ``docker_image_name`` when the registry has it. Otherwise
     assembles the experiment and builds the image, on the server unless
     ``local_build`` is set, and pushes it for a local build or with
-    ``push_build``. With ``remove_on_error``, an image built here is removed
-    again if the block raises (see ``_remove_aborted_build``).
+    ``push_build``. With ``remove_for_app``, the id of the new app the image
+    is for, an image built here is removed again if the block raises (see
+    ``_remove_aborted_build``).
     """
     import docker
 
@@ -1818,9 +1902,9 @@ def _built_image(
                 image_name = push_image(image_name)
             yield image_name
         except BaseException:
-            if remove_on_error:
+            if remove_for_app:
                 _remove_aborted_build(
-                    docker_client, built_image, server, local_build, app_name or ""
+                    docker_client, built_image, server, local_build, remove_for_app
                 )
             raise
     finally:
@@ -2063,7 +2147,7 @@ def _deploy_in_mode(
             _abort_cloudflare(exc)
     else:
         cloudflare_settings = None
-        tls = _server_tls(server_info)
+        tls = _server_tls(server_info, experiment=True)
         experiment_hostname = _classic_preflight(
             server, app_name, archive_path, dns_host, allow_private_ip
         )
@@ -2086,7 +2170,7 @@ def _deploy_in_mode(
         server,
         local_build,
         push_build,
-        remove_on_error=not update,
+        remove_for_app=None if update else experiment_id,
     ) as image_name:
         # Read after the build, which sets a dashboard password if config has none.
         dashboard_user = config.get("dashboard_user", "admin")

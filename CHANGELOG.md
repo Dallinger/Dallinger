@@ -196,10 +196,13 @@
   server set up by an older Dallinger, or any app on a server whose last
   classic deploy by an older Dallinger was a root-domain one. The server's
   DNS host and the email that Caddy gives Let's Encrypt come from the server
-  record: `servers add` saves `--dns-host` and `--contact-email`, and the
-  email defaults to `contact_email_on_error`. A `--contact-email` that is not
-  an email address is rejected, and a saved or configured email that is not
-  one (such as the default `???`) is ignored and not saved, so setting
+  record: `servers add` saves `--dns-host` and `--contact-email`, and
+  `servers upgrade` also takes `--contact-email`. Without one, both save
+  `contact_email_on_error` from `~/.dallingerconfig` or the environment, not
+  from an experiment's `config.txt`, and print the saved address and where it
+  came from. A `--contact-email` that is not an email address is rejected,
+  and a saved or configured email that is not one (such as the default `???`
+  or the placeholder `XXX@gmail.com`) is ignored and not saved, so setting
   `contact_email_on_error` later takes effect. A deploy's `--dns-host` now
   only names the app's own site, except on a server registered by IP address
   without a saved DNS host, where it also stays the server's own host as
@@ -210,8 +213,9 @@
   `--dns-host`; a server that served it at `<host>/logs` needs `logs.<host>`
   to resolve to it after `servers upgrade`. After `servers upgrade`, Caddy
   keeps its certificates on a `caddy_data` volume, so recreating it later does
-  not request new ones. If a new deploy fails after building an image, the
-  image is removed unless a container or another app uses it. "Reloading Caddy
+  not request new ones. If a new deploy, with or without `--app`, fails after
+  building an image, the image is removed unless a container or another app
+  uses it. "Reloading Caddy
   config file" is printed once, as a plain line. `servers upgrade`, and
   `servers add` when it sets up a server, leave the shared files, plus
   `.env.json`, read-only (mode 0444), so a classic deploy or

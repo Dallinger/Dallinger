@@ -194,7 +194,11 @@ def test_classic_ingress_check_is_skipped_by_allow_private_ip_and_update(
 def test_servers_add_warns_about_private_network(monkeypatch):
     monkeypatch.setattr(docker_ssh_module, "prepare_server", mock.Mock())
     monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: {})
-    monkeypatch.setattr(docker_ssh_module, "_config_contact_email", lambda: "a@b.org")
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_config_contact_email",
+        lambda *a: ("a@b.org", "~/.dallingerconfig"),
+    )
     store_host = mock.Mock()
     monkeypatch.setattr(docker_ssh_module, "store_host", store_host)
     write_server_files = mock.Mock()
@@ -219,7 +223,11 @@ def test_servers_add_saves_only_a_valid_contact_email(monkeypatch):
     monkeypatch.setattr(docker_ssh_module, "prepare_server", mock.Mock())
     monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: {})
     # The placeholder from global_config_defaults.txt.
-    monkeypatch.setattr(docker_ssh_module, "_config_contact_email", lambda: "???")
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_config_contact_email",
+        lambda *a: ("???", "~/.dallingerconfig"),
+    )
     store_host = mock.Mock()
     monkeypatch.setattr(docker_ssh_module, "store_host", store_host)
     monkeypatch.setattr(docker_ssh_module, "_write_server_files", mock.Mock())
@@ -234,16 +242,63 @@ def test_servers_add_saves_only_a_valid_contact_email(monkeypatch):
     monkeypatch.setattr(
         docker_ssh_module, "get_configured_hosts", lambda: {saved["host"]: saved}
     )
-    monkeypatch.setattr(docker_ssh_module, "_config_contact_email", lambda: "a@b.org")
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_config_contact_email",
+        lambda *a: ("a@b.org", "~/.dallingerconfig"),
+    )
     result = CliRunner().invoke(docker_ssh_module.servers, add)
     assert result.exit_code == 0, result.output
     assert store_host.call_args.args[0]["contact_email"] == "a@b.org"
     assert docker_ssh_module._server_tls(saved) == "tls a@b.org"
 
     store_host.reset_mock()
-    result = CliRunner().invoke(
-        docker_ssh_module.servers, add + ["--contact-email", "nobody"]
-    )
-    assert result.exit_code == 2
-    assert "Invalid value for '--contact-email'" in result.output
+    for invalid in ("nobody", "XXX@gmail.com"):
+        result = CliRunner().invoke(
+            docker_ssh_module.servers, add + ["--contact-email", invalid]
+        )
+        assert result.exit_code == 2
+        assert "Invalid value for '--contact-email'" in result.output
     store_host.assert_not_called()
+
+
+def test_server_commands_ignore_an_experiments_contact_email(tmp_path, monkeypatch):
+    home, experiment = tmp_path / "home", tmp_path / "experiment"
+    home.mkdir()
+    experiment.mkdir()
+    user_config = home / ".dallingerconfig"
+    user_config.write_text("[Parameters]\ncontact_email_on_error = me@example.org\n")
+    (experiment / "config.txt").write_text(
+        "[Parameters]\ncontact_email_on_error = exp@example.org\n"
+    )
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.chdir(experiment)
+    monkeypatch.setattr("dallinger.config.config", None)
+    monkeypatch.setattr(docker_ssh_module, "prepare_server", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: {})
+    store_host = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "store_host", store_host)
+    monkeypatch.setattr(docker_ssh_module, "_write_server_files", mock.Mock())
+
+    result = CliRunner().invoke(
+        docker_ssh_module.servers, ["add", "--host", "lab.example.org"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert store_host.call_args.args[0]["contact_email"] == "me@example.org"
+    assert (
+        "Let's Encrypt contact email: me@example.org (from ~/.dallingerconfig)."
+        in result.output
+    )
+
+    # Without one in ~/.dallingerconfig, only a deploy uses the experiment's.
+    user_config.unlink()
+    monkeypatch.setattr("dallinger.config.config", None)
+    server = {"host": "lab.example.org"}
+    with pytest.raises(click.ClickException) as error:
+        docker_ssh_module._server_tls(server, command="dallinger upgrade")
+    assert "contact_email_on_error is not set in ~/.dallingerconfig" in str(error.value)
+    assert "Run `dallinger upgrade --contact-email <email>`" in str(error.value)
+    assert docker_ssh_module._server_tls(server, experiment=True) == (
+        "tls exp@example.org"
+    )

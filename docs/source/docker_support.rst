@@ -246,9 +246,14 @@ example ``--app exp1 --dns-host 1.2.3.4.nip.io`` serves
 ``exp1.1.2.3.4.nip.io``. On a server registered by IP address without a saved
 ``--dns-host``, the deploy's ``--dns-host`` is also the server's own host, as
 in older versions (``--dns-host nip.io`` means ``<ip>.nip.io``); ``servers
-upgrade`` needs the saved one. Caddy gives Let's Encrypt the
-``--contact-email`` saved with the server, which defaults to
-``contact_email_on_error``.
+upgrade`` needs the saved one. Caddy gives Let's Encrypt the contact email
+saved with the server by ``servers add --contact-email`` or ``servers upgrade
+--contact-email``. Without one, both commands save ``contact_email_on_error``
+from ``~/.dallingerconfig`` (or the environment), never from an experiment's
+``config.txt``, since a server isn't tied to one experiment, and they print the
+address and where it came from. Placeholders such as ``XXX@gmail.com`` or
+``???`` don't count. A deploy to a server saved without an email uses the
+experiment's ``contact_email_on_error``.
 
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app
 tunnel; ``servers add --default-ingress cloudflare`` makes it a server's
