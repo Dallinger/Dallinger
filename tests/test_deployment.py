@@ -2162,6 +2162,9 @@ def quiet_cli_recruiter(active_config):
         nickname = "quietcli"
         opens_participant_browsers = False
 
+        def recruit(self, n=1):
+            return []
+
     assert isinstance(recruiters.by_name("quietcli"), QuietCLIRecruiter)
     yield
     del QuietCLIRecruiter

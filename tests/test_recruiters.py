@@ -53,6 +53,15 @@ class TestModuleFunctions:
         stub_config.extend({"recruiter": "bots"})
         assert mod.class_from_config(stub_config) is mod.BotRecruiter
 
+    def test_debug_mode_does_not_construct_the_replaced_recruiter(
+        self, mod, stub_config
+    ):
+        stub_config.extend({"recruiter": "mturk"})
+        with mock.patch.object(
+            mod.MTurkRecruiter, "__init__", side_effect=AssertionError("built")
+        ):
+            assert isinstance(mod.from_config(stub_config), mod.HotAirRecruiter)
+
     def test_recruiter_config_value_used_if_not_debug(self, mod, stub_config):
         stub_config.extend({"mode": "sandbox", "recruiter": "CLIRecruiter"})
         r = mod.from_config(stub_config)

@@ -186,10 +186,11 @@
   applies it to the configured recruiter; a MultiRecruiter counts if any
   recruiter in its spec does. The new `recruiters.class_from_config()`
   returns the recruiter class that `from_config()` would build, without
-  constructing it. As a result,
-  `from_config()` no longer constructs a configured recruiter that debug mode
-  replaces, so for example `recruiter = prolific` or `mturk` in debug mode no
-  longer builds those services or raises their constructor errors.
+  constructing it. As a result, `from_config()` no longer constructs a
+  configured recruiter that debug mode replaces. For example, `recruiter =
+  mturk` in debug mode no longer builds an MTurk service or raises its
+  constructor errors, and `recruiter = prolific` builds only the debug
+  Prolific recruiter.
 
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
