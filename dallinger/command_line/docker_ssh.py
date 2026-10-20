@@ -247,7 +247,7 @@ def _validate_contact_email(ctx, param, value):
     "--contact-email",
     callback=_validate_contact_email,
     help="Email address that Caddy gives Let's Encrypt for classic-ingress "
-    "certificates. Defaults to the saved email, then to contact_email_on_error "
+    "certificates. Defaults to a valid saved email, then to contact_email_on_error "
     "from Dallinger config if that is an email address.",
 )
 def add(host, user, default_ingress, dns_host, contact_email):
@@ -272,8 +272,8 @@ def add(host, user, default_ingress, dns_host, contact_email):
     Cloudflare tunnel apps also need ``cloudflare_account_id``,
     ``cloudflare_zone_id``, and ``cloudflare_dns_zone`` in Dallinger config.
 
-    Re-adding a server keeps its saved DNS host and contact email unless
-    ``--dns-host`` or ``--contact-email`` is given.
+    Re-adding a server keeps its saved DNS host and a valid saved contact
+    email unless ``--dns-host`` or ``--contact-email`` is given.
     """
     prepare_server(host, user)
     existing = get_configured_hosts().get(host, {})
