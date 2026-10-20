@@ -2,7 +2,7 @@
 /**
  * @file Adds real-time sessions to the sockets of ``dallinger2.js``, which
  * must be loaded first. The base layout loads both, and this one only when
- * the experiment's ``realtime_games`` isn't empty.
+ * the experiment's ``realtime_games`` property lists any game types.
  */
 
 (function () {

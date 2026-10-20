@@ -499,10 +499,10 @@ Game Pages
 A game's page is an experiment page that uses Dallinger's JavaScript helpers to
 join its session, send the player's messages and draw the views it is sent.
 The helpers for sessions are in ``dallinger-realtime.js``. The base layout
-loads it after ``dallinger2.js`` when the experiment's ``realtime_games`` isn't
-empty, so a page that extends the layout needs nothing more. A page that
-replaces the layout's ``libs`` block, or doesn't use the layout, loads the
-script itself, after ``dallinger2.js``:
+loads it after ``dallinger2.js`` when the experiment's ``realtime_games``
+property lists any game types, so a page that extends the layout needs nothing
+more. A page that replaces the layout's ``libs`` block, or doesn't use the
+layout, loads the script itself, after ``dallinger2.js``:
 
 .. code-block:: html+jinja
 

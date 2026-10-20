@@ -861,9 +861,9 @@ var dallinger = (function () {
    * ``interpolatedView``.
    *
    * Sessions need ``dallinger-realtime.js``, which the base layout loads
-   * when the experiment's ``realtime_games`` isn't empty. A page that
-   * replaces the layout's ``libs`` block, or doesn't use the layout, loads
-   * it itself, after ``dallinger2.js``.
+   * when the experiment's ``realtime_games`` property lists any game types.
+   * A page that replaces the layout's ``libs`` block, or doesn't use the
+   * layout, loads it itself, after ``dallinger2.js``.
    *
    * @example
    * dallinger.joinRealtimeSession('sealed_bid').done(function (socket) {
@@ -894,7 +894,7 @@ var dallinger = (function () {
     if (joinSession === null) {
       SESSION_OPTIONS.forEach(function (name) {
         if (options[name] != null) {
-          throw new Error("The " + name + " option needs dallinger-realtime.js, loaded after dallinger2.js. The base layout loads it when the experiment's realtime_games isn't empty.");
+          throw new Error("The " + name + " option needs dallinger-realtime.js, loaded after dallinger2.js. The base layout loads it when the experiment's realtime_games property lists any game types.");
         }
       });
     }

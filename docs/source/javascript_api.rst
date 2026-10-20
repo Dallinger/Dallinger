@@ -120,8 +120,9 @@ usually joins its session with ``dallinger.joinRealtimeSession``, which waits
 for the session and resolves with the socket. The two functions below, the
 methods and ``dallinger.browserTime`` are defined in ``dallinger-realtime.js``.
 The base layout loads that script after ``dallinger2.js`` when the
-experiment's ``realtime_games`` isn't empty. A page that replaces the layout's
-``libs`` block, or doesn't use the layout, loads it itself.
+experiment's ``realtime_games`` property lists any game types. A page that
+replaces the layout's ``libs`` block, or doesn't use the layout, loads it
+itself.
 
 .. js:autofunction:: dallinger.joinRealtimeSession
 
