@@ -203,3 +203,26 @@ def test_servers_add_warns_about_private_network(monkeypatch):
     assert write_server_files.call_args.kwargs == {"replace": False}
     assert "Warning: lab-pc has a private IP address (10.0.0.1)" in result.output
     assert "--host lab-pc --user ubuntu --default-ingress cloudflare" in result.output
+
+
+def test_servers_add_saves_only_a_valid_contact_email(monkeypatch):
+    monkeypatch.setattr(docker_ssh_module, "prepare_server", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: {})
+    # The placeholder from global_config_defaults.txt.
+    monkeypatch.setattr(docker_ssh_module, "_config_contact_email", lambda: "???")
+    store_host = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "store_host", store_host)
+    monkeypatch.setattr(docker_ssh_module, "_write_server_files", mock.Mock())
+    add = ["add", "--host", "lab.example.org"]
+
+    result = CliRunner().invoke(docker_ssh_module.servers, add)
+    assert result.exit_code == 0, result.output
+    assert "contact_email" not in store_host.call_args.args[0]
+
+    store_host.reset_mock()
+    result = CliRunner().invoke(
+        docker_ssh_module.servers, add + ["--contact-email", "nobody"]
+    )
+    assert result.exit_code == 2
+    assert "Invalid value for '--contact-email'" in result.output
+    store_host.assert_not_called()

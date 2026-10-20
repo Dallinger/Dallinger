@@ -213,6 +213,18 @@ def list_servers():
         print(", ".join(f"{key}: {value}" for key, value in host.items()))
 
 
+def _is_email(value):
+    """Return whether ``value`` looks like an email address."""
+    return "@" in parseaddr(value or "")[1]
+
+
+def _validate_contact_email(ctx, param, value):
+    """Reject a ``--contact-email`` that is not an email address."""
+    if value is not None and not _is_email(value):
+        raise click.BadParameter(f"{value!r} is not an email address.")
+    return value
+
+
 @servers.command()
 @click.option(
     "--host", required=True, help="IP address or dns name of the remote server"
@@ -233,6 +245,7 @@ def list_servers():
 )
 @click.option(
     "--contact-email",
+    callback=_validate_contact_email,
     help="Email address that Caddy gives Let's Encrypt for classic-ingress "
     "certificates. Defaults to contact_email_on_error from Dallinger config.",
 )
@@ -269,7 +282,9 @@ def add(host, user, default_ingress, dns_host, contact_email):
         server_info["dns_host"] = dns_host
     contact_email = contact_email or existing.get("contact_email")
     if not contact_email and default_ingress == INGRESS_CLASSIC:
+        # Not saved unless valid, so fixing contact_email_on_error later works.
         contact_email = _config_contact_email()
+        contact_email = contact_email if _is_email(contact_email) else None
     if contact_email:
         server_info["contact_email"] = contact_email
     store_host(server_info)
@@ -364,7 +379,7 @@ def _server_tls(server_info):
     if is_loopback_host(split_ssh_host_port(server_info["host"])[0]):
         return "tls internal"
     email = server_info.get("contact_email") or _config_contact_email()
-    if "@" not in parseaddr(email or "")[1]:
+    if not _is_email(email):
         print(f"Email address absent or invalid. Value {email} found")
         command = _servers_add_command(server_info)
         print(

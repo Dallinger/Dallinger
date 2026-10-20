@@ -193,7 +193,9 @@
   Dallinger was a root-domain one. The server's DNS host and the email that
   Caddy gives Let's Encrypt come from the server record: `servers add` saves
   `--dns-host` and `--contact-email`, and the email defaults to
-  `contact_email_on_error`. A deploy's `--dns-host` now only names the app's
+  `contact_email_on_error`. A `--contact-email` that is not an email address
+  is rejected, and a `contact_email_on_error` that is not one (such as the
+  default `???`) is not saved, so setting it later takes effect. A deploy's `--dns-host` now only names the app's
   own site, except on a server registered by IP address without a saved DNS
   host, where it also stays the server's own host as before. A deploy without
   `--app` only replaces the server's other experiments when it takes the
