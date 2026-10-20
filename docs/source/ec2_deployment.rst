@@ -177,14 +177,15 @@ Encrypt the ``contact_email_on_error`` address from ``~/.dallingerconfig``
 (or the environment, but not an experiment's ``config.txt`` or experiment
 class), so ``provision`` stops before booting an instance if that is not an
 email address, or if ``dashboard_password`` (or ``dashboard_user``, which
-defaults to ``admin``) is not set. Without ``--dns-host``, the server is saved with ``--dns-host
-<public ip>.nip.io``, because Let's Encrypt does not issue certificates for
-AWS hostnames. If Route 53 can't create the DNS records, ``provision`` warns,
-says which records to create by hand, and sets the server up anyway. If a
-later step fails, the instance keeps running; fix the problem and run the
-commands that ``provision`` prints: the ``servers add`` commands that finish
-the setup or, if it failed before the setup started, the ``ec2 teardown``
-command (with the instance's ``--region``) before you provision again.
+defaults to ``admin``) is not set. Without ``--dns-host``, the server is
+saved with ``--dns-host <public ip>.nip.io``, because Let's Encrypt does not
+issue certificates for AWS hostnames. If Route 53 can't create the DNS
+records, ``provision`` warns, says which records to create by hand, and sets
+the server up anyway. If a later step fails, the instance keeps running.
+``provision`` then prints the ``ec2 teardown`` command that removes it (with
+its ``--region`` and ``--dns-host``) and, if the setup had started, the
+``servers add`` commands that finish the setup instead. Fix the problem and
+run one or the other.
 
 Increasing Storage on An Instance
 ---------------------------------
