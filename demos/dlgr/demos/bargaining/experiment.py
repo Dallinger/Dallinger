@@ -219,3 +219,5 @@ class Bot(HighPerformanceBotBase):
         result = requests.post(url)
         if not result.ok:
             self.log("Couldn't join a pair: {}".format(result.text))
+            return
+        self.wait_for_realtime_sessions(Bargain)

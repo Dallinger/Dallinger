@@ -1,7 +1,13 @@
 from unittest import mock
 
 import pytest
-from dlgr.demos.bargaining.experiment import COSTS, VALUES, Bargain, Bargaining
+from dlgr.demos.bargaining.experiment import (
+    COSTS,
+    VALUES,
+    Bargain,
+    Bargaining,
+    Bot,
+)
 
 from dallinger.realtime import Reject
 
@@ -231,3 +237,30 @@ def test_the_bonus_is_the_earnings_of_each_ended_bargain_in_dollars(sessions_for
 
     assert Bargaining.bonus(None, participant) == 0.37
     sessions_for.assert_called_once_with(participant, Bargain)
+
+
+@pytest.fixture
+def bot():
+    bot = Bot.__new__(Bot)
+    bot.URL = "http://localhost:5000/ad?x=1"
+    bot.participant_id = 7
+    bot.log = mock.Mock()
+    bot.wait_for_realtime_sessions = mock.Mock()
+    return bot
+
+
+@mock.patch("dlgr.demos.bargaining.experiment.requests.post")
+def test_a_bot_joins_a_pair_then_waits_for_its_bargain(post, bot):
+    bot.participate()
+
+    post.assert_called_once_with("http://localhost:5000/node/7")
+    bot.wait_for_realtime_sessions.assert_called_once_with(Bargain)
+
+
+@mock.patch("dlgr.demos.bargaining.experiment.requests.post")
+def test_a_bot_that_cannot_join_a_pair_does_not_wait(post, bot):
+    post.return_value.ok = False
+
+    bot.participate()
+
+    bot.wait_for_realtime_sessions.assert_not_called()
