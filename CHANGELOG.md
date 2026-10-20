@@ -195,7 +195,9 @@
   database and Redis volumes unless you choose to delete the experiment's
   data. Classic-ingress apps' databases are now dropped when you do. Scripts
   that run destroy without a terminal must now pass `--keep-data` or
-  `--remove-data --yes`.
+  `--remove-data --yes`. When a root-domain deploy offers to destroy the
+  server's other classic apps, destroy asks the same question about each
+  app's data, before the image is built.
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
   config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
   Cloudflare settings and API token, and whether the app name is already
