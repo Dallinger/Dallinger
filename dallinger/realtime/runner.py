@@ -1,12 +1,13 @@
 """Runners are the processes that play real-time sessions.
 
-An experiment with :attr:`~dallinger.experiment.Experiment.realtime_games`
-needs a runner beside its web and worker processes. Each worker process
-starts one, by running the ``dallinger_realtime`` command in the experiment's
-directory, and starts another whenever it exits, as
-:mod:`dallinger.realtime.supervisor` describes. The runner loads the
-experiment, plays every running session of the experiment's game types, and
-sends each player's page its views, until it gets ``SIGTERM`` or ``SIGINT``.
+An experiment that lists game types in its
+:attr:`~dallinger.experiment.Experiment.realtime_games` property needs a runner
+beside its web and worker processes. Each worker process starts one, by running
+the ``dallinger_realtime`` command in the experiment's directory, and starts
+another whenever it exits, as :mod:`dallinger.realtime.supervisor` describes.
+The runner loads the experiment, plays every running session of the
+experiment's game types, and sends each player's page its views, until it gets
+``SIGTERM`` or ``SIGINT``.
 
 Several runners can play one experiment's sessions, and each session is
 played by one runner at a time. Each session belongs to one of the running

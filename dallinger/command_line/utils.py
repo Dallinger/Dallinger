@@ -373,8 +373,8 @@ def verify_experiment_module(verbose, experiment_files=None):
 
 
 def verify_realtime_games(exp_class, verbose=True):
-    """Check the experiment's ``realtime_games``, as the web and worker
-    processes do when they start.
+    """Check the game types in the experiment's ``realtime_games`` property, as
+    the web and worker processes do when they start.
     """
     from dallinger.realtime import validate_game_types
 

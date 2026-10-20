@@ -8,8 +8,6 @@ with :func:`~dallinger.realtime.realtime_result`. It finds a participant's
 sessions with :func:`~dallinger.realtime.realtime_sessions_for`. All five can
 be imported from ``dallinger.realtime``. The rest of this module is for the
 web process and the runners.
-
-The real-time engine needs redis 7.0 or later.
 """
 
 # Each session has these keys, under realtime:<session id>:
@@ -148,8 +146,8 @@ def session_key(session_id, name):
 
 def experiment_games():
     """Return the running experiment's game types, from its
-    :attr:`~dallinger.experiment.Experiment.realtime_games`, as a dict from
-    each channel to an instance of its game type.
+    :attr:`~dallinger.experiment.Experiment.realtime_games` property, as a
+    dict from each channel to an instance of its game type.
 
     :raises ValueError: as
         :func:`~dallinger.realtime.validate_game_types` does
@@ -173,8 +171,8 @@ def create_realtime_session(game_type, players, bots=()):
     Players' pages that wait with ``dallinger.waitForRealtimeSession`` get
     the session's id, including those that start waiting later.
 
-    :param game_type: one of the experiment's
-        :attr:`~dallinger.experiment.Experiment.realtime_games`
+    :param game_type: one of the game types in the experiment's
+        :attr:`~dallinger.experiment.Experiment.realtime_games` property
     :param players: the participant ids of the session's players, bots
         included
     :param bots: the players the runner plays for, using
@@ -332,8 +330,8 @@ def realtime_sessions_for(participant, game_type):
 
     :param participant: a :class:`~dallinger.models.Participant`, or a
         participant id
-    :param game_type: one of the experiment's
-        :attr:`~dallinger.experiment.Experiment.realtime_games`
+    :param game_type: one of the game types in the experiment's
+        :attr:`~dallinger.experiment.Experiment.realtime_games` property
     :raises ValueError: if ``participant`` isn't a participant or a
         participant id, or ``game_type`` isn't one of the experiment's game
         types

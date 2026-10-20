@@ -132,8 +132,8 @@ More information on the Heroku CLI is available at `heroku.com <https://devcente
 Install Redis
 ~~~~~~~~~~~~~
 
-Debugging experiments requires you to have Redis installed and the Redis
-server running.
+Debugging experiments requires you to have Redis 7.0 or later installed and
+the Redis server running.
 ::
 
     brew install redis
@@ -522,8 +522,8 @@ More information on the Heroku CLI is available at `heroku.com <https://devcente
 Install Redis
 ~~~~~~~~~~~~~
 
-Debugging experiments requires you to have Redis installed and the Redis
-server running.
+Debugging experiments requires you to have Redis 7.0 or later installed and
+the Redis server running.
 
 ::
 
@@ -533,6 +533,9 @@ Start Redis on Ubuntu with:
 ::
 
     sudo service redis-server start
+
+Ubuntu's ``redis-server`` package is older than 7.0 before Ubuntu 24.04. On an
+older release, install Redis from Redis's own packages instead.
 
 You can find more details and other installation instructions at `redis.com <https://redis.io/topics/quickstart>`__.
 

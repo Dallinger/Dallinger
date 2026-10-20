@@ -11,14 +11,13 @@ game, which is what that player may see of it.
 An experiment with a real-time game:
 
 1. defines a game type, a Python class holding the game's rules
-2. lists the game type in its ``realtime_games``
+2. lists the game type in its ``realtime_games`` property
 3. starts a session of the game type for each group of players, and reads the
    session's outcome once it's over
 
 Dallinger saves a record of every session, which is exported with the rest of
-the experiment's data. Real-time games need redis 7.0 or later. A WebSocket
-uses the real-time engine only if it joins a session when it connects, and
-the experiment's other WebSockets work as
+the experiment's data. A WebSocket uses the real-time engine only if it joins
+a session when it connects, and the experiment's other WebSockets work as
 :doc:`Using WebSockets in Dallinger Experiments <using_websockets>` describes.
 
 Writing a Game Type
@@ -125,7 +124,7 @@ Game Types in an Experiment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 An experiment lists its game types in its
-:attr:`~dallinger.experiment.Experiment.realtime_games` attribute::
+:attr:`~dallinger.experiment.Experiment.realtime_games` property::
 
     class Auction(Experiment):
         realtime_games = [SealedBid]
