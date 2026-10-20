@@ -253,7 +253,14 @@ def test_servers_add_saves_only_a_valid_contact_email(monkeypatch):
     assert docker_ssh_module._server_tls(saved) == "tls a@b.org"
 
     store_host.reset_mock()
-    for invalid in ("nobody", "XXX@gmail.com", "???@b.org", "Me <me@b.org>"):
+    for invalid in (
+        "nobody",
+        "XXX@gmail.com",
+        "???@b.org",
+        "Me <me@b.org>",
+        '"a b"@b.org',
+        "me@b.org}",
+    ):
         result = CliRunner().invoke(
             docker_ssh_module.servers, add + ["--contact-email", invalid]
         )

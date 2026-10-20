@@ -16,7 +16,6 @@ import warnings
 import zipfile
 from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass
-from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
 from io import BytesIO
@@ -216,17 +215,12 @@ def list_servers():
 def _is_email(value):
     """Return whether ``value`` looks like an email address.
 
-    The whole value must be a bare address, as it goes into Caddy's ``tls``
-    line. Placeholders such as ``XXX@gmail.com`` from experiment templates
-    don't count.
+    The whole value must be a bare address without spaces, quotes, braces or
+    ``#``, as it goes into Caddy's ``tls`` line. Placeholders such as
+    ``XXX@gmail.com`` from experiment templates don't count.
     """
-    value = value or ""
-    local, _, domain = value.rpartition("@")
-    return (
-        parseaddr(value)[1] == value
-        and bool(local and domain)
-        and not re.fullmatch(r"[x?]+", local, re.IGNORECASE)
-    )
+    match = re.fullmatch(r"([^\s\"{}#@]+)@[^\s\"{}#@]+", value or "")
+    return bool(match) and not re.fullmatch(r"[x?]+", match[1], re.IGNORECASE)
 
 
 def _validate_contact_email(ctx, param, value):

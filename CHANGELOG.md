@@ -203,8 +203,11 @@
   where it came from. A `--contact-email` that is not a bare email address is
   rejected, and a saved or configured email that is not one (such as the
   default `???` or the placeholder `XXX@gmail.com`) is ignored and not
-  saved, so setting `contact_email_on_error` later takes effect. A deploy's
-  `--dns-host` now
+  saved, so setting `contact_email_on_error` later takes effect. A deploy to
+  a server saved without a contact email, such as one registered by an older
+  Dallinger, now stops before the build if its only `contact_email_on_error`
+  is a placeholder such as PsyNet's template `XXX@gmail.com`; save an email
+  with `servers add --contact-email`. A deploy's `--dns-host` now
   only names the app's own site, except on a server registered by IP address
   without a saved DNS host, where it also stays the server's own host as
   before. A deploy without
