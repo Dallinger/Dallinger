@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+
+{% block body %}
+    <div class="main_div">
+        <h1>Bargaining</h1>
+        <p id="waiting">Waiting for the other player…</p>
+        <div id="game" style="display: none;">
+            <p id="role"></p>
+            <p>Time left: <span id="timer"></span> seconds</p>
+            <p>Your offer: <span id="my-offer">none</span></p>
+            <p>
+                Their offer: <span id="their-offer">none</span>
+                <button type="button" id="accept" class="btn btn-success btn-sm" style="display: none;">Accept</button>
+            </p>
+            <form id="offer-form" class="row g-2">
+                <div class="col-auto">
+                    <input type="number" id="price" class="form-control" min="0" max="100" placeholder="Price in cents" />
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary">Offer</button>
+                </div>
+            </form>
+            <p id="error" class="text-danger"></p>
+            <p id="result" class="fw-bold"></p>
+            <button type="button" id="continue" class="btn btn-success" style="display: none;">Continue</button>
+            <h2 class="h5">Offers so far</h2>
+            <ul id="offers"></ul>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        play_bargain();
+    </script>
+{% endblock %}

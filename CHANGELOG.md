@@ -195,6 +195,12 @@
   the player's own moves at once, and `interpolatedView()`, which moves the
   other players smoothly between tick views. The "Real-Time Games" docs page
   describes a game's page.
+
+- A `bargaining` demo, a real-time game in which a buyer and a seller, each
+  knowing only their own value, bargain over a price against a clock. Each
+  player's bonus is paid from the session's saved outcome, and participants
+  recruited as `HighPerformanceBotBase` bots are played by the game type's
+  `bot` method.
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
   experiment refuse an `/experiment-socket` connection when it opens. A falsy
   return closes the socket with code `1008`, and Dallinger's client helpers

@@ -98,6 +98,7 @@ class TestEntryPointImport:
 
     def test_registered_demo_entry_point_names(self):
         expected = {
+            "Bargaining",
             "Bartlett1932",
             "TwentyFortyEight",
             "CoordinationChatroom",
