@@ -187,7 +187,7 @@ def create_realtime_session(game_type, players, bots=()):
     calls :meth:`~dallinger.experiment.Experiment.add_node_to_network`, and
     code that calls this anywhere else, such as a scheduled task or
     :meth:`~dallinger.experiment.Experiment.handle_websocket_message`,
-    commits afterwards. Until then the session hasn't started, so pages
+    must commit afterwards. Until then the session hasn't started, so pages
     can't join it yet: send them its id only after the commit, for example
     from a function passed to :func:`~dallinger.db.run_after_commit`. Once
     started, the session is played until it ends.

@@ -351,8 +351,8 @@ a network, that's when the network fills::
 of the group has done that. ``create_realtime_session`` returns the new
 session's id, an integer. Like any other change to the database, the session
 starts once it's committed, so code that starts one outside Dallinger's routes
-calls ``db.session.commit()`` afterwards. The players' pages learn the id from
-Dallinger, and the experiment finds each player's sessions from the
+must call ``db.session.commit()`` afterwards. The players' pages learn the id
+from Dallinger, and the experiment finds each player's sessions from the
 participant, as described below, so ``Auction`` doesn't keep the id. An
 experiment keeps it to use the other session functions, such as ending the
 session early.
