@@ -184,11 +184,11 @@
   a server without `~/dallinger/docker-compose.yml`; for that, it needs a
   contact email and, for a server registered by IP address, a `--dns-host`.
   The new `dallinger docker-ssh servers upgrade --host <server>` command sets
-  them up or rewrites them. It lists the files it replaces, asks first unless
-  given `--yes`, keeps a `.bak` copy of each, and keeps a root-domain app
-  deployed by an older Dallinger at its address. A deploy to a server that
-  lacks the setup it needs stops before the image build and names that
-  command: for example a root-domain app on a server set up by an older
+  them up or rewrites them. It lists the files it replaces and the routes it
+  adds, asks first unless given `--yes`, keeps a `.bak` copy of each, and
+  keeps a root-domain app deployed by an older Dallinger at its address. A
+  deploy to a server that lacks the setup it needs stops before the image
+  build and names that command: for example a root-domain app on a server set up by an older
   Dallinger, or any app on a server whose last classic deploy by an older
   Dallinger was a root-domain one. The server's DNS host and the email that
   Caddy gives Let's Encrypt come from the server record: `servers add` saves

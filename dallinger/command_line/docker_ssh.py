@@ -430,10 +430,21 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     current = {path: executor.run(f"cat ~/{path}", raise_=False) for path in files}
     changed = [path for path, content in files.items() if current[path] != content]
     routes = _old_root_routes(executor, current["dallinger/Caddyfile"], host, tls)
+    if not changed:
+        print(f"The shared classic-ingress files on {server} are up to date.")
     if changed and replace:
         print(f"These files on {server} will be replaced (keeping a .bak copy):")
         for path in changed:
             print(f"  ~/{path}")
+        for path in routes:
+            print(
+                f"  ~/{path} will be added, keeping the root-domain app at its address"
+            )
+        if "DOZZLE_BASE" in current["dallinger/docker-compose.yml"]:
+            print(
+                f"The log viewer moves from the /logs path to "
+                f"{_logs_url(server_info)}, so logs.{host} must resolve to the server."
+            )
         if "dallinger/docker-compose.yml" in changed:
             print(
                 "Shared services whose configuration changed are recreated, which "
@@ -1096,10 +1107,11 @@ def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
     caddyfile = parts.get("Caddyfile", "")
     compose = parts.get("docker-compose.yml", "")
     problems = []
+    serves_host = any(host in _site_names(line) for line in caddyfile.splitlines())
     if not compose.strip():
         problems.append("it has no ~/dallinger/docker-compose.yml")
     else:
-        if not any(host in _site_names(line) for line in caddyfile.splitlines()):
+        if not serves_host:
             problems.append(f"its Caddyfile does not serve {host}")
         if "import caddy.d/*" not in caddyfile:
             problems.append("its Caddyfile does not import caddy.d")
@@ -1118,9 +1130,14 @@ def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
             f"{'; '.join(problems)}.{END}\n"
             "Deploys don't change the server's shared files or services. Run "
             f"`dallinger docker-ssh servers upgrade --host {server}` to set them "
-            "up (this restarts the shared services), then deploy again. If the "
-            "server already serves another DNS name, save that name with "
-            f"`{_servers_add_command(server_info, dns_host='<name>')}` instead."
+            "up (this restarts the shared services), then deploy again."
+            + (
+                ""
+                if serves_host or not compose.strip()
+                else " If the server already serves another DNS name, save that "
+                f"name with `{_servers_add_command(server_info, dns_host='<name>')}` "
+                "instead."
+            )
         )
         raise click.Abort()
 
@@ -1668,7 +1685,20 @@ def _remove_aborted_build(docker_client, image_name, server, local_build, app):
             return
         docker_client.images.remove(image_name)
     except Exception as exc:
-        print(f"Kept the image {image_name} built for this deploy: {exc}")
+        if getattr(exc, "status_code", None) == 409:
+            print(
+                f"Kept the image {image_name} built for this deploy, because a "
+                "container still uses it."
+                + (
+                    " `dallinger docker-ssh destroy "
+                    f"--server {server} --app {app}` removes the partly deployed "
+                    "app and its image."
+                    if app
+                    else ""
+                )
+            )
+        else:
+            print(f"Kept the image {image_name} built for this deploy: {exc}")
     else:
         print(f"Removed the image {image_name} built for this deploy.")
 

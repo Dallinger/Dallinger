@@ -89,13 +89,23 @@ def test_deploy_failure_is_not_reported_as_a_registry_error(monkeypatch, capsys)
     assert "Error checking remote image" not in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("update", [False, True], ids=["new-app", "update"])
-def test_failed_new_deploy_removes_the_image_it_built(monkeypatch, capsys, update):
+@pytest.mark.parametrize(
+    "update, in_use",
+    [(False, False), (True, False), (False, True)],
+    ids=["new-app", "update", "in-use"],
+)
+def test_failed_new_deploy_removes_the_image_it_built(
+    monkeypatch, capsys, update, in_use
+):
     @docker_ssh_module.build_and_push_image
     def deploy(**kwargs):
         raise click.Abort()
 
     client = _client()
+    if in_use:
+        client.images.remove.side_effect = docker.errors.APIError(
+            "conflict", response=mock.Mock(status_code=409)
+        )
     config = mock.Mock()
     config.get.side_effect = lambda key, default=None: {"id": "a" * 8}.get(key)
     monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
@@ -113,10 +123,12 @@ def test_failed_new_deploy_removes_the_image_it_built(monkeypatch, capsys, updat
     ):
         deploy(app_name="app", server="lab", local_build=True, update=update)
 
+    output = capsys.readouterr().out
     if update:
         client.images.remove.assert_not_called()
+    elif in_use:
+        assert "because a container still uses it." in output
+        assert "`dallinger docker-ssh destroy --server lab --app app`" in output
     else:
         client.images.remove.assert_called_once_with("built:1")
-        assert "Removed the image built:1 built for this deploy." in (
-            capsys.readouterr().out
-        )
+        assert "Removed the image built:1 built for this deploy." in output
