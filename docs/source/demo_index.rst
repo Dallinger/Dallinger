@@ -15,6 +15,7 @@ More information for :doc:`running in "sandbox" mode <demos_on_heroku>`.
     demos/bartlett1932/*
     demos/chatroom/*
     demos/chatroom_ws/*
+    demos/coins/*
     demos/concentration/*
     demos/function_learning/*
     demos/iterated_drawing/*

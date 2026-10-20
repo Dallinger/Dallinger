@@ -202,6 +202,15 @@
   recruited as `HighPerformanceBotBase` bots are played by the game type's
   `bot` method.
 
+- A `coins` demo, a real-time game in which two to four players move around
+  an arena collecting coins. Its page uses prediction for the player's own
+  moves and interpolation for the other players, and the game type caps how
+  fast a page can move its player. Settings turn on stealing and bouncing
+  between players and set the bots' speed and the bonus per coin, and the
+  instructions describe them. Each steal and bounce is saved as
+  an effect and an `Info`, and only the moves that collect a coin or touch
+  another player are saved.
+
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
   experiment refuse an `/experiment-socket` connection when it opens. A falsy
   return closes the socket with code `1008`, and Dallinger's client helpers
