@@ -1880,8 +1880,7 @@ def _deploy_cloudflare_in_mode(
 
     if not update:
         print("Removing any pre-existing Redis and Postgres volumes.")
-        remove_named_volume(f"{experiment_id}_redis_data", executor)
-        remove_named_volume(f"{experiment_id}_postgres_data", executor)
+        _remove_cloudflare_volumes(experiment_id, executor)
     app_secrets = _app_secrets(executor, experiment_id, update)
 
     # This server's own tunnel, recorded when its connector token was
@@ -2107,6 +2106,13 @@ def remove_named_volume(volume_name, executor):
 
 def remove_redis_volumes(app_name, executor):
     remove_named_volume(f"{_compose_project(app_name)}_redis_data", executor)
+
+
+def _remove_cloudflare_volumes(app, executor):
+    """Remove a Cloudflare app's Redis and Postgres volumes, if they exist."""
+    project = _compose_project(app)
+    for volume in ("redis_data", "postgres_data"):
+        remove_named_volume(f"{project}_{volume}", executor)
 
 
 def get_apps(server):

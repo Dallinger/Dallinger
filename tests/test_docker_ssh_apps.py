@@ -1156,6 +1156,15 @@ def test_redis_volume_cleanup_uses_the_compose_project_name():
     assert executor.commands == ["docker volume rm 'myapp_redis_data'"]
 
 
+def test_cloudflare_volume_cleanup_uses_the_compose_project_name():
+    executor = FakeExecutor({})
+    docker_ssh_module._remove_cloudflare_volumes("My.App", executor)
+    assert executor.commands == [
+        "docker volume rm 'myapp_redis_data'",
+        "docker volume rm 'myapp_postgres_data'",
+    ]
+
+
 def test_destroy_rejects_shell_patterns_as_app_names(monkeypatch):
     with pytest.raises(click.UsageError):
         docker_ssh_module.destroy.callback(server="test-server", app="*")
