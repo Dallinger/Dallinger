@@ -364,8 +364,9 @@
   or a Keychain item, with a `security add-generic-password` command that
   stores it where the lookup finds it) instead of ending with a bare
   "Aborted!". The Keychain error includes the reason `security` gave, and a
-  `-c cloudflare_api_token file:<path>` pointing at a missing file fails with
-  an `Error:` line instead of a traceback. A classic-ingress deploy to a
+  `-c` option such as `-c cloudflare_api_token file:<path>` pointing at a
+  missing file fails with `Error: Could not read <path>: …` instead of a
+  traceback. A classic-ingress deploy to a
   private-network server, or one without a valid `contact_email_on_error`,
   also fails with an `Error:` line. Previously these reasons went to stdout
   and, when output was piped, could appear after "Aborted!".

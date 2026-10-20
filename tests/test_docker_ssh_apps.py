@@ -137,7 +137,6 @@ def test_root_domain_conflicts_ignore_cloudflare_apps():
 def test_cloudflare_error_prints_one_error_line(monkeypatch):
     from click.testing import CliRunner
 
-    pytest.importorskip("docker")
     hosts = {"lab": {"host": "lab.example", "default_ingress": "cloudflare"}}
     monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", hosts)
     monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: hosts)
@@ -587,7 +586,6 @@ def test_root_domain_auto_destroy_uses_full_server_name(monkeypatch):
 def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatch):
     from click.testing import CliRunner
 
-    pytest.importorskip("docker")
     hosts = {"pc01.lab.example.org": {"host": "pc01.lab.example.org"}}
     monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", hosts)
     monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: hosts)

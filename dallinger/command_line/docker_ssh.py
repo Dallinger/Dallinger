@@ -1087,7 +1087,7 @@ def _abort_cloudflare(exc):
 def check_deploy_credentials(server=None, ingress=None, config_options=None):
     """Check that a docker-ssh deploy can load the credentials it needs.
 
-    ``docker-ssh deploy`` and ``sandbox`` load the token the same way before
+    ``docker-ssh deploy`` and ``sandbox`` load the token themselves before
     they contact the server. Tools that wrap them can call this earlier,
     before their own preparation, so a missing Cloudflare API token stops the
     deploy before anything changes. The server and ingress are resolved as
@@ -1122,7 +1122,8 @@ def check_deploy_credentials(server=None, ingress=None, config_options=None):
         If ``server`` is not a configured server, no server is configured,
         or ``ingress`` is unknown.
     click.ClickException
-        If the deploy uses Cloudflare ingress and the token can't be loaded.
+        If the deploy uses Cloudflare ingress and the token can't be loaded,
+        or a ``file:`` token option can't be read.
     """
     hosts = tuple(CONFIGURED_HOSTS)
     if server is None and not hosts:
@@ -1530,9 +1531,9 @@ def deploy(**kwargs):  # pragma: no cover
 def _classic_tls_and_dns_host(config, ssh_host, dns_host):
     """Return the Caddy ``tls`` directive and the DNS host of a classic deploy.
 
-    Aborts if a server that needs a Let's Encrypt certificate has no valid
-    ``contact_email_on_error``, or a server given as an IP address has no
-    ``--dns-host``.
+    Raises ``click.ClickException`` if a server that needs a Let's Encrypt
+    certificate has no valid ``contact_email_on_error``, and aborts if a
+    server given as an IP address has no ``--dns-host``.
     """
     has_tls = not is_loopback_host(ssh_host)
     # We abuse the mturk contact_email_on_error to provide an email for let's encrypt certificate
