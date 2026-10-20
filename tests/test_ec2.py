@@ -518,3 +518,18 @@ def test_provision_needs_a_contact_email_before_booting(monkeypatch):
     assert result.exit_code == 2
     assert "contact_email_on_error" in result.output
     ec2.provision.assert_not_called()
+
+
+def test_provision_setup_failure_names_the_repair_command(monkeypatch, capsys):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    config = mock.Mock(get=lambda key, default=None: "x")
+    monkeypatch.setattr("dallinger.config.get_config", lambda load=False: config)
+    monkeypatch.setattr(lib, "dallinger_prepare_server", mock.Mock())
+    monkeypatch.setattr(lib, "create_dns_records", mock.Mock())
+    monkeypatch.setattr(
+        lib, "dallinger_register_server", mock.Mock(side_effect=click.Abort)
+    )
+
+    with pytest.raises(click.Abort):
+        lib.prepare_docker_experiment_setup("ec2-host", "ubuntu", "1.2.3.4", None)
+    assert "servers upgrade --host ec2-host --yes" in capsys.readouterr().out

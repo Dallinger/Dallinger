@@ -162,14 +162,10 @@ def ec2__provision(
     except FileNotFoundError as err:
         raise click.UsageError(str(err))
 
-    from .config import get_configured_hosts
     from .docker_ssh import _config_contact_email, _is_email
 
     # The shared services set up at the end need an email for Let's Encrypt.
-    saved = get_configured_hosts().get(dns_host, {}) if dns_host else {}
-    if not _is_email(saved.get("contact_email")) and not _is_email(
-        _config_contact_email()
-    ):
+    if not _is_email(_config_contact_email()):
         raise click.UsageError(
             "Set contact_email_on_error in ~/.dallingerconfig to an email address "
             "for Let's Encrypt certificates (check it with `dallinger email-test`)."

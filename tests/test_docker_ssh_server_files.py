@@ -513,13 +513,27 @@ def test_a_failed_upgrade_leaves_the_server_files_read_only(server, monkeypatch)
         assert (server / "dallinger" / name).stat().st_mode & 0o777 == 0o444
 
 
-def test_ec2_provision_sets_up_the_shared_services(server, monkeypatch, capsys):
+@pytest.mark.parametrize("dns_host", ["exp.example.org", None])
+def test_ec2_provision_sets_up_the_shared_services(
+    server, dns_host, monkeypatch, capsys
+):
     ec2 = importlib.import_module("dallinger.command_line.lib.ec2")
     for name in SERVER_FILES:
         (server / "dallinger" / name).unlink()
-    stored = []
+    stored, ssh_hosts = [], []
+    executor = LocalExecutor(server)
+    monkeypatch.setattr(
+        docker_ssh, "Executor", lambda host, *a, **k: ssh_hosts.append(host) or executor
+    )
+    monkeypatch.setattr(
+        docker_ssh,
+        "get_sftp",
+        lambda host, **k: ssh_hosts.append(host) or LocalSftp(server),
+    )
+    monkeypatch.setattr(docker_ssh, "get_configured_hosts", lambda: {})
+    monkeypatch.setattr(docker_ssh, "_config_contact_email", lambda: "me@example.org")
+    monkeypatch.setattr(docker_ssh, "gethostbyname_ex", lambda h: (h, [], ["1.2.3.4"]))
     monkeypatch.setattr(docker_ssh, "store_host", stored.append)
-    monkeypatch.setattr(docker_ssh, "_ipv4_addresses", lambda host: ["1.2.3.4"])
     monkeypatch.setattr(ec2, "dallinger_store_host", stored.append)
     monkeypatch.setattr(ec2, "dallinger_prepare_server", mock.Mock())
     monkeypatch.setattr(ec2, "create_dns_records", mock.Mock())
@@ -531,15 +545,21 @@ def test_ec2_provision_sets_up_the_shared_services(server, monkeypatch, capsys):
 
     aws_host = "ec2-1-2-3-4.compute.amazonaws.com"
     ec2.prepare_docker_experiment_setup(
-        aws_host, "ubuntu", "1.2.3.4", None, dns_host="lab.example.org"
+        aws_host, "ubuntu", "1.2.3.4", None, dns_host=dns_host
     )
 
-    assert {"host": aws_host, "user": "ubuntu", "dns_host": "lab.example.org"} in (
-        stored
-    )
-    assert stored[-1]["host"] == "lab.example.org"
-    assert stored[-1]["contact_email"] == "lab@example.org"
-    assert "logs.lab.example.org {" in (server / "dallinger/Caddyfile").read_text()
+    # A new DNS record may still resolve to an older server.
+    assert set(ssh_hosts) == {aws_host}
+    record = {
+        "host": aws_host,
+        "user": "ubuntu",
+        "default_ingress": "classic",
+        "dns_host": dns_host or "nip.io",
+        "contact_email": "me@example.org",
+    }
+    assert stored == [record] + ([{**record, "host": dns_host}] if dns_host else [])
+    site = dns_host or "1.2.3.4.nip.io"
+    assert f"logs.{site} {{" in (server / "dallinger/Caddyfile").read_text()
     for name in SERVER_FILES:
         assert (server / "dallinger" / name).stat().st_mode & 0o777 == 0o444
     assert capsys.readouterr().out.count("password = ") == 1

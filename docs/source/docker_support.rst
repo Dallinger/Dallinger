@@ -194,8 +194,8 @@ A classic deploy only adds the app's own Caddy route (``~/dallinger/caddy.d/<app
 or ``~/dallinger/root.d/<app>`` for a root-domain app) and reloads Caddy, and
 ``destroy`` only removes it. Neither writes the server's shared files
 (``Caddyfile``, ``docker-compose.yml``, ``dozzle-users.yml``) or restarts the
-shared Caddy, Postgres or Dozzle, so other apps on the server keep running. ``servers add`` (and
-``dallinger ec2 provision``) sets these services up on a server that doesn't have them. If the server lacks something the deploy
+shared Caddy, Postgres or Dozzle, so other apps on the server keep running. ``servers add`` and
+``dallinger ec2 provision`` set these services up on a server that doesn't have them. If the server lacks something the deploy
 needs, the deploy stops before building the image and names the command to
 run. That command is ``servers upgrade``, which rewrites the shared files from
 the server's saved DNS host and contact email and recreates the services whose

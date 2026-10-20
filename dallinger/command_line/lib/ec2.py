@@ -992,11 +992,23 @@ def prepare_docker_experiment_setup(
 
     create_dns_records(dns_host, user, host)
 
-    # Both names reach the server; the DNS host is the one its sites serve.
-    if dns_host:
-        dallinger_store_host(dict(host=host, user=user, dns_host=dns_host))
+    # Set up over the AWS hostname: a resolver may still cache an old record
+    # for the DNS host. Without one, nip.io gives the server's sites a name
+    # that Let's Encrypt certifies, unlike the AWS hostname.
     print("Registering the server and starting its shared services.")
-    dallinger_register_server(dns_host or host, user)
+    try:
+        server_info = dallinger_register_server(
+            host, user, dns_host=dns_host or "nip.io", network_advice=False
+        )
+    except Exception:
+        print(
+            f"{host} is running but its shared services are not set up. Fix "
+            "the problem above, then run `dallinger docker-ssh servers upgrade "
+            f"--host {host} --yes`."
+        )
+        raise
+    if dns_host:
+        dallinger_store_host({**server_info, "host": dns_host})
 
 
 def provision(

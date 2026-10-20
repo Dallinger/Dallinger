@@ -280,7 +280,13 @@ def add(host, user, default_ingress, dns_host, contact_email):
 
 
 def register_server(
-    host, user, default_ingress=INGRESS_CLASSIC, dns_host=None, contact_email=None
+    host,
+    user,
+    default_ingress=INGRESS_CLASSIC,
+    dns_host=None,
+    contact_email=None,
+    *,
+    network_advice=True,
 ):
     """Save a prepared server and, for classic ingress, set up its shared services.
 
@@ -302,6 +308,13 @@ def register_server(
     contact_email : str, optional
         Email that Caddy gives Let's Encrypt; defaults to
         ``contact_email_on_error`` for classic ingress.
+    network_advice : bool
+        Warn if ``host`` resolves only to private addresses.
+
+    Returns
+    -------
+    dict
+        The saved server record.
     """
     existing = get_configured_hosts().get(host, {})
     server_info = {"host": host, "user": user, "default_ingress": default_ingress}
@@ -315,11 +328,13 @@ def register_server(
     if _is_email(contact_email):
         server_info["contact_email"] = contact_email
     store_host(server_info)
-    advice = default_ingress == INGRESS_CLASSIC and _private_network_advice(host, user)
+    classic = default_ingress == INGRESS_CLASSIC
+    advice = classic and network_advice and _private_network_advice(host, user)
     if advice:
         print(f"{RED}Warning: {advice}{END}")
-    if default_ingress == INGRESS_CLASSIC:
+    if classic:
         _write_server_files(host, server_info, replace=False)
+    return server_info
 
 
 @servers.command()
@@ -1251,7 +1266,8 @@ def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
     """Abort unless the server's shared services can serve a classic app.
 
     A deploy only adds the app's own Caddy file and reloads Caddy, so the
-    server must have been set up by ``servers add`` or ``servers upgrade``.
+    server must have been set up by ``servers add``, ``servers upgrade`` or
+    ``dallinger ec2 provision``.
     A set-up server whose shared files an older Dallinger has since rewritten
     is refused with advice to upgrade it again.
 
