@@ -1098,21 +1098,35 @@ def test_destroy_remove_data_fails_if_some_data_cant_be_checked(
 
 
 @pytest.mark.parametrize(
-    "db, dropped, note",
+    "db, dropped, notes",
     [
         (
             "timeout",
             False,
-            "Could not check whether the shared Postgres still has a database "
-            "myapp from an earlier classic deploy of this name (timed out after "
-            "30 s; the server may be busy).",
+            [
+                "Could not check whether the shared Postgres still has a database "
+                "myapp from an earlier classic deploy of this name (timed out "
+                "after 30 s; the server may be busy).",
+                "--remove-data again when the server is less busy.",
+            ],
         ),
-        (None, False, "(service postgresql is not running). The Cloudflare"),
-        ("12 MB", True, "Deleted the database myapp (12 MB) in the shared Postgres"),
+        (
+            None,
+            False,
+            [
+                "(service postgresql is not running).",
+                "--remove-data again after fixing the problem.",
+            ],
+        ),
+        (
+            "12 MB",
+            True,
+            ["Deleted the database myapp (12 MB) in the shared Postgres"],
+        ),
     ],
 )
 def test_destroy_cloudflare_only_reports_a_shared_database_it_finds(
-    monkeypatch, db, dropped, note
+    monkeypatch, db, dropped, notes
 ):
     monkeypatch.setattr(
         docker_ssh_module, "_destroy_cloudflare_resources", lambda *a, **k: True
@@ -1126,7 +1140,7 @@ def test_destroy_cloudflare_only_reports_a_shared_database_it_finds(
     )
     assert result.exit_code == 0, result.output
     assert "Did not delete" not in result.output
-    assert note in result.output
+    assert all(note in result.output for note in notes)
     assert any("DROP DATABASE" in c for c in commands) == dropped
 
 
