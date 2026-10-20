@@ -345,20 +345,17 @@ a network, that's when the network fills::
             network.add_node(node)
             if network.full:
                 players = [n.participant_id for n in network.nodes()]
-                session_id = create_realtime_session(SealedBid, players)
-                # Keep the id where the players' pages, and the bonus, can
-                # find it. Changes made inside network.details aren't saved,
-                # so this assigns it a new dict.
-                network.details = dict(network.details, session_id=session_id)
+                create_realtime_session(SealedBid, players)
 
 ``add_node_to_network`` runs when a player's page creates their node with
 :js:func:`dallinger.createAgent`, so the session starts once the last player
 of the group has done that. ``create_realtime_session`` returns the new
 session's id, an integer. The session is already running by then, and keeps
-running whether or not the caller commits. The experiment keeps the id, as
-``Auction`` does in the network's details, because every later step needs it:
-the players' pages use it to join, and the experiment passes it to the other
-session functions.
+running whether or not the caller commits. The players' pages learn the id
+from Dallinger, and the experiment finds each player's sessions from the
+participant, as described below, so ``Auction`` doesn't keep the id. An
+experiment keeps it to use the other session functions, such as ending the
+session early.
 
 A player can also be a bot, whose messages come from the game type's ``bot``
 method rather than from a page. A bot's participant id goes in the list of
@@ -424,27 +421,37 @@ saved, so the page can wait for that before it's submitted.
 Reading the Outcome
 ~~~~~~~~~~~~~~~~~~~
 
-The experiment's code reads a session's outcome by passing the session's id to
-:func:`~dallinger.realtime.realtime_result`, for example in
-:meth:`~dallinger.experiment.Experiment.bonus`, which Dallinger calls when a
-participant's assignment is submitted::
+The experiment's code finds a player's sessions by passing the participant
+and the game type to :func:`~dallinger.realtime.realtime_sessions_for`, for
+example in :meth:`~dallinger.experiment.Experiment.bonus`, which Dallinger
+calls when a participant's assignment is submitted::
 
-    from dallinger.realtime import realtime_result
+    from dallinger.realtime import realtime_sessions_for
 
 
     class Auction(Experiment):
         ...
 
         def bonus(self, participant):
-            network = participant.nodes()[0].network
-            outcome = realtime_result(network.details["session_id"])
-            if outcome and outcome["winner"] == str(participant.id):
-                return 1.0
-            return 0
+            pay = 0
+            for session in realtime_sessions_for(participant, SealedBid):
+                if session.status == "ended":
+                    # Player ids in the game are strings
+                    if session.outcome["winner"] == str(participant.id):
+                        pay += 1.0
+            return pay
 
-``realtime_result`` returns what ``outcome`` returned once the ending is saved,
-and ``None`` until then. A player's result should be taken from that saved
-outcome rather than from anything the browser sends.
+``realtime_sessions_for`` returns the participant's sessions of the game type,
+oldest first, so the same code works for a participant who plays one auction
+or several rounds of it. Each session is a
+:class:`~dallinger.models.RealtimeSession`. Its ``status`` is ``running``
+until the session's ending is saved, then ``ended``, or ``failed`` if
+something went wrong, as described below. Its ``outcome`` is what the game
+type's ``outcome`` method returned, once the ending is saved. A failed session
+has no outcome, only ``None``, if Dallinger couldn't start it or save its
+record, so code that reads a failed session's outcome should check for that. A
+player's result should be taken from the saved outcome rather than from
+anything the browser sends.
 
 Failures
 ~~~~~~~~
@@ -555,6 +562,8 @@ Session Reference
 .. autofunction:: dallinger.realtime.end_realtime_session
 
 .. autofunction:: dallinger.realtime.realtime_result
+
+.. autofunction:: dallinger.realtime.realtime_sessions_for
 
 .. autodata:: dallinger.realtime.store.ENDED_SESSION_TTL
 

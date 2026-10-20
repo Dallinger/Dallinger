@@ -154,8 +154,11 @@
 - A real-time engine for live multiplayer games (#9974). An experiment
   subclasses `RealtimeGame` to write a game type, lists its game types in
   `Experiment.realtime_games`, and starts a session with
-  `create_realtime_session`. Runner processes play the sessions, keeping the
-  game state in Redis. Each worker process of an experiment with game types
+  `create_realtime_session`, then finds a player's sessions and their outcomes
+  with `realtime_sessions_for(participant, game_type)`, or reads one session's
+  outcome with `realtime_result(session_id)`. Runner processes play the
+  sessions, keeping the game state in Redis.
+  Each worker process of an experiment with game types
   starts one with the new `dallinger_realtime` command, and starts another
   whenever it exits. Each session's messages, clock measurements, effects,
   checkpoints and ending are saved in the new `realtime_session` and

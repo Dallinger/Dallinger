@@ -5,6 +5,7 @@ from .store import (
     create_realtime_session,
     end_realtime_session,
     realtime_result,
+    realtime_sessions_for,
     realtime_state,
 )
 
@@ -15,6 +16,7 @@ __all__ = [
     "create_realtime_session",
     "end_realtime_session",
     "realtime_result",
+    "realtime_sessions_for",
     "realtime_state",
     "validate_game_types",
 ]

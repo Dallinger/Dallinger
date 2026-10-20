@@ -4,9 +4,10 @@ Experiment code starts a session with
 :func:`~dallinger.realtime.create_realtime_session`, reads its state with
 :func:`~dallinger.realtime.realtime_state`, ends it early with
 :func:`~dallinger.realtime.end_realtime_session` and reads its saved outcome
-with :func:`~dallinger.realtime.realtime_result`. All four can be imported
-from ``dallinger.realtime``. The rest of this module is for the web process and
-the runners.
+with :func:`~dallinger.realtime.realtime_result`. It finds a participant's
+sessions with :func:`~dallinger.realtime.realtime_sessions_for`. All five can
+be imported from ``dallinger.realtime``. The rest of this module is for the
+web process and the runners.
 
 The real-time engine needs redis 7.0 or later.
 """
@@ -57,7 +58,7 @@ from redis import RedisError, WatchError
 
 from dallinger import db, experiment
 from dallinger.db import get_queue, redis_conn
-from dallinger.models import RealtimeSession
+from dallinger.models import Participant, RealtimeSession
 from dallinger.realtime.core import new_session
 from dallinger.realtime.delivery import publish_started
 from dallinger.realtime.game import validate_game_types
@@ -184,12 +185,7 @@ def create_realtime_session(game_type, players, bots=()):
         ``players`` or ``bots`` has a value that isn't a participant id or
         repeats one, or a bot isn't one of the ``players``
     """
-    channel = getattr(game_type, "channel", None)
-    game = experiment_games().get(channel)
-    if type(game) is not game_type:
-        raise ValueError(
-            "{!r} isn't one of the experiment's realtime_games.".format(game_type)
-        )
+    channel, game = _experiment_game(game_type)
     players = _participant_ids(players, "players")
     if not players:
         raise ValueError("A session needs at least one player.")
@@ -256,6 +252,16 @@ def clear_realtime_sessions():
         redis_conn.delete(*keys[start : start + 1000])
 
 
+def _experiment_game(game_type):
+    channel = getattr(game_type, "channel", None)
+    game = experiment_games().get(channel)
+    if type(game) is not game_type:
+        raise ValueError(
+            "{!r} isn't one of the experiment's realtime_games.".format(game_type)
+        )
+    return channel, game
+
+
 def _participant_ids(values, what):
     ids = []
     for value in values:
@@ -309,6 +315,49 @@ def realtime_result(session_id):
     if row is None:
         raise KeyError(session_id)
     return row.outcome
+
+
+def realtime_sessions_for(participant, game_type):
+    """Return a participant's sessions of ``game_type``, oldest first, as
+    :class:`~dallinger.models.RealtimeSession` rows, or an empty list if
+    they have none.
+
+    A row's :attr:`~dallinger.models.RealtimeSession.status` is ``running``
+    until the session's ending is saved, then ``ended``, or ``failed`` if the
+    game's code went wrong, the session couldn't be started or its record
+    couldn't be written. Its :attr:`~dallinger.models.RealtimeSession.outcome`
+    is what :meth:`~dallinger.realtime.RealtimeGame.outcome` returned, once
+    the ending is saved. A session that failed because it couldn't be started
+    or recorded has no outcome.
+
+    :param participant: a :class:`~dallinger.models.Participant`, or a
+        participant id
+    :param game_type: one of the experiment's
+        :attr:`~dallinger.experiment.Experiment.realtime_games`
+    :raises ValueError: if ``participant`` isn't a participant or a
+        participant id, or ``game_type`` isn't one of the experiment's game
+        types
+    """
+    channel, _ = _experiment_game(game_type)
+    if isinstance(participant, Participant):
+        participant = participant.id
+    participant_id = normalized_participant_id(participant)
+    if participant_id is None:
+        raise ValueError(
+            "{!r} isn't a participant or a participant id.".format(participant)
+        )
+    # populate_existing reads rows the caller's session already loaded again,
+    # since a runner saves the ending from another session.
+    return (
+        db.session.query(RealtimeSession)
+        .filter(
+            RealtimeSession.game_type == channel,
+            RealtimeSession.members.contains([int(participant_id)]),
+        )
+        .order_by(RealtimeSession.id)
+        .populate_existing()
+        .all()
+    )
 
 
 def realtime_state(session_id):

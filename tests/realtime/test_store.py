@@ -250,6 +250,86 @@ class TestSessions:
         assert store.player_game_channel(session_id + 1, "1") is None
 
 
+def save_ending(session_id, outcome, status="ended"):
+    with db.session_factory() as own:
+        own.query(RealtimeSession).filter_by(id=session_id).update(
+            {"outcome": outcome, "status": status}
+        )
+        own.commit()
+
+
+def session_ids(sessions):
+    return [session.id for session in sessions]
+
+
+class TestSessionsFor:
+    def test_lists_the_participants_sessions_of_the_game_type_oldest_first(
+        self, realtime_experiment
+    ):
+        class Other(Tally):
+            channel = "other"
+
+        realtime_experiment.realtime_games = [TurnTally, Other]
+        first = store.create_realtime_session(TurnTally, ["1", "3"])
+        store.create_realtime_session(Other, ["1"])
+        store.create_realtime_session(TurnTally, ["2"])
+        second = store.create_realtime_session(TurnTally, ["2", "1"])
+        # Postgres writes the updated row after the others, so a query
+        # without an order would return it last.
+        save_ending(first, {"winner": "1"})
+
+        assert session_ids(store.realtime_sessions_for(1, TurnTally)) == [
+            first,
+            second,
+        ]
+        assert session_ids(store.realtime_sessions_for("3", TurnTally)) == [first]
+        assert store.realtime_sessions_for(4, TurnTally) == []
+
+    def test_rows_give_the_status_and_the_saved_outcome(self):
+        running = store.create_realtime_session(TurnTally, ["1"])
+        ended = store.create_realtime_session(TurnTally, ["1"])
+        failed = store.create_realtime_session(TurnTally, ["1"])
+        save_ending(ended, {"winner": "1"})
+        save_ending(failed, {"winner": None}, status="failed")
+
+        sessions = store.realtime_sessions_for(1, TurnTally)
+
+        assert [(s.id, s.status, s.outcome) for s in sessions] == [
+            (running, "running", None),
+            (ended, "ended", {"winner": "1"}),
+            (failed, "failed", {"winner": None}),
+        ]
+
+    def test_reads_a_row_the_caller_already_loaded_again(self):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        loaded = db.session.query(RealtimeSession).get(session_id)
+        assert loaded.status == "running"
+
+        save_ending(session_id, {"winner": "1"})
+        [session] = store.realtime_sessions_for(1, TurnTally)
+
+        assert session is loaded
+        assert (session.status, session.outcome) == ("ended", {"winner": "1"})
+
+    def test_takes_a_participant(self, a):
+        participant = a.participant()
+        session_id = store.create_realtime_session(TurnTally, [participant.id])
+
+        sessions = store.realtime_sessions_for(participant, TurnTally)
+
+        assert session_ids(sessions) == [session_id]
+
+    def test_refuses_what_isnt_a_game_type_or_a_participant(self, a):
+        node = a.node()
+
+        with pytest.raises(ValueError, match="isn't one of the experiment's"):
+            store.realtime_sessions_for(1, Tally)
+        with pytest.raises(ValueError, match="isn't a participant"):
+            store.realtime_sessions_for(1.0, TurnTally)
+        with pytest.raises(ValueError, match="isn't a participant"):
+            store.realtime_sessions_for(node, TurnTally)
+
+
 class TestClaims:
     def test_a_held_claim_cannot_be_taken(self):
         session_id = store.create_realtime_session(TurnTally, ["1"])
