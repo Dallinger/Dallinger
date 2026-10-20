@@ -572,7 +572,8 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         ("_check_app_slot", "app-slot", None),
     ):
         monkeypatch.setattr(docker_ssh_module, name, step(event, result))
-    monkeypatch.setattr(docker_ssh_module, "Executor", mock.Mock())
+    executor = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "Executor", executor)
     monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
 
     with pytest.raises(click.Abort):
@@ -582,6 +583,9 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
                 config_options=(("docker_image_name", "registry.example/exp:1"),),
             )
         )
+
+    # Executors share one SSH connection, which the build reuses.
+    executor.return_value.client.close.assert_not_called()
 
     assert events == [
         "policy",
@@ -660,6 +664,8 @@ def test_docker_ssh_build_assembles_the_validated_source(tmp_path, monkeypatch):
     assert build_image.call_args.kwargs["image_tag"] == (
         "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     )
+    assert setup.call_args.kwargs["quiet"] is True
+    assert build_image.call_args.kwargs["quiet"] is True
 
 
 def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path):

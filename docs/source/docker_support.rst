@@ -499,8 +499,10 @@ The above command will output:
     ssh debian@0.0.0.0 docker compose -f '~/dallinger/dlgr-d5543ddd/docker-compose.yml' logs -f
     You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard as user admin using password foobar
 
-This example deploys a prebuilt image. Without ``--image``, the deploy first builds one
-and prints a single ``Building image ...`` line, followed by ``Built image: ...``.
+This example deploys a prebuilt image. Without a ``docker_image_name`` that the
+registry has (set in config or with ``-c docker_image_name <image>``), the deploy
+first builds one and prints a single ``Building image ...`` line, followed by
+``Built image: ...``.
 If the build fails, the full ``docker build`` log is printed with the path of its saved copy.
 Set ``DALLINGER_VERBOSE_BUILD=1`` to see the build output as it runs.
 Python callers that print their own summary, such as PsyNet, can invoke the command
