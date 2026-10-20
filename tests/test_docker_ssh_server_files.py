@@ -532,7 +532,8 @@ def test_ec2_provision_sets_up_the_shared_services(
     )
     monkeypatch.setattr(docker_ssh, "get_configured_hosts", lambda: {})
     monkeypatch.setattr(docker_ssh, "_config_contact_email", lambda: "me@example.org")
-    monkeypatch.setattr(docker_ssh, "gethostbyname_ex", lambda h: (h, [], ["1.2.3.4"]))
+    # Inside AWS, the AWS hostname can resolve to the private IP.
+    monkeypatch.setattr(docker_ssh, "gethostbyname_ex", lambda h: (h, [], ["10.0.0.5"]))
     monkeypatch.setattr(docker_ssh, "store_host", stored.append)
     monkeypatch.setattr(ec2, "dallinger_store_host", stored.append)
     monkeypatch.setattr(ec2, "dallinger_prepare_server", mock.Mock())
@@ -554,7 +555,7 @@ def test_ec2_provision_sets_up_the_shared_services(
         "host": aws_host,
         "user": "ubuntu",
         "default_ingress": "classic",
-        "dns_host": dns_host or "nip.io",
+        "dns_host": dns_host or "1.2.3.4.nip.io",
         "contact_email": "me@example.org",
     }
     assert stored == [record] + ([{**record, "host": dns_host}] if dns_host else [])

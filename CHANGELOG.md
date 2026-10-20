@@ -184,8 +184,8 @@
   a server without `~/dallinger/docker-compose.yml`; for that, it needs a
   contact email and, for a server registered by IP address, a `--dns-host`.
   `dallinger ec2 provision` does the same on the new instance (saving
-  `--dns-host nip.io` when no `--dns-host` is given, as Let's Encrypt does
-  not certify AWS hostnames), and stops before booting one if
+  `--dns-host <public ip>.nip.io` when no `--dns-host` is given, as Let's
+  Encrypt does not certify AWS hostnames), and stops before booting one if
   `contact_email_on_error` is not an email address.
   The new `dallinger docker-ssh servers upgrade --host <server>` command sets
   them up or rewrites them. It lists the files it replaces and the routes it

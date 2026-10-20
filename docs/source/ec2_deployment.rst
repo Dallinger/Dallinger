@@ -162,12 +162,13 @@ You can configure different amounts of storage or different instance types::
 
 Like ``dallinger docker-ssh servers add``, ``provision`` then starts the
 server's shared Caddy, Postgres and Dozzle services and prints the log viewer
-login once, so you can deploy straight away with ``--server <dns-host>`` (or
-the instance's AWS hostname). Caddy gives Let's Encrypt the
+login once. You can deploy straight away with ``--server <AWS hostname>``,
+and with ``--server <dns-host>`` once your computer resolves the new DNS
+record (up to about five minutes). Caddy gives Let's Encrypt the
 ``contact_email_on_error`` address, so ``provision`` stops before booting an
 instance if that is not an email address. Without ``--dns-host``, the server
-is saved with ``--dns-host nip.io``, so its sites are ``<ip>.nip.io`` names,
-because Let's Encrypt does not issue certificates for AWS hostnames. If the
+is saved with ``--dns-host <public ip>.nip.io``, because Let's Encrypt does
+not issue certificates for AWS hostnames. If the
 setup fails, the instance keeps running; fix the problem and run the
 ``dallinger docker-ssh servers upgrade`` command that ``provision`` prints.
 
