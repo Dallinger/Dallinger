@@ -94,7 +94,8 @@ store this in ``~/.ssh/`` following standard SSH key management practices.
 Note that this variable should be specified as a full path (e.g. ``~/.ssh/my-ec2-key.pem``).
 A new instance accepts only the ``ec2_default_pem`` key pair, and Dallinger
 logs in to every server with ``server_pem``, so ``server_pem`` must be that
-key pair's private key; ``provision`` checks this before booting an instance.
+key pair's private key, without a passphrase; ``provision`` checks this
+before booting an instance.
 
 **Both configuration values are required** for EC2-based deployments. If either is missing
 or if the PEM file doesn't exist at the specified path, the deployment will fail with an error message.
@@ -178,9 +179,11 @@ email address, or if ``dashboard_user`` or ``dashboard_password`` is
 missing. Without ``--dns-host``, the server is saved with ``--dns-host
 <public ip>.nip.io``, because Let's Encrypt does not issue certificates for
 AWS hostnames. If Route 53 can't create the DNS records, ``provision`` warns,
-says which records to create by hand, and sets the server up anyway. If the
-setup fails, the instance keeps running; fix the problem and run the
-``servers add`` commands that ``provision`` prints.
+says which records to create by hand, and sets the server up anyway. If a
+later step fails, the instance keeps running; fix the problem and run the
+commands that ``provision`` prints: the ``servers add`` commands that finish
+the setup or, if it failed before the setup started, the ``ec2 teardown``
+command (with the instance's ``--region``) before you provision again.
 
 Increasing Storage on An Instance
 ---------------------------------

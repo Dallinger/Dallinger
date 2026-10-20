@@ -189,8 +189,8 @@
   hostname and, with `--dns-host`, under that name too. Before booting an
   instance, it stops if `contact_email_on_error` is not an email address,
   if `dashboard_user` or `dashboard_password` is missing, or if `server_pem`
-  is not the private key of the `ec2_default_pem` key pair (which used to
-  fail after boot with `SSHException: Invalid key`). It no longer connects
+  is not the unencrypted private key of the `ec2_default_pem` key pair
+  (which used to fail after boot with `SSHException: Invalid key`). It no longer connects
   through the new `--dns-host` name, so a resolver that still caches a
   negative answer for it can't stop provisioning; if Route 53 can't create
   the DNS records, it warns and sets the server up anyway. If anything fails

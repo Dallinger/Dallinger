@@ -524,30 +524,20 @@ def wait_for_instance(host, user="ubuntu", n_tries=10):
     def _wait_for_instance():
         return Executor(host, user)
 
-    try:
-        return _wait_for_instance()
-    except pse.AuthenticationException as exc:
-        raise click.ClickException(
-            f"{host} rejected the server_pem key ({exc}). A new instance accepts "
-            "only its EC2 key pair (ec2_default_pem), so server_pem must be that "
-            "key pair's private key."
-        ) from exc
+    return _wait_for_instance()
 
 
 def check_server_pem_matches_key_pair(key_name):
     """Raise a ``UsageError`` unless ``server_pem`` is the private key of EC2 key pair ``key_name``.
 
     New instances accept only the key pair they boot with, and docker-ssh
-    logs in to every server with ``server_pem``. A passphrase-protected key
-    can't be compared, so it passes.
+    logs in to every server with ``server_pem``, which can't have a passphrase.
     """
     pair_path, server_pem = get_pem_path(key_name), get_server_pem_path()
     if pair_path.resolve() == server_pem.resolve():
         return
     try:
         keys = [paramiko.PKey.from_path(path) for path in (pair_path, server_pem)]
-    except pse.PasswordRequiredException:
-        return
     except Exception as exc:
         raise click.UsageError(
             f"Could not read the SSH keys {pair_path} (ec2_default_pem) and "
@@ -983,11 +973,19 @@ def prepare_instance(
         host, user, ip_address, executor = increase_storage(
             instance_id, instance_name, storage_in_gb, ec2
         )
-    except Exception:
+    except BaseException as exc:
+        if isinstance(exc, pse.AuthenticationException) or "Invalid key" in str(exc):
+            print(
+                f"The instance rejected server_pem. It accepts only the EC2 key pair "
+                f"{key_name} it booted with. If that key pair in AWS was imported "
+                f"from a different key than your local {key_name}.pem, delete it in "
+                "the EC2 console so that provisioning imports the local key."
+            )
+        region = f" --region {region_name}" if region_name else ""
         print(
             f"{instance_name} ({instance_id}) is running but was not set up. Fix "
             "the problem above, then remove it with `dallinger ec2 teardown "
-            f"--name {instance_name}` and provision it again."
+            f"--name {instance_name}{region}` and provision it again."
         )
         raise
     if callback is not None:
@@ -1045,7 +1043,7 @@ def prepare_docker_experiment_setup(
         )
         if dns_host:
             dallinger_store_host({**server_info, "host": dns_host})
-    except Exception:
+    except BaseException:
         commands = [
             f"dallinger docker-ssh servers add --host {host} --user {user} "
             f"--dns-host {server_dns_host}"
@@ -1053,11 +1051,12 @@ def prepare_docker_experiment_setup(
         if dns_host:
             commands.append(
                 f"dallinger docker-ssh servers add --host {dns_host} --user {user} "
-                f"--dns-host {dns_host}  (once {dns_host} resolves)"
+                f"--dns-host {dns_host}"
             )
         print(
             f"{host} is running but is not set up. Fix the problem above, then run:\n"
             + "".join(f"  {command}\n" for command in commands)
+            + (f"Run the second command once {dns_host} resolves. " if dns_host else "")
             + "If `servers add` says the shared files were left unchanged, also "
             f"run `dallinger docker-ssh servers upgrade --host {host} --yes`."
         )

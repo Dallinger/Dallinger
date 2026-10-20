@@ -558,7 +558,7 @@ def test_server_pem_must_be_the_key_pairs_private_key(tmp_path, monkeypatch):
     assert f"Set server_pem = {pair}" in str(error.value)
 
 
-def test_dns_records_are_created_without_connecting_through_them(monkeypatch):
+def test_dns_records_are_created_without_connecting_through_them(monkeypatch, capsys):
     lib = importlib.import_module("dallinger.command_line.lib.ec2")
     route_53 = mock.Mock()
     route_53.change_resource_record_sets.return_value = {
@@ -578,6 +578,12 @@ def test_dns_records_are_created_without_connecting_through_them(monkeypatch):
         for call in route_53.change_resource_record_sets.call_args_list
     ]
     assert names == ["exp.example.org", "*.exp.example.org"]
+
+    # A slow sync is only reported.
+    route_53.get_change.return_value = {"ChangeInfo": {"Status": "PENDING"}}
+    monkeypatch.setattr(lib.time, "sleep", lambda seconds: None)
+    lib.create_dns_record("exp.example.org", "ubuntu", "ec2-host")
+    assert "had not synced the DNS record" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("dns_host", [None, "exp.example.org"])
@@ -606,6 +612,32 @@ def test_provision_setup_failure_names_the_repair_commands(
         in output
     )
     alias = (
-        "servers add --host exp.example.org --user ubuntu --dns-host exp.example.org"
+        "servers add --host exp.example.org --user ubuntu --dns-host exp.example.org\n"
     )
     assert (alias in output) == bool(dns_host)
+
+
+def test_provision_failure_before_setup_names_teardown(monkeypatch, capsys):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    monkeypatch.setattr(lib, "get_all_instances", lambda region: [])
+    for name in ("get_ec2_client", "get_security_group_id", "get_image_id"):
+        monkeypatch.setattr(lib, name, mock.Mock())
+    monkeypatch.setattr(lib, "setup_ssh_keys", mock.Mock())
+    monkeypatch.setattr(lib, "boot_instance", mock.Mock(return_value="i-123"))
+    monkeypatch.setattr(lib, "set_security_group", mock.Mock())
+    monkeypatch.setattr(
+        lib,
+        "increase_storage",
+        mock.Mock(side_effect=paramiko.SSHException("Invalid key")),
+    )
+    callback = mock.Mock()
+
+    with pytest.raises(paramiko.SSHException):
+        lib.prepare_instance(
+            "exp", "eu-west-3", "m5.large", 32, "lab", "ami-1", "sg", callback=callback
+        )
+
+    output = capsys.readouterr().out
+    callback.assert_not_called()
+    assert "rejected server_pem" in output
+    assert "dallinger ec2 teardown --name exp --region eu-west-3" in output
