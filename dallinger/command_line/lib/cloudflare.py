@@ -170,7 +170,9 @@ def _read_keychain(security, service, account_args):
     A wrapper such as PsyNet checks the token before it calls the deploy in the
     same process, so the deploy reuses the token instead of asking the Keychain
     (and possibly the user) again. Failed reads and empty items raise, so they
-    are not cached and a later call reads the item again.
+    are not cached and a later call reads the item again. A token changed in
+    the Keychain while the process runs is not seen: a long-lived process,
+    such as a Jupyter kernel, keeps using the old one until it restarts.
     """
     result = subprocess.run(
         [security, "find-generic-password", *account_args, "-s", service, "-w"],
