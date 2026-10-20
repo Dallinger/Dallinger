@@ -189,8 +189,8 @@
   file, and keeps a root-domain app deployed by an older Dallinger at its
   address. A deploy to a server that lacks the setup it needs stops before
   the image build and names that command: for example a root-domain app on a
-  server set up by an older Dallinger, or any app on a server whose last classic deploy by an older
-  Dallinger was a root-domain one. The server's DNS host and the email that
+  server set up by an older Dallinger, or any app on a server whose last
+  classic deploy by an older Dallinger was a root-domain one. The server's DNS host and the email that
   Caddy gives Let's Encrypt come from the server record: `servers add` saves
   `--dns-host` and `--contact-email`, and the email defaults to
   `contact_email_on_error`. A deploy's `--dns-host` now only names the app's
