@@ -380,9 +380,8 @@
   experiment image once the new containers are up, unless another app still
   uses it. Previously each update left the old image on the server. Image
   cleanup now reports when an image is kept because it is still in use.
-- A new docker-ssh deploy of an app whose name has capitals or dots now
-  removes its old Redis volume (and, for Cloudflare ingress, its old Postgres
-  volume), which Compose names in lowercase without dots.
+- A new classic-ingress deploy of an app whose name has capitals or dots now
+  removes its old Redis volume, which Compose names in lowercase without dots.
 - `dallinger docker-ssh destroy` now rejects app names that aren't valid
   docker-ssh app names. Previously the name went unquoted into remote shell
   commands, so `--app '*'` could delete every app's folder on the server.
