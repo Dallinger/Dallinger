@@ -518,7 +518,8 @@ option_config = click.option("--config", "-c", "config_options", nargs=2, multip
 option_dns_host = click.option(
     "--dns-host",
     help="Classic Caddy DNS name. Must resolve all its subdomains to the IP address "
-    "specified as ssh host. Not used for Cloudflare apps. You can use 'nip.io' to "
+    "specified as ssh host. Defaults to the DNS host saved with the server, or the "
+    "server's own name. Not used for Cloudflare apps. You can use 'nip.io' to "
     "automatically generate a nip.io domain from the server's IP address.",
 )
 option_server = click.option(
