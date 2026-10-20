@@ -8,7 +8,7 @@ import sys
 import time
 from contextlib import contextmanager
 from functools import partial, wraps
-from typing import Union
+from typing import NamedTuple, Union
 
 import psycopg2
 from psycopg2.extensions import TransactionRollbackError
@@ -363,6 +363,12 @@ def serialized(func):
     return wrapper
 
 
+class _Waiting(NamedTuple):
+    transaction: object
+    callback: object
+    description: object
+
+
 def run_after_commit(callback, description=None):
     """Call ``callback`` with no arguments once the session's transaction
     commits. It's never called if the transaction, or the savepoint it was
@@ -370,15 +376,16 @@ def run_after_commit(callback, description=None):
     still run.
 
     A callback still waiting when its transaction ends without a commit, as
-    when the session is closed, is dropped with a warning, which includes
-    ``description`` if one is given.
+    when the session is closed, is dropped and logged. Passing a
+    ``description`` names the callback in the log, which is then an error
+    rather than a warning, for a callback whose loss matters.
     """
     current = session()
     # Begins the transaction if none has begun.
     current.connection()
     transaction = current.get_nested_transaction() or current.get_transaction()
     session.info.setdefault("after_commit", []).append(
-        (transaction, callback, description)
+        _Waiting(transaction, callback, description)
     )
 
 
@@ -400,12 +407,12 @@ def after_commit(session):
     # after_commit also fires when a savepoint is released.
     if session.in_nested_transaction():
         return
-    for _, callback, _ in session.info.pop("after_commit", ()):
+    for waiting in session.info.pop("after_commit", ()):
         # An exception here would leave the session unusable, even by
         # rollback, since SQLAlchemy closes the transaction only after this
         # event.
         try:
-            callback()
+            waiting.callback()
         except Exception:
             logger.exception("A callback run after a commit failed.")
 
@@ -423,7 +430,7 @@ def after_soft_rollback(session, previous_transaction):
     session.info["after_commit"] = [
         waiting
         for waiting in session.info.get("after_commit", ())
-        if not _within(waiting[0], previous_transaction)
+        if not _within(waiting.transaction, previous_transaction)
     ]
 
 
@@ -439,11 +446,13 @@ def _within(transaction, outer):
 def after_transaction_end(session, transaction):
     waiting = session.info.get("after_commit")
     if transaction.parent is None and waiting:
-        described = [description for _, _, description in waiting if description]
-        logger.warning(
-            "Dropped %s callbacks waiting for a commit, because their "
-            "transaction ended without one%s",
-            len(waiting),
-            ": " + "; ".join(described) + "." if described else ".",
+        described = [each.description for each in waiting if each.description]
+        message = (
+            "Dropped {} callbacks waiting for a commit, because their "
+            "transaction ended without one".format(len(waiting))
         )
+        if described:
+            logger.error("%s: %s.", message, "; ".join(described))
+        else:
+            logger.warning("%s.", message)
         session.info["after_commit"] = []

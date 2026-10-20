@@ -538,7 +538,6 @@ class Bench:
 
     def run(self, views_on, cpu_load):
         from dallinger import db
-        from dallinger.db import get_queue
         from dallinger.realtime import create_realtime_session, end_realtime_session
         from dallinger.realtime.store import experiment_games
 
@@ -584,7 +583,7 @@ class Bench:
         if cpu_load:
             threading.Thread(
                 target=feed_cpu_jobs,
-                args=(get_queue("default"), args, start_at, stopping),
+                args=(db.get_queue("default"), args, start_at, stopping),
                 daemon=True,
             ).start()
         workers = ["worker-{}".format(each) for each in range(args.workers)]

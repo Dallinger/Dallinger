@@ -349,10 +349,13 @@ a network, that's when the network fills::
 ``add_node_to_network`` runs when a player's page creates their node with
 :js:func:`dallinger.createAgent`, so the session starts once the last player
 of the group has done that. ``create_realtime_session`` returns the new
-session's id, an integer. The players' pages learn the id from Dallinger, and
-the experiment finds each player's sessions from the participant, as described
-below, so ``Auction`` doesn't keep the id. An experiment keeps it to use the
-other session functions, such as ending the session early.
+session's id, an integer. Like any other change to the database, the session
+starts once it's committed, so code that starts one outside Dallinger's routes
+calls ``db.session.commit()`` afterwards. The players' pages learn the id from
+Dallinger, and the experiment finds each player's sessions from the
+participant, as described below, so ``Auction`` doesn't keep the id. An
+experiment keeps it to use the other session functions, such as ending the
+session early.
 
 A player can also be a bot, whose messages come from the game type's ``bot``
 method rather than from a page. A bot's participant id goes in the list of

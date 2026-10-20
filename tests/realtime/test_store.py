@@ -8,7 +8,7 @@ from redis import ConnectionError as RedisConnectionError
 from redis.client import Pipeline
 
 from dallinger import db
-from dallinger.models import RealtimeSession
+from dallinger.models import Participant, RealtimeSession
 from dallinger.realtime import store
 from dallinger.realtime.core import run_pass
 from dallinger.realtime.game import RealtimeGame
@@ -135,23 +135,87 @@ class TestSessions:
 
         assert store.running_sessions() == [session_id]
         assert db.session.get(RealtimeSession, session_id).status == "running"
+        for name in ("state", "members"):
+            assert store.redis_conn.ttl(store.session_key(session_id, name)) == -1
 
-    def test_a_rolled_back_session_never_starts(self):
-        store.create_realtime_session(TurnTally, ["1"])
+    def test_a_rolled_back_session_never_starts_and_its_keys_expire(self):
+        session_id = store.create_realtime_session(TurnTally, ["1"])
         db.session.rollback()
         db.session.commit()
 
         assert store.running_sessions() == []
         assert RealtimeSession.query.count() == 0
-        assert store.redis_conn.keys("realtime:*") == []
+        for name in ("state", "members"):
+            ttl = store.redis_conn.ttl(store.session_key(session_id, name))
+            assert 0 < ttl <= store._STARTING_TTL
 
-    def test_a_session_closed_without_a_commit_is_named_in_a_warning(self, caplog):
+    def test_a_request_run_again_after_a_conflict_starts_one_session(self, monkeypatch):
+        monkeypatch.setattr(db.time, "sleep", lambda seconds: None)
+        attempts = []
+
+        def participant(worker_id):
+            return Participant(
+                recruiter_id="hotair",
+                worker_id=worker_id,
+                assignment_id="a",
+                hit_id="h",
+                mode="test",
+            )
+
+        @db.serialized
+        def fill_group():
+            attempts.append(db.session.query(Participant).count())
+            session_id = store.create_realtime_session(TurnTally, ["1"])
+            if len(attempts) == 1:
+                # Another request commits a conflicting write in the meantime
+                other = db.session_factory()
+                other.connection(execution_options={"isolation_level": "SERIALIZABLE"})
+                # Reading what this request reads makes the two conflict
+                other.query(Participant).count()
+                other.add(participant("other"))
+                other.commit()
+                other.close()
+            db.session.add(participant("player"))
+            return session_id
+
+        session_id = fill_group()
+
+        assert attempts == [0, 1]
+        assert store.running_sessions() == [session_id]
+        assert [row.id for row in RealtimeSession.query] == [session_id]
+
+    def test_a_session_closed_without_a_commit_is_named_in_an_error(self, caplog):
         session_id = store.create_realtime_session(TurnTally, ["1"])
         db.session.close()
         db.session.commit()
 
         assert store.running_sessions() == []
-        assert "starting real-time session {}.".format(session_id) in caplog.text
+        (record,) = caplog.records
+        assert record.levelname == "ERROR"
+        assert record.getMessage().endswith(
+            ": starting real-time session {}.".format(session_id)
+        )
+
+    def test_a_session_cant_be_created_after_a_commit(self):
+        raised = []
+
+        def start_next_session():
+            try:
+                store.create_realtime_session(TurnTally, ["1"])
+            except RuntimeError as error:
+                raised.append(str(error))
+
+        db.run_after_commit(start_next_session)
+        db.session.commit()
+        db.session.query(RealtimeSession).count()
+        db.session.commit()
+
+        assert raised == [
+            "create_realtime_session needs a database transaction to join, "
+            "so it can't be called from a function run after a commit."
+        ]
+        assert RealtimeSession.query.count() == 0
+        assert store.running_sessions() == []
 
     def test_a_session_whose_start_cant_be_announced_still_runs(self, monkeypatch):
         monkeypatch.setattr(
@@ -165,22 +229,48 @@ class TestSessions:
         assert db.session.get(RealtimeSession, session_id).status == "running"
         exception.assert_called_once()
 
-    def test_a_session_redis_cant_take_is_marked_failed(self, monkeypatch):
+    def test_a_session_redis_cant_take_fails_the_caller_and_is_marked_failed(
+        self, monkeypatch
+    ):
         def lose_redis(pipe, *args, **kwargs):
             raise RedisConnectionError("lost")
 
         monkeypatch.setattr(Pipeline, "execute", lose_redis)
+
+        with pytest.raises(RedisConnectionError):
+            store.create_realtime_session(TurnTally, ["1"])
+        db.session.commit()
+
+        (row,) = db.session.query(RealtimeSession)
+        assert row.status == "failed"
+        assert "ConnectionError: lost" in row.error
+        assert store.running_sessions() == []
+
+    @pytest.mark.parametrize("failure", ["redis", "expired keys"])
+    def test_a_session_that_cant_start_after_the_commit_is_marked_failed(
+        self, monkeypatch, failure
+    ):
         monkeypatch.setattr(store, "publish_started", Mock())
+        if failure == "redis":
+            monkeypatch.setattr(
+                store, "_start", Mock(side_effect=RedisConnectionError("lost"))
+            )
+        session_id = store.create_realtime_session(TurnTally, ["1"])
+        if failure == "expired keys":
+            store.redis_conn.delete(store.session_key(session_id, "state"))
 
         with patch.object(store.logger, "exception") as exception:
-            session_id = create_session(TurnTally, ["1"])
+            db.session.commit()
 
         db.session.expire_all()
         row = db.session.get(RealtimeSession, session_id)
         assert row.status == "failed"
-        assert "ConnectionError: lost" in row.error
+        assert ("ConnectionError: lost" if failure == "redis" else "expired") in (
+            row.error
+        )
         exception.assert_called_once_with("Could not start session %s.", session_id)
         store.publish_started.assert_not_called()
+        assert store.running_sessions() == []
 
     def test_recreating_the_database_deletes_the_sessions_but_not_the_runners(self):
         session_id = create_session(TurnTally, ["1"])

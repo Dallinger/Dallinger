@@ -54,6 +54,7 @@ import traceback
 from functools import partial
 
 from redis import RedisError, WatchError
+from sqlalchemy.exc import InvalidRequestError
 
 from dallinger import db, experiment
 from dallinger.db import get_queue, redis_conn
@@ -77,6 +78,10 @@ RUNNERS = "realtime:runners"
 #: Seconds an ended session stays in redis after its record is written, or
 #: fails to be.
 ENDED_SESSION_TTL = 3600
+
+# Seconds a session's state and members are kept before the transaction that
+# created it commits, so those of a creation that was rolled back go away.
+_STARTING_TTL = 3600
 
 # The keys an ended session can have when its final job runs. The save that
 # ends it deletes the others, and "saved" is set later with its own expiry.
@@ -131,6 +136,20 @@ _extend = redis_conn.register_script(
     return 0
     """
 )
+_start = redis_conn.register_script(
+    """
+    -- EXISTS counts the keys that are there. Fewer than both means they
+    -- expired before the commit.
+    if redis.call("exists", KEYS[1], KEYS[2]) < 2 then
+        return 0
+    end
+    -- PERSIST removes a key's expiry.
+    redis.call("persist", KEYS[1])
+    redis.call("persist", KEYS[2])
+    redis.call("sadd", KEYS[3], ARGV[1])
+    return 1
+    """
+)
 _release = redis_conn.register_script(
     """
     if redis.call("get", KEYS[1]) == ARGV[1] then
@@ -163,14 +182,20 @@ def create_realtime_session(game_type, players, bots=()):
     """Start a session of ``game_type`` and return its session id, an
     integer.
 
-    The session starts once the database transaction the call is made in
-    commits. Dallinger commits for the experiment methods its routes call,
-    such as :meth:`~dallinger.experiment.Experiment.add_node_to_network`, and
-    code that calls this anywhere else commits afterwards. Until then, the
-    other session functions don't know the session id. Once started, the
-    session is played until it ends. If it can't be started, its
-    :class:`~dallinger.models.RealtimeSession` row is marked failed and the
-    error is logged.
+    Like any other change to the database, the session starts once the
+    transaction the call is made in commits. ``POST /node`` commits after it
+    calls :meth:`~dallinger.experiment.Experiment.add_node_to_network`, and
+    code that calls this anywhere else, such as a scheduled task or
+    :meth:`~dallinger.experiment.Experiment.handle_websocket_message`,
+    commits afterwards. Until then the session hasn't started, so pages
+    can't join it yet: send them its id only after the commit, for example
+    from a function passed to :func:`~dallinger.db.run_after_commit`. Once
+    started, the session is played until it ends.
+
+    If redis can't take the session, the error is raised and the session's
+    :class:`~dallinger.models.RealtimeSession` row is marked failed. The row
+    is also marked failed if the session can't be started after the commit,
+    and that error is logged.
 
     Players' pages that wait with ``dallinger.waitForRealtimeSession`` get
     the session's id, including those that start waiting later.
@@ -186,6 +211,8 @@ def create_realtime_session(game_type, players, bots=()):
         types, those game types are invalid, ``players`` is empty,
         ``players`` or ``bots`` has a value that isn't a participant id or
         repeats one, or a bot isn't one of the ``players``
+    :raises RuntimeError: if there's no database transaction to join, as in
+        a function passed to :func:`~dallinger.db.run_after_commit`
     """
     channel, game = _experiment_game(game_type)
     players = _participant_ids(players, "players")
@@ -199,35 +226,62 @@ def create_realtime_session(game_type, players, bots=()):
         bots=[int(bot) for bot in bots],
     )
     db.session.add(row)
-    db.session.flush()
+    try:
+        db.session.flush()
+    except InvalidRequestError as error:
+        # Inside an after-commit callback the session's transaction has
+        # committed, and an unflushed row would be inserted, unstarted, by
+        # the session's next autoflush.
+        db.session.expunge(row)
+        raise RuntimeError(
+            "create_realtime_session needs a database transaction to join, "
+            "so it can't be called from a function run after a commit."
+        ) from error
     session_id = row.id
+    try:
+        # Writing the session before the commit means a redis failure fails
+        # the caller's request, rolling it back.
+        with redis_conn.pipeline() as pipe:
+            for name, mapping in (
+                ("state", {"game": channel, "saved": saved}),
+                ("members", {player: int(player in bots) for player in players}),
+            ):
+                pipe.hset(session_key(session_id, name), mapping=mapping)
+                pipe.expire(session_key(session_id, name), _STARTING_TTL)
+            pipe.execute()
+    except Exception as error:
+        row.status = "failed"
+        row.error = "".join(traceback.format_exception(error))
+        db.session.flush()
+        raise
     # POST /node runs under db.serialized, which reruns the whole request
     # after a serialization failure. Starting on commit means the rolled-back
-    # attempt leaves no row and no session for the rerun to duplicate. A
-    # transaction closed without a commit drops the start, and the warning
-    # names it.
+    # attempt leaves no row, and only keys that expire, for the rerun to
+    # duplicate. A transaction closed without a commit drops the start, and
+    # the error names it.
     db.run_after_commit(
-        partial(_start_session, session_id, channel, players, bots, saved),
+        partial(_start_session, session_id, channel, players, bots),
         "starting real-time session {}".format(session_id),
     )
     return session_id
 
 
-def _start_session(session_id, channel, players, bots, saved):
+def _start_session(session_id, channel, players, bots):
     try:
-        # A pipeline runs as one transaction, so a runner never finds the
-        # session in the running set before its state is there.
-        with redis_conn.pipeline() as pipe:
-            pipe.hset(
+        started = _start(
+            keys=[
                 session_key(session_id, "state"),
-                mapping={"game": channel, "saved": saved},
-            )
-            pipe.hset(
                 session_key(session_id, "members"),
-                mapping={player: int(player in bots) for player in players},
+                RUNNING,
+            ],
+            args=[session_id],
+        )
+        if not started:
+            raise RuntimeError(
+                "Session {}'s keys expired before its transaction committed.".format(
+                    session_id
+                )
             )
-            pipe.sadd(RUNNING, session_id)
-            pipe.execute()
     except Exception as error:
         logger.exception("Could not start session %s.", session_id)
         with db.session_factory() as own:
