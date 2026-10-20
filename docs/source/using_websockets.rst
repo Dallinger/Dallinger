@@ -610,10 +610,9 @@ The 1,000-connection limits apply to each web process separately, so all the
 web processes of an app (see ``web_processes``) together can open more
 connections than Redis accepts. Redis's own client limit, ``maxclients``,
 is shared by every process and defaults to 10,000, but Redis lowers it at
-startup when its own open-file
-limit is too low. Hosted Redis plans, such as those on Heroku, often allow far
-fewer clients. Run ``CONFIG GET maxclients`` in ``redis-cli`` to check the
-limit of your Redis server.
+startup when its own open-file limit is too low. Hosted Redis plans, such as
+those on Heroku, often allow far fewer clients. Run ``CONFIG GET maxclients``
+in ``redis-cli`` to check the limit of your Redis server.
 
 Each connection also uses a file descriptor in its web process, alongside the
 participant's websocket. The web container of ``dallinger docker`` and
