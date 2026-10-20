@@ -1944,6 +1944,9 @@ class RealtimeSession(Base):
     #: :class:`RealtimeEvent`
     last_written_record = Column(String)
 
+    def __json__(self):
+        return _columns_as_json(self)
+
 
 class RealtimeEvent(Base):
     """One saved message, clock measurement, effect, checkpoint or ending of a
@@ -2012,6 +2015,14 @@ class RealtimeEvent(Base):
 
     #: the traceback of the error that failed the session, for an ending
     error = Column(Text)
+
+    def __json__(self):
+        return _columns_as_json(self)
+
+
+def _columns_as_json(row):
+    # The dashboard's Database view shows the keys __json__ returns
+    return {column.name: getattr(row, column.name) for column in row.__table__.columns}
 
 
 Network.n_pending_infos = column_property(
