@@ -1129,8 +1129,8 @@ def ensure_root_domain_ready(server, update):
     """Offer to destroy the server's classic apps before a root-domain deploy.
 
     The teardown keeps each app's data, as ``destroy --keep-data`` does, so
-    nothing is deleted before the image build and no terminal is needed once
-    the user agrees.
+    no experiment data is deleted before the image build and no terminal is
+    needed once the user agrees.
     """
     if update:
         return True
@@ -1147,7 +1147,7 @@ def ensure_root_domain_ready(server, update):
         f"{RED}Found deployed experiments:{END} {joined}"
     )
     destroy_cmds = "\n".join(
-        f"  dallinger docker-ssh destroy --app {name} --server {server}"
+        f"  dallinger docker-ssh destroy --app {name} --server {server} --keep-data"
         for name in conflicts
     )
     print(

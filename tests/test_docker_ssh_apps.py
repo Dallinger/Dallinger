@@ -979,6 +979,10 @@ def test_root_domain_teardown_keeps_data_without_a_tty(monkeypatch, capsys):
     assert "docker compose -f ~/dallinger/myapp/docker-compose.yml down" in commands
     assert not _deletes(commands)
     out = capsys.readouterr().out
+    assert (
+        "  dallinger docker-ssh destroy --app myapp --server test-server --keep-data"
+        in out
+    )
     assert "  - the folder ~/dallinger-data/myapp (3.4G)" in out
     assert (
         "To delete it, run: dallinger docker-ssh destroy --app myapp "
