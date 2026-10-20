@@ -164,18 +164,13 @@ def create_realtime_session(game_type, players, bots=()):
     integer.
 
     The session starts once the database transaction the call is made in
-    commits, so the code that calls it commits afterwards. Dallinger commits
-    for the experiment methods its routes call, such as
-    :meth:`~dallinger.experiment.Experiment.add_node_to_network`. If the
-    transaction rolls back instead, as when Dallinger retries a request, the
-    session never starts and its :class:`~dallinger.models.RealtimeSession`
-    row is rolled back too. A transaction that ends without either, as when
-    the session is closed, drops the start with a warning. Until the commit,
-    the other session functions don't know the session id.
-
-    Once started, the session is played until it ends. If it can't be
-    started after the commit, its row is marked failed and the error is
-    logged.
+    commits. Dallinger commits for the experiment methods its routes call,
+    such as :meth:`~dallinger.experiment.Experiment.add_node_to_network`, and
+    code that calls this anywhere else commits afterwards. Until then, the
+    other session functions don't know the session id. Once started, the
+    session is played until it ends. If it can't be started, its
+    :class:`~dallinger.models.RealtimeSession` row is marked failed and the
+    error is logged.
 
     Players' pages that wait with ``dallinger.waitForRealtimeSession`` get
     the session's id, including those that start waiting later.
@@ -206,6 +201,11 @@ def create_realtime_session(game_type, players, bots=()):
     db.session.add(row)
     db.session.flush()
     session_id = row.id
+    # POST /node runs under db.serialized, which reruns the whole request
+    # after a serialization failure. Starting on commit means the rolled-back
+    # attempt leaves no row and no session for the rerun to duplicate. A
+    # transaction closed without a commit drops the start, and the warning
+    # names it.
     db.run_after_commit(
         partial(_start_session, session_id, channel, players, bots, saved),
         "starting real-time session {}".format(session_id),

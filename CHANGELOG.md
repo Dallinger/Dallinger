@@ -157,9 +157,8 @@
   `create_realtime_session`, then finds a player's sessions and their outcomes
   with `realtime_sessions_for(participant, game_type)`, or reads one session's
   outcome with `realtime_result(session_id)`. A session starts once the
-  transaction that created it commits, so a request Dallinger rolls back and
-  retries starts only one. Runner processes play the sessions, keeping the
-  game state in Redis.
+  transaction that created it commits. Runner processes play the sessions,
+  keeping the game state in Redis.
   Each worker process of an experiment with game types
   starts one with the new `dallinger_realtime` command, and starts another
   whenever it exits. Each session's messages, clock measurements, effects,
