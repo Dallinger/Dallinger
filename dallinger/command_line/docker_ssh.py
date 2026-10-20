@@ -448,16 +448,25 @@ def _unlocked_server_files(executor, *, lock=False):
         )
         or ""
     ).split()
-    if locked:
-        executor.run(f"cd ~/dallinger && chmod u+w {' '.join(locked)}")
     try:
+        if locked:
+            executor.run(f"cd ~/dallinger && chmod u+w {' '.join(locked)}")
         yield
     finally:
         relock = SHARED_SERVER_FILES if lock else locked
-        if relock:
-            executor.run(
+        status, _, error = (
+            executor.run_with_status(
                 f"cd ~/dallinger && for f in {' '.join(relock)}; do "
-                '[ ! -f "$f" ] || chmod 444 "$f"; done'
+                '[ ! -f "$f" ] || chmod 444 "$f" || exit 1; done'
+            )
+            if relock
+            else (0, "", "")
+        )
+        if status:
+            print(
+                f"{RED}Warning: could not make the shared files in ~/dallinger "
+                f"read-only again: {error.strip()}{END} Older Dallinger versions "
+                "can then rewrite them. Run `chmod 444` on them."
             )
 
 
@@ -503,15 +512,19 @@ def _rewritten_by_older_dallinger(state):
     )
 
 
-def _older_dallinger_message(server):
+def _older_dallinger_message(server, state):
     """Explain that an older Dallinger rewrote ``server``'s shared files."""
+    certificates = ""
+    if "caddy_data:/data" not in state.get("docker-compose.yml", ""):
+        certificates = (
+            ", and Caddy may request new certificates for every site (Let's "
+            "Encrypt allows 5 duplicate certificates per week)"
+        )
     return (
         f"{RED}An older Dallinger version has rewritten the shared files on {server} "
         "(~/dallinger/Caddyfile and docker-compose.yml) that `servers add` or "
         f"`servers upgrade` set up.{END} Until they are restored, apps on the "
-        "server's own host may be offline, and Caddy may request new "
-        "certificates for every site (Let's Encrypt allows 5 duplicate "
-        "certificates per week). Restore them with "
+        f"server's own host may be offline{certificates}. Restore them with "
         f"`dallinger docker-ssh servers upgrade --host {server}`, and deploy to "
         "this server only with this Dallinger version or newer."
     )
@@ -578,12 +591,16 @@ def _write_server_files(server, server_info, *, replace, yes=True):
             raise click.Abort()
     stamp = "$(date +%Y%m%dT%H%M%S)"
     executor.run(
-        "mkdir -p ~/dallinger/caddy.d ~/dallinger/root.d"
+        "mkdir -p ~/dallinger/caddy.d"
         + "".join(f"; [ ! -f ~/{p} ] || cp ~/{p} ~/{p}.{stamp}.bak" for p in changed)
     )
     sftp = get_sftp(server_info["host"], user=server_info.get("user"))
     with _unlocked_server_files(executor, lock=True):
-        for path, content in [*((p, files[p]) for p in changed), *routes.items()]:
+        for path in changed:
+            sftp.putfo(BytesIO(files[path].encode()), path)
+        # root.d marks the server as set up (see _rewritten_by_older_dallinger).
+        executor.run("mkdir -p ~/dallinger/root.d")
+        for path, content in routes.items():
             sftp.putfo(BytesIO(content.encode()), path)
         if not executor.run(
             "test -f ~/dallinger/dozzle-users.yml && echo yes", raise_=False
@@ -1224,7 +1241,7 @@ def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
     host = _server_host(server_info, dns_host)
     parts = _server_state(executor)
     if _rewritten_by_older_dallinger(parts):
-        print(_older_dallinger_message(server))
+        print(_older_dallinger_message(server, parts))
         raise click.Abort()
     caddyfile = parts.get("Caddyfile", "")
     compose = parts.get("docker-compose.yml", "")
@@ -2907,7 +2924,7 @@ def destroy(server, app):
         state = _server_state(executor)
         executor.run(f"rm -f ~/dallinger/root.d/{quote(app)}")
         if _rewritten_by_older_dallinger(state):
-            print(f"Warning: {_older_dallinger_message(server)}")
+            print(f"Warning: {_older_dallinger_message(server, state)}")
         elif f"reverse_proxy {app}_web:5000" in state.get("Caddyfile", ""):
             print(
                 f"The server's Caddyfile still sends the server's own host to {app}, "

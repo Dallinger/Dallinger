@@ -131,6 +131,8 @@ def test_servers_add_sets_up_a_fresh_server_but_leaves_a_set_up_one(server):
     assert "logs.lab.example.org {" in caddyfile
     assert "tls lab@example.org" in caddyfile
     assert "caddy_data:/data" in (server / "dallinger/docker-compose.yml").read_text()
+    for name in SERVER_FILES:
+        assert (server / "dallinger" / name).stat().st_mode & 0o777 == 0o444
     assert "https://logs.lab.example.org (user = dallinger, password = " in (
         result.output
     )
@@ -215,6 +217,8 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
         p for d in ("caddy.d", "root.d") for p in (server / "dallinger" / d).glob("*")
     ]
     assert [p.parent.name for p in routes] == [route_dir]
+    # root.d marks a server as set up, so a deploy must not create it.
+    assert (server / "dallinger/root.d").exists() == (route_dir == "root.d")
     assert f"reverse_proxy {result['app']}_web:5000" in routes[0].read_text()
     assert "up -d" not in docker_calls(server)
     assert "restart" not in docker_calls(server)
@@ -437,14 +441,26 @@ def test_upgrade_leaves_the_server_files_read_only_for_older_dallinger(
         assert (server / "dallinger" / name).stat().st_mode & 0o777 == 0o444
 
 
-def test_deploy_refuses_a_set_up_server_that_older_dallinger_rewrote(server, capsys):
+@pytest.mark.parametrize(
+    "old_compose", [True, False], ids=["old-deploy", "old-root-destroy"]
+)
+def test_deploy_refuses_a_set_up_server_that_older_dallinger_rewrote(
+    server, old_compose, capsys
+):
     CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
-    # What an older Dallinger's deploy writes, on a server it could still write to.
+    # What an older Dallinger writes, on a server it could still write to: a
+    # deploy rewrites both files, a root-domain destroy only the Caddyfile.
     compose = server / "dallinger/docker-compose.yml"
-    old_compose = re.sub(r" *- (\./root\.d|caddy_data):.*\n", "", compose.read_text())
-    for name, content in (("Caddyfile", OLD_CADDYFILE), (compose.name, old_compose)):
+    rewrites = {"Caddyfile": OLD_CADDYFILE}
+    if old_compose:
+        rewrites[compose.name] = re.sub(
+            r" *- (\./root\.d|caddy_data):.*\n", "", compose.read_text()
+        )
+    for name, content in rewrites.items():
         (server / "dallinger" / name).chmod(0o644)
         (server / "dallinger" / name).write_text(content)
+    (server / "dallinger/old").mkdir()
+    (server / "dallinger/old/docker-compose.yml").write_text("services: {}\n")
     before = checksums(server)
     (server / "docker.log").unlink()
 
@@ -456,8 +472,15 @@ def test_deploy_refuses_a_set_up_server_that_older_dallinger_rewrote(server, cap
     output = capsys.readouterr().out
     assert "An older Dallinger version has rewritten the shared files" in output
     assert "dallinger docker-ssh servers upgrade --host lab.example.org" in output
-    assert checksums(server) == before
+    assert ("duplicate certificates" in output) == old_compose
     assert "up -d" not in docker_calls(server)
+
+    docker_ssh.destroy.callback(server="lab", app="old")
+    output = capsys.readouterr().out
+    assert "Warning: " in output
+    assert "An older Dallinger version has rewritten the shared files" in output
+    assert not (server / "dallinger/old").exists()
+    assert checksums(server) == before
 
     result = CliRunner().invoke(
         docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]

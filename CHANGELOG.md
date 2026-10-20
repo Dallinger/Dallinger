@@ -214,8 +214,9 @@
   rewrites them, fails with `PermissionError: [Errno 13] Permission denied`
   before it changes the server; update Dallinger to deploy there. If an older
   Dallinger did rewrite them (before this, or as `root`), which takes a
-  root-domain app offline and makes Caddy request new certificates, a deploy
-  stops before the image build and asks for `servers upgrade`; `destroy` warns.
+  root-domain app offline and can make Caddy request new certificates, a
+  deploy stops before the image build and asks for `servers upgrade`;
+  `destroy` warns and carries on.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
