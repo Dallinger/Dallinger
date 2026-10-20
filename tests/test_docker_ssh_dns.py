@@ -262,6 +262,7 @@ def test_servers_add_saves_only_a_valid_contact_email(monkeypatch):
         "`a`@b.org",
         "<me@b.org>",
         "me@b.org}",
+        "me@b.org;",
     ):
         result = CliRunner().invoke(
             docker_ssh_module.servers, add + ["--contact-email", invalid]

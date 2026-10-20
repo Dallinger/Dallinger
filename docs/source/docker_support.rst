@@ -465,6 +465,15 @@ Given an IP address or a DNS name of the server and a username, add the host to 
 
     dallinger docker-ssh servers add --user $SERVER_USER --host $SERVER_HOSTNAME_OR_IP
 
+For classic ingress, set up a new server with a Let's Encrypt contact email
+(``--contact-email``, or ``contact_email_on_error`` in
+``~/.dallingerconfig``) and, if ``--host`` is an IP address, the DNS name its
+experiments are served under (``--dns-host``):
+
+.. code-block:: shell
+
+    dallinger docker-ssh servers add --user $SERVER_USER --host $SERVER_IP --dns-host $SERVER_IP.nip.io --contact-email you@example.org
+
 The ``server_pem`` configuration will be used automatically for SSH authentication when connecting to the server.
 
 For classic ingress (the default), ``servers add`` also starts the shared
@@ -560,7 +569,9 @@ The above command will output:
 
     Connecting to 0.0.0.0
     Connected.
-    Launched http and postgresql servers. Starting experiment
+    Removing any pre-existing Redis volumes.
+    Starting experiment.
+    To view the logs for this experiment go to https://logs.0.0.0.0.nip.io (user = dallinger, password = <Dozzle password>)
     Creating database dlgr-d5543ddd
     Experiment dlgr-d5543ddd started. Initializing database
     Database initialized

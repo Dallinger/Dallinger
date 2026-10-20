@@ -626,3 +626,10 @@ def test_ec2_provision_sets_up_the_shared_services(
         assert (server / "dallinger" / name).stat().st_mode & 0o777 == 0o444
     assert capsys.readouterr().out.count("password = ") == 1
     assert "up -d" in docker_calls(server)
+
+
+def test_invalid_env_json_only_warns(capsys):
+    executor = mock.Mock(run=mock.Mock(return_value="not json"))
+
+    assert docker_ssh.get_dotenv_values(executor) == {}
+    assert ".env.json on the server is not valid JSON" in capsys.readouterr().out

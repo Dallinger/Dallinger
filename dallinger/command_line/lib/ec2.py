@@ -664,13 +664,27 @@ def boot_instance(ec2, image_id, instance_type, key_name, instance_name, region_
     instance = response["Instances"][0]
     instance_id = instance["InstanceId"]
 
-    with yaspin(
-        text=f"Waiting for {instance_name} to be ready...", color="green"
-    ) as sp:
-        waiter = get_ec2_client(region_name).get_waiter("instance_running")
-        waiter.wait(InstanceIds=[instance_id])
-        sp.ok("✔")
+    try:
+        with yaspin(
+            text=f"Waiting for {instance_name} to be ready...", color="green"
+        ) as sp:
+            waiter = get_ec2_client(region_name).get_waiter("instance_running")
+            waiter.wait(InstanceIds=[instance_id])
+            sp.ok("✔")
+    except BaseException:
+        _print_teardown_hint(instance_name, instance_id, region_name)
+        raise
     return instance_id
+
+
+def _print_teardown_hint(instance_name, instance_id, region_name):
+    """Say how to remove an instance that booted but was not set up."""
+    region = f" --region {region_name}" if region_name else ""
+    print(
+        f"{instance_name} ({instance_id}) is running but was not set up. Fix "
+        "the problem above, then remove it with `dallinger ec2 teardown "
+        f"--name {instance_name}{region}` and provision it again."
+    )
 
 
 def set_security_group(
@@ -989,12 +1003,7 @@ def prepare_instance(
                 f"from a different key than your local {key_name}.pem, delete it in "
                 "the EC2 console so that provisioning imports the local key."
             )
-        region = f" --region {region_name}" if region_name else ""
-        print(
-            f"{instance_name} ({instance_id}) is running but was not set up. Fix "
-            "the problem above, then remove it with `dallinger ec2 teardown "
-            f"--name {instance_name}{region}` and provision it again."
-        )
+        _print_teardown_hint(instance_name, instance_id, region_name)
         raise
     if callback is not None:
         callback(host, user, ip_address, executor, dns_host, instance_name)

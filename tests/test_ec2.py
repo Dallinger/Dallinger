@@ -677,3 +677,19 @@ def test_provision_failure_before_setup_names_teardown(
     callback.assert_not_called()
     assert ("rejected server_pem" in output) is rejected
     assert "dallinger ec2 teardown --name exp --region eu-west-3" in output
+
+
+def test_interrupted_boot_wait_names_teardown(monkeypatch, capsys):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    ec2 = mock.Mock()
+    ec2.run_instances.return_value = {"Instances": [{"InstanceId": "i-9"}]}
+    waiting_client = mock.Mock()
+    waiting_client.get_waiter.return_value.wait.side_effect = KeyboardInterrupt
+    monkeypatch.setattr(lib, "get_ec2_client", lambda region: waiting_client)
+
+    with pytest.raises(KeyboardInterrupt):
+        lib.boot_instance(ec2, "ami-1", "m5.large", "lab", "exp", "eu-west-3")
+
+    output = capsys.readouterr().out
+    assert "exp (i-9) is running" in output
+    assert "dallinger ec2 teardown --name exp --region eu-west-3" in output
