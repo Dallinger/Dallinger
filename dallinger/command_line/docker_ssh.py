@@ -370,14 +370,14 @@ def upgrade(host, contact_email, yes):
     older Dallinger's deploy fails instead of rewriting them; if one did
     rewrite them, deploys stop until this command restores them.
     """
-    server_info = get_configured_hosts()[host]
-    email, source = _contact_email(server_info, contact_email)
-    if _is_email(email) and email != server_info.get("contact_email"):
-        server_info = {**server_info, "contact_email": email}
-        store_host(server_info)
+    saved = get_configured_hosts()[host]
+    email, source = _contact_email(saved, contact_email)
+    server_info = {**saved, "contact_email": email} if _is_email(email) else saved
     if _is_email(email):
         _print_contact_email(server_info, source)
     _write_server_files(host, server_info, replace=True, yes=yes)
+    if server_info != saved:
+        store_host(server_info)
 
 
 def _old_root_routes(executor, caddyfile, host, tls):
@@ -428,7 +428,7 @@ def _site_names(line):
 
 
 _CONFIG_SOURCE_NAMES = {
-    ConfigSource.RUNTIME: "Dallinger config",
+    ConfigSource.RUNTIME: "config set at runtime",
     ConfigSource.ENVIRONMENT: "the contact_email_on_error environment variable",
     ConfigSource.USER_CONFIG: "~/.dallingerconfig",
     ConfigSource.EXPERIMENT_CONFIG: "the experiment's config.txt",
@@ -446,18 +446,23 @@ _USER_CONFIG_SOURCES = (
 def _config_contact_email(experiment=False):
     """Return ``contact_email_on_error`` and where it was set, or ``(None, None)``.
 
-    Server setup isn't specific to an experiment, so by default only the
-    user's config and environment count, not an experiment's config.txt or
-    the package default (``???``). With ``experiment``, as in a deploy, every
-    source counts.
+    The highest-priority valid email wins, so a placeholder doesn't hide a
+    real address from a lower-priority source. Server setup isn't specific to
+    an experiment, so by default only the user's config and environment
+    count, not an experiment's config.txt or the package default (``???``).
+    With ``experiment``, as in a deploy, every source counts.
     """
+    found = []
     for layer in get_config(load=True)._layers_by_priority():
         if "contact_email_on_error" in layer and (
             experiment or layer.source in _USER_CONFIG_SOURCES
         ):
             value = str(layer["contact_email_on_error"]).strip()
-            return value, _CONFIG_SOURCE_NAMES[layer.source]
-    return None, None
+            if _is_email(value):
+                return value, _CONFIG_SOURCE_NAMES[layer.source]
+            found.append((value, _CONFIG_SOURCE_NAMES[layer.source]))
+    # Without a valid email, report the highest-priority value.
+    return found[0] if found else (None, None)
 
 
 def _contact_email(server_info, contact_email=None, *, config=True):
@@ -669,7 +674,8 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         print(
             f"{server} already has a server compose file "
             "(~/dallinger/docker-compose.yml), so the shared classic-ingress files "
-            "were left unchanged. To rewrite them and start the services, run "
+            "were left unchanged. To rewrite them from the saved DNS host and "
+            "contact email and start the services, run "
             f"`dallinger docker-ssh servers upgrade --host {server}`."
         )
         return
@@ -1933,6 +1939,10 @@ def _remove_aborted_build(docker_client, image_name, server, local_build, app):
         if not local_build and image_pinned_by_other_apps(
             _executor_for_server(server), image_name, except_app=app
         ):
+            print(
+                f"Kept the image {image_name} built for this deploy, because "
+                "another app on the server uses it."
+            )
             return
         docker_client.images.remove(image_name)
     except Exception as exc:

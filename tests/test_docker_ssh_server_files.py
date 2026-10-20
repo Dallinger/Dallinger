@@ -178,6 +178,14 @@ def test_servers_upgrade_saves_a_given_contact_email(server, monkeypatch):
     result = CliRunner().invoke(docker_ssh.servers, upgrade)
     assert result.exit_code == 1
     assert "servers upgrade --host lab --contact-email <email>" in result.output
+
+    # Declining the upgrade saves nothing.
+    result = CliRunner().invoke(
+        docker_ssh.servers,
+        ["upgrade", "--host", "lab", "--contact-email", "new@example.org"],
+        input="n\n",
+    )
+    assert result.exit_code == 1
     store_host.assert_not_called()
 
     result = CliRunner().invoke(

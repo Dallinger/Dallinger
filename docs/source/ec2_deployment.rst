@@ -165,8 +165,9 @@ server's shared Caddy, Postgres and Dozzle services and prints the log viewer
 login once. You can deploy straight away with ``--server <AWS hostname>``,
 and with ``--server <dns-host>`` once your computer resolves the new DNS
 record (up to about five minutes). Caddy gives Let's Encrypt the
-``contact_email_on_error`` address, so ``provision`` stops before booting an
-instance if that is not an email address. Without ``--dns-host``, the server
+``contact_email_on_error`` address from ``~/.dallingerconfig`` (or the
+environment, but not an experiment's ``config.txt``), so ``provision`` stops
+before booting an instance if that is not an email address. Without ``--dns-host``, the server
 is saved with ``--dns-host <public ip>.nip.io``, because Let's Encrypt does
 not issue certificates for AWS hostnames. If the
 setup fails, the instance keeps running; fix the problem and run the

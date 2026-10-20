@@ -252,8 +252,8 @@ saved with the server by ``servers add --contact-email`` or ``servers upgrade
 from ``~/.dallingerconfig`` (or the environment), never from an experiment's
 ``config.txt``, since a server isn't tied to one experiment, and they print the
 address and where it came from. Placeholders such as ``XXX@gmail.com`` or
-``???`` don't count. A deploy to a server saved without an email uses the
-experiment's ``contact_email_on_error``.
+``???`` don't count. A deploy to a server saved without an email also accepts
+a valid ``contact_email_on_error`` from the experiment's ``config.txt``.
 
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app
 tunnel; ``servers add --default-ingress cloudflare`` makes it a server's

@@ -291,10 +291,22 @@ def test_server_commands_ignore_an_experiments_contact_email(tmp_path, monkeypat
         in result.output
     )
 
-    # Without one in ~/.dallingerconfig, only a deploy uses the experiment's.
-    user_config.unlink()
+    # A deploy also reads config.txt, but its placeholder doesn't hide a real email.
+    (experiment / "config.txt").write_text(
+        "[Parameters]\ncontact_email_on_error = XXX@gmail.com\n"
+    )
     monkeypatch.setattr("dallinger.config.config", None)
     server = {"host": "lab.example.org"}
+    assert docker_ssh_module._server_tls(server, experiment=True) == (
+        "tls me@example.org"
+    )
+
+    # Without one in ~/.dallingerconfig, only a deploy uses the experiment's.
+    (experiment / "config.txt").write_text(
+        "[Parameters]\ncontact_email_on_error = exp@example.org\n"
+    )
+    user_config.unlink()
+    monkeypatch.setattr("dallinger.config.config", None)
     with pytest.raises(click.ClickException) as error:
         docker_ssh_module._server_tls(server, command="dallinger upgrade")
     assert "contact_email_on_error is not set in ~/.dallingerconfig" in str(error.value)
