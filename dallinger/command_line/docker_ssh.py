@@ -456,8 +456,8 @@ def _unlocked_server_files(executor, *, lock=False):
         relock = SHARED_SERVER_FILES if lock else locked
         status, _, error = (
             executor.run_with_status(
-                f"cd ~/dallinger && for f in {' '.join(relock)}; do "
-                '[ ! -f "$f" ] || chmod 444 "$f" || exit 1; done'
+                f"cd ~/dallinger || exit 1; s=0; for f in {' '.join(relock)}; do "
+                '[ ! -f "$f" ] || chmod 444 "$f" || s=1; done; exit $s'
             )
             if relock
             else (0, "", "")
@@ -549,9 +549,10 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         )
         return
     host, tls = _server_host(server_info), _server_tls(server_info)
+    # The Caddyfile goes last, just before root.d, which it imports.
     files = {
-        "dallinger/Caddyfile": CADDYFILE_SERVER.format(host=host, tls=tls),
         "dallinger/docker-compose.yml": DOCKER_COMPOSE_SERVER_TPL.render(),
+        "dallinger/Caddyfile": CADDYFILE_SERVER.format(host=host, tls=tls),
     }
     current = {path: executor.run(f"cat ~/{path}", raise_=False) for path in files}
     changed = [path for path, content in files.items() if current[path] != content]
