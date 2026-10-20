@@ -39,6 +39,7 @@ def pubsub():
 
 @pytest.fixture
 def redis(pubsub):
+    """The client channels subscribe with (``sockets.pubsub_conn``)."""
     conn = Mock()
     conn.pubsub.return_value = pubsub
     return conn
@@ -48,7 +49,9 @@ def redis(pubsub):
 def sockets(redis, monkeypatch):
     from dallinger.experiment_server import sockets
 
-    monkeypatch.setattr(sockets, "redis_conn", redis)
+    general = Mock()
+    general.pubsub.side_effect = AssertionError("subscribe with pubsub_conn")
+    monkeypatch.setattr(sockets, "redis_conn", general)
     monkeypatch.setattr(sockets, "pubsub_conn", redis)
     # use a separate ChatBackend for each test
     sockets.chat_backend = sockets.ChatBackend()
@@ -168,6 +171,13 @@ def mocksocket():
             return True
 
     return MockSocket()
+
+
+def test_channels_subscribe_from_their_own_pool():
+    from dallinger.db import redis_conn
+    from dallinger.experiment_server import sockets
+
+    assert sockets.pubsub_conn.connection_pool is not redis_conn.connection_pool
 
 
 class TestChannel:

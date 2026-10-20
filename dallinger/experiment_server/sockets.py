@@ -356,9 +356,10 @@ class DirectChannel(Channel):
     """Relays directed sends published by other processes to local clients.
 
     A process starts one of these with its first connection that names a
-    participant and keeps it running after that connection leaves. It has no subscribers of its own: an envelope names
-    participants, and the backend looks up their connections, so a client is
-    addressable without having subscribed to anything.
+    participant and keeps it running after that connection leaves. It has
+    no subscribers of its own: an envelope names participants, and the
+    backend looks up their connections, so a client is addressable without
+    having subscribed to anything.
     """
 
     #: Registrations live on the backend rather than here, so a listener that

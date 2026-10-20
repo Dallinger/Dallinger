@@ -346,8 +346,9 @@
   ``connect_to_redis()`` now waits up to 20 seconds for a free connection in
   a pool of 1,000. Websocket channel subscriptions use a separate pool, so
   many open channels no longer hold up publishing, job queueing and other
-  Redis calls in the same process. A websocket message that is not valid
-  UTF-8 is dropped with a warning instead of ending its channel's listener
+  Redis calls in the same process. A message published to a websocket
+  channel that is not valid UTF-8 (for example by another Redis client) is
+  dropped with a warning instead of ending its channel's listener
   and leaving the channel's clients without messages, and an error while
   closing a channel's pubsub is logged instead of keeping the stopped channel
   registered.
