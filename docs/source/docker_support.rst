@@ -598,7 +598,9 @@ Answering no, or passing ``--keep-data``, keeps the data; after the teardown,
 destroy lists the data it kept and prints the command that deletes it later.
 A root-domain deploy that destroys the server's other classic apps always
 keeps their data, as ``--keep-data`` does, and prints the command that
-deletes each app's data later.
+deletes each app's data later. If the new deploy has the same name as one of
+those apps, it replaces that app's database and Redis volume, and the prompt
+says so.
 Export anything you need before you delete the data.
 You can also decide up front:
 

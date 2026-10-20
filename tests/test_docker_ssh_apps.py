@@ -959,7 +959,20 @@ def test_destroy_prints_the_callers_delete_data_command(monkeypatch):
     assert "dallinger docker-ssh destroy" not in result.output
 
 
-def test_root_domain_teardown_keeps_data_without_a_tty(monkeypatch, capsys):
+@pytest.mark.parametrize(
+    "new_app, kept",
+    [
+        ("dlgr-new", "Their data is kept."),
+        (
+            "myapp",
+            "Their data is kept, but this deploy replaces the database and "
+            "Redis volume of myapp.",
+        ),
+    ],
+)
+def test_root_domain_teardown_keeps_data_without_a_tty(
+    monkeypatch, capsys, new_app, kept
+):
     commands = _server_with_data(monkeypatch, tty=False)
     monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
     monkeypatch.setattr(
@@ -972,9 +985,11 @@ def test_root_domain_teardown_keeps_data_without_a_tty(monkeypatch, capsys):
         lambda text, **kwargs: prompts.append(text) or True,
     )
 
-    assert docker_ssh_module.ensure_root_domain_ready("test-server", update=False)
+    assert docker_ssh_module.ensure_root_domain_ready(
+        "test-server", update=False, new_app=new_app
+    )
     assert prompts == [
-        "Destroy these experiments automatically before proceeding? Their data is kept."
+        f"Destroy these experiments automatically before proceeding? {kept}"
     ]
     assert "docker compose -f ~/dallinger/myapp/docker-compose.yml down" in commands
     assert not _deletes(commands)

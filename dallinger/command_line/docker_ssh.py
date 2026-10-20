@@ -1125,12 +1125,14 @@ def _abort_cloudflare(exc):
     raise click.Abort()
 
 
-def ensure_root_domain_ready(server, update):
+def ensure_root_domain_ready(server, update, new_app=None):
     """Offer to destroy the server's classic apps before a root-domain deploy.
 
     The teardown keeps each app's data, as ``destroy --keep-data`` does, so
     no experiment data is deleted before the image build and no terminal is
-    needed once the user agrees.
+    needed once the user agrees. If ``new_app``, the app being deployed, is
+    one of them, the prompt says that the deploy replaces its database and
+    Redis volume.
     """
     if update:
         return True
@@ -1156,9 +1158,11 @@ def ensure_root_domain_ready(server, update):
         f"{destroy_cmds}"
     )
 
+    kept = "Their data is kept"
+    if new_app in conflicts:
+        kept += f", but this deploy replaces the database and Redis volume of {new_app}"
     if not click.confirm(
-        "Destroy these experiments automatically before proceeding? "
-        "Their data is kept.",
+        f"Destroy these experiments automatically before proceeding? {kept}.",
         default=False,
     ):
         raise click.Abort()
@@ -1593,7 +1597,7 @@ def _deploy_in_mode(
         _check_experiment_hostname_dns(ssh_host, experiment_hostname, allow_private_ip)
 
     if _root_domain_preflight_required(server, app_name, archive_path, ingress):
-        ensure_root_domain_ready(server=server, update=update)
+        ensure_root_domain_ready(server=server, update=update, new_app=experiment_id)
 
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
     try:
