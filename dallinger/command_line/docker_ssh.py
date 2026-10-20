@@ -2500,8 +2500,14 @@ def _shared_psql(*statements):
     )
 
 
-def _shared_database(executor, app):
-    """Return experiment data items for ``app``'s database and user in the shared Postgres."""
+def _shared_database(executor, app, required=True):
+    """Return experiment data items for ``app``'s database and user in the shared Postgres.
+
+    A Cloudflare app doesn't use the shared Postgres, but an earlier classic
+    deploy of the same name may have left a database there. For such an app
+    (``required=False``) a failed check prints a note instead of returning an
+    ``unchecked`` item.
+    """
     if app in SHARED_POSTGRES_DATABASES:
         return []
     status, out, err = executor.run_with_status(
@@ -2514,12 +2520,15 @@ def _shared_database(executor, app):
     )
     if status != 0:
         what = f"the database {app} in the shared Postgres"
-        if status == 124:
-            err = (
-                f"timed out after {SHARED_PSQL_TIMEOUT} s; the server may be busy, "
-                "so try again"
-            )
-        return [_unchecked(what, err)]
+        if required:
+            return [_unchecked(what, _failure_reason(status, err))]
+        print(
+            f"Could not check the shared Postgres for a database {app} left by "
+            f"a classic deploy ({_failure_reason(status, err)}). "
+            f"{app} uses Cloudflare ingress, so its own database is checked "
+            "separately."
+        )
+        return []
     size, _, has_user = (out or "").strip().partition("|")
     items = []
     if size:
@@ -2530,10 +2539,19 @@ def _shared_database(executor, app):
     return items
 
 
-def _unchecked(what, err):
+def _failure_reason(status, err):
+    """Describe why a remote command failed; exit 124 is a shared-psql timeout."""
+    if status == 124:
+        return (
+            f"timed out after {SHARED_PSQL_TIMEOUT} s; the server may be busy, "
+            "so try again"
+        )
+    return ((err or "").strip().splitlines()[-1:] or ["unknown error"])[0]
+
+
+def _unchecked(what, reason):
     """Return an experiment data item for data whose existence is unknown."""
-    reason = (err or "").strip().splitlines()[-1:] or ["unknown error"]
-    return "unchecked", what, f"{what}, if any (could not check: {reason[0]})"
+    return "unchecked", what, f"{what}, if any (could not check: {reason})"
 
 
 def _own_database_size(executor, app):
@@ -2546,18 +2564,20 @@ def _own_database_size(executor, app):
     return (out or "").strip() if status == 0 else ""
 
 
-def _experiment_data(executor, app, shared_database=True):
+def _experiment_data(executor, app, cloudflare=False):
     """List the experiment data ``app`` has on the server.
 
     Returns ``(kind, name, label)`` tuples for the app's database and user in
-    the shared Postgres (unless ``shared_database`` is false, as for a
-    Cloudflare app), its Docker volumes and its data folder. Each is
-    checked on its own; one that can't be checked is an ``unchecked`` item.
+    the shared Postgres, its Docker volumes and its data folder. Each is
+    checked on its own; one that can't be checked is an ``unchecked`` item,
+    except the shared Postgres of a ``cloudflare`` app.
     """
-    items = _shared_database(executor, app) if shared_database else []
+    items = _shared_database(executor, app, required=not cloudflare)
     status, out, err = executor.run_with_status("docker volume ls -q")
     if status != 0:
-        items.append(_unchecked(f"the Docker volumes of {app}", err))
+        items.append(
+            _unchecked(f"the Docker volumes of {app}", _failure_reason(status, err))
+        )
         out = ""
     volumes = set(out.split())
     project = _compose_project(app)
@@ -2633,7 +2653,9 @@ def _remove_experiment_data(executor, app, items):
             print(f"Deleted {label}")
         else:
             removed = False
-            print(f"{RED}Could not delete {label}.{END} {(stderr or '').strip()}")
+            print(
+                f"{RED}Could not delete {label}.{END} {_failure_reason(status, stderr)}"
+            )
     return removed
 
 
@@ -2751,10 +2773,7 @@ def destroy(
         ingress = INGRESS_CLOUDFLARE
     else:
         ingress = INGRESS_CLASSIC
-    # Cloudflare apps keep their database in their own Postgres container.
-    data = _experiment_data(
-        executor, app, shared_database=ingress != INGRESS_CLOUDFLARE
-    )
+    data = _experiment_data(executor, app, cloudflare=ingress == INGRESS_CLOUDFLARE)
     if not deployed and not data and remove_data:
         print(f"Nothing left to delete for {app} on {ssh_host}.")
         return

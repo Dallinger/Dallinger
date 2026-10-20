@@ -572,7 +572,8 @@ prompt or with a flag. The data is:
 
 - the app's database: for classic ingress, the database ``$APP_ID`` and its
   Postgres user in the server's shared Postgres; for Cloudflare ingress, the
-  Docker volume ``${APP_ID}_postgres_data``;
+  Docker volume ``${APP_ID}_postgres_data``, plus any database that an earlier
+  classic deploy of the same name left in the shared Postgres;
 - the app's Redis volume ``${APP_ID}_redis_data``;
 - the app's data folder ``~/dallinger-data/$APP_ID``, which holds files the
   experiment saved (see the note below).
@@ -629,7 +630,8 @@ Dallinger can't check whether they are. Data that destroy can't check, for
 example because the shared Postgres doesn't answer within 30 seconds on a busy
 server, is listed as ``…, if any (could not check: …)``; ``--remove-data``
 then reports it as not deleted and exits with an error, and you can run it
-again. If ``~/dallinger-data/$APP_ID`` is a
+again. For a Cloudflare app, which doesn't use the shared Postgres, a failed
+check of the shared Postgres only prints a note. If ``~/dallinger-data/$APP_ID`` is a
 symlink, only the link is removed and its target is kept.
 
 The data folder's parent is often owned by root, so if the SSH user can't

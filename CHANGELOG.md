@@ -15,7 +15,11 @@
   the command that deletes it; tools that wrap destroy can name their own
   command with the hidden `--delete-data-command` option. `--remove-data`
   also cleans up the data of an app that has already been destroyed, and
-  exits successfully with "Nothing left to delete" when nothing is left. Data is
+  exits successfully with "Nothing left to delete" when nothing is left. Data
+  that destroy can't check, for example because the shared Postgres doesn't
+  answer within 30 seconds, is listed as such, and `--remove-data` then exits
+  with an error so it can be run again; for a Cloudflare app, which doesn't
+  use the shared Postgres, a failed check there only prints a note. Data is
   not deleted while the app's containers run, and a symlinked data folder is
   only unlinked. If `docker compose down` fails, destroy now stops and leaves
   the app's files in place instead of removing them around running

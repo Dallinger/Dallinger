@@ -258,18 +258,6 @@ def test_destroy_cloudflare_stops_connector_before_deleting_the_tunnel(
     )
 
 
-def test_destroy_cloudflare_does_not_check_the_shared_postgres(monkeypatch):
-    removed = TunnelDeletion(True, "dallinger-myapp", "myapp.science-of-music.org")
-    _cloudflare_destroy(monkeypatch, removed=removed)
-    docker_ssh_module.destroy.callback(
-        server="test-server", app="myapp", remove_data=True, yes=True
-    )
-    executor = docker_ssh_module.Executor()
-    commands = [call.args[0] for call in executor.run_with_status.call_args_list]
-    assert "docker volume ls -q" in commands
-    assert not any("exec -T postgresql" in command for command in commands)
-
-
 def test_destroy_uses_the_cloudflare_ids_recorded_at_deploy(monkeypatch):
     recorded = {
         "account_id": "deploy-acct",
@@ -865,11 +853,14 @@ def _server_with_data(
     folder=True,
     down_status=0,
     own_db="",
+    tunnel_token=False,
 ):
     commands = []
 
     def run(cmd, raise_=True):
         commands.append(cmd)
+        if cmd.startswith("test -f") and "cloudflare-tunnel-token" in cmd:
+            return "Yes" if tunnel_token else ""
         if cmd.startswith("test -f") and "docker-compose.yml" in cmd:
             return "Yes" if deployed else ""
         if cmd.startswith("if [ -L ~/dallinger-data/myapp ]"):
@@ -1104,6 +1095,28 @@ def test_destroy_remove_data_fails_if_some_data_cant_be_checked(
     assert f"Did not delete {label}" in result.output
     assert "Some data of myapp was not deleted" in result.output
     assert "and run: wrapper rm myapp" in result.output
+
+
+@pytest.mark.parametrize(
+    "db, dropped, note",
+    [
+        ("timeout", False, "(timed out after 30 s; the server may be busy"),
+        ("12 MB", True, "Deleted the database myapp (12 MB) in the shared Postgres"),
+    ],
+)
+def test_destroy_cloudflare_only_reports_a_shared_database_it_finds(
+    monkeypatch, db, dropped, note
+):
+    monkeypatch.setattr(
+        docker_ssh_module, "_destroy_cloudflare_resources", lambda *a, **k: True
+    )
+    commands, result = _destroy_with_data(
+        monkeypatch, ["--remove-data", "--yes"], db=db, tunnel_token=True
+    )
+    assert result.exit_code == 0, result.output
+    assert "Did not delete" not in result.output
+    assert note in result.output
+    assert any("DROP DATABASE" in c for c in commands) == dropped
 
 
 def test_destroy_rejects_both_data_choices(monkeypatch):
