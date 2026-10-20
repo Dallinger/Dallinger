@@ -1089,6 +1089,14 @@ def prepare_docker_experiment_setup(
             + (f"Run the second command once {dns_host} resolves. " if dns_host else "")
             + "If `servers add` says the shared files were left unchanged, also "
             f"run `dallinger docker-ssh servers upgrade --host {host} --yes`."
+            + (
+                " To remove the instance instead, run `dallinger ec2 teardown "
+                f"--name {instance_name} --region <region>"
+                + (f" --dns-host {dns_host}" if dns_host else "")
+                + "`."
+                if instance_name
+                else ""
+            )
         )
         raise
 

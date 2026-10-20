@@ -155,7 +155,7 @@ def ec2__provision(
     config = get_instance_config()
     pem_key = config.get("pem")
 
-    # Everything that can stop provisioning is checked before an instance boots.
+    # Local settings that would stop provisioning are checked before an instance boots.
     try:
         check_server_pem_matches_key_pair(pem_key)
     except FileNotFoundError as err:

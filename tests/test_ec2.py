@@ -626,9 +626,15 @@ def test_provision_setup_failure_names_the_repair_commands(
 
     with pytest.raises(click.Abort):
         lib.prepare_docker_experiment_setup(
-            "ec2-host", "ubuntu", "1.2.3.4", None, dns_host=dns_host
+            "ec2-host",
+            "ubuntu",
+            "1.2.3.4",
+            None,
+            dns_host=dns_host,
+            instance_name="exp",
         )
     output = capsys.readouterr().out
+    assert "dallinger ec2 teardown --name exp --region <region>" in output
     assert register.call_args.kwargs["dns_host"] == (dns_host or "1.2.3.4.nip.io")
     assert ("Could not create the DNS records" in output) == bool(dns_host)
     server_dns_host = dns_host or "1.2.3.4.nip.io"
