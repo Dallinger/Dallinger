@@ -12,7 +12,7 @@ JQUERY = "scripts/jquery-4.0.0.min.js"
 SESSION_SCRIPT = "scripts/dallinger-realtime.js"
 
 
-def render(child_template, realtime_games=()):
+def render(child_template, realtime_games=(), has_experiment=True):
     environment = jinja2.Environment(
         loader=jinja2.ChoiceLoader(
             [
@@ -26,8 +26,11 @@ def render(child_template, realtime_games=()):
         get_from_config=lambda key: None,
         # None matches a deployment that is not using idle hibernation.
         presence_settings=lambda: None,
-        experiment=SimpleNamespace(realtime_games=list(realtime_games)),
     )
+    if has_experiment:
+        environment.globals["experiment"] = SimpleNamespace(
+            realtime_games=list(realtime_games)
+        )
     return environment.get_template("child.html").render()
 
 
@@ -56,4 +59,10 @@ def test_layout_loads_the_session_script_after_dallinger2_for_game_types():
 
 def test_layout_leaves_out_the_session_script_without_game_types():
     html = render('{% extends "base/layout.html" %}')
+    assert SESSION_SCRIPT not in html
+
+
+def test_layout_renders_without_an_experiment_in_its_context():
+    html = render('{% extends "base/layout.html" %}', has_experiment=False)
+    assert "scripts/dallinger2.js" in html
     assert SESSION_SCRIPT not in html
