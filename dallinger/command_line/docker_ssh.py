@@ -1112,8 +1112,7 @@ def check_deploy_credentials(server=None, ingress=None, config_options=None):
     Returns
     -------
     str or None
-        The Cloudflare API token, which the caller can reuse instead of
-        reading the Keychain again, or ``None`` if the deploy uses classic
+        The Cloudflare API token, or ``None`` if the deploy uses classic
         ingress or its ingress is not known yet.
 
     Raises
@@ -1330,7 +1329,7 @@ def build_and_push_image(f):
         if not kwargs.get("allow_private_ip") and not kwargs.get("update"):
             _check_classic_ingress_reachable(kwargs["server"], kwargs.get("ingress"))
         config = get_config(load=True)
-        kwargs["cloudflare_api_token"] = check_deploy_credentials(
+        check_deploy_credentials(
             kwargs["server"], kwargs.get("ingress"), kwargs.get("config_options")
         )
         image_name = config.get("docker_image_name", None)
@@ -1567,15 +1566,12 @@ def _deploy_in_mode(
     preflight_root_clean,
     ingress=None,
     allow_private_ip=False,
-    cloudflare_api_token=None,
 ):
     config = get_config(load=True)
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     config_options = _apply_config_options(config, config_options)
 
-    pre_launch_kwargs = dict(locals())
-    pre_launch_kwargs.pop("cloudflare_api_token")
-    run_pre_launch_checks(**pre_launch_kwargs)
+    run_pre_launch_checks(**locals())
 
     server_info = CONFIGURED_HOSTS[server]
     ssh_address = server_info["host"]
@@ -1611,7 +1607,6 @@ def _deploy_in_mode(
             server=server,
             server_info=server_info,
             update=update,
-            api_token=cloudflare_api_token,
         )
 
     # We deleted this because synchronizing configs between local and remote can cause problems especially when using
@@ -1908,12 +1903,11 @@ def _deploy_cloudflare_in_mode(
     server,
     server_info,
     update,
-    api_token=None,
 ):
     """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host."""
     try:
         validate_app_dns_label(experiment_id)
-        api_token = api_token or load_api_token(config)
+        api_token = load_api_token(config)
     except CloudflareError as exc:
         _abort_cloudflare(exc)
 

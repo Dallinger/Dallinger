@@ -7,6 +7,7 @@ the server. Only the per-app connector token is installed remotely, mode 0600.
 
 from __future__ import annotations
 
+import functools
 import getpass
 import json
 import logging
@@ -148,12 +149,7 @@ def load_api_token(config: Any | None = None) -> str:
         service = KEYCHAIN_SERVICE
         account_args = ["-a", account]
     try:
-        result = subprocess.run(
-            [security, "find-generic-password", *account_args, "-s", service, "-w"],
-            text=True,
-            capture_output=True,
-            check=True,
-        )
+        token = _read_keychain(security, service, tuple(account_args))
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or "").strip().rstrip(".")
         raise CloudflareError(
@@ -164,10 +160,26 @@ def load_api_token(config: Any | None = None) -> str:
             "cloudflare_api_token in your Dallinger config, or store the token "
             f"with `security add-generic-password -a {account} -s {service} -w`."
         ) from exc
-    token = result.stdout.strip()
     if not token:
         raise CloudflareError("The Cloudflare Keychain item contained no token.")
     return token
+
+
+@functools.cache
+def _read_keychain(security, service, account_args):
+    """Return the Keychain item's password, reading each item once per process.
+
+    A wrapper such as PsyNet checks the token before it calls the deploy in the
+    same process, so the deploy reuses the token instead of asking the Keychain
+    (and possibly the user) again. Failed reads raise and are not cached.
+    """
+    result = subprocess.run(
+        [security, "find-generic-password", *account_args, "-s", service, "-w"],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    return result.stdout.strip()
 
 
 def request(

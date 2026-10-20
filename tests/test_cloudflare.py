@@ -414,7 +414,16 @@ def security_calls(monkeypatch):
         return mock.Mock(stdout="from-keychain\n")
 
     monkeypatch.setattr(cf.subprocess, "run", run)
-    return calls
+    cf._read_keychain.cache_clear()
+    yield calls
+    cf._read_keychain.cache_clear()
+
+
+def test_load_api_token_reads_each_keychain_item_once(security_calls):
+    config = _keychain_config("org.example.cloudflare-token")
+    assert cf.load_api_token(config) == cf.load_api_token(config) == "from-keychain"
+    cf.load_api_token(_keychain_config("org.example.other-token"))
+    assert len(security_calls) == 2
 
 
 def test_load_api_token_reads_the_configured_keychain_item_under_any_account(

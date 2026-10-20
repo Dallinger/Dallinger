@@ -9,6 +9,8 @@
   API token check on its own and returns the token. Tools that wrap
   `docker-ssh deploy`, such as PsyNet, can call it before their own
   preparation so a missing token stops them before they change anything.
+  Dallinger reads each Keychain item at most once per process, so such a
+  check followed by the deploy doesn't ask the Keychain twice.
 - Added the `cloudflare_keychain_service` config key, which names the macOS
   Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
   deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
