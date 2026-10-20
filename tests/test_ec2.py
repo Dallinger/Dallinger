@@ -520,7 +520,10 @@ def test_provision_needs_a_contact_email_before_booting(monkeypatch):
     ec2.provision.assert_not_called()
 
 
-def test_provision_setup_failure_names_the_repair_command(monkeypatch, capsys):
+@pytest.mark.parametrize("dns_host", [None, "exp.example.org"])
+def test_provision_setup_failure_names_the_repair_command(
+    dns_host, monkeypatch, capsys
+):
     lib = importlib.import_module("dallinger.command_line.lib.ec2")
     config = mock.Mock(get=lambda key, default=None: "x")
     monkeypatch.setattr("dallinger.config.get_config", lambda load=False: config)
@@ -531,5 +534,12 @@ def test_provision_setup_failure_names_the_repair_command(monkeypatch, capsys):
     )
 
     with pytest.raises(click.Abort):
-        lib.prepare_docker_experiment_setup("ec2-host", "ubuntu", "1.2.3.4", None)
-    assert "servers upgrade --host ec2-host --yes" in capsys.readouterr().out
+        lib.prepare_docker_experiment_setup(
+            "ec2-host", "ubuntu", "1.2.3.4", None, dns_host=dns_host
+        )
+    output = capsys.readouterr().out
+    assert "servers upgrade --host ec2-host --yes" in output
+    alias = (
+        "servers add --host exp.example.org --user ubuntu --dns-host exp.example.org"
+    )
+    assert (alias in output) == bool(dns_host)

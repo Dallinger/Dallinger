@@ -170,7 +170,8 @@ instance if that is not an email address. Without ``--dns-host``, the server
 is saved with ``--dns-host <public ip>.nip.io``, because Let's Encrypt does
 not issue certificates for AWS hostnames. If the
 setup fails, the instance keeps running; fix the problem and run the
-``dallinger docker-ssh servers upgrade`` command that ``provision`` prints.
+commands that ``provision`` prints: ``dallinger docker-ssh servers upgrade``
+and, with ``--dns-host``, the ``servers add`` that saves that name.
 
 
 Increasing Storage on An Instance
