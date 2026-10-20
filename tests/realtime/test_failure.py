@@ -315,7 +315,10 @@ def fail_with_time_limit():
 
 def trap_when_ready(ready):
     ready.set()
-    play_with_time_limit([["trap"]])
+    # A time-out that lands in the trap's except clause escapes it and ends
+    # the session, so trap again until the process exits.
+    while True:
+        play_with_time_limit([["trap"]])
 
 
 def previous_handler():
