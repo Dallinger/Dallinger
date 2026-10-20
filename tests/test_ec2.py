@@ -558,6 +558,9 @@ def test_server_pem_must_be_the_key_pairs_private_key(tmp_path, monkeypatch):
         monkeypatch.setattr(lib, name, lambda *a: encrypted)
     with pytest.raises(click.UsageError, match="must be unencrypted"):
         lib.check_server_pem_matches_key_pair("encrypted")
+    encrypted.write_text("not a key")
+    with pytest.raises(click.UsageError, match="must be unencrypted"):
+        lib.check_server_pem_matches_key_pair("garbage")
     monkeypatch.setattr(lib, "get_pem_path", lambda key_name: pair)
 
     monkeypatch.setattr(lib, "get_server_pem_path", lambda: other)
@@ -626,7 +629,7 @@ def test_provision_setup_failure_names_the_repair_commands(
             "ec2-host", "ubuntu", "1.2.3.4", None, dns_host=dns_host
         )
     output = capsys.readouterr().out
-    register.assert_called_once()
+    assert register.call_args.kwargs["dns_host"] == (dns_host or "1.2.3.4.nip.io")
     assert ("Could not create the DNS records" in output) == bool(dns_host)
     server_dns_host = dns_host or "1.2.3.4.nip.io"
     assert (
@@ -644,6 +647,7 @@ def test_provision_setup_failure_names_the_repair_commands(
     [
         (paramiko.SSHException("Invalid key"), True),
         (paramiko.AuthenticationException("Authentication failed."), True),
+        (paramiko.SSHException("Error reading SSH protocol banner"), False),
         (KeyboardInterrupt(), False),
     ],
 )

@@ -543,7 +543,9 @@ def check_server_pem_matches_key_pair(key_name):
             raise click.UsageError(
                 f"Could not read the SSH key {path}: {exc}. server_pem and the "
                 "ec2_default_pem key file must be unencrypted RSA, ECDSA or "
-                "Ed25519 private keys."
+                "Ed25519 private keys (to replace a DSA key, see "
+                "https://dallinger.readthedocs.io/en/latest/docker_support.html"
+                "#replacing-a-dsa-key)."
             ) from exc
     if not same_file and keys[0].get_base64() != keys[1].get_base64():
         raise click.UsageError(

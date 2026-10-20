@@ -171,12 +171,13 @@ login once. It saves the server under its AWS hostname and, with
 ``--server <AWS hostname>``, and with ``--server <dns-host>`` once your
 computer resolves the new DNS record (up to about five minutes; up to 15 if
 you looked the name up before it existed). The setup connects over the AWS
-hostname, so it doesn't wait for the new name to resolve. Caddy gives Let's
+hostname: it waits for Route 53 to sync the records (up to two minutes each),
+but not for your computer to resolve the new name. Caddy gives Let's
 Encrypt the ``contact_email_on_error`` address from ``~/.dallingerconfig``
 (or the environment, but not an experiment's ``config.txt`` or experiment
 class), so ``provision`` stops before booting an instance if that is not an
-email address, or if ``dashboard_user`` or ``dashboard_password`` is
-missing. Without ``--dns-host``, the server is saved with ``--dns-host
+email address, or if ``dashboard_password`` (or ``dashboard_user``, which
+defaults to ``admin``) is not set. Without ``--dns-host``, the server is saved with ``--dns-host
 <public ip>.nip.io``, because Let's Encrypt does not issue certificates for
 AWS hostnames. If Route 53 can't create the DNS records, ``provision`` warns,
 says which records to create by hand, and sets the server up anyway. If a
