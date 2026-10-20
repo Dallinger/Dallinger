@@ -181,9 +181,11 @@
   when an experiment has game types.
   `dallinger.waitForRealtimeSession(gameChannel)` resolves with the id of the
   participant's session of a game type once the experiment starts it, or at
-  once if one is running, waiting on an
-  `/experiment-socket` connection with the new `wait_for_game` query
-  parameter. `openExperimentSocket` and `openChatSocket` take `session` and
+  once if one is running, waiting on an `/experiment-socket` connection with
+  the new `wait_for_game` query parameter.
+  `dallinger.joinRealtimeSession(gameChannel)` waits the same way, then joins
+  the session and resolves with its socket.
+  `openExperimentSocket` and `openChatSocket` take `session` and
   `gameChannel` options to join a session. Such a socket's `send` numbers the
   messages it sends on the game channel, and `onView`, `onRejected`,
   `onEnded`, `onResultSaved` and `resultSaved()` report the game's views,

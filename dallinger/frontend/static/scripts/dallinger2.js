@@ -866,19 +866,16 @@ var dallinger = (function () {
    * it itself, after ``dallinger2.js``.
    *
    * @example
-   * // sessionId is the id dallinger.waitForRealtimeSession gave the page
-   * var socket = dallinger.openExperimentSocket({
-   *   session: sessionId,
-   *   gameChannel: 'sealed_bid'
-   * });
-   * socket.onView(function (view) {
-   *   $('#bids-made').text(view.bids_made);
-   * });
-   * $('#bid').on('click', function () {
-   *   socket.send('sealed_bid', {bid: Number($('#amount').val())});
-   * });
-   * socket.resultSaved().done(function () {
-   *   dallinger.goToPage('questionnaire');
+   * dallinger.joinRealtimeSession('sealed_bid').done(function (socket) {
+   *   socket.onView(function (view) {
+   *     $('#bids-made').text(view.bids_made);
+   *   });
+   *   $('#bid').on('click', function () {
+   *     socket.send('sealed_bid', {bid: Number($('#amount').val())});
+   *   });
+   *   socket.resultSaved().done(function () {
+   *     dallinger.goToPage('questionnaire');
+   *   });
    * });
    *
    * @constructor
@@ -1148,12 +1145,14 @@ var dallinger = (function () {
    *   connection; ``null`` sends none
    * @param {number} [options.session] - To play a real-time game, the id of
    *   the session, which ``dallinger.waitForRealtimeSession`` gives the
-   *   page. The participant must be one of its players, or the server
-   *   refuses the connection. Leave ``scope`` at its default, or the
-   *   game's views reach every page the player has open.
+   *   page. ``dallinger.joinRealtimeSession`` sets this and ``gameChannel``
+   *   itself. The participant must be one of its players, or the server
+   *   refuses the connection. The socket's ``scope`` should name this
+   *   load of the page, as the default does, and can't be ``null``, since
+   *   the game's views would then reach every page the player has open.
    * @param {string} [options.gameChannel] - Required with ``session``: the
    *   game type's ``channel``, on which ``send`` sends the player's messages
-   *   to the game
+   *   to the game. ``dallinger.joinRealtimeSession`` sets it itself.
    * @param {function} [options.predict] - With ``session``, to show the
    *   player's own moves at once: ``predict(view, message)`` returns the
    *   view as it would be once the game applied the message. See

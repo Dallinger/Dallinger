@@ -189,6 +189,17 @@ describe("joining", () => {
     expect(() => joined({ gameChannel: "dallinger_direct" })).toThrow(/reserved/);
   });
 
+  test("needs a scope", () => {
+    expect(() => joined({ scope: null })).toThrow(/needs a scope/);
+    expect(sockets).toHaveLength(0);
+  });
+
+  test("a socket without a session can have no scope", () => {
+    const dallinger = load();
+
+    expect(dallinger.openChatSocket({ scope: null }).scope).toBe(null);
+  });
+
   test("needs a participant id", () => {
     const dallinger = load();
 
@@ -223,7 +234,14 @@ describe("waiting for a session", () => {
     expect(url.pathname).toBe("/experiment-socket");
     expect(url.searchParams.get("wait_for_game")).toBe("bids");
     expect(url.searchParams.get("participant_id")).toBe("7");
+    expect(url.searchParams.get("scope")).toBe(dallinger.pageScope);
     expect(url.searchParams.has("after_session")).toBe(false);
+  });
+
+  test("waits with the scope option's scope", () => {
+    waiting({ scope: "page-12" });
+
+    expect(new URL(live().url).searchParams.get("scope")).toBe("page-12");
   });
 
   test("asks only for a session newer than afterSession", () => {
@@ -301,6 +319,107 @@ describe("waiting for a session", () => {
 
     expect(() => dallinger.waitForRealtimeSession(gameChannel, options)).toThrow(error);
     expect(sockets).toHaveLength(0);
+  });
+
+  describe("and joining it in one call", () => {
+    function joining(options) {
+      const dallinger = load();
+      dallinger.identity.participantId = 7;
+      const outcome = { dallinger, socket: null, rejected: null };
+      outcome.promise = dallinger
+        .joinRealtimeSession("bids", options)
+        .done((socket) => {
+          outcome.socket = socket;
+        })
+        .fail((code, reason) => {
+          outcome.rejected = [code, reason];
+        });
+      return outcome;
+    }
+
+    test("resolves with a socket that has joined the session, with the page's options", () => {
+      const outcome = joining({ predict: (view) => view });
+      live().onopen();
+
+      deliver(started);
+      jest.advanceTimersByTime(0);
+
+      const url = new URL(live().url);
+      expect(url.pathname).toBe("/experiment-socket");
+      expect(url.searchParams.get("session")).toBe("4");
+      expect(url.searchParams.has("wait_for_game")).toBe(false);
+      expect(outcome.socket.session).toBe(4);
+      expect(outcome.socket.gameChannel).toBe("bids");
+      expect(() => outcome.socket.predictedView()).not.toThrow();
+    });
+
+    test("uses the scope option on both connections", () => {
+      joining({ scope: "page-12" });
+      expect(new URL(live().url).searchParams.get("scope")).toBe("page-12");
+      live().onopen();
+
+      deliver(started);
+      jest.advanceTimersByTime(0);
+
+      expect(new URL(live().url).searchParams.get("session")).toBe("4");
+      expect(new URL(live().url).searchParams.get("scope")).toBe("page-12");
+    });
+
+    test("waits only for a session newer than afterSession", () => {
+      joining({ afterSession: 3 });
+
+      expect(new URL(live().url).searchParams.get("after_session")).toBe("3");
+    });
+
+    test("is rejected if the server refuses the wait, and opens no socket", () => {
+      const outcome = joining();
+
+      live().onclose({ code: 1008, reason: "not a game type" });
+      jest.advanceTimersByTime(120000);
+
+      expect(outcome.rejected).toEqual([1008, "not a game type"]);
+      expect(sockets).toHaveLength(1);
+    });
+
+    test("is rejected with the error if the socket can't be opened", () => {
+      const outcome = joining();
+      const error = new Error("can't open");
+      outcome.dallinger.openExperimentSocket = () => {
+        throw error;
+      };
+      live().onopen();
+
+      deliver(started);
+      jest.advanceTimersByTime(0);
+
+      expect(outcome.rejected).toEqual([error, undefined]);
+      expect(sockets).toHaveLength(1);
+    });
+
+    test("cancel stops waiting, leaving the promise unresolved", () => {
+      const outcome = joining();
+      live().onopen();
+      live().close = jest.fn();
+
+      outcome.promise.cancel();
+
+      expect(live().close).toHaveBeenCalled();
+      expect(outcome.promise.state()).toBe("pending");
+    });
+
+    test.each([
+      ["refuses a session option", { session: 4 }, /sets the session option/],
+      ["refuses a gameChannel option", { gameChannel: "bids" }, /sets the gameChannel option/],
+      ["refuses a scope of null", { scope: null }, /needs a scope/],
+      ["checks the channel before waiting", { channel: "dallinger_control" }, /reserved/],
+      ["checks the socket's options before waiting", { predict: 1 }, /predict option must be a function/],
+    ])("%s", (_, options, error) => {
+      const dallinger = load();
+      dallinger.identity.participantId = 7;
+
+      expect(() => dallinger.joinRealtimeSession("bids", options)).toThrow(error);
+      expect(sockets).toHaveLength(0);
+    });
   });
 });
 

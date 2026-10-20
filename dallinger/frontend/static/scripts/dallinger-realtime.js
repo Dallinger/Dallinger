@@ -68,15 +68,98 @@
 
   /**
    * Wait for the experiment to start a session of a game type with this
-   * participant as a player, and get the session's id to open the page's
-   * session socket with. Use it when the page can open before its session
-   * exists, as when the experiment starts the session once a group is
-   * complete.
+   * participant as a player, then join it, and get the socket to play it
+   * on. This is how a game's page usually starts, since the page often
+   * opens before its session exists: the experiment starts the session
+   * once a group is complete.
+   *
+   * It waits as ``waitForRealtimeSession`` does, on a connection of its
+   * own, so the promise resolves at once if the participant is already
+   * playing a session of the game type, and a page that is reloaded during
+   * a game finds its session again. A session whose ending has been saved
+   * isn't reported. It then opens the socket with ``openExperimentSocket``.
+   * Set the socket's callbacks, such as ``onView``, in the ``done``
+   * callback, which runs before the socket has received anything.
+   *
+   * The options are ``afterSession``, as for ``waitForRealtimeSession``,
+   * and the options of ``openExperimentSocket`` other than ``session`` and
+   * ``gameChannel``, which it sets itself: ``predict``, ``interpolate``,
+   * ``interpolationDelay``, ``channel`` and ``scope``. Both connections use
+   * the ``scope``, so the experiment's ``accept_websocket_connection`` sees
+   * the same one on each. An experiment that names its pages itself can
+   * pass its name for the page as the ``scope``, but each load of a page
+   * needs a scope of its own: if a reloaded page reuses its scope while the
+   * earlier load is still connected, the session can briefly mix up the two
+   * loads' messages. A name that stays the same when the page is reloaded
+   * can have ``dallinger.pageScope`` added to it. The ``scope`` can't be
+   * ``null``, since the game's views would then reach every page the player
+   * has open. A page that also uses a chat channel waits with
+   * ``waitForRealtimeSession`` and opens its socket with
+   * ``openChatSocket``.
+   *
+   * The promise is rejected, with the close code and reason, if the server
+   * refuses the connection that waits for the session, and with the error
+   * if the socket can't be opened. A refusal of the socket itself reaches the
+   * socket's ``onRefused`` callback. Call the promise's ``cancel`` method
+   * to stop waiting, which leaves the promise unresolved. Once the promise
+   * has resolved, ``cancel`` does nothing, and the socket's ``close``
+   * method closes the socket.
+   *
+   * @example
+   * dallinger.joinRealtimeSession('sealed_bid').done(function (socket) {
+   *   socket.onView(function (view) {
+   *     $('#bids-made').text(view.bids_made);
+   *   });
+   *   $('#bid-form').on('submit', function (event) {
+   *     event.preventDefault();
+   *     socket.send('sealed_bid', {bid: Number($('#bid').val())});
+   *   });
+   * });
+   *
+   * @param {string} gameChannel - The game type's ``channel``
+   * @param {Object} [options]
+   * @param {number} [options.afterSession] - The id of a session the page
+   *   already has, so that only a newer one counts
+   * @param {string} [options.scope=dallinger.pageScope] - The page's scope,
+   *   on both connections
+   * @returns {jQuery.Promise} Resolves with the session's
+   *   ``dallinger.Socket``. See :ref:`deferreds-label`
+   * @alias dallinger.joinRealtimeSession
+   */
+  dlgr.joinRealtimeSession = function (gameChannel, options) {
+    options = options || {};
+    ["session", "gameChannel"].forEach(function (name) {
+      if (options[name] != null) {
+        throw new Error("joinRealtimeSession sets the " + name + " option itself.");
+      }
+    });
+    if (options.channel != null) { checkSendChannel(options.channel); }
+    var socketOptions = $.extend({}, options, {gameChannel: gameChannel});
+    checkSessionOptions(socketOptions, true);
+    var waiting = dlgr.waitForRealtimeSession(gameChannel, {
+      afterSession: options.afterSession,
+      scope: options.scope
+    });
+    // then turns an error opening the socket into a rejection, and passes a
+    // refused wait's code and reason on unchanged.
+    var promise = waiting.then(function (sessionId) {
+      return dlgr.openExperimentSocket($.extend({}, socketOptions, {session: sessionId}));
+    });
+    promise.cancel = waiting.cancel;
+    return promise;
+  };
+
+  /**
+   * Wait for the experiment to start a session of a game type with this
+   * participant as a player, and get the session's id. Most pages use
+   * ``joinRealtimeSession``, which also opens the socket. This is for a page
+   * that needs the id before it joins, or that joins on ``/chat`` with
+   * ``openChatSocket``.
    *
    * If the participant is already a player in a running session of the
    * game type, the promise resolves at once, with the newest such session,
    * so a page that is reloaded during a game finds its session again. A
-   * session that has ended isn't reported.
+   * session whose ending has been saved isn't reported.
    *
    * When the participant plays several sessions of the game type, one
    * after another, pass the id of the session the page already has as
@@ -85,18 +168,20 @@
    *
    * It waits on a connection of its own to the ``/experiment-socket``
    * route, which closes once it has the id. Like any experiment socket, that
-   * connection is checked by the experiment's ``accept_websocket_connection``
-   * method and reported on the control channel. The promise is rejected,
-   * with the close code and reason, if the server refuses the connection,
-   * for example when ``gameChannel`` isn't one of the experiment's game
-   * types' channels.
+   * connection has the ``scope`` option's scope, is checked by the
+   * experiment's ``accept_websocket_connection`` method, and its connecting
+   * and disconnecting are published on the
+   * ``dallinger_control`` channel. The promise is rejected, with the close
+   * code and reason, if the server refuses the connection, for example when
+   * ``gameChannel`` isn't one of the experiment's game types' channels.
    *
    * Call the promise's ``cancel`` method to stop waiting. It closes the
    * connection and leaves the promise unresolved.
    *
    * @example
    * dallinger.waitForRealtimeSession('sealed_bid').done(function (sessionId) {
-   *   var socket = dallinger.openExperimentSocket({
+   *   var socket = dallinger.openChatSocket({
+   *     channel: 'chatroom',
    *     session: sessionId,
    *     gameChannel: 'sealed_bid'
    *   });
@@ -109,6 +194,8 @@
    * @param {Object} [options]
    * @param {number} [options.afterSession] - The id of a session the page
    *   already has, so that only a newer one counts
+   * @param {string} [options.scope=dallinger.pageScope] - Scope of the
+   *   connection that waits; ``null`` sends none
    * @returns {jQuery.Promise} Resolves with the session's id. See
    *   :ref:`deferreds-label`
    * @alias dallinger.waitForRealtimeSession
@@ -126,7 +213,7 @@
     var raw = new ReconnectingWebSocket(socketUrl("/experiment-socket", {
       worker_id: dlgr.identity.workerId,
       participant_id: dlgr.identity.participantId,
-      scope: dlgr.pageScope,
+      scope: options == null || options.scope === undefined ? dlgr.pageScope : options.scope,
       wait_for_game: gameChannel,
       after_session: after
     }));
@@ -500,22 +587,38 @@
     return this._ticks.viewAt(this.sessionTime(), this._interpolate);
   };
 
-  var sessionOption = function (options, name, fallback, check, expected) {
-    var value = options[name];
-    if (value == null) { return fallback; }
-    if (options.session == null) {
-      throw new Error("The " + name + " option needs a session.");
-    }
-    if (!check(value)) {
-      throw new Error("The " + name + " option must be " + expected + ".");
-    }
-    return value;
-  };
-
   var isFunction = function (value) { return typeof value === 'function'; };
 
   var isDelay = function (value) {
     return typeof value === 'number' && isFinite(value) && value >= 0;
+  };
+
+  // Checks a socket's session options and returns them. hasSession is
+  // whether the socket has a session to join.
+  var checkSessionOptions = function (options, hasSession) {
+    if (hasSession && options.scope === null) {
+      throw new Error("A socket that joins a session needs a scope, or the game's views reach every page the player has open.");
+    }
+    var read = function (name, fallback, check, expected) {
+      var value = options[name];
+      if (value == null) { return fallback; }
+      if (!hasSession) {
+        throw new Error("The " + name + " option needs a session.");
+      }
+      if (!check(value)) {
+        throw new Error("The " + name + " option must be " + expected + ".");
+      }
+      return value;
+    };
+    var sessionOptions = {
+      predict: read("predict", null, isFunction, "a function"),
+      interpolate: read("interpolate", null, isFunction, "a function"),
+      interpolationDelay: read("interpolationDelay", 2, isDelay, "a number, 0 or more")
+    };
+    if (options.interpolationDelay != null && sessionOptions.interpolate === null) {
+      throw new Error("The interpolationDelay option needs the interpolate option.");
+    }
+    return sessionOptions;
   };
 
   // dallinger.Socket's constructor calls this with each new socket, and
@@ -526,14 +629,7 @@
     if ((sessionId === null) !== (gameChannel === null)) {
       throw new Error("A socket that joins a session needs both the session and its game type's gameChannel.");
     }
-    var sessionOptions = {
-      predict: sessionOption(options, "predict", null, isFunction, "a function"),
-      interpolate: sessionOption(options, "interpolate", null, isFunction, "a function"),
-      interpolationDelay: sessionOption(options, "interpolationDelay", 2, isDelay, "a number, 0 or more")
-    };
-    if (options.interpolationDelay != null && sessionOptions.interpolate === null) {
-      throw new Error("The interpolationDelay option needs the interpolate option.");
-    }
+    var sessionOptions = checkSessionOptions(options, sessionId !== null);
     if (sessionId === null) { return null; }
     if (!/^[0-9]+$/.test(String(sessionId))) {
       throw new Error("A session id is a whole number, not " + JSON.stringify(sessionId) + ".");
