@@ -258,7 +258,7 @@ def test_server_check_suggests_saving_the_dns_host_the_server_serves(server, cap
         docker_ssh._classic_preflight("lab", "myapp", None, None, False)
     output = capsys.readouterr().out
     assert "does not serve lab.example.org" in output
-    assert "another DNS name, save that name with" in output
+    assert "another DNS name, first save that name with" in output
 
 
 LEGACY_ROOT_CADDYFILE = """lab.example.org {
@@ -301,7 +301,10 @@ def test_upgrade_keeps_an_old_root_domain_app_at_its_address(
     assert result.exit_code == 0, result.output
     assert (server / "dallinger" / route).read_text() == content
     assert f"~/dallinger/{route} will be added" in result.output
-    assert "log viewer moves from the /logs path to https://logs.lab" in result.output
+    assert (
+        "log viewer moves from the /logs path to https://logs.lab.example.org,"
+        in result.output
+    )
 
 
 def test_server_check_accepts_a_site_with_several_addresses(server):

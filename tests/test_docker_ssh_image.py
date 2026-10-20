@@ -89,23 +89,13 @@ def test_deploy_failure_is_not_reported_as_a_registry_error(monkeypatch, capsys)
     assert "Error checking remote image" not in capsys.readouterr().out
 
 
-@pytest.mark.parametrize(
-    "update, in_use",
-    [(False, False), (True, False), (False, True)],
-    ids=["new-app", "update", "in-use"],
-)
-def test_failed_new_deploy_removes_the_image_it_built(
-    monkeypatch, capsys, update, in_use
-):
+@pytest.mark.parametrize("update", [False, True], ids=["new-app", "update"])
+def test_failed_new_deploy_removes_the_image_it_built(monkeypatch, capsys, update):
     @docker_ssh_module.build_and_push_image
     def deploy(**kwargs):
         raise click.Abort()
 
     client = _client()
-    if in_use:
-        client.images.remove.side_effect = docker.errors.APIError(
-            "conflict", response=mock.Mock(status_code=409)
-        )
     config = mock.Mock()
     config.get.side_effect = lambda key, default=None: {"id": "a" * 8}.get(key)
     monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
@@ -123,12 +113,35 @@ def test_failed_new_deploy_removes_the_image_it_built(
     ):
         deploy(app_name="app", server="lab", local_build=True, update=update)
 
-    output = capsys.readouterr().out
     if update:
         client.images.remove.assert_not_called()
-    elif in_use:
-        assert "because a container still uses it." in output
-        assert "`dallinger docker-ssh destroy --server lab --app app`" in output
     else:
         client.images.remove.assert_called_once_with("built:1")
-        assert "Removed the image built:1 built for this deploy." in output
+        assert "Removed the image built:1 built for this deploy." in (
+            capsys.readouterr().out
+        )
+
+
+@pytest.mark.parametrize("local_build", [False, True], ids=["remote", "local"])
+def test_aborted_build_cleanup_explains_an_image_a_container_uses(
+    monkeypatch, capsys, local_build
+):
+    client = _client()
+    client.images.remove.side_effect = docker.errors.APIError(
+        "conflict",
+        response=mock.Mock(status_code=409),
+        explanation="container 5e8d is using its referenced image f3aa",
+    )
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "image_pinned_by_other_apps", lambda *a, **k: False
+    )
+
+    docker_ssh_module._remove_aborted_build(
+        client, "built:1", "lab", local_build, "app"
+    )
+
+    output = capsys.readouterr().out
+    assert "Kept the image built:1 built for this deploy, because a container" in output
+    destroy_hint = "`dallinger docker-ssh destroy --server lab --app app`"
+    assert (destroy_hint in output) is not local_build

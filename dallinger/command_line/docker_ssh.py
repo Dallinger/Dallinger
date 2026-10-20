@@ -430,7 +430,7 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     current = {path: executor.run(f"cat ~/{path}", raise_=False) for path in files}
     changed = [path for path, content in files.items() if current[path] != content]
     routes = _old_root_routes(executor, current["dallinger/Caddyfile"], host, tls)
-    if not changed:
+    if replace and not changed and not routes:
         print(f"The shared classic-ingress files on {server} are up to date.")
     if changed and replace:
         print(f"These files on {server} will be replaced (keeping a .bak copy):")
@@ -1134,9 +1134,9 @@ def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
             + (
                 ""
                 if serves_host or not compose.strip()
-                else " If the server already serves another DNS name, save that "
-                f"name with `{_servers_add_command(server_info, dns_host='<name>')}` "
-                "instead."
+                else " If the server already serves another DNS name, first save "
+                f"that name with `{_servers_add_command(server_info, dns_host='<name>')}`"
+                " and deploy again."
             )
         )
         raise click.Abort()
@@ -1685,7 +1685,7 @@ def _remove_aborted_build(docker_client, image_name, server, local_build, app):
             return
         docker_client.images.remove(image_name)
     except Exception as exc:
-        if getattr(exc, "status_code", None) == 409:
+        if getattr(exc, "status_code", None) == 409 and "container" in str(exc):
             print(
                 f"Kept the image {image_name} built for this deploy, because a "
                 "container still uses it."
@@ -1693,7 +1693,7 @@ def _remove_aborted_build(docker_client, image_name, server, local_build, app):
                     " `dallinger docker-ssh destroy "
                     f"--server {server} --app {app}` removes the partly deployed "
                     "app and its image."
-                    if app
+                    if app and not local_build
                     else ""
                 )
             )
