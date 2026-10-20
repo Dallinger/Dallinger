@@ -468,7 +468,8 @@ def _unlocked_server_files(executor, files=SHARED_SERVER_FILES, *, lock=False):
             print(
                 f"{RED}Warning: could not make the shared files in ~/dallinger "
                 f"read-only again: {error.strip()}{END} Older Dallinger versions "
-                "can then rewrite them. Run `chmod 444` on them."
+                "can then rewrite them. On the server, run "
+                f"`cd ~/dallinger && chmod 444 {' '.join(relock)}`."
             )
 
 

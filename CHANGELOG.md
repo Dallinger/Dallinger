@@ -209,12 +209,13 @@
   not request new ones. The DNS check and the contact-email check now run
   before the image build. If a new deploy fails after building an image, the
   image is removed unless a container or another app uses it. "Reloading Caddy
-  config file" is printed once, as a plain line. `servers add` and `servers
-  upgrade` leave the shared files, plus `.env.json`, read-only (mode 0444), so
-  a classic deploy or `set-dozzle-password` by an older Dallinger, which
-  rewrites them, fails with `PermissionError: [Errno 13] Permission denied`
-  before it changes the server; update Dallinger to deploy there. If an older
-  Dallinger did rewrite them (before this, or as `root`), which takes a
+  config file" is printed once, as a plain line. `servers upgrade`, and
+  `servers add` when it sets up a server, leave the shared files, plus
+  `.env.json`, read-only (mode 0444), so a classic deploy or
+  `set-dozzle-password` by an older Dallinger, which rewrites them, fails with
+  `PermissionError: [Errno 13] Permission denied` before it changes the
+  shared files; update Dallinger to deploy there. If an older Dallinger did
+  rewrite them (before they were read-only, or as `root`), which takes a
   root-domain app offline and can make Caddy request new certificates, a
   deploy stops before the image build and asks for `servers upgrade`;
   `destroy` warns and carries on.
