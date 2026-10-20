@@ -208,7 +208,14 @@
   not request new ones. The DNS check and the contact-email check now run
   before the image build. If a new deploy fails after building an image, the
   image is removed unless a container or another app uses it. "Reloading Caddy
-  config file" is printed once, as a plain line.
+  config file" is printed once, as a plain line. `servers add` and `servers
+  upgrade` leave the shared files, plus `.env.json`, read-only (mode 0444), so
+  a classic deploy or `set-dozzle-password` by an older Dallinger, which
+  rewrites them, fails with `PermissionError: [Errno 13] Permission denied`
+  before it changes the server; update Dallinger to deploy there. If an older
+  Dallinger did rewrite them (before this, or as `root`), which takes a
+  root-domain app offline and makes Caddy request new certificates, a deploy
+  stops before the image build and asks for `servers upgrade`; `destroy` warns.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and

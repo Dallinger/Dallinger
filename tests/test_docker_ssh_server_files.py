@@ -2,6 +2,9 @@
 
 import hashlib
 import importlib
+import io
+import os
+import re
 import subprocess
 from unittest import mock
 
@@ -245,6 +248,7 @@ def test_classic_deploy_checks_the_server_setup_before_building(
     assert problem in output
     assert "dallinger docker-ssh servers upgrade --host lab.example.org" in output
     assert "another DNS name" not in output
+    assert "older Dallinger" not in output
 
 
 def test_server_check_suggests_saving_the_dns_host_the_server_serves(server, capsys):
@@ -390,7 +394,7 @@ def test_servers_add_needs_a_dns_host_to_set_up_a_fresh_ip_server(server, monkey
 
 
 def test_destroy_removes_a_root_route_but_not_the_server_files(server):
-    (server / "dallinger/root.d").mkdir()
+    CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
     (server / "dallinger/root.d/myapp").write_text("reverse_proxy myapp_web:5000\n")
     (server / "dallinger/myapp").mkdir()
     (server / "dallinger/myapp/docker-compose.yml").write_text("services: {}\n")
@@ -400,3 +404,64 @@ def test_destroy_removes_a_root_route_but_not_the_server_files(server):
 
     assert checksums(server) == before
     assert not (server / "dallinger/root.d/myapp").exists()
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root can write read-only files")
+def test_upgrade_leaves_the_server_files_read_only_for_older_dallinger(
+    server, monkeypatch
+):
+    CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
+    before = checksums(server)
+
+    # Older Dallinger rewrites these files with sftp.putfo, which opens them for writing.
+    for name in SERVER_FILES:
+        path = server / "dallinger" / name
+        assert path.stat().st_mode & 0o777 == 0o444
+        with pytest.raises(PermissionError):
+            LocalSftp(server).putfo(io.BytesIO(b"old"), f"dallinger/{name}")
+    assert checksums(server) == before
+
+    monkeypatch.setitem(SERVER, "contact_email", "new@example.org")
+    result = CliRunner().invoke(
+        docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
+    )
+    assert result.exit_code == 0, result.output
+    result = CliRunner().invoke(
+        docker_ssh.docker_ssh,
+        ["set-dozzle-password", "--server", "lab", "--password", "pw2"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "tls new@example.org" in (server / "dallinger/Caddyfile").read_text()
+    assert "pw2" in (server / "dallinger/.env.json").read_text()
+    for name in SERVER_FILES:
+        assert (server / "dallinger" / name).stat().st_mode & 0o777 == 0o444
+
+
+def test_deploy_refuses_a_set_up_server_that_older_dallinger_rewrote(server, capsys):
+    CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
+    # What an older Dallinger's deploy writes, on a server it could still write to.
+    compose = server / "dallinger/docker-compose.yml"
+    old_compose = re.sub(r" *- (\./root\.d|caddy_data):.*\n", "", compose.read_text())
+    for name, content in (("Caddyfile", OLD_CADDYFILE), (compose.name, old_compose)):
+        (server / "dallinger" / name).chmod(0o644)
+        (server / "dallinger" / name).write_text(content)
+    before = checksums(server)
+    (server / "docker.log").unlink()
+
+    with (
+        mock.patch.object(docker_ssh, "_ipv4_addresses", return_value=["1.2.3.4"]),
+        pytest.raises(click.Abort),
+    ):
+        docker_ssh._classic_preflight("lab", "myapp", None, None, False)
+    output = capsys.readouterr().out
+    assert "An older Dallinger version has rewritten the shared files" in output
+    assert "dallinger docker-ssh servers upgrade --host lab.example.org" in output
+    assert checksums(server) == before
+    assert "up -d" not in docker_calls(server)
+
+    result = CliRunner().invoke(
+        docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
+    )
+    assert "An older Dallinger version has rewritten these files" in result.output
+    with mock.patch.object(docker_ssh, "_ipv4_addresses", return_value=["1.2.3.4"]):
+        docker_ssh._classic_preflight("lab", "myapp", None, None, False)

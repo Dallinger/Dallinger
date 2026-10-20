@@ -421,12 +421,108 @@ def _logs_url(server_info, dns_host=None):
     return f"https://logs.{_server_host(server_info, dns_host)}"
 
 
+SHARED_SERVER_FILES = (
+    "Caddyfile",
+    "docker-compose.yml",
+    "dozzle-users.yml",
+    ".env.json",
+)
+
+
+@contextmanager
+def _unlocked_server_files(executor, *, lock=False):
+    """Let the block rewrite the shared server files in ``~/dallinger``.
+
+    ``servers add`` and ``servers upgrade`` leave these files read-only
+    (mode 0444). Older Dallinger versions rewrite them on every classic
+    deploy with SFTP, which then fails before it changes anything shared.
+    Files that were read-only are made read-only again afterwards; with
+    ``lock``, every existing shared file is.
+    """
+    names = " ".join(SHARED_SERVER_FILES)
+    locked = (
+        executor.run(
+            f"cd ~/dallinger 2>/dev/null && for f in {names}; do "
+            '[ ! -f "$f" ] || [ -w "$f" ] || echo "$f"; done; true',
+            raise_=False,
+        )
+        or ""
+    ).split()
+    if locked:
+        executor.run(f"cd ~/dallinger && chmod u+w {' '.join(locked)}")
+    try:
+        yield
+    finally:
+        relock = SHARED_SERVER_FILES if lock else locked
+        if relock:
+            executor.run(
+                f"cd ~/dallinger && for f in {' '.join(relock)}; do "
+                '[ ! -f "$f" ] || chmod 444 "$f"; done'
+            )
+
+
+def _server_state(executor):
+    """Read the server's shared Caddyfile, compose file and running services.
+
+    Returns a dict with the ``Caddyfile`` and ``docker-compose.yml``
+    contents, the running shared ``services``, and a ``root.d`` key if
+    ``~/dallinger/root.d`` exists. Uses one SSH command.
+    """
+    output = executor.run(
+        'for f in Caddyfile docker-compose.yml; do echo "#== $f"; '
+        "cat ~/dallinger/$f 2>/dev/null; echo; done; "
+        "[ ! -d ~/dallinger/root.d ] || echo '#== root.d'; echo '#== services'; "
+        f"{SERVER_COMPOSE} ps --services --status running 2>/dev/null; true",
+        raise_=False,
+    )
+    return dict(
+        part.split("\n", 1) for part in (output or "").split("#== ")[1:] if "\n" in part
+    )
+
+
+def _rewritten_by_older_dallinger(state):
+    """Return whether an older Dallinger rewrote a set-up server's shared files.
+
+    ``servers add`` and ``servers upgrade`` create ``~/dallinger/root.d``,
+    which deploys only create on such servers and older Dallinger versions
+    never touch. Those versions' deploys rewrite the Caddyfile and compose
+    file without the ``root.d`` import, its mount and the ``caddy_data``
+    volume, and their root-domain destroys rewrite the Caddyfile. A server
+    that was never set up this way has no ``root.d`` and is not reported.
+    """
+    caddyfile = state.get("Caddyfile", "")
+    compose = state.get("docker-compose.yml", "")
+    return (
+        "root.d" in state
+        and bool(compose.strip())
+        and not (
+            "import root.d/*" in caddyfile
+            and "/etc/caddy/root.d" in compose
+            and "caddy_data:/data" in compose
+        )
+    )
+
+
+def _older_dallinger_message(server):
+    """Explain that an older Dallinger rewrote ``server``'s shared files."""
+    return (
+        f"{RED}An older Dallinger version has rewritten the shared files on {server} "
+        "(~/dallinger/Caddyfile and docker-compose.yml) that `servers add` or "
+        f"`servers upgrade` set up.{END} Until they are restored, apps on the "
+        "server's own host may be offline, and Caddy may request new "
+        "certificates for every site (Let's Encrypt allows 5 duplicate "
+        "certificates per week). Restore them with "
+        f"`dallinger docker-ssh servers upgrade --host {server}`, and deploy to "
+        "this server only with this Dallinger version or newer."
+    )
+
+
 def _write_server_files(server, server_info, *, replace, yes=True):
     """Write the shared classic-ingress files and start the shared services.
 
     Without ``replace``, a server that already has a server compose file is
     left alone. With it, changed files are listed and, unless ``yes``,
-    confirmed before they are replaced.
+    confirmed before they are replaced. The shared files are left read-only.
     """
     executor = _build_executor(server_info)
     if not replace and executor.run(
@@ -450,6 +546,15 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     if replace and not changed and not routes:
         print(f"The shared classic-ingress files on {server} are up to date.")
     if changed and replace:
+        state = {"Caddyfile": current["dallinger/Caddyfile"] or ""}
+        state["docker-compose.yml"] = current["dallinger/docker-compose.yml"] or ""
+        if executor.run("test -d ~/dallinger/root.d && echo yes", raise_=False):
+            state["root.d"] = ""
+        if _rewritten_by_older_dallinger(state):
+            print(
+                "An older Dallinger version has rewritten these files since they "
+                "were set up; replacing them restores the server."
+            )
         print(f"These files on {server} will be replaced (keeping a .bak copy):")
         for path in changed:
             print(f"  ~/{path}")
@@ -477,20 +582,21 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         + "".join(f"; [ ! -f ~/{p} ] || cp ~/{p} ~/{p}.{stamp}.bak" for p in changed)
     )
     sftp = get_sftp(server_info["host"], user=server_info.get("user"))
-    for path, content in [*((p, files[p]) for p in changed), *routes.items()]:
-        sftp.putfo(BytesIO(content.encode()), path)
-    if not executor.run(
-        "test -f ~/dallinger/dozzle-users.yml && echo yes", raise_=False
-    ):
-        dozzle_password = get_dotenv_values(executor).get("DOZZLE_PASSWORD")
-        if not dozzle_password:
-            dozzle_password = secrets.token_urlsafe(12)
-            print(
-                f"Log viewer: {_logs_url(server_info)} (user = dallinger, "
-                f"password = {dozzle_password}). Change the password with "
-                "`dallinger docker-ssh set-dozzle-password`."
-            )
-        set_dozzle_password(executor, sftp, dozzle_password)
+    with _unlocked_server_files(executor, lock=True):
+        for path, content in [*((p, files[p]) for p in changed), *routes.items()]:
+            sftp.putfo(BytesIO(content.encode()), path)
+        if not executor.run(
+            "test -f ~/dallinger/dozzle-users.yml && echo yes", raise_=False
+        ):
+            dozzle_password = get_dotenv_values(executor).get("DOZZLE_PASSWORD")
+            if not dozzle_password:
+                dozzle_password = secrets.token_urlsafe(12)
+                print(
+                    f"Log viewer: {_logs_url(server_info)} (user = dallinger, "
+                    f"password = {dozzle_password}). Change the password with "
+                    "`dallinger docker-ssh set-dozzle-password`."
+                )
+            set_dozzle_password(executor, sftp, dozzle_password)
     print("Starting the shared Caddy, Postgres and Dozzle services.")
     _start_server_services(executor)
     # A just-recreated Caddy may not answer its admin API yet.
@@ -1098,6 +1204,8 @@ def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
 
     A deploy only adds the app's own Caddy file and reloads Caddy, so the
     server must have been set up by ``servers add`` or ``servers upgrade``.
+    A set-up server whose shared files an older Dallinger has since rewritten
+    is refused with advice to upgrade it again.
 
     Parameters
     ----------
@@ -1114,15 +1222,10 @@ def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
         The deploy's ``--dns-host``, the server's host if none is saved.
     """
     host = _server_host(server_info, dns_host)
-    output = executor.run(
-        'for f in Caddyfile docker-compose.yml; do echo "#== $f"; '
-        "cat ~/dallinger/$f 2>/dev/null; echo; done; echo '#== services'; "
-        f"{SERVER_COMPOSE} ps --services --status running 2>/dev/null; true",
-        raise_=False,
-    )
-    parts = dict(
-        part.split("\n", 1) for part in (output or "").split("#== ")[1:] if "\n" in part
-    )
+    parts = _server_state(executor)
+    if _rewritten_by_older_dallinger(parts):
+        print(_older_dallinger_message(server))
+        raise click.Abort()
     caddyfile = parts.get("Caddyfile", "")
     compose = parts.get("docker-compose.yml", "")
     problems = []
@@ -1758,7 +1861,6 @@ def set_dozzle_password(executor, sftp, new_password):
 
     dotenv_values = get_dotenv_values(executor)
     dotenv_values["DOZZLE_PASSWORD"] = new_password
-    sftp.putfo(BytesIO(json.dumps(dotenv_values).encode()), "dallinger/.env.json")
     hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode(
         "utf-8"
     )
@@ -1771,7 +1873,11 @@ def set_dozzle_password(executor, sftp, new_password):
             }
         }
     }
-    sftp.putfo(BytesIO(json.dumps(dozzle_users).encode()), "dallinger/dozzle-users.yml")
+    with _unlocked_server_files(executor):
+        sftp.putfo(BytesIO(json.dumps(dotenv_values).encode()), "dallinger/.env.json")
+        sftp.putfo(
+            BytesIO(json.dumps(dozzle_users).encode()), "dallinger/dozzle-users.yml"
+        )
     dozzle_running = executor.run(
         "docker ps --filter name=^dozzle$ --format '{{.ID}}'",
         raise_=False,
@@ -2059,9 +2165,12 @@ def _deploy_in_mode(
     # We give caddy the alias for the service. If we scale up the service container caddy will
     # send requests to all of them in a round robin fashion.
     route = f"reverse_proxy {experiment_id}_web:5000"
-    other_route = "caddy.d" if takes_server_root else "root.d"
+    route_dir, other_route = ("caddy.d", "root.d")
+    if takes_server_root:
+        route_dir, other_route = other_route, route_dir
+    # Creating root.d here would mark a never-upgraded server as set up.
     executor.run(
-        "mkdir -p ~/dallinger/caddy.d ~/dallinger/root.d && "
+        f"mkdir -p ~/dallinger/{route_dir} && "
         f"rm -f ~/dallinger/{other_route}/{quote(experiment_id)}"
     )
     if takes_server_root:
@@ -2795,9 +2904,11 @@ def destroy(server, app):
             raise_=False,
         )
     else:
+        state = _server_state(executor)
         executor.run(f"rm -f ~/dallinger/root.d/{quote(app)}")
-        caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
-        if f"reverse_proxy {app}_web:5000" in (caddyfile_content or ""):
+        if _rewritten_by_older_dallinger(state):
+            print(f"Warning: {_older_dallinger_message(server)}")
+        elif f"reverse_proxy {app}_web:5000" in state.get("Caddyfile", ""):
             print(
                 f"The server's Caddyfile still sends the server's own host to {app}, "
                 "as root-domain deploys by older Dallinger versions set it up. "
