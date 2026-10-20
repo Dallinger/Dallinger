@@ -343,3 +343,38 @@ def test_server_commands_ignore_an_experiments_contact_email(tmp_path, monkeypat
     )
     assert result.exit_code == 0, result.output
     assert "Let's Encrypt" not in result.output
+
+
+def test_servers_add_keeps_saved_fields_unless_given(monkeypatch):
+    saved = {
+        "host": "lab.example.org",
+        "user": "ubuntu",
+        "default_ingress": "cloudflare",
+        "dns_host": "lab.example.org",
+        "ec2_instance_id": "i-1",
+    }
+    monkeypatch.setattr(
+        docker_ssh_module, "get_configured_hosts", lambda: {saved["host"]: saved}
+    )
+    prepare_server, store_host = mock.Mock(), mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "prepare_server", prepare_server)
+    monkeypatch.setattr(docker_ssh_module, "store_host", store_host)
+    monkeypatch.setattr(docker_ssh_module, "_write_server_files", mock.Mock())
+    add = ["add", "--host", "lab.example.org", "--contact-email", "me@example.org"]
+
+    result = CliRunner().invoke(docker_ssh_module.servers, add)
+    assert result.exit_code == 0, result.output
+    prepare_server.assert_called_once_with("lab.example.org", "ubuntu")
+    assert store_host.call_args.args[0] == {**saved, "contact_email": "me@example.org"}
+
+    result = CliRunner().invoke(
+        docker_ssh_module.servers,
+        add + ["--user", "root", "--default-ingress", "classic"],
+    )
+    assert result.exit_code == 0, result.output
+    stored = store_host.call_args.args[0]
+    assert (stored["user"], stored["default_ingress"]) == ("root", "classic")
+    # Suggested re-registration commands can therefore name only the changes.
+    assert docker_ssh_module._servers_add_command(stored, dns_host="<name>") == (
+        "dallinger docker-ssh servers add --host lab.example.org --dns-host '<name>'"
+    )

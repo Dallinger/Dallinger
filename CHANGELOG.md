@@ -210,7 +210,11 @@
   classic deploy by an older Dallinger was a root-domain one. The server's
   DNS host and the email that Caddy gives Let's Encrypt come from the server
   record: `servers add` saves `--dns-host` and `--contact-email`, and
-  `servers upgrade` also takes `--contact-email`. Without one, both save
+  `servers upgrade` also takes `--contact-email`. Re-running `servers add`
+  keeps every saved field it isn't given, including the SSH user and default
+  ingress, which it used to reset to the local user name and `classic`, so
+  the `servers add --host <server> …` commands that errors suggest work as
+  printed. Without one, both save
   `contact_email_on_error` from `~/.dallingerconfig` or the environment, not
   from an experiment's `config.txt` or class, and print the saved address and
   where it came from. A `--contact-email` that is not a bare email address is

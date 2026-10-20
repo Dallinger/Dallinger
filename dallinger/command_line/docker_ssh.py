@@ -248,13 +248,15 @@ _CONTACT_EMAIL_OPTION = click.option(
 @click.option(
     "--host", required=True, help="IP address or dns name of the remote server"
 )
-@click.option("--user", help="User to use when connecting to remote host")
+@click.option(
+    "--user",
+    help="User to use when connecting to remote host. Defaults to the saved user.",
+)
 @click.option(
     "--default-ingress",
     type=click.Choice([INGRESS_CLASSIC, INGRESS_CLOUDFLARE]),
-    default=INGRESS_CLASSIC,
-    show_default=True,
-    help="Default participant ingress for deploys that omit --ingress",
+    help="Default participant ingress for deploys that omit --ingress. Defaults "
+    f"to the saved value, then {INGRESS_CLASSIC}.",
 )
 @click.option(
     "--dns-host",
@@ -285,9 +287,10 @@ def add(host, user, default_ingress, dns_host, contact_email):
     Cloudflare tunnel apps also need ``cloudflare_account_id``,
     ``cloudflare_zone_id``, and ``cloudflare_dns_zone`` in Dallinger config.
 
-    Re-adding a server keeps its saved DNS host and a valid saved contact
-    email unless ``--dns-host`` or ``--contact-email`` is given.
+    Re-adding a server keeps its saved fields (user, default ingress, DNS host,
+    a valid contact email, and any others) unless an option replaces them.
     """
+    user = user or get_configured_hosts().get(host, {}).get("user")
     prepare_server(host, user)
     register_server(host, user, default_ingress, dns_host, contact_email)
 
@@ -295,7 +298,7 @@ def add(host, user, default_ingress, dns_host, contact_email):
 def register_server(
     host,
     user,
-    default_ingress=INGRESS_CLASSIC,
+    default_ingress=None,
     dns_host=None,
     contact_email=None,
     *,
@@ -304,18 +307,19 @@ def register_server(
     """Save a prepared server and, for classic ingress, set up its shared services.
 
     This is ``servers add`` after it has installed Docker; ``dallinger ec2
-    provision`` uses it too. A saved DNS host and valid contact email are kept
-    unless given, and a server that already has a server compose file keeps
-    its files.
+    provision`` uses it too. The saved record's fields, other than an invalid
+    contact email, are kept unless given, and a server that already has a
+    server compose file keeps its files.
 
     Parameters
     ----------
     host : str
         SSH host of the server, also the name it is saved under.
     user : str or None
-        SSH user.
-    default_ingress : str
-        Ingress for deploys that omit ``--ingress``.
+        SSH user; defaults to the saved one.
+    default_ingress : str, optional
+        Ingress for deploys that omit ``--ingress``; defaults to the saved
+        one, then classic.
     dns_host : str, optional
         DNS name that experiments on the server are served under.
     contact_email : str, optional
@@ -330,8 +334,13 @@ def register_server(
         The saved server record.
     """
     existing = get_configured_hosts().get(host, {})
-    server_info = {"host": host, "user": user, "default_ingress": default_ingress}
-    dns_host = dns_host or existing.get("dns_host")
+    user = user or existing.get("user")
+    default_ingress = default_ingress or existing.get(
+        "default_ingress", INGRESS_CLASSIC
+    )
+    server_info = {**existing, "host": host, "user": user}
+    server_info["default_ingress"] = default_ingress
+    server_info.pop("contact_email", None)
     if dns_host:
         server_info["dns_host"] = dns_host
     classic = default_ingress == INGRESS_CLASSIC
@@ -3854,11 +3863,13 @@ def resolve_dns_host(server_info, dns_host=None):
 def _servers_add_command(server_info, **changes):
     """Return a ``servers add`` command that re-registers a server with ``changes``.
 
+    ``servers add`` keeps the saved fields, so only ``--host`` and the changes
+    are given.
+
     Parameters
     ----------
     server_info : dict
-        Configured server entry; the saved fields that ``servers add``
-        accepts are kept.
+        Configured server entry.
     **changes
         Fields to override, for example ``default_ingress="cloudflare"``.
 
@@ -3866,11 +3877,9 @@ def _servers_add_command(server_info, **changes):
     -------
     str
     """
-    fields = {**server_info, **changes}
-    options = [f"--host {quote(fields['host'])}"]
-    for key in ("user", "default_ingress", "dns_host"):
-        if fields.get(key):
-            options.append(f"--{key.replace('_', '-')} {quote(fields[key])}")
+    options = [f"--host {quote(server_info['host'])}"]
+    for key, value in changes.items():
+        options.append(f"--{key.replace('_', '-')} {quote(value)}")
     return "dallinger docker-ssh servers add " + " ".join(options)
 
 
