@@ -3,20 +3,23 @@ Real-Time Games
 
 Dallinger's real-time engine plays games in which participants act at the same
 time and see each other's actions within a fraction of a second, such as
-movement games, games with turn timers, and bargaining. An experiment defines a
-game type, a Python class holding the game's rules, and starts a session of it
-for each group of players. Dallinger plays every session: it applies each
-player's messages to the session's state as they arrive, runs the game's timed
-updates, and sends each player's page a view of the state.
+movement games, games with turn timers, and bargaining. Dallinger runs each
+game for the experiment: it applies the messages players' pages send as they
+arrive, keeps the game's time, and sends each player's page a view of the
+game, which is what that player may see of it.
 
-Game code works only with plain JSON values. Dallinger keeps each session in
-redis while it is played, and saves a record of it in Postgres, which is
-exported with the rest of the experiment's data.
+An experiment with a real-time game:
 
-The real-time engine is opt-in. A WebSocket uses it only if it joins a session
-when it connects, and every other WebSocket works as
+1. defines a game type, a Python class holding the game's rules
+2. lists the game type in its ``realtime_games``
+3. starts a session of the game type for each group of players, and reads the
+   session's outcome once it's over
+
+Dallinger saves a record of every session, which is exported with the rest of
+the experiment's data. Real-time games need redis 7.0 or later. A WebSocket
+uses the real-time engine only if it joins a session when it connects, and
+the experiment's other WebSockets work as
 :doc:`Using WebSockets in Dallinger Experiments <using_websockets>` describes.
-The engine needs redis 7.0 or later.
 
 Writing a Game Type
 -------------------
@@ -32,7 +35,7 @@ highest bid wins::
         channel = "sealed_bid"
 
         def initial_state(self, players):
-            # The session's clock starts at 0, so bidding closes 30 seconds in
+            # Session time starts at 0, so bidding closes 30 seconds in
             return {
                 "players": players,
                 "bids": {},
@@ -41,7 +44,8 @@ highest bid wins::
             }
 
         def apply(self, state, player_id, message, now, sent):
-            # Check everything before changing the state
+            # The message comes from the player's browser and could hold
+            # anything, so check it all before changing the state
             if player_id in state["bids"]:
                 raise Reject("already bid")
             bid = message.get("bid") if isinstance(message, dict) else None
@@ -62,11 +66,14 @@ highest bid wins::
             return state["closed"] or all_bid
 
         def view(self, state, player_id):
-            # Other players' bids stay hidden until the game is over
+            # Other players' bids stay hidden, and only the highest is shown
+            # once the game is over
+            bids = state["bids"]
+            over = self.is_over(state)
             return {
-                "my_bid": state["bids"].get(player_id),
-                "bids_made": len(state["bids"]),
-                "bids": state["bids"] if self.is_over(state) else None,
+                "my_bid": bids.get(player_id),
+                "bids_made": len(bids),
+                "highest_bid": max(bids.values(), default=None) if over else None,
             }
 
         def outcome(self, state, reason):
@@ -86,7 +93,10 @@ methods as the game goes on:
   place, or refuses the message by raising
   :class:`~dallinger.realtime.Reject` with a reason. Changes made before
   ``Reject`` is raised are kept, so ``apply`` should check everything first, as
-  ``SealedBid`` does.
+  ``SealedBid`` does. It is also passed ``now``, the session time the message
+  arrived, and ``sent``, a :class:`~dallinger.realtime.Sent` with what the
+  page said about the message, such as when the browser sent it. Most games
+  don't need ``sent``.
 - :meth:`~dallinger.realtime.RealtimeGame.tick` is the game's timed
   update, for anything that happens because time has passed, such as a turn
   timer running out. :attr:`~dallinger.realtime.RealtimeGame.tick_rate`
@@ -128,7 +138,7 @@ every deploy check the game types. If one is invalid, the experiment's web
 processes and ``dallinger develop``'s server won't start, and a worker logs
 the error and plays no sessions.
 
-Frames a page sends on a game type's channel go only to the page's session,
+Messages a page sends on a game type's channel go only to the page's session,
 or are dropped if the page hasn't joined one. They are never broadcast to the
 channel's subscribers or passed to
 :meth:`~dallinger.experiment.Experiment.handle_websocket_message`, which is
@@ -138,24 +148,86 @@ State and Time
 ~~~~~~~~~~~~~~
 
 A game type's instance is shared by every session of that game type, so
-everything about a session goes in its state, never on ``self``. A subclass can
-read its settings from the experiment's configuration in ``__init__``, so they
-can be tuned without changing code.
+everything about a session goes in its state, never on ``self``. Settings that
+are the same for every session can go on ``self``, and a game type can read
+them from the experiment's configuration in ``__init__``, so they can be
+tuned without changing code. The experiment registers the setting and gives it
+a default, as :doc:`Extra Configuration <extra_configuration>` describes, and
+``config.txt`` can change it::
 
-The state, messages, views and outcome are plain JSON values. Dallinger saves
-the state as JSON after each change and loads it again, so a dict key comes
-back as a string and a tuple as a list. A state built that way from the start
-behaves the same before and after a save. Players are identified by their
-participant ids as strings, so the ids work as keys in the state's dicts.
+    from dallinger.config import get_config
 
-The methods are passed ``now``, the session's own clock, in seconds. It starts
-at 0 and stops while the session isn't being played, for example during a
+
+    class SealedBid(RealtimeGame):
+        channel = "sealed_bid"
+
+        def __init__(self):
+            self.bidding_seconds = get_config().get("bidding_seconds")
+
+        def initial_state(self, players):
+            return {
+                "players": players,
+                "bids": {},
+                "deadline": self.bidding_seconds,
+                "closed": False,
+            }
+
+        ...
+
+
+    class Auction(Experiment):
+        realtime_games = [SealedBid]
+
+        @classmethod
+        def extra_parameters(cls):
+            get_config().register("bidding_seconds", int)
+
+        @classmethod
+        def config_defaults(cls):
+            return {"bidding_seconds": 30}
+
+The state, messages, views and outcome are plain JSON values: dicts, lists,
+strings, numbers, ``True``, ``False`` and ``None``. Dallinger saves the state
+as JSON after each change and loads it again, so a dict key comes back as a
+string and a tuple as a list. A state built that way from the start behaves
+the same before and after a save. Players are identified by their participant
+ids as strings, so the ids work as keys in the state's dicts.
+
+The methods are passed ``now``, the session time, in seconds. It starts at 0
+and stops while the session isn't being played, for example during a
 redeploy, so a pause doesn't use up a turn timer. Deadlines should be kept in
-the state as times on that clock. A game that needs random numbers should keep
-its random generator's state in the state too, since anything kept elsewhere is
-lost when the session is saved and loaded again.
+the state as session times.
 
-No method may use the database, and none should take long. Work that needs the
+A game can use Python's ``random`` module, for example to shuffle a deck or roll
+a die. It can draw in the methods that change the state, ``apply``, ``tick``,
+``on_join`` and ``on_leave``, and use what it drew in the state. ``view`` and
+the other methods should only read what's there: Dallinger can call them several
+times for the same state, so a number drawn in ``view`` could come out
+differently each time.
+
+A game whose sessions should replay exactly, for example to test it, keeps a
+seed in its state and makes each draw from the seed and a count of the draws so
+far::
+
+    import random
+
+
+    class DiceGame(RealtimeGame):
+        ...
+
+        def initial_state(self, players):
+            return {"players": players, "seed": random.randrange(10**9), "draws": 0}
+
+        def roll(self, state):
+            # The same seed and count always give the same roll
+            rng = random.Random(f"{state['seed']}:{state['draws']}")
+            state["draws"] += 1
+            return rng.randint(1, 6)
+
+``roll`` is the game type's own method, which Dallinger never calls. The game
+calls it from ``apply`` or ``tick``, wherever it needs a roll.
+
+No method may use the database, and should return quickly. Work that needs the
 database should be queued as an effect, which is described in its own section
 below.
 
@@ -203,13 +275,13 @@ them differently.
 Effects
 ~~~~~~~
 
-Game code that needs the database, for example to create an ``Info`` or add to
-a participant's bonus, queues an effect with
-:meth:`~dallinger.realtime.RealtimeGame.queue_effect`. The game type's
-:meth:`~dallinger.realtime.RealtimeGame.handle_effect` then does the work
-a few seconds later, on one of the experiment's worker processes::
+Game code that needs the database, for example to create an ``Info``, queues
+an effect with :meth:`~dallinger.realtime.RealtimeGame.queue_effect`. The game
+type's :meth:`~dallinger.realtime.RealtimeGame.handle_effect` then does the
+work a few seconds later, on one of the experiment's worker processes::
 
-    from dallinger.models import Participant
+    from dallinger import db
+    from dallinger.models import Info, Participant
 
 
     class CoinGame(RealtimeGame):
@@ -217,23 +289,36 @@ a few seconds later, on one of the experiment's worker processes::
 
         def apply(self, state, player_id, message, now, sent):
             ...
+            # Player ids are strings, and participant ids are integers
             self.queue_effect("coin", {"participant_id": int(player_id)})
 
         def handle_effect(self, name, payload, session_row):
             if name == "coin":
                 participant = Participant.query.get(payload["participant_id"])
-                participant.bonus = (participant.bonus or 0) + 0.01
+                db.session.add(Info(origin=participant.nodes()[0], contents="coin"))
+
+A player's pay is best worked out from the session's outcome, once it's over,
+as described under Reading the Outcome, rather than in an effect. A
+participant's ``bonus`` records the bonus Dallinger has paid them, and
+Dallinger pays no bonus to a participant whose ``bonus`` is already set.
 
 Only ``apply``, ``tick``, ``on_join`` and ``on_leave`` can queue effects. An
 effect queued by an ``apply`` that then raises ``Reject`` is dropped.
 
-Each effect is handled once, in the order it was queued. ``handle_effect``
-must not commit, since Dallinger commits once the effect is saved in the
-session's record. Code that should run only after that commit, such as sending
-a message to a page, can be passed to :func:`~dallinger.db.run_after_commit`.
+Each effect is handled once, in the order it was queued. Dallinger saves the
+changes ``handle_effect`` makes together with the session's record, so
+``handle_effect`` doesn't call ``db.session.commit()`` itself. Code that
+should run only once the changes are saved, such as sending a message to a
+page, can be passed to :func:`~dallinger.db.run_after_commit`.
 
 Sessions
 --------
+
+A session is one play of a game type by one group of players, such as a single
+auction. The game type holds the rules, and each session is one game played by
+those rules, with its own players, its own state and its own session time,
+which starts at 0. Each session has an id, an integer, and any number of
+sessions, of one game type or several, can run at once.
 
 The experiment's own code does three things with a session: it starts the
 session, passes the session's id to the players' pages, and reads the outcome
@@ -262,18 +347,36 @@ a network, that's when the network fills::
                 players = [n.participant_id for n in network.nodes()]
                 session_id = create_realtime_session(SealedBid, players)
                 # Keep the id where the players' pages, and the bonus, can
-                # find it
+                # find it. Changes made inside network.details aren't saved,
+                # so this assigns it a new dict.
                 network.details = dict(network.details, session_id=session_id)
 
-``create_realtime_session`` returns the new session's id, an integer. The
-session is already running by then, and keeps running whether or not the
-caller commits. The experiment keeps the id, as ``Auction`` does in the
-network's details, because every later step needs it: the players' pages use
-it to join, and the experiment passes it to the other session functions.
+``add_node_to_network`` runs when a player's page creates their node with
+:js:func:`dallinger.createAgent`, so the session starts once the last player
+of the group has done that. ``create_realtime_session`` returns the new
+session's id, an integer. The session is already running by then, and keeps
+running whether or not the caller commits. The experiment keeps the id, as
+``Auction`` does in the network's details, because every later step needs it:
+the players' pages use it to join, and the experiment passes it to the other
+session functions.
 
-Any number of sessions, of one game type or several, can run at once. A player
-can also be a bot, played automatically with the game type's ``bot`` method:
-its participant id goes in ``bots`` as well as in the list of players.
+A player can also be a bot, whose messages come from the game type's ``bot``
+method rather than from a page. A bot's participant id goes in the list of
+players, and in ``bots`` as well. Dallinger doesn't let a bot's page join the
+session, so a participant goes in ``bots`` only if nothing will open the
+game's page for them. Dallinger's ``HighPerformanceBotBase`` bots sign up
+without opening a browser, and their ``recruiter_id`` starts with
+``"bots:"``::
+
+    players = [n.participant for n in network.nodes()]
+    bots = [p.id for p in players if p.recruiter_id.startswith("bots:")]
+    session_id = create_realtime_session(
+        SealedBid, [p.id for p in players], bots=bots
+    )
+
+A bot that drives a browser, such as one built on ``BotBase``, opens the
+game's page as a person would, so it plays as an ordinary player and makes its
+moves on the page.
 
 Each player's page joins the session by opening a WebSocket, on either
 ``/experiment-socket`` or ``/chat``, with the session's id as its ``session``
@@ -302,7 +405,7 @@ Endings
 Dallinger ends a session automatically when any of these happens:
 
 - ``is_over`` returns true
-- the session's clock reaches the game type's
+- the session time reaches the game type's
   :attr:`~dallinger.realtime.RealtimeGame.max_duration`
 - no player other than a bot has opened the game's page within
   :attr:`~dallinger.realtime.RealtimeGame.join_timeout`, which is 60
@@ -348,8 +451,8 @@ Failures
 
 Dallinger fails a session when its game code goes wrong:
 
-- a game type's method raises an error, other than ``apply`` raising
-  ``Reject``
+- a game type's method raises an error or calls ``sys.exit()``, other than
+  ``apply`` raising ``Reject``
 - a method returns a value that isn't JSON
 - the methods run for longer than the game type's
   :attr:`~dallinger.realtime.RealtimeGame.time_limit`
@@ -399,7 +502,7 @@ it again if it stops. Nothing needs configuring.
 An experiment with more than one worker process, set with
 ``num_dynos_worker``, has a runner for each, and the runners share its
 sessions between them. If a runner stops, another runner, or its replacement,
-carries its sessions on from their last save. The sessions' clocks stop in the
+carries its sessions on from their last save. Their session time stops in the
 meantime, so players see the game pause.
 
 A runner plays all of its sessions in turn, so slow game code in one session

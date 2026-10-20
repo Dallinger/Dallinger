@@ -163,11 +163,11 @@ def create_realtime_session(game_type, players, bots=()):
     """Start a session of ``game_type`` and return its session id, an
     integer.
 
-    The session's :class:`~dallinger.models.RealtimeSession` row is
-    committed in a transaction of its own, so the session has started when
-    this returns, whatever happens to the caller's transaction. A runner
-    picks it up and plays it until it ends. If the session can't then be
-    added to redis, its row is marked failed and the error is raised.
+    The session has started when this returns, and keeps running even if the
+    code that called it later fails. Dallinger plays it until it ends. If the
+    session's :class:`~dallinger.models.RealtimeSession` row is saved but the
+    session can't then be started, the row is marked failed and the error is
+    raised.
 
     Players' pages that wait with ``dallinger.waitForRealtimeSession`` get
     the session's id, including those that start waiting later.

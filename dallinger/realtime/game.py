@@ -74,14 +74,16 @@ class Reject(Exception):
 
 @dataclass(frozen=True)
 class Sent:
-    """What a player's page said about a message it sent.
+    """What a player's page said about a message it sent, passed to
+    :meth:`RealtimeGame.apply` as ``sent``. Most games don't need it.
 
-    A page sends these values in each message's envelope, as
-    :mod:`dallinger.realtime.session_sockets` describes.
-    ``number`` counts the messages the page has sent, ``browser_time`` is the
-    browser's clock when it sent this one, and ``view_time`` is the session
-    time of the view the page was showing. Each is ``None`` when the page
-    sent no envelope, or a missing or invalid value.
+    - ``number``: the message's number, counting the messages the page has
+      sent
+    - ``browser_time``: the browser's clock when the page sent the message,
+      in seconds since 1970
+    - ``view_time``: the session time of the view the page was showing
+
+    Each is ``None`` if the page didn't send it, or sent an invalid value.
     """
 
     number: int | None = None
@@ -92,36 +94,38 @@ class Sent:
 class RealtimeGame(ABC):
     """Base class for real-time game types.
 
-    A game type sets :attr:`channel` and implements :meth:`initial_state`,
-    :meth:`apply` and :meth:`view`. Every other method has a default.
+    A game type sets :attr:`channel` and defines :meth:`initial_state`,
+    :meth:`apply` and :meth:`view`. The other methods are optional.
 
-    Methods get the session's ``state``, and ``now``, the current session
-    time. :meth:`apply`, :meth:`tick`, :meth:`on_join` and :meth:`on_leave`
-    change the state in place. The other methods only read it, and the runner
-    calls them as often as it needs to. No method may use the database: use
-    :meth:`queue_effect` for anything that needs it.
+    The methods are passed the session's ``state``, and most are passed
+    ``now``, the session time. :meth:`apply`, :meth:`tick`, :meth:`on_join`
+    and :meth:`on_leave` change the state in place. The other methods only
+    read it, and Dallinger may call them more than once for the same state.
+    No method may use the database: use :meth:`queue_effect` for anything
+    that needs it.
 
-    A session fails if a method raises, other than :meth:`apply` raising
-    :class:`Reject`, calls ``sys.exit()``, or returns a value that isn't
-    JSON, or if its methods run past :attr:`time_limit`. The runner applies
-    messages and ticks in batches, and a failure discards the whole batch:
-    the session goes back to its state from before the batch, the batch's
-    effects are dropped, and the session ends there with the reason
-    :data:`~dallinger.realtime.game.FAILED`. The batch's messages are still
-    saved, marked as failed. Other sessions carry on.
+    A session fails if a method raises an error or calls ``sys.exit()``,
+    other than :meth:`apply` raising :class:`Reject`, returns a value that
+    isn't JSON, or runs past :attr:`time_limit`. The session then ends with
+    the reason :data:`~dallinger.realtime.game.FAILED`, and the experiment's
+    other sessions carry on. Dallinger applies messages and ticks a few at a
+    time, saving the state after each group. A failure puts the session back
+    to its state from the last save, which :meth:`outcome` is passed, and
+    drops the effects queued since then. The messages since then are saved
+    in the record, marked as failed.
 
-    Each session keeps a record in Postgres, in the order things happened:
+    Each session's record in Postgres holds, in the order things happened:
 
-    - messages, each with its sender, its payload, the page's envelope values
-      and whether it was accepted, rejected with a reason, or failed
-    - effects, each with its name and payload
-    - checkpoints: copies of the state, at most every
-      :attr:`checkpoint_interval`
+    - its messages, each with its sender, the message, and whether it was
+      accepted, rejected with a reason, or failed
+    - its effects, each with its name and payload
+    - copies of the state, at most every :attr:`checkpoint_interval` seconds
+      of session time
     - the ending, with its reason, the :meth:`outcome` and the final state
 
-    Effects that aren't dropped, the ending and the messages of a failed
-    batch are always saved. :meth:`save_message` decides which other messages
-    are saved. Views aren't saved.
+    :meth:`save_message` can leave accepted and rejected messages out of the
+    record. Effects, failed messages and the ending are always saved. Views
+    aren't saved.
     """
 
     #: The websocket channel the game's pages send messages on. It can't
@@ -162,21 +166,18 @@ class RealtimeGame(ABC):
     #: a page's steady rate keeps them from being dropped.
     message_burst = 120
 
-    #: Seconds the game type's methods may run for in total each time the
-    #: runner plays a session, before the session fails. It catches code that
-    #: never finishes. A failed session gets :meth:`outcome` and its final
-    #: views from the time that's left, and gets ``None`` for any it runs
-    #: out of time for. A runner plays all of its sessions in turn, so a slow
-    #: session holds up the others. At most
-    #: :data:`~dallinger.realtime.game.MAX_TIME_LIMIT`.
+    #: Seconds the game type's methods may run for in total each time
+    #: Dallinger plays a session, before the session fails. It stops game
+    #: code that never finishes. Game code should take far less, since
+    #: Dallinger plays sessions in turn and a slow one holds up the others.
+    #: A failed session's :meth:`outcome` and final views share the time
+    #: that's left, and any not finished when it runs out are ``None``. At
+    #: most :data:`~dallinger.realtime.game.MAX_TIME_LIMIT`.
     #:
-    #: Code that catches every exception in a loop, with a bare ``except:``,
-    #: can't be stopped this way. If it's still running after twice the
-    #: limit, the runner process exits, and other runners carry on its
-    #: sessions. A session that keeps stopping its runners this way fails
-    #: once it has changed runners
-    #: :data:`~dallinger.realtime.runner.MAX_HANDOVERS` times without being
-    #: saved.
+    #: Code that catches every error, with a bare ``except:``, can't be
+    #: stopped this way. If it runs for twice the limit, Dallinger restarts
+    #: the process playing the session, and a session that keeps doing this
+    #: fails, so game code should catch only the errors it expects.
     time_limit = 1
 
     #: The least time, in seconds on the session clock, between checkpoints of
@@ -215,13 +216,14 @@ class RealtimeGame(ABC):
         """
 
     def next_deadline(self, state):
-        """Return the session time :meth:`tick` should next run at, or
-        ``None``.
+        """Return the session time at which :meth:`tick` should next run, or
+        ``None`` if there's nothing to wait for.
 
-        Needed only when a deadline can fall between ticks, as in a game with
-        a :attr:`tick_rate` of 0. A deadline that has passed runs ``tick`` at
-        once. A deadline at or before the last tick doesn't run, so ``tick``
-        can leave a deadline it has handled in the state.
+        Needed only when a deadline, such as the end of a turn, can fall
+        between ticks, as in a game with a :attr:`tick_rate` of 0. A deadline
+        that has passed runs ``tick`` at once, unless ``tick`` has already
+        run at or after it. So this can keep returning a deadline ``tick``
+        has handled, and it doesn't run again.
         """
         return None
 
@@ -328,21 +330,20 @@ class RealtimeGame(ABC):
     def handle_effect(self, name, payload, session_row):
         """Do the work of an effect from :meth:`queue_effect`.
 
-        Runs in a job on one of the experiment's worker processes, a few
-        seconds after the effect was queued, and can use the database. Each
-        effect is handled once, in the order the session queued them, in the
-        same transaction that saves it in the session's record, while the
-        session's row is locked. Don't commit, roll back or close the
-        session: the job commits once every new record is saved, and a
-        handler that does any of these fails the session. Code that should
-        run only once the record is saved, such as sending a message, can
-        use :func:`dallinger.db.run_after_commit`.
+        Runs on one of the experiment's worker processes, a few seconds after
+        the effect was queued, and can use the database. Each effect is
+        handled once, in the order the session queued them. Dallinger saves
+        the changes this makes together with the session's record, so it
+        doesn't call ``db.session.commit()``, ``rollback()`` or ``close()``,
+        any of which fails the session. Code that should run only once the
+        changes are saved, such as sending a message to a page, can use
+        :func:`dallinger.db.run_after_commit`.
 
-        If this raises, nothing from the job is saved, and the session fails:
-        its record stops there, and a game still being played ends with the
-        reason :data:`~dallinger.realtime.game.FAILED`. By default it raises
-        :class:`NotImplementedError`, so a game type that queues effects has
-        to define it.
+        Dallinger handles a session's effects in batches. If this raises an
+        error, nothing from the batch is saved, neither the other effects'
+        changes nor the record written with them, and the session fails: its
+        record stops before the batch. A game type that queues effects has to
+        define this method.
 
         :param name: the effect's name
         :param payload: the effect's payload
