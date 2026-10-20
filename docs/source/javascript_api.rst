@@ -109,6 +109,8 @@ WebSocket routes, as described in
 .. js:autoattribute:: dallinger.DIRECT_CHANNEL
 
 
+.. _realtime-sessions-label:
+
 Real-time sessions
 ~~~~~~~~~~~~~~~~~~
 

@@ -175,6 +175,25 @@
   engine. A `HighPerformanceBotBase` bot that a game type plays for calls
   `wait_for_realtime_sessions(game_type)` before signing off, so the
   experiment doesn't complete while its game is still being played.
+  engine.
+- JavaScript helpers for real-time game pages, in the new
+  `dallinger-realtime.js`, which the base layout loads after `dallinger2.js`
+  when an experiment has game types.
+  `dallinger.waitForRealtimeSession(gameChannel)` resolves with the id of the
+  participant's session of a game type once the experiment starts it, or at
+  once if one is running, waiting on an
+  `/experiment-socket` connection with the new `wait_for_game` query
+  parameter. `openExperimentSocket` and `openChatSocket` take `session` and
+  `gameChannel` options to join a session. Such a socket's `send` numbers the
+  messages it sends on the game channel, and `onView`, `onRejected`,
+  `onEnded`, `onResultSaved` and `resultSaved()` report the game's views,
+  rejections and ending. The socket measures the server's clock for
+  `sessionTime()` and `serverTime(browserTime)`, which converts times from
+  `dallinger.browserTime()`, and `onClock` reports each measurement.
+  The `predict` and `interpolate` options add `predictedView()`, which shows
+  the player's own moves at once, and `interpolatedView()`, which moves the
+  other players smoothly between tick views. The "Real-Time Games" docs page
+  describes a game's page.
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
   experiment refuse an `/experiment-socket` connection when it opens. A falsy
   return closes the socket with code `1008`, and Dallinger's client helpers
