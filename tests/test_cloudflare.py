@@ -414,9 +414,9 @@ def security_calls(monkeypatch):
         return mock.Mock(stdout="from-keychain\n")
 
     monkeypatch.setattr(cf.subprocess, "run", run)
-    cf._read_keychain.cache_clear()
+    cf._read_keychain_once.cache_clear()
     yield calls
-    cf._read_keychain.cache_clear()
+    cf._read_keychain_once.cache_clear()
 
 
 def test_load_api_token_reads_each_keychain_item_once(security_calls):

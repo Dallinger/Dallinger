@@ -129,6 +129,8 @@ def load_api_token(config: Any | None = None) -> str:
 
     The default Keychain item must belong to the current user's account. An
     item named by ``cloudflare_keychain_service`` matches under any account.
+    Each Keychain item is read at most once per process, so later calls return
+    the token read first.
     """
     token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip() or config_str(
         config, "cloudflare_api_token"
@@ -149,7 +151,7 @@ def load_api_token(config: Any | None = None) -> str:
         service = KEYCHAIN_SERVICE
         account_args = ["-a", account]
     try:
-        token = _read_keychain(security, service, tuple(account_args))
+        token = _read_keychain_once(security, service, tuple(account_args))
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or "").strip().rstrip(".")
         raise CloudflareError(
@@ -164,7 +166,7 @@ def load_api_token(config: Any | None = None) -> str:
 
 
 @functools.cache
-def _read_keychain(security, service, account_args):
+def _read_keychain_once(security, service, account_args):
     """Return the Keychain item's password, reading each item once per process.
 
     A wrapper such as PsyNet checks the token before it calls the deploy in the
