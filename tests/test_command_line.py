@@ -552,6 +552,9 @@ def test_dev_server_stops_quietly_on_ctrl_c(tmp_path):
         [
             sys.executable,
             "-c",
+            # Pytest may run with SIGINT ignored (e.g. under nohup), which children inherit.
+            "import signal\n"
+            "signal.signal(signal.SIGINT, signal.default_int_handler)\n"
             "from dallinger.command_line.develop import _run_dev_server\n"
             f"_run_dev_server({server!r}, {str(tmp_path)!r}, stop_timeout=0.5)",
         ],
@@ -560,21 +563,34 @@ def test_dev_server_stops_quietly_on_ctrl_c(tmp_path):
         text=True,
         start_new_session=True,
     )
-    for _ in range(300):
-        if pid_file.exists() and pid_file.read_text():
-            break
-        sleep(0.1)
-    else:
-        pytest.fail("server did not start")
-    os.killpg(parent.pid, signal.SIGINT)
-    output = parent.communicate(timeout=30)[0]
+    try:
+        for _ in range(300):
+            if pid_file.exists() and pid_file.read_text():
+                break
+            sleep(0.1)
+        else:
+            pytest.fail("server did not start")
+        os.killpg(parent.pid, signal.SIGINT)
+        output = parent.communicate(timeout=30)[0]
 
-    assert parent.returncode == 0, output
-    assert "got SIGTERM" in output
-    for unwanted in ("Traceback", "Aborted!", "got SIGINT"):
-        assert unwanted not in output
-    with pytest.raises(ProcessLookupError):
-        os.kill(int(pid_file.read_text()), 0)
+        assert parent.returncode == 0, output
+        assert "got SIGTERM" in output
+        for unwanted in ("Traceback", "Aborted!", "got SIGINT"):
+            assert unwanted not in output
+        with pytest.raises(ProcessLookupError):
+            os.kill(int(pid_file.read_text()), 0)
+    finally:
+        pgids = [parent.pid]
+        try:
+            pgids.append(os.getpgid(int(pid_file.read_text())))
+        except (OSError, ValueError):
+            pass
+        for pgid in pgids:
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+        parent.communicate(timeout=10)
 
 
 @pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
