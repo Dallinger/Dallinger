@@ -474,7 +474,9 @@ def test_root_domain_auto_destroy_uses_full_server_name(monkeypatch):
     monkeypatch.setattr(docker_ssh_module.destroy, "callback", destroy)
 
     assert docker_ssh_module.ensure_root_domain_ready("pc01", update=False)
-    destroy.assert_called_once_with(server="pc01.lab.example.org", app="old")
+    destroy.assert_called_once_with(
+        server="pc01.lab.example.org", app="old", keep_data=True
+    )
 
 
 def test_get_apps_raises_for_unknown_server(monkeypatch):
@@ -829,10 +831,18 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
         assert not any(forbidden in cmd for cmd in rmi_commands)
 
 
-def _destroy_with_data(
+def _destroy_with_data(monkeypatch, args=(), input=None, **server):
+    commands = _server_with_data(monkeypatch, **server)
+    result = CliRunner().invoke(
+        docker_ssh_module.destroy,
+        ["--app", "myapp", "--server", "test-server", *args],
+        input=input,
+    )
+    return commands, result
+
+
+def _server_with_data(
     monkeypatch,
-    args=(),
-    input=None,
     tty=True,
     deployed=True,
     db="12 MB",
@@ -879,12 +889,7 @@ def _destroy_with_data(
         lambda: docker_ssh_module.CONFIGURED_HOSTS,
     )
     monkeypatch.setattr(docker_ssh_module, "_stdin_is_tty", lambda: tty)
-    result = CliRunner().invoke(
-        docker_ssh_module.destroy,
-        ["--app", "myapp", "--server", "test-server", *args],
-        input=input,
-    )
-    return commands, result
+    return commands
 
 
 def _deletes(commands):
@@ -952,6 +957,33 @@ def test_destroy_prints_the_callers_delete_data_command(monkeypatch):
     assert result.exit_code == 0, result.output
     assert "To delete it, run: wrapper rm myapp" in result.output
     assert "dallinger docker-ssh destroy" not in result.output
+
+
+def test_root_domain_teardown_keeps_data_without_a_tty(monkeypatch, capsys):
+    commands = _server_with_data(monkeypatch, tty=False)
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "_host_caddy_apps", mock.Mock(side_effect=[["myapp"], []])
+    )
+    prompts = []
+    monkeypatch.setattr(
+        docker_ssh_module.click,
+        "confirm",
+        lambda text, **kwargs: prompts.append(text) or True,
+    )
+
+    assert docker_ssh_module.ensure_root_domain_ready("test-server", update=False)
+    assert prompts == [
+        "Destroy these experiments automatically before proceeding? Their data is kept."
+    ]
+    assert "docker compose -f ~/dallinger/myapp/docker-compose.yml down" in commands
+    assert not _deletes(commands)
+    out = capsys.readouterr().out
+    assert "  - the folder ~/dallinger-data/myapp (3.4G)" in out
+    assert (
+        "To delete it, run: dallinger docker-ssh destroy --app myapp "
+        "--server test-server --remove-data"
+    ) in out
 
 
 def test_destroy_remove_data_asks_before_teardown(monkeypatch):

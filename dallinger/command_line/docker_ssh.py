@@ -1126,6 +1126,12 @@ def _abort_cloudflare(exc):
 
 
 def ensure_root_domain_ready(server, update):
+    """Offer to destroy the server's classic apps before a root-domain deploy.
+
+    The teardown keeps each app's data, as ``destroy --keep-data`` does, so
+    nothing is deleted before the image build and no terminal is needed once
+    the user agrees.
+    """
     if update:
         return True
 
@@ -1151,14 +1157,15 @@ def ensure_root_domain_ready(server, update):
     )
 
     if not click.confirm(
-        "Destroy these experiments automatically before proceeding?",
+        "Destroy these experiments automatically before proceeding? "
+        "Their data is kept.",
         default=False,
     ):
         raise click.Abort()
 
     for name in conflicts:
         print_bold(f"Destroying {name} on server {server}")
-        destroy.callback(server=server, app=name)
+        destroy.callback(server=server, app=name, keep_data=True)
 
     executor = _executor_for_server(server)
     remaining = _host_caddy_apps(executor)

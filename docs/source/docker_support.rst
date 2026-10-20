@@ -596,8 +596,9 @@ it removes the whole volume.
 
 Answering no, or passing ``--keep-data``, keeps the data; after the teardown,
 destroy lists the data it kept and prints the command that deletes it later.
-A root-domain deploy that offers to destroy the server's other classic apps
-asks the same question about each app's data.
+A root-domain deploy that destroys the server's other classic apps always
+keeps their data, as ``--keep-data`` does, and prints the command that
+deletes each app's data later.
 Export anything you need before you delete the data.
 You can also decide up front:
 
