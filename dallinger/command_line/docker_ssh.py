@@ -2519,14 +2519,17 @@ def _shared_database(executor, app, required=True):
         )
     )
     if status != 0:
-        what = f"the database {app} in the shared Postgres"
+        reason = _failure_reason(status, err, SHARED_PSQL_TIMEOUT)
         if required:
-            return [_unchecked(what, _failure_reason(status, err))]
+            if status == 124:
+                reason += ", so try again"
+            return [_unchecked(f"the database {app} in the shared Postgres", reason)]
         print(
-            f"Could not check the shared Postgres for a database {app} left by "
-            f"a classic deploy ({_failure_reason(status, err)}). "
-            f"{app} uses Cloudflare ingress, so its own database is checked "
-            "separately."
+            "Could not check whether the shared Postgres still has a database "
+            f"{app} from an earlier classic deploy of this name ({reason}). "
+            f"The Cloudflare app's own database is listed separately. If {app} "
+            "was ever deployed with classic ingress, run destroy with "
+            "--remove-data again when the server is less busy."
         )
         return []
     size, _, has_user = (out or "").strip().partition("|")
@@ -2539,13 +2542,14 @@ def _shared_database(executor, app, required=True):
     return items
 
 
-def _failure_reason(status, err):
-    """Describe why a remote command failed; exit 124 is a shared-psql timeout."""
-    if status == 124:
-        return (
-            f"timed out after {SHARED_PSQL_TIMEOUT} s; the server may be busy, "
-            "so try again"
-        )
+def _failure_reason(status, err, timeout=None):
+    """Describe why a remote command failed.
+
+    For a command run under ``timeout`` seconds, exit status 124 means it
+    timed out.
+    """
+    if timeout and status == 124:
+        return f"timed out after {timeout} s; the server may be busy"
     return ((err or "").strip().splitlines()[-1:] or ["unknown error"])[0]
 
 
@@ -2653,9 +2657,9 @@ def _remove_experiment_data(executor, app, items):
             print(f"Deleted {label}")
         else:
             removed = False
-            print(
-                f"{RED}Could not delete {label}.{END} {_failure_reason(status, stderr)}"
-            )
+            timeout = SHARED_PSQL_TIMEOUT if kind in ("database", "user") else None
+            reason = _failure_reason(status, stderr, timeout)
+            print(f"{RED}Could not delete {label}.{END} {reason}")
     return removed
 
 

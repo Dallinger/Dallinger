@@ -622,8 +622,9 @@ mounts that you added with ``docker_volumes`` are always kept. Volume names use 
 name as Docker Compose writes it, in lowercase without dots.
 
 Kept data stays on the server until you delete it. A new deploy with the same
-app name and without ``--update`` deletes the database and volumes left under
-that name, but reuses the data folder ``~/dallinger-data/$APP_ID``.
+app name and without ``--update`` deletes the volumes left under that name (a
+classic deploy also deletes the database in the shared Postgres), but reuses
+the data folder ``~/dallinger-data/$APP_ID``.
 
 Data is not deleted while the app's containers are still running, or if
 Dallinger can't check whether they are. Data that destroy can't check, for

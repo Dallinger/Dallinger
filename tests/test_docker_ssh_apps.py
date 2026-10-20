@@ -1100,7 +1100,14 @@ def test_destroy_remove_data_fails_if_some_data_cant_be_checked(
 @pytest.mark.parametrize(
     "db, dropped, note",
     [
-        ("timeout", False, "(timed out after 30 s; the server may be busy"),
+        (
+            "timeout",
+            False,
+            "Could not check whether the shared Postgres still has a database "
+            "myapp from an earlier classic deploy of this name (timed out after "
+            "30 s; the server may be busy).",
+        ),
+        (None, False, "(service postgresql is not running)."),
         ("12 MB", True, "Deleted the database myapp (12 MB) in the shared Postgres"),
     ],
 )
@@ -1111,7 +1118,11 @@ def test_destroy_cloudflare_only_reports_a_shared_database_it_finds(
         docker_ssh_module, "_destroy_cloudflare_resources", lambda *a, **k: True
     )
     commands, result = _destroy_with_data(
-        monkeypatch, ["--remove-data", "--yes"], db=db, tunnel_token=True
+        monkeypatch,
+        ["--remove-data", "--yes"],
+        db=db,
+        deployed=False,
+        tunnel_token=True,
     )
     assert result.exit_code == 0, result.output
     assert "Did not delete" not in result.output
