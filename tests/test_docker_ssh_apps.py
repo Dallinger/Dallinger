@@ -4,7 +4,6 @@ import socket
 import subprocess
 import sys
 import uuid
-from pathlib import Path
 from unittest import mock
 
 import click
@@ -145,10 +144,8 @@ def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch)
 
     deleted = []
     monkeypatch.setattr(docker_ssh_module, "Executor", Executor)
-    monkeypatch.setattr(docker_ssh_module, "_check_app_slot", lambda *args: None)
     monkeypatch.setattr(docker_ssh_module, "remove_named_volume", lambda *args: None)
     monkeypatch.setattr(docker_ssh_module, "get_sftp", lambda *args, **kwargs: None)
-    monkeypatch.setattr(docker_ssh_module, "load_api_token", lambda config: "token")
     monkeypatch.setattr(
         docker_ssh_module,
         "ensure_experiment_tunnel",
@@ -164,15 +161,11 @@ def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch)
         "delete_experiment_tunnel",
         lambda **kwargs: deleted.append(kwargs["own_tunnel_id"]),
     )
-    config = {
-        "cloudflare_account_id": "acct",
-        "cloudflare_zone_id": "zone",
-        "cloudflare_dns_zone": "x.org",
-    }
     with pytest.raises(OSError):
         docker_ssh_module._deploy_cloudflare_in_mode(
+            api_token="token",
             archive_path=None,
-            config=config,
+            config={},
             config_options={},
             dashboard_password="pw",
             dashboard_user="admin",
@@ -183,6 +176,7 @@ def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch)
             push_build=False,
             server="lab",
             server_info={"host": "lab.example"},
+            settings={"account_id": "acct", "zone_id": "zone", "dns_zone": "x.org"},
             update=False,
         )
     assert deleted == ["new"]
@@ -514,34 +508,128 @@ def test_apps_outputs_table_when_all_inactive(monkeypatch, capsys):
     assert "\x1b[" not in "\n".join(output_lines)
 
 
+def _deploy_kwargs(**overrides):
+    return {
+        "app_name": None,
+        "archive_path": None,
+        "config_options": (),
+        "dns_host": None,
+        "mode": "live",
+        "server": "test-server",
+        "update": False,
+        "local_build": False,
+        "push_build": False,
+        **overrides,
+    }
+
+
 def test_invalid_policy_stops_before_docker_ssh_external_side_effects(
     tmp_path, monkeypatch
 ):
     (tmp_path / "deploy.toml").write_text("version = 999\nexclude = []\n")
     monkeypatch.chdir(tmp_path)
-    wrapped_command = mock.Mock()
-    wrapper = docker_ssh_module.build_and_push_image(wrapped_command)
+    get_config = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "get_config", get_config)
 
     with pytest.raises(click.UsageError, match="version"):
-        wrapper(
-            server="test-server",
-            app_name=None,
-            archive_path=None,
-            update=False,
-            local_build=False,
-            push_build=False,
+        docker_ssh_module._deploy_in_mode(**_deploy_kwargs())
+
+    get_config.assert_not_called()
+
+
+def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
+    """A bad --dns-host or recruiter setting must not cost an image build."""
+    events = []
+    source = object()
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.ready = True
+
+    def step(name, result=None):
+        def run(*args, **kwargs):
+            events.append(name)
+            return result
+
+        return run
+
+    def build(config, experiment_files, *args):
+        events.append("build")
+        assert experiment_files is source
+        assert config.get("docker_image_name") == "registry.example/exp:1"
+        raise click.Abort()
+
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example.org"}}
+    )
+    monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    for name, event, result in (
+        ("get_experiment_files", "policy", source),
+        ("run_pre_launch_checks", "recruiter", None),
+        ("_classic_tls_and_dns_host", "tls", ("tls internal", "lab.example.org")),
+        ("_check_experiment_hostname_dns", "dns", None),
+        ("ensure_root_domain_ready", "root-domain", True),
+        ("_check_app_slot", "app-slot", None),
+    ):
+        monkeypatch.setattr(docker_ssh_module, name, step(event, result))
+    monkeypatch.setattr(docker_ssh_module, "Executor", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
+
+    with pytest.raises(click.Abort):
+        docker_ssh_module._deploy_in_mode(
+            **_deploy_kwargs(
+                server="lab",
+                config_options=(("docker_image_name", "registry.example/exp:1"),),
+            )
         )
 
-    wrapped_command.assert_not_called()
+    assert events == [
+        "policy",
+        "recruiter",
+        "tls",
+        "dns",
+        "root-domain",
+        "app-slot",
+        "build",
+    ]
 
 
-def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
-    tmp_path, monkeypatch
-):
+def test_cloudflare_deploy_without_api_token_stops_before_the_build(monkeypatch):
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.ready = True
+    config.extend(
+        {
+            "cloudflare_account_id": "acct",
+            "cloudflare_zone_id": "zone",
+            "cloudflare_dns_zone": "x.org",
+        }
+    )
+    build = mock.Mock()
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "CONFIGURED_HOSTS",
+        {"lab": {"host": "lab.example", "default_ingress": "cloudflare"}},
+    )
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: None)
+    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "load_api_token",
+        mock.Mock(side_effect=docker_ssh_module.CloudflareError("no token")),
+    )
+    monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
+
+    with pytest.raises(click.Abort):
+        docker_ssh_module._deploy_in_mode(**_deploy_kwargs(server="lab"))
+
+    build.assert_not_called()
+
+
+def test_docker_ssh_build_assembles_the_validated_source(tmp_path, monkeypatch):
     pytest.importorskip("docker")
-    events = []
     source = mock.Mock(deployment_plan=object())
-    executor = mock.Mock()
     config = mock.Mock()
     config.get.side_effect = lambda key, default=None: {
         "docker_image_name": None,
@@ -549,84 +637,32 @@ def test_docker_ssh_reuses_validated_source_after_destructive_preflight(
         "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     }.get(key, default)
     config.as_dict.return_value = {"example": "value"}
-    docker_client = mock.Mock()
-    wrapped_command = mock.Mock(return_value="deployed")
-    wrapper = docker_ssh_module.build_and_push_image(wrapped_command)
+    setup = mock.Mock(return_value=("experiment-id", tmp_path / "assembly"))
 
-    def make_source(root):
-        events.append("validate-policy")
-        assert Path(root) == tmp_path
-        return source
-
-    def discover_apps(remote_executor):
-        events.append("remote-discovery")
-        return ["old-app"] if events.count("remote-discovery") == 1 else []
-
-    def destroy_app(**kwargs):
-        events.append("destroy-app")
-
-    def setup(*args, **kwargs):
-        events.append("assemble")
-        assert kwargs["experiment_files"] is source
-        return "experiment-id", tmp_path / "assembly"
-
-    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         docker_ssh_module, "CONFIGURED_HOSTS", {"test-server": {"host": "host"}}
     )
-    monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
     with (
-        mock.patch.object(
-            docker_ssh_module,
-            "get_experiment_files",
-            side_effect=make_source,
-        ),
-        mock.patch.object(docker_ssh_module, "get_config", return_value=config),
-        mock.patch.object(
-            docker_ssh_module, "_executor_for_server", return_value=executor
-        ),
-        mock.patch.object(
-            docker_ssh_module,
-            "_host_caddy_apps",
-            side_effect=discover_apps,
-        ),
-        mock.patch.object(docker_ssh_module.click, "confirm", return_value=True),
-        mock.patch.object(
-            docker_ssh_module.destroy,
-            "callback",
-            side_effect=destroy_app,
-        ),
-        mock.patch.object(docker_ssh_module, "setup_experiment", side_effect=setup),
+        mock.patch.object(docker_ssh_module, "setup_experiment", setup),
         mock.patch.object(docker_ssh_module, "ensure_remote_host_in_known_hosts"),
         mock.patch.object(docker_ssh_module, "add_server_pem_to_ssh_agent"),
-        mock.patch("docker.from_env", return_value=docker_client),
+        mock.patch("docker.from_env", return_value=mock.Mock()),
         mock.patch(
             "dallinger.docker.tools.build_image", return_value="built:image"
         ) as build_image,
     ):
-        result = wrapper(
-            server="test-server",
-            app_name=None,
-            archive_path=None,
-            update=False,
-            local_build=False,
-            push_build=False,
+        image_name = docker_ssh_module._build_and_push_image(
+            config, source, None, "test-server", local_build=False, push_build=False
         )
 
-    assert result == "deployed"
-    assert events == [
-        "validate-policy",
-        "remote-discovery",
-        "destroy-app",
-        "remote-discovery",
-        "assemble",
-    ]
+    assert image_name == "built:image"
+    assert setup.call_args.kwargs["experiment_files"] is source
     assert build_image.call_args.kwargs["image_tag"] == (
         "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     )
 
 
-def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatch):
+def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path):
     source = mock.Mock(deployment_plan=object())
     config = mock.Mock()
     config.get.side_effect = lambda key, default=None: {
@@ -635,8 +671,6 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
         "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
     }.get(key, default)
     config.as_dict.return_value = {}
-    wrapped_command = mock.Mock(return_value="deployed")
-    wrapper = docker_ssh_module.build_and_push_image(wrapped_command)
     setup = mock.Mock(return_value=("experiment-id", tmp_path / "assembly"))
     docker_cli = importlib.import_module("dallinger.command_line.docker")
     fake_docker = mock.MagicMock()
@@ -644,16 +678,7 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
     fake_tools.build_image.return_value = "built:image"
     fake_tools.docker_tag_from_experiment_id = docker_tag_from_experiment_id
 
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
     with (
-        mock.patch.object(
-            docker_ssh_module, "get_experiment_files", return_value=source
-        ),
-        mock.patch.object(docker_ssh_module, "get_config", return_value=config),
-        mock.patch.object(
-            docker_ssh_module, "ensure_root_domain_ready", return_value=False
-        ),
         mock.patch.object(docker_ssh_module, "setup_experiment", setup),
         mock.patch.dict(
             sys.modules,
@@ -663,20 +688,13 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path, monkeypatc
             docker_cli, "push_image", return_value="pushed:image"
         ) as push_image,
     ):
-        result = wrapper(
-            server="test-server",
-            app_name=None,
-            archive_path=None,
-            update=False,
-            local_build=True,
-            push_build=False,
+        image_name = docker_ssh_module._build_and_push_image(
+            config, source, None, "test-server", local_build=True, push_build=False
         )
 
-    assert result == "deployed"
+    assert image_name == "pushed:image"
     setup.assert_called_once()
     push_image.assert_called_once_with("built:image")
-    wrapped_command.assert_called_once()
-    assert wrapped_command.call_args.kwargs["image_name"] == "pushed:image"
     assert fake_tools.build_image.call_args.kwargs["image_tag"] == (
         "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     )
@@ -1019,21 +1037,17 @@ def test_deploy_validates_config_options_before_deploying(monkeypatch):
     config.ready = True
     monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
     monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab"}})
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: None)
+    monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
     checks = mock.Mock()
     monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", checks)
     with pytest.raises(ValueError, match="non-negative"):
         docker_ssh_module._deploy_in_mode(
-            app_name="myapp",
-            archive_path=None,
-            config_options=(("worker_processes", "-1"),),
-            dns_host=None,
-            image_name="image",
-            mode="live",
-            server="lab",
-            update=False,
-            local_build=False,
-            push_build=False,
-            preflight_root_clean=False,
+            **_deploy_kwargs(
+                app_name="myapp",
+                config_options=(("worker_processes", "-1"),),
+                server="lab",
+            )
         )
     checks.assert_not_called()
 
