@@ -215,11 +215,12 @@ def list_servers():
 def _is_email(value):
     """Return whether ``value`` looks like an email address.
 
-    The whole value must be a bare address without spaces, quotes, braces or
-    ``#``, as it goes into Caddy's ``tls`` line. Placeholders such as
-    ``XXX@gmail.com`` from experiment templates don't count.
+    The whole value must be a bare address without spaces, quotes, braces,
+    angle brackets or ``#``, as it goes into Caddy's ``tls`` line.
+    Placeholders such as ``XXX@gmail.com`` from experiment templates don't
+    count.
     """
-    match = re.fullmatch(r"([^\s\"{}#@]+)@[^\s\"{}#@]+", value or "")
+    match = re.fullmatch(r"([^\s\"`<>{}#@]+)@[^\s\"`<>{}#@]+", value or "")
     return bool(match) and not re.fullmatch(r"[x?]+", match[1], re.IGNORECASE)
 
 

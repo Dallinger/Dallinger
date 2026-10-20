@@ -259,6 +259,8 @@ def test_servers_add_saves_only_a_valid_contact_email(monkeypatch):
         "???@b.org",
         "Me <me@b.org>",
         '"a b"@b.org',
+        "`a`@b.org",
+        "<me@b.org>",
         "me@b.org}",
     ):
         result = CliRunner().invoke(
@@ -267,6 +269,15 @@ def test_servers_add_saves_only_a_valid_contact_email(monkeypatch):
         assert result.exit_code == 2
         assert "Invalid value for '--contact-email'" in result.output
     store_host.assert_not_called()
+
+    result = CliRunner().invoke(
+        docker_ssh_module.servers,
+        add + ["--contact-email", "o'brien+lab@mail.example.org"],
+    )
+    assert result.exit_code == 0, result.output
+    assert store_host.call_args.args[0]["contact_email"] == (
+        "o'brien+lab@mail.example.org"
+    )
 
 
 def test_server_commands_ignore_an_experiments_contact_email(tmp_path, monkeypatch):
