@@ -2067,11 +2067,10 @@ def _deploy_in_mode(
         experiment_hostname = _classic_preflight(
             server, app_name, archive_path, dns_host, allow_private_ip
         )
-
-    if _root_domain_preflight_required(
-        server, app_name, archive_path, ingress
-    ) and experiment_hostname == _server_host(server_info, dns_host):
-        ensure_root_domain_ready(server=server, update=update)
+        if _root_domain_preflight_required(
+            server, app_name, archive_path, ingress
+        ) and experiment_hostname == _server_host(server_info, dns_host):
+            ensure_root_domain_ready(server=server, update=update)
 
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
     try:

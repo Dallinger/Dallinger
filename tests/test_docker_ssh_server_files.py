@@ -191,6 +191,7 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
     config = Configuration()
     config._reset(register_defaults=True)
     config.ready = True
+    built_image = mock.Mock(return_value=contextlib.nullcontext("image"))
     with mock.patch.multiple(
         docker_ssh,
         get_config=lambda load=False: config,
@@ -204,8 +205,8 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
         _check_classic_ingress_reachable=mock.DEFAULT,
         _classic_preflight=mock.Mock(return_value=hostname),
         ensure_root_domain_ready=mock.DEFAULT,
-        _built_image=lambda *args, **kwargs: contextlib.nullcontext("image"),
-    ):
+        _built_image=built_image,
+    ) as mocks:
         result = docker_ssh._deploy_in_mode(
             app_name=app_name,
             archive_path=None,
@@ -219,6 +220,10 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
         )
 
     assert checksums(server) == before
+    # Only an app that takes the server's own host replaces its other apps.
+    assert mocks["ensure_root_domain_ready"].called == (hostname == "lab.example.org")
+    # A failed new deploy removes the image it built; an update keeps it.
+    assert built_image.call_args.kwargs["remove_on_error"] is not update
     routes = [
         p for d in ("caddy.d", "root.d") for p in (server / "dallinger" / d).glob("*")
     ]
