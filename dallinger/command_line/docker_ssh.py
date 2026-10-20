@@ -1171,7 +1171,12 @@ def _apply_config_options(config, config_options):
         config.canonical_key(key): value
         for key, value in dict(config_options or ()).items()
     }
-    config.extend(config_options, cast_types=True)
+    try:
+        config.extend(config_options, cast_types=True)
+    except OSError as exc:
+        raise click.ClickException(
+            f"Could not read {exc.filename}: {exc.strerror}"
+        ) from exc
     return config_options
 
 

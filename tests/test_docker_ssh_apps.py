@@ -805,6 +805,27 @@ def test_cloudflare_deploy_without_api_token_stops_before_the_build(monkeypatch)
     build.assert_not_called()
 
 
+def test_deploy_reports_a_missing_config_option_file(monkeypatch, tmp_path):
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.ready = True
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example"}}
+    )
+    monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: None)
+    missing = tmp_path / "missing"
+
+    with pytest.raises(click.ClickException, match=f"Could not read {missing}: "):
+        docker_ssh_module._deploy_in_mode(
+            **_deploy_kwargs(
+                server="lab",
+                config_options=(("cloudflare_api_token", f"file:{missing}"),),
+            )
+        )
+
+
 def test_docker_ssh_build_assembles_the_validated_source(tmp_path, monkeypatch):
     pytest.importorskip("docker")
     source = mock.Mock(deployment_plan=object())
