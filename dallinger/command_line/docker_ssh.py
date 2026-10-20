@@ -250,7 +250,8 @@ _CONTACT_EMAIL_OPTION = click.option(
 )
 @click.option(
     "--user",
-    help="User to use when connecting to remote host. Defaults to the saved user.",
+    help="User to use when connecting to remote host. Defaults to the saved user, "
+    "then the local user name.",
 )
 @click.option(
     "--default-ingress",

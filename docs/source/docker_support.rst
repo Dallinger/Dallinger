@@ -477,7 +477,7 @@ experiments are served under (``--dns-host``):
 The ``server_pem`` configuration will be used automatically for SSH authentication when connecting to the server.
 
 Re-running ``servers add`` for a saved server keeps its saved user, default
-ingress, DNS host and contact email unless you pass the corresponding option,
+ingress, DNS host and valid contact email unless you pass the corresponding option,
 so ``dallinger docker-ssh servers add --host $SERVER --contact-email you@example.org``
 changes only the email.
 
