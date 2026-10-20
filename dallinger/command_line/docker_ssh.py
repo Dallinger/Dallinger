@@ -276,6 +276,33 @@ def add(host, user, default_ingress, dns_host, contact_email):
     email unless ``--dns-host`` or ``--contact-email`` is given.
     """
     prepare_server(host, user)
+    register_server(host, user, default_ingress, dns_host, contact_email)
+
+
+def register_server(
+    host, user, default_ingress=INGRESS_CLASSIC, dns_host=None, contact_email=None
+):
+    """Save a prepared server and, for classic ingress, set up its shared services.
+
+    This is ``servers add`` after it has installed Docker; ``dallinger ec2
+    provision`` uses it too. A saved DNS host and valid contact email are kept
+    unless given, and a server that already has a server compose file keeps
+    its files.
+
+    Parameters
+    ----------
+    host : str
+        SSH host of the server, also the name it is saved under.
+    user : str or None
+        SSH user.
+    default_ingress : str
+        Ingress for deploys that omit ``--ingress``.
+    dns_host : str, optional
+        DNS name that experiments on the server are served under.
+    contact_email : str, optional
+        Email that Caddy gives Let's Encrypt; defaults to
+        ``contact_email_on_error`` for classic ingress.
+    """
     existing = get_configured_hosts().get(host, {})
     server_info = {"host": host, "user": user, "default_ingress": default_ingress}
     dns_host = dns_host or existing.get("dns_host")

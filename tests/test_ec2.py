@@ -1,3 +1,4 @@
+import importlib
 from unittest import mock
 
 import click
@@ -498,3 +499,22 @@ class TestRegisterKeyPair:
             register_key_pair(mock_ec2, "test-key")
 
         assert "Unable to load key" in str(excinfo.value)
+
+
+def test_provision_needs_a_contact_email_before_booting(monkeypatch):
+    from click.testing import CliRunner
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    ec2 = importlib.import_module("dallinger.command_line.ec2")
+
+    monkeypatch.setattr(ec2, "get_instance_config", lambda: {"pem": "key"})
+    monkeypatch.setattr(ec2, "get_pem_path", mock.Mock())
+    monkeypatch.setattr(ec2, "get_server_pem_path", mock.Mock())
+    monkeypatch.setattr(docker_ssh, "_config_contact_email", lambda: "???")
+    monkeypatch.setattr(ec2, "provision", mock.Mock())
+
+    result = CliRunner().invoke(ec2.ec2__provision, ["--name", "exp"])
+
+    assert result.exit_code == 2
+    assert "contact_email_on_error" in result.output
+    ec2.provision.assert_not_called()

@@ -183,6 +183,9 @@
   in `~/dallinger/root.d/<app>`. `servers add` sets up the shared services on
   a server without `~/dallinger/docker-compose.yml`; for that, it needs a
   contact email and, for a server registered by IP address, a `--dns-host`.
+  `dallinger ec2 provision` does the same on the new instance, under its
+  `--dns-host` if given, and stops before booting one if
+  `contact_email_on_error` is not an email address.
   The new `dallinger docker-ssh servers upgrade --host <server>` command sets
   them up or rewrites them. It lists the files it replaces and the routes it
   adds, asks first unless given `--yes`, keeps a `.bak` copy of each replaced

@@ -29,6 +29,7 @@ from ..config import remove_host as dallinger_remove_host
 from ..config import store_host as dallinger_store_host
 from ..docker_ssh import Executor
 from ..docker_ssh import prepare_server as dallinger_prepare_server
+from ..docker_ssh import register_server as dallinger_register_server
 
 logger = logging.getLogger(__name__)
 
@@ -991,11 +992,11 @@ def prepare_docker_experiment_setup(
 
     create_dns_records(dns_host, user, host)
 
-    with yaspin(text="Registering host in Dallinger...", color="green") as sp:
-        dallinger_store_host(dict(host=host, user=user))
-        if dns_host:
-            dallinger_store_host(dict(host=dns_host, user=user))
-        sp.ok("✔")
+    # Both names reach the server; the DNS host is the one its sites serve.
+    if dns_host:
+        dallinger_store_host(dict(host=host, user=user, dns_host=dns_host))
+    print("Registering the server and starting its shared services.")
+    dallinger_register_server(dns_host or host, user)
 
 
 def provision(

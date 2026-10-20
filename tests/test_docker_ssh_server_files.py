@@ -511,3 +511,36 @@ def test_a_failed_upgrade_leaves_the_server_files_read_only(server, monkeypatch)
     assert "tls lab@example.org" in (server / "dallinger/Caddyfile").read_text()
     for name in SERVER_FILES:
         assert (server / "dallinger" / name).stat().st_mode & 0o777 == 0o444
+
+
+def test_ec2_provision_sets_up_the_shared_services(server, monkeypatch, capsys):
+    ec2 = importlib.import_module("dallinger.command_line.lib.ec2")
+    for name in SERVER_FILES:
+        (server / "dallinger" / name).unlink()
+    stored = []
+    monkeypatch.setattr(docker_ssh, "store_host", stored.append)
+    monkeypatch.setattr(docker_ssh, "_ipv4_addresses", lambda host: ["1.2.3.4"])
+    monkeypatch.setattr(ec2, "dallinger_store_host", stored.append)
+    monkeypatch.setattr(ec2, "dallinger_prepare_server", mock.Mock())
+    monkeypatch.setattr(ec2, "create_dns_records", mock.Mock())
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.extend({"dashboard_user": "admin", "dashboard_password": "pw"})
+    config.ready = True
+    monkeypatch.setattr("dallinger.config.get_config", lambda load=False: config)
+
+    aws_host = "ec2-1-2-3-4.compute.amazonaws.com"
+    ec2.prepare_docker_experiment_setup(
+        aws_host, "ubuntu", "1.2.3.4", None, dns_host="lab.example.org"
+    )
+
+    assert {"host": aws_host, "user": "ubuntu", "dns_host": "lab.example.org"} in (
+        stored
+    )
+    assert stored[-1]["host"] == "lab.example.org"
+    assert stored[-1]["contact_email"] == "lab@example.org"
+    assert "logs.lab.example.org {" in (server / "dallinger/Caddyfile").read_text()
+    for name in SERVER_FILES:
+        assert (server / "dallinger" / name).stat().st_mode & 0o777 == 0o444
+    assert capsys.readouterr().out.count("password = ") == 1
+    assert "up -d" in docker_calls(server)

@@ -160,6 +160,15 @@ You can configure different amounts of storage or different instance types::
 
     dallinger ec2 provision --name <server_name> --region <region> --storage 100 --type m5.2xlarge
 
+Like ``dallinger docker-ssh servers add``, ``provision`` then starts the
+server's shared Caddy, Postgres and Dozzle services and prints the log viewer
+login once, so you can deploy straight away with ``--server <dns-host>``.
+Caddy gives Let's Encrypt the ``contact_email_on_error`` address, so
+``provision`` stops before booting an instance if that is not an email
+address. Without ``--dns-host``, the server's own sites use its AWS hostname,
+and ``logs.<AWS hostname>`` does not resolve, so the log viewer is unreachable;
+use ``--dns-host`` to reach it.
+
 
 Increasing Storage on An Instance
 ---------------------------------
