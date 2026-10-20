@@ -472,17 +472,18 @@ def _config_contact_email(experiment=False):
     return found[0] if found else (None, None)
 
 
-def _contact_email(server_info, contact_email=None, *, config=True):
+def _contact_email(server_info, contact_email=None, *, config=True, experiment=False):
     """Return a server's Let's Encrypt email and where it came from.
 
     In order: ``contact_email``, a valid email saved with the server, then
-    (with ``config``) ``contact_email_on_error`` from the user's config.
+    (with ``config``) ``contact_email_on_error`` from the user's config, or
+    with ``experiment`` from any config source (see ``_config_contact_email``).
     """
     if contact_email:
         return contact_email, "--contact-email"
     if _is_email(server_info.get("contact_email")):
         return server_info["contact_email"], "the saved server record"
-    return _config_contact_email() if config else (None, None)
+    return _config_contact_email(experiment) if config else (None, None)
 
 
 def _print_contact_email(server_info, source, *, written=True):
@@ -514,9 +515,7 @@ def _server_tls(server_info, *, experiment=False, command=None):
     """
     if is_loopback_host(split_ssh_host_port(server_info["host"])[0]):
         return "tls internal"
-    email = server_info.get("contact_email")
-    if not _is_email(email):
-        email, source = _config_contact_email(experiment)
+    email, source = _contact_email(server_info, experiment=experiment)
     if not _is_email(email):
         where = (
             "the experiment's config.txt or ~/.dallingerconfig"

@@ -185,8 +185,18 @@
   contact email and, for a server registered by IP address, a `--dns-host`.
   `dallinger ec2 provision` does the same on the new instance (saving
   `--dns-host <public ip>.nip.io` when no `--dns-host` is given, as Let's
-  Encrypt does not certify AWS hostnames), and stops before booting one if
-  `contact_email_on_error` is not an email address.
+  Encrypt does not certify AWS hostnames). It saves the server under its AWS
+  hostname and, with `--dns-host`, under that name too. Before booting an
+  instance, it stops if `contact_email_on_error` is not an email address,
+  if `dashboard_user` or `dashboard_password` is missing, or if `server_pem`
+  is not the private key of the `ec2_default_pem` key pair (which used to
+  fail after boot with `SSHException: Invalid key`). It no longer connects
+  through the new `--dns-host` name, so a resolver that still caches a
+  negative answer for it can't stop provisioning; if Route 53 can't create
+  the DNS records, it warns and sets the server up anyway. If anything fails
+  after boot, it prints the commands that finish the setup or, before setup
+  started, the `ec2 teardown` command. It prints its total time in whole
+  seconds.
   The new `dallinger docker-ssh servers upgrade --host <server>` command sets
   them up or rewrites them. It lists the files it replaces and the routes it
   adds, asks first unless given `--yes`, keeps a `.bak` copy of each replaced

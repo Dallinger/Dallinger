@@ -1,4 +1,5 @@
 import importlib
+import socket
 from unittest import mock
 
 import click
@@ -18,6 +19,7 @@ from dallinger.command_line.lib.ec2 import (
     register_key_pair,
     remove_dns_records,
 )
+from dallinger.config import Configuration
 
 
 def _route_53_client(*pages):
@@ -501,46 +503,108 @@ class TestRegisterKeyPair:
         assert "Unable to load key" in str(excinfo.value)
 
 
-def test_provision_needs_a_contact_email_before_booting(monkeypatch):
+@pytest.mark.parametrize(
+    "settings, error",
+    [
+        ({"contact_email_on_error": "???"}, "contact_email_on_error"),
+        ({"dashboard_password": ""}, "dashboard_user and dashboard_password"),
+    ],
+)
+def test_provision_checks_settings_before_booting(monkeypatch, settings, error):
     from click.testing import CliRunner
 
-    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
     ec2 = importlib.import_module("dallinger.command_line.ec2")
-
-    monkeypatch.setattr(ec2, "get_instance_config", lambda: {"pem": "key"})
-    monkeypatch.setattr(ec2, "get_pem_path", mock.Mock())
-    monkeypatch.setattr(ec2, "get_server_pem_path", mock.Mock())
+    values = {
+        "dashboard_user": "admin",
+        "dashboard_password": "pw",
+        "contact_email_on_error": "me@example.org",
+        **settings,
+    }
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.extend(values)
+    config.ready = True
+    monkeypatch.setattr(ec2, "get_config", lambda strict=True: config)
     monkeypatch.setattr(
-        docker_ssh, "_config_contact_email", lambda *a: ("???", "~/.dallingerconfig")
+        importlib.import_module("dallinger.command_line.docker_ssh"),
+        "get_config",
+        lambda load=False: config,
     )
+    monkeypatch.setattr(ec2, "get_instance_config", lambda: {"pem": "key"})
+    monkeypatch.setattr(ec2, "check_server_pem_matches_key_pair", mock.Mock())
     monkeypatch.setattr(ec2, "provision", mock.Mock())
 
     result = CliRunner().invoke(ec2.ec2__provision, ["--name", "exp"])
 
     assert result.exit_code == 2
-    assert "contact_email_on_error" in result.output
+    assert error in result.output
     ec2.provision.assert_not_called()
 
 
+def test_server_pem_must_be_the_key_pairs_private_key(tmp_path, monkeypatch):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    pair, other = tmp_path / "pair.pem", tmp_path / "other.pem"
+    for path in (pair, other):
+        paramiko.RSAKey.generate(1024).write_private_key_file(str(path))
+    monkeypatch.setattr(lib, "get_pem_path", lambda key_name: pair)
+
+    monkeypatch.setattr(lib, "get_server_pem_path", lambda: pair)
+    lib.check_server_pem_matches_key_pair("pair")
+
+    monkeypatch.setattr(lib, "get_server_pem_path", lambda: other)
+    with pytest.raises(click.UsageError) as error:
+        lib.check_server_pem_matches_key_pair("pair")
+    assert "ec2_default_pem = pair" in str(error.value)
+    assert f"Set server_pem = {pair}" in str(error.value)
+
+
+def test_dns_records_are_created_without_connecting_through_them(monkeypatch):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    route_53 = mock.Mock()
+    route_53.change_resource_record_sets.return_value = {
+        "ResponseMetadata": {"HTTPStatusCode": 200},
+        "ChangeInfo": {"Id": "change"},
+    }
+    route_53.get_change.return_value = {"ChangeInfo": {"Status": "INSYNC"}}
+    monkeypatch.setattr(lib, "get_53_client", lambda: route_53)
+    monkeypatch.setattr(lib, "filter_zone_ids", lambda *a: ["zone"])
+    # A fresh name may not resolve locally yet, so nothing may connect to it.
+    monkeypatch.setattr(lib, "Executor", mock.Mock(side_effect=AssertionError))
+
+    lib.create_dns_records("exp.example.org", "ubuntu", "ec2-host")
+
+    names = [
+        call.kwargs["ChangeBatch"]["Changes"][0]["ResourceRecordSet"]["Name"]
+        for call in route_53.change_resource_record_sets.call_args_list
+    ]
+    assert names == ["exp.example.org", "*.exp.example.org"]
+
+
 @pytest.mark.parametrize("dns_host", [None, "exp.example.org"])
-def test_provision_setup_failure_names_the_repair_command(
+def test_provision_setup_failure_names_the_repair_commands(
     dns_host, monkeypatch, capsys
 ):
     lib = importlib.import_module("dallinger.command_line.lib.ec2")
-    config = mock.Mock(get=lambda key, default=None: "x")
-    monkeypatch.setattr("dallinger.config.get_config", lambda load=False: config)
     monkeypatch.setattr(lib, "dallinger_prepare_server", mock.Mock())
-    monkeypatch.setattr(lib, "create_dns_records", mock.Mock())
+    # A DNS failure only warns; the setup still runs over the AWS hostname.
     monkeypatch.setattr(
-        lib, "dallinger_register_server", mock.Mock(side_effect=click.Abort)
+        lib, "create_dns_records", mock.Mock(side_effect=socket.gaierror("NXDOMAIN"))
     )
+    register = mock.Mock(side_effect=click.Abort)
+    monkeypatch.setattr(lib, "dallinger_register_server", register)
 
     with pytest.raises(click.Abort):
         lib.prepare_docker_experiment_setup(
             "ec2-host", "ubuntu", "1.2.3.4", None, dns_host=dns_host
         )
     output = capsys.readouterr().out
-    assert "servers upgrade --host ec2-host --yes" in output
+    register.assert_called_once()
+    assert ("Could not create the DNS records" in output) == bool(dns_host)
+    server_dns_host = dns_host or "1.2.3.4.nip.io"
+    assert (
+        f"servers add --host ec2-host --user ubuntu --dns-host {server_dns_host}"
+        in output
+    )
     alias = (
         "servers add --host exp.example.org --user ubuntu --dns-host exp.example.org"
     )

@@ -92,6 +92,9 @@ The ``server_pem`` value specifies the local private key file that will
 be used for SSH authentication when connecting to the instance. It's recommended to
 store this in ``~/.ssh/`` following standard SSH key management practices.
 Note that this variable should be specified as a full path (e.g. ``~/.ssh/my-ec2-key.pem``).
+A new instance accepts only the ``ec2_default_pem`` key pair, and Dallinger
+logs in to every server with ``server_pem``, so ``server_pem`` must be that
+key pair's private key; ``provision`` checks this before booting an instance.
 
 **Both configuration values are required** for EC2-based deployments. If either is missing
 or if the PEM file doesn't exist at the specified path, the deployment will fail with an error message.
@@ -162,19 +165,22 @@ You can configure different amounts of storage or different instance types::
 
 Like ``dallinger docker-ssh servers add``, ``provision`` then starts the
 server's shared Caddy, Postgres and Dozzle services and prints the log viewer
-login once. You can deploy straight away with ``--server <AWS hostname>``,
-and with ``--server <dns-host>`` once your computer resolves the new DNS
-record (up to about five minutes). Caddy gives Let's Encrypt the
-``contact_email_on_error`` address from ``~/.dallingerconfig`` (or the
-environment, but not an experiment's ``config.txt`` or experiment class), so
-``provision`` stops before booting an instance if that is not an email
-address. Without ``--dns-host``, the server
-is saved with ``--dns-host <public ip>.nip.io``, because Let's Encrypt does
-not issue certificates for AWS hostnames. If the
+login once. It saves the server under its AWS hostname and, with
+``--dns-host``, under that name too. You can deploy straight away with
+``--server <AWS hostname>``, and with ``--server <dns-host>`` once your
+computer resolves the new DNS record (up to about five minutes; up to 15 if
+you looked the name up before it existed). The setup connects over the AWS
+hostname, so it doesn't wait for the new name to resolve. Caddy gives Let's
+Encrypt the ``contact_email_on_error`` address from ``~/.dallingerconfig``
+(or the environment, but not an experiment's ``config.txt`` or experiment
+class), so ``provision`` stops before booting an instance if that is not an
+email address, or if ``dashboard_user`` or ``dashboard_password`` is
+missing. Without ``--dns-host``, the server is saved with ``--dns-host
+<public ip>.nip.io``, because Let's Encrypt does not issue certificates for
+AWS hostnames. If Route 53 can't create the DNS records, ``provision`` warns,
+says which records to create by hand, and sets the server up anyway. If the
 setup fails, the instance keeps running; fix the problem and run the
-commands that ``provision`` prints: ``dallinger docker-ssh servers upgrade``
-and, with ``--dns-host``, the ``servers add`` that saves that name.
-
+``servers add`` commands that ``provision`` prints.
 
 Increasing Storage on An Instance
 ---------------------------------

@@ -30,6 +30,7 @@ from ..config import store_host as dallinger_store_host
 from ..docker_ssh import Executor
 from ..docker_ssh import prepare_server as dallinger_prepare_server
 from ..docker_ssh import register_server as dallinger_register_server
+from ..utils import get_server_pem_path
 
 logger = logging.getLogger(__name__)
 
@@ -523,7 +524,43 @@ def wait_for_instance(host, user="ubuntu", n_tries=10):
     def _wait_for_instance():
         return Executor(host, user)
 
-    return _wait_for_instance()
+    try:
+        return _wait_for_instance()
+    except pse.AuthenticationException as exc:
+        raise click.ClickException(
+            f"{host} rejected the server_pem key ({exc}). A new instance accepts "
+            "only its EC2 key pair (ec2_default_pem), so server_pem must be that "
+            "key pair's private key."
+        ) from exc
+
+
+def check_server_pem_matches_key_pair(key_name):
+    """Raise a ``UsageError`` unless ``server_pem`` is the private key of EC2 key pair ``key_name``.
+
+    New instances accept only the key pair they boot with, and docker-ssh
+    logs in to every server with ``server_pem``. A passphrase-protected key
+    can't be compared, so it passes.
+    """
+    pair_path, server_pem = get_pem_path(key_name), get_server_pem_path()
+    if pair_path.resolve() == server_pem.resolve():
+        return
+    try:
+        keys = [paramiko.PKey.from_path(path) for path in (pair_path, server_pem)]
+    except pse.PasswordRequiredException:
+        return
+    except Exception as exc:
+        raise click.UsageError(
+            f"Could not read the SSH keys {pair_path} (ec2_default_pem) and "
+            f"{server_pem} (server_pem): {exc}"
+        ) from exc
+    if keys[0].get_base64() != keys[1].get_base64():
+        raise click.UsageError(
+            f"server_pem ({server_pem}) is not the private key of the EC2 key pair "
+            f"ec2_default_pem = {key_name} ({pair_path}). New instances accept only "
+            "that key pair, and Dallinger logs in to every server with server_pem. "
+            f"Set server_pem = {pair_path} in ~/.dallingerconfig, or set "
+            "ec2_default_pem to the key pair whose private key server_pem is."
+        )
 
 
 def _get_latest_ubuntu_image_id(ec2):
@@ -838,6 +875,11 @@ def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False):
 
 
 def create_dns_record(dns_host, user, host, route_53=None):
+    """Point ``dns_host`` at ``host`` with a Route 53 CNAME and wait until it is in sync.
+
+    Nothing connects through the new name, as the local resolver may still
+    cache an older answer (or a negative one) for it.
+    """
     if route_53 is None:
         route_53 = get_53_client()
 
@@ -864,29 +906,18 @@ def create_dns_record(dns_host, user, host, route_53=None):
         response["ResponseMetadata"]["HTTPStatusCode"] == 200
     ), "Failed to set up DNS record"
 
-    with yaspin(
-        text=f"Waiting for DNS record for {dns_host} (can take up to two minutes)...",
-        color="green",
-    ) as sp:
-        change_id = response["ChangeInfo"]["Id"]
-        n_tries = 24
-        wait = 5
-        timeout = n_tries * wait
-        for _ in range(n_tries):
-            response = route_53.get_change(Id=change_id)
-            if response["ChangeInfo"]["Status"] == "INSYNC":
-                break
-            time.sleep(wait)
-        else:
-            raise Exception(f"DNS record setup timed out after {timeout} seconds.")
-        sp.ok("✔")
-
-    is_wild_card = dns_host.startswith("*.")
-    full_domain = dns_host.replace("*.", "")
-    test_host = f"test.{full_domain}" if is_wild_card else dns_host
-
-    dns_executor = Executor(test_host, user)
-    return dns_executor
+    print(f"Waiting for the DNS record {dns_host} (can take up to two minutes)...")
+    change_id = response["ChangeInfo"]["Id"]
+    n_tries, wait = 24, 5
+    for _ in range(n_tries):
+        if route_53.get_change(Id=change_id)["ChangeInfo"]["Status"] == "INSYNC":
+            print(f"DNS record {dns_host} is in sync.")
+            return
+        time.sleep(wait)
+    print(
+        f"Route 53 had not synced the DNS record {dns_host} after {n_tries * wait} "
+        "seconds; it usually finishes within a few more minutes."
+    )
 
 
 def prepare_instance(
@@ -945,19 +976,26 @@ def prepare_instance(
         ec2, image_id, instance_type, key_name, instance_name, region_name
     )
 
-    set_security_group(
-        ec2, instance_id, instance_name, security_group_id, security_group_name
-    )
-
-    host, user, ip_address, executor = increase_storage(
-        instance_id, instance_name, storage_in_gb, ec2
-    )
+    try:
+        set_security_group(
+            ec2, instance_id, instance_name, security_group_id, security_group_name
+        )
+        host, user, ip_address, executor = increase_storage(
+            instance_id, instance_name, storage_in_gb, ec2
+        )
+    except Exception:
+        print(
+            f"{instance_name} ({instance_id}) is running but was not set up. Fix "
+            "the problem above, then remove it with `dallinger ec2 teardown "
+            f"--name {instance_name}` and provision it again."
+        )
+        raise
     if callback is not None:
         callback(host, user, ip_address, executor, dns_host, instance_name)
 
-    duration = time.time() - start
+    duration = round(time.time() - start)
     print(
-        f"Provisioning complete! Time taken: {duration}. {instance_name} is ready at {host}"
+        f"Provisioning complete in {duration} seconds. {instance_name} is ready at {host}"
     )
 
 
@@ -979,46 +1017,51 @@ def remove_dns_record(dns_host, remove_dallinger_host=True):
 def prepare_docker_experiment_setup(
     host, user, ip_address, executor, dns_host=None, instance_name=None
 ):
-    from dallinger.config import get_config
+    """Install Docker on a new instance, create its DNS records and register it.
 
-    with yaspin(text="Loading Dallinger configuration...", color="green") as sp:
-        config = get_config(load=True)
-        assert config.get("dashboard_user") and config.get(
-            "dashboard_password"
-        ), "dashboard_user and dashboard_password must be set in ~/.dallingerconfig"
-        sp.ok("✔")
-
-    dallinger_prepare_server(host, user)
-
-    create_dns_records(dns_host, user, host)
-
-    # Set up over the AWS hostname: a resolver may still cache an old record
-    # for the DNS host. Without one, a nip.io name for the public IP gives the
-    # server's sites a name that Let's Encrypt certifies, unlike the AWS
-    # hostname, which can resolve to a private IP inside AWS.
-    print("Registering the server and starting its shared services.")
+    Everything connects over the AWS hostname ``host``: a resolver may still
+    cache an old or negative answer for the new DNS host. Without a DNS host,
+    a nip.io name for the public IP gives the server's sites a name that
+    Let's Encrypt certifies, unlike the AWS hostname, which can resolve to a
+    private IP inside AWS. A server record is saved under the AWS hostname
+    and, with a DNS host, under that name too. A failure prints the commands
+    that finish the setup.
+    """
+    server_dns_host = dns_host or f"{ip_address}.nip.io"
+    if dns_host:
+        try:
+            create_dns_records(dns_host, user, host)
+        except Exception as exc:
+            print(
+                f"Warning: Could not create the DNS records {dns_host} and "
+                f"*.{dns_host} ({exc}). Create them in Route 53 as CNAME records "
+                f"pointing to {host}."
+            )
     try:
+        dallinger_prepare_server(host, user)
+        print("Registering the server and starting its shared services.")
         server_info = dallinger_register_server(
-            host,
-            user,
-            dns_host=dns_host or f"{ip_address}.nip.io",
-            network_advice=False,
+            host, user, dns_host=server_dns_host, network_advice=False
         )
+        if dns_host:
+            dallinger_store_host({**server_info, "host": dns_host})
     except Exception:
-        alias = (
-            f" and `dallinger docker-ssh servers add --host {dns_host} --user "
-            f"{user} --dns-host {dns_host}`"
-            if dns_host
-            else ""
-        )
+        commands = [
+            f"dallinger docker-ssh servers add --host {host} --user {user} "
+            f"--dns-host {server_dns_host}"
+        ]
+        if dns_host:
+            commands.append(
+                f"dallinger docker-ssh servers add --host {dns_host} --user {user} "
+                f"--dns-host {dns_host}  (once {dns_host} resolves)"
+            )
         print(
-            f"{host} is running but its shared services are not set up. Fix "
-            "the problem above, then run `dallinger docker-ssh servers upgrade "
-            f"--host {host} --yes`{alias}."
+            f"{host} is running but is not set up. Fix the problem above, then run:\n"
+            + "".join(f"  {command}\n" for command in commands)
+            + "If `servers add` says the shared files were left unchanged, also "
+            f"run `dallinger docker-ssh servers upgrade --host {host} --yes`."
         )
         raise
-    if dns_host:
-        dallinger_store_host({**server_info, "host": dns_host})
 
 
 def provision(
