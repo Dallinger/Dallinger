@@ -1434,13 +1434,14 @@ def deploy(**kwargs):  # pragma: no cover
     return _deploy_in_mode(mode="live", **kwargs)
 
 
-def _classic_tls_and_dns_host(config, ssh_host, dns_host):
+def _classic_tls_and_dns_host(config, server_info, dns_host):
     """Return the Caddy ``tls`` directive and the DNS host of a classic deploy.
 
     Aborts if a server that needs a Let's Encrypt certificate has no valid
-    ``contact_email_on_error``, or a server given as an IP address has no
-    ``--dns-host``.
+    ``contact_email_on_error``, or a server registered by IP address has
+    neither ``--dns-host`` nor a saved DNS host.
     """
+    ssh_host = split_ssh_host_port(server_info["host"])[0]
     has_tls = not is_loopback_host(ssh_host)
     # We abuse the mturk contact_email_on_error to provide an email for let's encrypt certificate
     email_addr = config.get("contact_email_on_error")
@@ -1533,7 +1534,7 @@ def _deploy_in_mode(
             _abort_cloudflare(exc)
     else:
         cloudflare_settings = None
-        tls, dns_host = _classic_tls_and_dns_host(config, ssh_host, dns_host)
+        tls, dns_host = _classic_tls_and_dns_host(config, server_info, dns_host)
         experiment_hostname = (
             f"{experiment_id}.{dns_host}" if use_subdomain else dns_host
         )

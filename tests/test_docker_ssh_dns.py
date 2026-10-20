@@ -238,6 +238,10 @@ def test_deploy_to_an_ip_server_needs_a_saved_dns_host(
     monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
     monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {"1.2.3.4": server_info})
     monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "_check_experiment_hostname_dns", mock.Mock()
+    )
     monkeypatch.setattr(
         docker_ssh_module, "Executor", mock.Mock(side_effect=RuntimeError("ssh"))
     )
@@ -247,13 +251,11 @@ def test_deploy_to_an_ip_server_needs_a_saved_dns_host(
             archive_path=None,
             config_options=(),
             dns_host=None,
-            image_name="image",
             mode="live",
             server="1.2.3.4",
             update=False,
             local_build=False,
             push_build=False,
-            preflight_root_clean=False,
         )
     assert ("you must specify a DNS host" in capsys.readouterr().out) == aborts
 
