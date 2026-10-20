@@ -625,7 +625,11 @@ app name and without ``--update`` deletes the database and volumes left under
 that name, but reuses the data folder ``~/dallinger-data/$APP_ID``.
 
 Data is not deleted while the app's containers are still running, or if
-Dallinger can't check whether they are. If ``~/dallinger-data/$APP_ID`` is a
+Dallinger can't check whether they are. Data that destroy can't check, for
+example because the shared Postgres doesn't answer within 30 seconds on a busy
+server, is listed as ``…, if any (could not check: …)``; ``--remove-data``
+then reports it as not deleted and exits with an error, and you can run it
+again. If ``~/dallinger-data/$APP_ID`` is a
 symlink, only the link is removed and its target is kept.
 
 The data folder's parent is often owned by root, so if the SSH user can't

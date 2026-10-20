@@ -258,6 +258,18 @@ def test_destroy_cloudflare_stops_connector_before_deleting_the_tunnel(
     )
 
 
+def test_destroy_cloudflare_does_not_check_the_shared_postgres(monkeypatch):
+    removed = TunnelDeletion(True, "dallinger-myapp", "myapp.science-of-music.org")
+    _cloudflare_destroy(monkeypatch, removed=removed)
+    docker_ssh_module.destroy.callback(
+        server="test-server", app="myapp", remove_data=True, yes=True
+    )
+    executor = docker_ssh_module.Executor()
+    commands = [call.args[0] for call in executor.run_with_status.call_args_list]
+    assert "docker volume ls -q" in commands
+    assert not any("exec -T postgresql" in command for command in commands)
+
+
 def test_destroy_uses_the_cloudflare_ids_recorded_at_deploy(monkeypatch):
     recorded = {
         "account_id": "deploy-acct",
@@ -871,6 +883,8 @@ def _server_with_data(
         if "pg_database_size(datname)" in cmd:
             if db is None:
                 return 1, "", "service postgresql is not running\n"
+            if db == "timeout":
+                return 124, "", ""
             return 0, f"{db}|t\n" if db else "|f\n", ""
         if "docker exec myapp_postgresql" in cmd:
             return 0, own_db, ""
@@ -1068,8 +1082,17 @@ def test_destroy_stops_if_compose_down_fails(monkeypatch):
 @pytest.mark.parametrize(
     "unchecked, label",
     [
-        ({"volumes": None}, "the Docker volumes of myapp, if any"),
-        ({"db": None}, "the database myapp in the shared Postgres, if any"),
+        ({"volumes": None}, "the Docker volumes of myapp, if any (could not check:"),
+        (
+            {"db": None},
+            "the database myapp in the shared Postgres, if any (could not check: "
+            "service postgresql is not running)",
+        ),
+        (
+            {"db": "timeout"},
+            "the database myapp in the shared Postgres, if any (could not check: "
+            "timed out after 30 s; the server may be busy, so try again)",
+        ),
     ],
 )
 def test_destroy_remove_data_fails_if_some_data_cant_be_checked(
@@ -1078,7 +1101,7 @@ def test_destroy_remove_data_fails_if_some_data_cant_be_checked(
     args = ["--remove-data", "--yes", "--delete-data-command", "wrapper rm myapp"]
     _, result = _destroy_with_data(monkeypatch, args, **unchecked)
     assert result.exit_code == 1
-    assert f"Did not delete {label} (could not check:" in result.output
+    assert f"Did not delete {label}" in result.output
     assert "Some data of myapp was not deleted" in result.output
     assert "and run: wrapper rm myapp" in result.output
 

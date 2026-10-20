@@ -2484,6 +2484,9 @@ def _stdin_is_tty():
     return sys.stdin.isatty()
 
 
+SHARED_PSQL_TIMEOUT = 30
+
+
 def _shared_psql(*statements):
     """Return a command running SQL ``statements`` in the server's shared Postgres.
 
@@ -2492,7 +2495,7 @@ def _shared_psql(*statements):
     """
     args = " ".join(f"-c {quote(sql)}" for sql in statements)
     return (
-        f"timeout 30 {SERVER_COMPOSE} exec -T postgresql "
+        f"timeout {SHARED_PSQL_TIMEOUT} {SERVER_COMPOSE} exec -T postgresql "
         f"psql -U dallinger -v ON_ERROR_STOP=1 -tA {args}"
     )
 
@@ -2510,7 +2513,13 @@ def _shared_database(executor, app):
         )
     )
     if status != 0:
-        return [_unchecked(f"the database {app} in the shared Postgres", err)]
+        what = f"the database {app} in the shared Postgres"
+        if status == 124:
+            err = (
+                f"timed out after {SHARED_PSQL_TIMEOUT} s; the server may be busy, "
+                "so try again"
+            )
+        return [_unchecked(what, err)]
     size, _, has_user = (out or "").strip().partition("|")
     items = []
     if size:
@@ -2537,14 +2546,15 @@ def _own_database_size(executor, app):
     return (out or "").strip() if status == 0 else ""
 
 
-def _experiment_data(executor, app):
+def _experiment_data(executor, app, shared_database=True):
     """List the experiment data ``app`` has on the server.
 
     Returns ``(kind, name, label)`` tuples for the app's database and user in
-    the shared Postgres, its Docker volumes and its data folder. Each is
+    the shared Postgres (unless ``shared_database`` is false, as for a
+    Cloudflare app), its Docker volumes and its data folder. Each is
     checked on its own; one that can't be checked is an ``unchecked`` item.
     """
-    items = _shared_database(executor, app)
+    items = _shared_database(executor, app) if shared_database else []
     status, out, err = executor.run_with_status("docker volume ls -q")
     if status != 0:
         items.append(_unchecked(f"the Docker volumes of {app}", err))
@@ -2734,7 +2744,17 @@ def destroy(
         raise_=False,
     )
     deployed = caddy_config_exists or docker_compose_exists or tunnel_token_exists
-    data = _experiment_data(executor, app)
+    manifest = _load_remote_manifests(executor, [app]).get(app) if deployed else None
+    if manifest:
+        ingress = manifest.ingress
+    elif tunnel_token_exists:
+        ingress = INGRESS_CLOUDFLARE
+    else:
+        ingress = INGRESS_CLASSIC
+    # Cloudflare apps keep their database in their own Postgres container.
+    data = _experiment_data(
+        executor, app, shared_database=ingress != INGRESS_CLOUDFLARE
+    )
     if not deployed and not data and remove_data:
         print(f"Nothing left to delete for {app} on {ssh_host}.")
         return
@@ -2760,7 +2780,8 @@ def destroy(
             ssh_address,
             ssh_user,
             docker_compose_exists,
-            tunnel_token_exists,
+            manifest,
+            ingress,
         )
     delete_again = (
         delete_data_command
@@ -2781,17 +2802,12 @@ def destroy(
         )
 
 
-def _tear_down_app(executor, app, ssh_address, ssh_user, has_compose, has_token):
+def _tear_down_app(
+    executor, app, ssh_address, ssh_user, has_compose, manifest, ingress
+):
     """Stop and remove a deployed app, keeping its data volumes and folder."""
     ssh_host, _ = split_ssh_host_port(ssh_address)
     quoted_app = quote(app)
-    manifest = _load_remote_manifests(executor, [app]).get(app)
-    if manifest:
-        ingress = manifest.ingress
-    elif has_token:
-        ingress = INGRESS_CLOUDFLARE
-    else:
-        ingress = INGRESS_CLASSIC
 
     experiment_image = None
     if has_compose:
