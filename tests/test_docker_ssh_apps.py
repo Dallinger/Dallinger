@@ -1003,10 +1003,24 @@ def test_destroy_stops_if_compose_down_fails(monkeypatch):
 def test_destroy_remove_data_fails_if_some_data_cant_be_checked(
     monkeypatch, unchecked, label
 ):
-    _, result = _destroy_with_data(monkeypatch, ["--remove-data", "--yes"], **unchecked)
+    args = ["--remove-data", "--yes", "--delete-data-command", "wrapper rm myapp"]
+    _, result = _destroy_with_data(monkeypatch, args, **unchecked)
     assert result.exit_code == 1
     assert f"Did not delete {label} (could not check:" in result.output
     assert "Some data of myapp was not deleted" in result.output
+    assert "and run: wrapper rm myapp" in result.output
+
+
+def test_destroy_rejects_both_data_choices(monkeypatch):
+    commands, result = _destroy_with_data(monkeypatch, ["--remove-data", "--keep-data"])
+    assert result.exit_code == 2 and commands == []
+    assert "Pass only one of --remove-data and --keep-data." in result.output
+
+
+def test_redis_volume_cleanup_uses_the_compose_project_name():
+    executor = FakeExecutor({})
+    docker_ssh_module.remove_redis_volumes("My.App", executor)
+    assert executor.commands == ["docker volume rm 'myapp_redis_data'"]
 
 
 def test_destroy_rejects_shell_patterns_as_app_names(monkeypatch):
