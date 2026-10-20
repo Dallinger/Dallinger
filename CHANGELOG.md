@@ -201,6 +201,7 @@
   player's bonus is paid from the session's saved outcome, and participants
   recruited as `HighPerformanceBotBase` bots are played by the game type's
   `bot` method.
+
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
   experiment refuse an `/experiment-socket` connection when it opens. A falsy
   return closes the socket with code `1008`, and Dallinger's client helpers

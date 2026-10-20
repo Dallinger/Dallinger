@@ -2,7 +2,7 @@
 
 // The instructions page creates the participant and their node. The pair's
 // session starts once both players have a node, so the game page only joins it,
-// and can be reloaded safely.
+// and can be reloaded while the game is running.
 var join_pair = function () {
   dallinger.createParticipant().done(function () {
     dallinger.createAgent()
@@ -34,7 +34,8 @@ var describe_role = function (view) {
 };
 
 var describe_result = function (reason, view) {
-  // A page that joins after the game has ended gets no view
+  // A page reloaded after the game ended, before its result was saved, gets
+  // no view
   if (view === null) {
     return 'This game is over.';
   }
@@ -52,6 +53,7 @@ var describe_result = function (reason, view) {
 var play_bargain = function () {
   dallinger.joinRealtimeSession('bargain').done(function (socket) {
     var latest = null;
+    var ended = false;
 
     $('#waiting').hide();
     $('#game').show();
@@ -61,7 +63,8 @@ var play_bargain = function () {
       $('#role').text(describe_role(view));
       $('#my-offer').text(cents(view.my_offer));
       $('#their-offer').text(cents(view.their_offer));
-      $('#accept').toggle(view.their_offer !== null);
+      // The final view can arrive after onEnded
+      $('#accept').toggle(!ended && view.their_offer !== null);
       $('#offers').empty();
       view.offers.forEach(function (offer) {
         $('#offers').append($('<li>').text(
@@ -73,8 +76,13 @@ var play_bargain = function () {
 
     $('#offer-form').on('submit', function (event) {
       event.preventDefault();
+      var price = $('#price').val();
+      if (price === '') {
+        $('#error').text('Enter a price in cents.');
+        return;
+      }
       $('#error').text('');
-      socket.send('bargain', {offer: Number($('#price').val())});
+      socket.send('bargain', {offer: Number(price)});
     });
 
     // Name the price being accepted, so the game can refuse it if the
@@ -96,14 +104,17 @@ var play_bargain = function () {
     }, 250);
 
     socket.onEnded(function (reason, view) {
+      ended = true;
       clearInterval(timer);
       $('#offer-form, #accept').hide();
       $('#timer').text(0);
       $('#result').text(describe_result(reason, view));
     });
 
-    // Move on once the outcome is saved, so the bonus can be paid from it
-    socket.resultSaved().done(function () {
+    // Move on once the outcome is saved, so the bonus can be paid from it. The
+    // wait fails only if the connection is refused or closed, and then the
+    // player can still move on.
+    socket.resultSaved().always(function () {
       $('#continue').show();
     });
     $('#continue').on('click', function () {
