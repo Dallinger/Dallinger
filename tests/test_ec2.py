@@ -631,10 +631,8 @@ def test_provision_setup_failure_names_the_repair_commands(
             "1.2.3.4",
             None,
             dns_host=dns_host,
-            instance_name="exp",
         )
     output = capsys.readouterr().out
-    assert "dallinger ec2 teardown --name exp --region <region>" in output
     assert register.call_args.kwargs["dns_host"] == (dns_host or "1.2.3.4.nip.io")
     assert ("Could not create the DNS records" in output) == bool(dns_host)
     server_dns_host = dns_host or "1.2.3.4.nip.io"
@@ -699,5 +697,35 @@ def test_interrupted_boot_wait_names_teardown(monkeypatch, capsys):
 
     output = capsys.readouterr().out
     assert "exp (i-9) was launched but may still be starting" in output
+    assert "Terminate i-9 in the EC2 console now" in output
     assert "`dallinger ec2 list instances --running --region eu-west-3`" in output
     assert "dallinger ec2 teardown --name exp --region eu-west-3" in output
+
+
+def test_provision_setup_failure_also_names_teardown(monkeypatch, capsys):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    monkeypatch.setattr(lib, "get_all_instances", lambda region: [])
+    for name in ("get_ec2_client", "get_security_group_id", "get_image_id"):
+        monkeypatch.setattr(lib, name, mock.Mock())
+    for name in ("setup_ssh_keys", "set_security_group"):
+        monkeypatch.setattr(lib, name, mock.Mock())
+    monkeypatch.setattr(lib, "boot_instance", mock.Mock(return_value="i-123"))
+    monkeypatch.setattr(
+        lib, "increase_storage", mock.Mock(return_value=("h", "u", "1.2.3.4", None))
+    )
+
+    with pytest.raises(click.Abort):
+        lib.prepare_instance(
+            "exp",
+            "eu-west-3",
+            "m5.large",
+            32,
+            "lab",
+            "ami-1",
+            "sg",
+            callback=mock.Mock(side_effect=click.Abort),
+        )
+
+    assert "`dallinger ec2 teardown --name exp --region eu-west-3`" in (
+        capsys.readouterr().out
+    )
