@@ -216,10 +216,17 @@ def list_servers():
 def _is_email(value):
     """Return whether ``value`` looks like an email address.
 
-    Placeholders such as ``XXX@gmail.com`` from experiment templates don't count.
+    The whole value must be a bare address, as it goes into Caddy's ``tls``
+    line. Placeholders such as ``XXX@gmail.com`` from experiment templates
+    don't count.
     """
-    local, _, domain = parseaddr(value or "")[1].rpartition("@")
-    return bool(local and domain) and not re.fullmatch(r"x+", local, re.IGNORECASE)
+    value = value or ""
+    local, _, domain = value.rpartition("@")
+    return (
+        parseaddr(value)[1] == value
+        and bool(local and domain)
+        and not re.fullmatch(r"[x?]+", local, re.IGNORECASE)
+    )
 
 
 def _validate_contact_email(ctx, param, value):
@@ -341,7 +348,8 @@ def register_server(
     if classic:
         written = _write_server_files(host, server_info, replace=False)
         if _is_email(contact_email):
-            _print_contact_email(server_info, source, written=written)
+            unchanged = contact_email == existing.get("contact_email")
+            _print_contact_email(server_info, source, written=written or unchanged)
     return server_info
 
 
@@ -481,7 +489,7 @@ def _contact_email(server_info, contact_email=None, *, config=True):
 def _print_contact_email(server_info, source, *, written=True):
     """Say which Let's Encrypt email a server uses, unless it uses internal TLS.
 
-    Without ``written``, the email was only saved with the server, and its
+    Without ``written``, a new email was only saved with the server, and its
     Caddyfile was left as it was.
     """
     if is_loopback_host(split_ssh_host_port(server_info["host"])[0]):

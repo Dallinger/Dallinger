@@ -305,12 +305,22 @@ def test_server_commands_ignore_an_experiments_contact_email(tmp_path, monkeypat
     (experiment / "config.txt").write_text(
         "[Parameters]\ncontact_email_on_error = exp@example.org\n"
     )
-    user_config.unlink()
+    user_config.write_text("[Parameters]\ncontact_email_on_error = ???\n")
     monkeypatch.setattr("dallinger.config.config", None)
     with pytest.raises(click.ClickException) as error:
-        docker_ssh_module._server_tls(server, command="dallinger upgrade")
-    assert "contact_email_on_error is not set in ~/.dallingerconfig" in str(error.value)
-    assert "Run `dallinger upgrade --contact-email <email>`" in str(error.value)
+        docker_ssh_module._server_tls(server)
+    assert "from ~/.dallingerconfig is '???', not an email address" in str(error.value)
+    assert "servers add --host lab.example.org --contact-email <email>" in str(
+        error.value
+    )
     assert docker_ssh_module._server_tls(server, experiment=True) == (
         "tls exp@example.org"
     )
+
+    # A loopback server uses internal TLS, so no email is announced.
+    result = CliRunner().invoke(
+        docker_ssh_module.servers,
+        ["add", "--host", "127.0.0.1", "--contact-email", "me@example.org"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Let's Encrypt" not in result.output

@@ -116,13 +116,14 @@ def test_servers_add_sets_up_a_fresh_server_but_leaves_a_set_up_one(server):
     ):
         before = checksums(server)
         result = CliRunner().invoke(
-            docker_ssh.servers, ["add", "--host", "lab.example.org"]
+            docker_ssh.servers,
+            ["add", "--host", "lab.example.org", "--contact-email", "new@example.org"],
         )
         assert result.exit_code == 0, result.output
         assert checksums(server) == before
         assert docker_calls(server) == ""
         assert "servers upgrade --host lab.example.org" in result.output
-        assert "lab@example.org (from the saved server record), saved with" in (
+        assert "new@example.org (from --contact-email), saved with the server" in (
             result.output
         )
 

@@ -198,9 +198,10 @@ shared Caddy, Postgres or Dozzle, so other apps on the server keep running. ``se
 ``dallinger ec2 provision`` set these services up on a server that doesn't have them. If the server lacks something the deploy
 needs, the deploy stops before building the image and names the command to
 run. If only a contact email is missing, that is ``servers add
---contact-email``, which saves it without rewriting a set-up server's files.
-Otherwise it
-is ``servers upgrade``, which rewrites the shared files from the server's
+--contact-email``, which saves it without rewriting a set-up server's files;
+a missing DNS host for a server registered by IP address likewise names
+``servers add --dns-host``. Otherwise it is usually ``servers upgrade``,
+which rewrites the shared files from the server's
 saved DNS host and contact email and recreates the services whose
 configuration changed:
 
@@ -253,7 +254,8 @@ upgrade`` needs the saved one. Caddy gives Let's Encrypt the contact email
 saved with the server by ``servers add --contact-email`` or ``servers upgrade
 --contact-email``. Without one, both commands save ``contact_email_on_error``
 from ``~/.dallingerconfig`` (or the environment), never from an experiment's
-``config.txt``, since a server isn't tied to one experiment, and they print the
+``config.txt`` or experiment class, since a server isn't tied to one
+experiment, and they print the
 address and where it came from. Placeholders such as ``XXX@gmail.com`` or
 ``???`` don't count. A deploy to a server saved without an email also accepts
 a valid ``contact_email_on_error`` from the experiment's ``config.txt``; a
