@@ -453,10 +453,12 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         print(f"These files on {server} will be replaced (keeping a .bak copy):")
         for path in changed:
             print(f"  ~/{path}")
-        for path in routes:
+        if routes:
             print(
-                f"  ~/{path} will be added, keeping the root-domain app at its address"
+                "These route files will be added, keeping a root-domain app at its address:"
             )
+            for path in routes:
+                print(f"  ~/{path}")
         if "DOZZLE_BASE" in current["dallinger/docker-compose.yml"]:
             print(
                 f"The log viewer moves from the /logs path to "
@@ -1142,19 +1144,22 @@ def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
         if missing:
             problems.append(f"{' and '.join(sorted(missing))} is not running")
     if problems:
+        upgrade = (
+            f"`dallinger docker-ssh servers upgrade --host {server}` to set them "
+            "up (this restarts the shared services)"
+        )
+        if serves_host or not compose.strip():
+            advice = f"Run {upgrade}, then deploy again."
+        else:
+            advice = (
+                "If the server already serves another DNS name, save that name with "
+                f"`{_servers_add_command(server_info, dns_host='<name>')}` and deploy "
+                f"again. Otherwise run {upgrade}, then deploy again."
+            )
         print(
             f"{RED}{server} is not set up for this classic-ingress deploy: "
             f"{'; '.join(problems)}.{END}\n"
-            "Deploys don't change the server's shared files or services. Run "
-            f"`dallinger docker-ssh servers upgrade --host {server}` to set them "
-            "up (this restarts the shared services), then deploy again."
-            + (
-                ""
-                if serves_host or not compose.strip()
-                else " If the server already serves another DNS name, first save "
-                f"that name with `{_servers_add_command(server_info, dns_host='<name>')}`"
-                " and deploy again."
-            )
+            f"Deploys don't change the server's shared files or services. {advice}"
         )
         raise click.Abort()
 

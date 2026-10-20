@@ -122,15 +122,21 @@ def test_failed_new_deploy_removes_the_image_it_built(monkeypatch, capsys, updat
         )
 
 
-@pytest.mark.parametrize("local_build", [False, True], ids=["remote", "local"])
+@pytest.mark.parametrize(
+    "local_build, explanation",
+    [
+        (False, "container 5e8d is using its referenced image f3aa"),
+        (True, "container 5e8d is using its referenced image f3aa"),
+        (False, "image has dependent child images"),
+    ],
+    ids=["remote", "local", "not-a-container"],
+)
 def test_aborted_build_cleanup_explains_an_image_a_container_uses(
-    monkeypatch, capsys, local_build
+    monkeypatch, capsys, local_build, explanation
 ):
     client = _client()
     client.images.remove.side_effect = docker.errors.APIError(
-        "conflict",
-        response=mock.Mock(status_code=409),
-        explanation="container 5e8d is using its referenced image f3aa",
+        "conflict", response=mock.Mock(status_code=409), explanation=explanation
     )
     monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
     monkeypatch.setattr(
@@ -142,6 +148,8 @@ def test_aborted_build_cleanup_explains_an_image_a_container_uses(
     )
 
     output = capsys.readouterr().out
-    assert "Kept the image built:1 built for this deploy, because a container" in output
+    in_use = "container" in explanation
+    assert ("because a container still uses it" in output) is in_use
+    assert explanation in output or in_use
     destroy_hint = "`dallinger docker-ssh destroy --server lab --app app`"
-    assert (destroy_hint in output) is not local_build
+    assert (destroy_hint in output) is (in_use and not local_build)
