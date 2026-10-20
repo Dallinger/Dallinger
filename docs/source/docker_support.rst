@@ -256,8 +256,9 @@ saved with the server by ``servers add --contact-email`` or ``servers upgrade
 from ``~/.dallingerconfig`` (or the environment), never from an experiment's
 ``config.txt`` or experiment class, since a server isn't tied to one
 experiment, and they print the
-address and where it came from. Placeholders such as ``XXX@gmail.com`` or
-``???`` don't count. A deploy to a server saved without an email also accepts
+address and where it came from. The email must be a bare address such as
+``me@example.org``; placeholders such as ``XXX@gmail.com`` or ``???`` don't
+count. A deploy to a server saved without an email also accepts
 a valid ``contact_email_on_error`` from the experiment's ``config.txt``; a
 placeholder there doesn't hide a valid one in ``~/.dallingerconfig``.
 

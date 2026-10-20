@@ -232,7 +232,10 @@ def _is_email(value):
 def _validate_contact_email(ctx, param, value):
     """Reject a ``--contact-email`` that is not an email address."""
     if value is not None and not _is_email(value):
-        raise click.BadParameter(f"{value!r} is not an email address.")
+        raise click.BadParameter(
+            f"{value!r} is not a bare email address such as me@example.org "
+            "(placeholders such as XXX@gmail.com don't count)."
+        )
     return value
 
 
@@ -369,7 +372,8 @@ def upgrade(host, contact_email, yes):
 
     Writes the server's Caddyfile and docker-compose.yml from its saved host
     and contact email (``--contact-email`` saves a new one, and a server saved
-    without one gets contact_email_on_error from ~/.dallingerconfig). It keeps
+    without one gets contact_email_on_error from ~/.dallingerconfig or the
+    environment). It keeps
     a ``.bak`` copy of each file it replaces, adds a Dozzle login if there is
     none, and starts the shared Caddy, Postgres and Dozzle services. Services
     whose configuration changed are recreated, which briefly interrupts every
@@ -499,8 +503,8 @@ def _print_contact_email(server_info, source, *, written=True):
     )
     if not written:
         message += (
-            ", saved with the server; `servers upgrade` writes it to the "
-            "server's Caddyfile"
+            ", saved with the server; `dallinger docker-ssh servers upgrade "
+            f"--host {quote(server_info['host'])}` writes it to the server's Caddyfile"
         )
     print(f"{message}.")
 

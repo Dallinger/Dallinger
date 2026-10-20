@@ -167,8 +167,9 @@ def ec2__provision(
     # The shared services set up at the end need an email for Let's Encrypt.
     if not _is_email(_config_contact_email()[0]):
         raise click.UsageError(
-            "Set contact_email_on_error in ~/.dallingerconfig to an email address "
-            "for Let's Encrypt certificates (check it with `dallinger email-test`)."
+            "Set contact_email_on_error in ~/.dallingerconfig to a bare email "
+            "address (not a placeholder such as XXX@gmail.com) for Let's Encrypt "
+            "certificates (check it with `dallinger email-test`)."
         )
 
     if not security_group_name:

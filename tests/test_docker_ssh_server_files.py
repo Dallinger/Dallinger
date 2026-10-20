@@ -126,6 +126,13 @@ def test_servers_add_sets_up_a_fresh_server_but_leaves_a_set_up_one(server):
         assert "new@example.org (from --contact-email), saved with the server" in (
             result.output
         )
+        result = CliRunner().invoke(
+            docker_ssh.servers, ["add", "--host", "lab.example.org"]
+        )
+        assert (
+            "Let's Encrypt contact email: lab@example.org "
+            "(from the saved server record)." in result.output
+        )
 
         for name in SERVER_FILES:
             (server / "dallinger" / name).unlink()

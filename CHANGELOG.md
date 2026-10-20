@@ -200,10 +200,11 @@
   `servers upgrade` also takes `--contact-email`. Without one, both save
   `contact_email_on_error` from `~/.dallingerconfig` or the environment, not
   from an experiment's `config.txt` or class, and print the saved address and
-  where it came from. A `--contact-email` that is not an email address is rejected,
-  and a saved or configured email that is not one (such as the default `???`
-  or the placeholder `XXX@gmail.com`) is ignored and not saved, so setting
-  `contact_email_on_error` later takes effect. A deploy's `--dns-host` now
+  where it came from. A `--contact-email` that is not a bare email address is
+  rejected, and a saved or configured email that is not one (such as the
+  default `???` or the placeholder `XXX@gmail.com`) is ignored and not
+  saved, so setting `contact_email_on_error` later takes effect. A deploy's
+  `--dns-host` now
   only names the app's own site, except on a server registered by IP address
   without a saved DNS host, where it also stays the server's own host as
   before. A deploy without
