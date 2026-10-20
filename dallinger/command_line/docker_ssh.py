@@ -2524,12 +2524,17 @@ def _shared_database(executor, app, required=True):
             if status == 124:
                 reason += ", so try again"
             return [_unchecked(f"the database {app} in the shared Postgres", reason)]
+        when = (
+            "when the server is less busy"
+            if status == 124
+            else "after fixing the problem"
+        )
         print(
             "Could not check whether the shared Postgres still has a database "
             f"{app} from an earlier classic deploy of this name ({reason}). "
-            f"The Cloudflare app's own database is listed separately. If {app} "
-            "was ever deployed with classic ingress, run destroy with "
-            "--remove-data again when the server is less busy."
+            "The Cloudflare app's own database volume, if any, is listed "
+            f"separately. If {app} was ever deployed with classic ingress, run "
+            f"destroy with --remove-data again {when}."
         )
         return []
     size, _, has_user = (out or "").strip().partition("|")

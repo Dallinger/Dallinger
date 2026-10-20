@@ -1107,7 +1107,7 @@ def test_destroy_remove_data_fails_if_some_data_cant_be_checked(
             "myapp from an earlier classic deploy of this name (timed out after "
             "30 s; the server may be busy).",
         ),
-        (None, False, "(service postgresql is not running)."),
+        (None, False, "(service postgresql is not running). The Cloudflare"),
         ("12 MB", True, "Deleted the database myapp (12 MB) in the shared Postgres"),
     ],
 )
