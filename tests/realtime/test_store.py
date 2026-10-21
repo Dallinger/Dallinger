@@ -767,12 +767,12 @@ class TestReading:
     def test_reads_leave_redis_alone_once_they_return(self, redis_hz_10):
         session_id = create_session(TurnTally, ["1"])
         timed_reads(session_id, 1, 0.02)
-        # A ping sent just as the read returned may still be on its way.
-        time.sleep(0.02)
         pings = ping_calls()
         time.sleep(0.1)
 
-        assert ping_calls() == pings
+        # The waker may already be past its check when the read returns, so
+        # one more ping can follow, however late its thread runs.
+        assert ping_calls() - pings <= 1
 
     def test_entries_dropped_unapplied_are_counted(self, monkeypatch):
         monkeypatch.setattr(store, "MAX_ENTRIES", 10)
