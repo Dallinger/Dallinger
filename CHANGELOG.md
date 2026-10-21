@@ -232,18 +232,18 @@
   registry" and "Removing any pre-existing ... volumes" lines are now
   debug-level logs, as is "Using custom Heroku ID root" in every command that
   prints it, and `/launch` omits empty "Initial recruitment list" and
-  "Additional details" headings. The `DALLINGER_SOURCE` and editable-install
-  messages now point at the Dallinger pin in `constraints.txt`.
-- Debugging and deploying print less. The editable-install notice and the
-  pre-release base-image notice are one line each. Building the editable
-  Dallinger wheel uses the running Python interpreter, so it works without
-  an activated virtualenv, and the build tool's output is printed only if
-  the build fails. An experiment directory that isn't a Git repository no
-  longer prints git's "fatal: not a git repository" error. "constraints.txt
-  is up to date" and "was written manually" are debug-level logs, so deploys
-  no longer print them twice in raw logging format; `dallinger constraints
-  ensure` still prints them. The recruiter config check no longer starts
-  the output with a blank line.
+  "Additional details" headings. The `DALLINGER_SOURCE` message and the
+  editable-install notice, now one line, point at the Dallinger pin in
+  `constraints.txt`.
+- Debugging and deploying print less in other ways too. Building the
+  editable Dallinger wheel uses the running Python interpreter, so it works
+  without an activated virtualenv, and the build tool's output is printed
+  only if the build fails. The pre-release base-image notice is one line.
+  An experiment directory that isn't a Git repository no longer prints
+  git's "fatal: not a git repository" error. Deploys no longer say that
+  `constraints.txt` is up to date or was written manually;
+  `dallinger constraints ensure` still does. The recruiter config check no
+  longer starts the output with a blank line.
 - docker-ssh deploys (classic and Cloudflare) also return the launch
   recruitment message as `recruitment_msg` in their result dict, or `None`
   if there isn't one (for example with `--update`), plus `image_name` and,

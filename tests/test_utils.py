@@ -200,6 +200,12 @@ class TestGitClient:
         assert git.files() == set()
         assert "not a git repository" not in capfd.readouterr().err
 
+    def test_files_warns_about_other_git_errors(self, git, caplog):
+        git.init()
+        Path(".git", "index").write_bytes(b"corrupt")
+        assert git.files() == set()
+        assert "git ls-files failed: " in caplog.text
+
     def test_includes_details_in_exceptions(self, git):
         with pytest.raises(Exception) as ex_info:
             git.push("foo", "bar")

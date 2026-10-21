@@ -406,7 +406,7 @@ def test_ensure_constraints_file_presence_compiles_in_target_directory(
     assert (experiment / "requirements.txt").read_text() == "dallinger==11.4.0\n"
 
 
-def test_up_to_date_constraints_are_reported_only_by_the_ensure_command(
+def test_constraints_no_ops_are_reported_only_by_the_ensure_command(
     in_tempdir, tempdir, python_version_file, caplog
 ):
     requirements = Path("requirements.txt")
@@ -428,6 +428,13 @@ def test_up_to_date_constraints_are_reported_only_by_the_ensure_command(
     with patch("dallinger.constraints.generate_constraints"):
         result = CliRunner().invoke(dallinger_cli, ["constraints", "ensure"])
     assert "up to date with" not in result.output
+
+    Path("constraints.txt").write_text("flask==3.1.1\n")
+    with caplog.at_level(logging.INFO, logger="dallinger.constraints"):
+        ensure_constraints_file_presence(tempdir)
+    assert not caplog.records
+    result = CliRunner().invoke(dallinger_cli, ["constraints", "ensure"])
+    assert result.output.count("written manually") == 1
 
 
 def test_dallinger_constraints_unknown_extra_is_click_error(
