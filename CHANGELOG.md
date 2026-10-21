@@ -4,6 +4,13 @@
 
 ### Added
 
+- Added `dallinger.command_line.docker_ssh.check_deploy_credentials(server,
+  ingress, config_options)`, which runs the docker-ssh deploy's Cloudflare
+  API token check on its own and returns the token. Tools that wrap
+  `docker-ssh deploy`, such as PsyNet, can call it before their own
+  preparation so a missing token stops them before they change anything.
+  Dallinger reads each Keychain item at most once per process, so such a
+  check followed by the deploy doesn't ask the Keychain twice.
 - Added the `cloudflare_keychain_service` config key, which names the macOS
   Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
   deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
@@ -347,6 +354,27 @@
 
 ### Fixed
 
+- A docker-ssh Cloudflare deploy that can't find the Cloudflare API token now
+  stops before it connects to the server, builds the image there or removes
+  the app's Redis and Postgres volumes. It fails with an `Error:` line that
+  says how to provide the token (`CLOUDFLARE_API_TOKEN`, `cloudflare_api_token`
+  in the config or via `-c`, including `-c cloudflare_api_token file:<path>`,
+  or a Keychain item, with a `security add-generic-password` command that
+  stores it where the lookup finds it) instead of ending with a bare
+  "Aborted!". The Keychain error includes the reason `security` gave, and a
+  `-c` option such as `-c cloudflare_api_token file:<path>` pointing at a
+  missing file fails with `Error: Could not read <path>: …` instead of a
+  traceback. A classic-ingress deploy to a
+  private-network server, or one without a valid `contact_email_on_error`,
+  also fails with an `Error:` line. Previously these reasons went to stdout
+  and, when output was piped, could appear after "Aborted!".
+- A root-domain docker-ssh deploy to a server that still has other
+  classic-ingress experiments now fails without a terminal with an `Error:` line
+  that lists those experiments and the `docker-ssh destroy` commands to run
+  first, instead of a bare "Aborted!" from the confirmation prompt. They are
+  never destroyed automatically without a terminal, so a piped answer such as
+  `yes | dallinger docker-ssh deploy` is refused too; in a terminal, the
+  deploy still offers to destroy them.
 - ``dallinger debug`` counts an HTTP error from ``/summary`` as a failed
   status check.
 - ``restore_state_from_replay`` closes its import database connections when

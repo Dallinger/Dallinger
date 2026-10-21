@@ -7,6 +7,7 @@ the server. Only the per-app connector token is installed remotely, mode 0600.
 
 from __future__ import annotations
 
+import functools
 import getpass
 import json
 import logging
@@ -128,6 +129,8 @@ def load_api_token(config: Any | None = None) -> str:
 
     The default Keychain item must belong to the current user's account. An
     item named by ``cloudflare_keychain_service`` matches under any account.
+    Each Keychain item is read at most once per process, so later calls return
+    the token read first.
     """
     token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip() or config_str(
         config, "cloudflare_api_token"
@@ -137,26 +140,48 @@ def load_api_token(config: Any | None = None) -> str:
     security = shutil.which("security")
     if not security:
         raise CloudflareError(
-            "Set CLOUDFLARE_API_TOKEN in the environment before a Cloudflare docker-ssh deploy."
+            "Set CLOUDFLARE_API_TOKEN in the environment or cloudflare_api_token "
+            "in your Dallinger config before a Cloudflare docker-ssh deploy."
         )
+    account = os.environ.get("USER") or getpass.getuser()
     service = config_str(config, "cloudflare_keychain_service")
     if service:
         account_args = []
     else:
         service = KEYCHAIN_SERVICE
-        account_args = ["-a", os.environ.get("USER") or getpass.getuser()]
+        account_args = ["-a", account]
     try:
-        result = subprocess.run(
-            [security, "find-generic-password", *account_args, "-s", service, "-w"],
-            text=True,
-            capture_output=True,
-            check=True,
-        )
+        token = _read_keychain_once(security, service, tuple(account_args))
     except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or "").strip().rstrip(".")
         raise CloudflareError(
             "CLOUDFLARE_API_TOKEN is unset and the Keychain item "
-            f"{service!r} could not be read."
+            f"{service!r} could not be read"
+            + (f" ({detail})" if detail else "")
+            + ". Set CLOUDFLARE_API_TOKEN in the environment, set "
+            "cloudflare_api_token in your Dallinger config, or store the token "
+            f"with `security add-generic-password -a {account} -s {service} -w`."
         ) from exc
+    return token
+
+
+@functools.cache
+def _read_keychain_once(security, service, account_args):
+    """Return the Keychain item's password, reading each item once per process.
+
+    A wrapper such as PsyNet checks the token before it calls the deploy in the
+    same process, so the deploy reuses the token instead of asking the Keychain
+    (and possibly the user) again. Failed reads and empty items raise, so they
+    are not cached and a later call reads the item again. A token changed in
+    the Keychain while the process runs is not seen: a long-lived process,
+    such as a Jupyter kernel, keeps using the old one until it restarts.
+    """
+    result = subprocess.run(
+        [security, "find-generic-password", *account_args, "-s", service, "-w"],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
     token = result.stdout.strip()
     if not token:
         raise CloudflareError(
