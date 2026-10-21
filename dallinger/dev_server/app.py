@@ -25,7 +25,10 @@ def _shutdown_logging_before_teardown():
     # cleared, and print a TypeError traceback. Logging skips that lock when
     # its handler list is empty, so flush the handlers now and forget them.
     logging.shutdown()
-    logging._handlerList.clear()
+    # A CPython internal; skip if a future Python removes it.
+    handler_list = getattr(logging, "_handlerList", None)
+    if handler_list is not None:
+        handler_list.clear()
 
 
 os.environ["FLASK_SECRET_KEY"] = codecs.encode(os.urandom(16), "hex").decode("ascii")
