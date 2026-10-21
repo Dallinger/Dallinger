@@ -390,6 +390,20 @@ def _is_ip_address(host):
     return True
 
 
+def _short_name(host):
+    """Return the label before the first dot of ``host``, ignoring any port.
+
+    Returns None for IP addresses and malformed hosts.
+    """
+    if _is_ip_address(host):
+        return None
+    try:
+        hostname = split_ssh_host_port(host)[0]
+    except click.UsageError:
+        return None
+    return hostname.split(".", 1)[0]
+
+
 def resolve_server_name(name, hosts):
     """Return the configured server that ``name`` refers to.
 
@@ -397,7 +411,8 @@ def resolve_server_name(name, hosts):
     ----------
     name : str
         A full configured server name, or its short hostname (the part before
-        the first dot), e.g. ``rr-pc02`` for ``rr-pc02.example.ac.uk``.
+        the first dot, without any port), e.g. ``rr-pc02`` for
+        ``rr-pc02.example.ac.uk`` or ``pc04`` for ``pc04:2200``.
         Servers registered by IP address only match their full address.
     hosts : iterable of str
         Configured server names.
@@ -416,11 +431,7 @@ def resolve_server_name(name, hosts):
     hosts = tuple(hosts)
     if name in hosts:
         return name
-    matches = [
-        host
-        for host in hosts
-        if host.split(".", 1)[0] == name and not _is_ip_address(host)
-    ]
+    matches = [host for host in hosts if _short_name(host) == name]
     if len(matches) == 1:
         return matches[0]
     if matches:

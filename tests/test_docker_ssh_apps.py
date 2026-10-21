@@ -518,6 +518,7 @@ def test_select_running_app_raises_when_multiple_running(monkeypatch):
         ("pc01", "pc01.lab.example.org"),
         ("10.0.0.5", "10.0.0.5"),
         ("[::1]:2200", "[::1]:2200"),
+        ("pc04", "pc04:2200"),
     ],
 )
 def test_resolve_server_name(name, expected):
@@ -527,6 +528,8 @@ def test_resolve_server_name(name, expected):
         "pc02.b.org",
         "10.0.0.5",
         "[::1]:2200",
+        "pc04:2200",
+        "pc05:abc",
     ]
     assert docker_ssh_module.resolve_server_name(name, hosts) == expected
 

@@ -531,7 +531,9 @@ the app's public ``/health`` URL to answer with a 2xx. Cloudflare and gateway
 error pages, including the "tunnel not connected" answer (HTTP 530, error
 1033), do not count, and nor do redirects, such as a Cloudflare Access login.
 Waiting does not remove a login, so the deploy stops waiting as soon as
-``/health`` redirects twice in a row. Progress lines name only the kind of
+``/health`` redirects twice in a row. A 2xx answer that reports the app as
+``hibernating`` or ``waking`` does not count either, and two ``hibernating``
+answers in a row stop the wait with the ``docker-ssh awaken`` command to run. Progress lines name only the kind of
 error, such as ``SSLError``; the final message gives the full last result.
 If the app's own ``/health`` keeps failing, or the app
 has no ``/health`` because its image was built with an older Dallinger, the

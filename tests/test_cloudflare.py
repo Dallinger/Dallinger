@@ -450,6 +450,16 @@ def test_load_api_token_reads_the_configured_keychain_item_under_any_account(
     assert "-a" not in args
 
 
+def test_load_api_token_rejects_an_empty_item(security_calls, monkeypatch):
+    monkeypatch.setattr(
+        cf.subprocess, "run", lambda args, **kwargs: mock.Mock(stdout="\n")
+    )
+    with pytest.raises(
+        cf.CloudflareError, match="'org.example.cloudflare-token' contained no token"
+    ):
+        cf.load_api_token(_keychain_config("org.example.cloudflare-token"))
+
+
 @pytest.mark.parametrize("service", ["", "   "])
 def test_load_api_token_defaults_to_the_users_dallinger_item(security_calls, service):
     cf.load_api_token(_keychain_config(service))
