@@ -601,7 +601,9 @@ A root-domain deploy that destroys the server's other classic apps always
 keeps their data, as ``--keep-data`` does, and prints the command that
 deletes each app's data later. If the new deploy has the same name as one of
 those apps, it replaces that app's database and Redis volume, and the prompt
-says so.
+says so. If one of the apps has a name that docker-ssh doesn't accept (for
+example a stray file in ``~/dallinger/caddy.d``), the deploy destroys none of
+them and prints the commands that remove that app by hand.
 Export anything you need before you delete the data.
 You can also decide up front:
 
@@ -619,7 +621,11 @@ the app has been destroyed, and deletes whatever data is left; if nothing is
 left, it says so and exits successfully, so you can safely run it again
 (scripts still need ``--yes``). Bind
 mounts that you added with ``docker_volumes`` are always kept. Volume names use the app
-name as Docker Compose writes it, in lowercase without dots.
+name as Docker Compose writes it, in lowercase without dots. Two app names
+that Docker Compose writes the same way, such as ``MyApp`` and ``myapp``,
+would share containers and volumes, so a deploy refuses a name that matches
+another app on the server in this way, and destroy won't delete the data of
+such an app while the other one exists (``--keep-data`` still works).
 
 Kept data stays on the server until you delete it. A new deploy with the same
 app name and without ``--update`` deletes the volumes left under that name (a

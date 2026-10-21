@@ -201,7 +201,17 @@
   that run destroy without a terminal must now pass `--keep-data` or
   `--remove-data --yes`. When a root-domain deploy destroys the server's
   other classic apps, it keeps their data, as `--keep-data` does, and prints
-  the command that deletes each app's data later.
+  the command that deletes each app's data later; tools that wrap deploy can
+  name their own command with the hidden `--delete-data-command` option,
+  where `{app}` stands for the app name. If one of those apps has a name
+  that docker-ssh doesn't accept, the deploy now destroys none of them and
+  prints the commands that remove that app by hand, instead of stopping
+  halfway through the teardown.
+- docker-ssh refuses names that Docker Compose turns into the same project
+  name as another app on the server, such as `MyApp` next to `myapp`, because
+  such apps share containers and volumes: `deploy` and `sandbox` stop before
+  building the image, and `destroy` won't delete the data (`--keep-data`
+  still works) while the other app exists.
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
   config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
   Cloudflare settings and API token, and whether the app name is already

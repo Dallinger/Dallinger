@@ -475,7 +475,10 @@ def test_root_domain_auto_destroy_uses_full_server_name(monkeypatch):
 
     assert docker_ssh_module.ensure_root_domain_ready("pc01", update=False)
     destroy.assert_called_once_with(
-        server="pc01.lab.example.org", app="old", keep_data=True
+        server="pc01.lab.example.org",
+        app="old",
+        keep_data=True,
+        delete_data_command=None,
     )
 
 
@@ -612,6 +615,7 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
             **_deploy_kwargs(
                 server="lab",
                 config_options=(("docker_image_name", "registry.example/exp:1"),),
+                delete_data_command="wrapper rm {app}",
             )
         )
 
@@ -625,6 +629,9 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         "build",
     ]
     assert root_domain.call_args.kwargs["new_app"] == app_slot.call_args.args[1]
+    assert root_domain.call_args.kwargs["delete_data_command"] == "wrapper rm {app}"
+    for command in docker_ssh_module.deploy, docker_ssh_module.sandbox:
+        assert "delete_data_command" in {param.name for param in command.params}
 
 
 def test_cloudflare_deploy_without_api_token_stops_before_the_build(monkeypatch):
@@ -854,11 +861,14 @@ def _server_with_data(
     down_status=0,
     own_db="",
     tunnel_token=False,
+    server_apps="myapp\n",
 ):
     commands = []
 
     def run(cmd, raise_=True):
         commands.append(cmd)
+        if cmd.startswith("ls -1 ~/dallinger/caddy.d"):
+            return server_apps
         if cmd.startswith("test -f") and "cloudflare-tunnel-token" in cmd:
             return "Yes" if tunnel_token else ""
         if cmd.startswith("test -f") and "docker-compose.yml" in cmd:
@@ -968,18 +978,26 @@ def test_destroy_prints_the_callers_delete_data_command(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "new_app, kept",
+    "new_app, kept, delete_command, printed",
     [
-        ("dlgr-new", "Their data is kept."),
+        (
+            "dlgr-new",
+            "Their data is kept.",
+            None,
+            "dallinger docker-ssh destroy --app myapp --server test-server "
+            "--remove-data",
+        ),
         (
             "myapp",
             "Their data is kept, but this deploy replaces the database and "
             "Redis volume of myapp.",
+            "wrapper destroy {app} --remove-data",
+            "wrapper destroy myapp --remove-data",
         ),
     ],
 )
 def test_root_domain_teardown_keeps_data_without_a_tty(
-    monkeypatch, capsys, new_app, kept
+    monkeypatch, capsys, new_app, kept, delete_command, printed
 ):
     commands = _server_with_data(monkeypatch, tty=False)
     monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
@@ -994,7 +1012,10 @@ def test_root_domain_teardown_keeps_data_without_a_tty(
     )
 
     assert docker_ssh_module.ensure_root_domain_ready(
-        "test-server", update=False, new_app=new_app
+        "test-server",
+        update=False,
+        new_app=new_app,
+        delete_data_command=delete_command,
     )
     assert prompts == [
         f"Destroy these experiments automatically before proceeding? {kept}"
@@ -1007,10 +1028,33 @@ def test_root_domain_teardown_keeps_data_without_a_tty(
         in out
     )
     assert "  - the folder ~/dallinger-data/myapp (3.4G)" in out
-    assert (
-        "To delete it, run: dallinger docker-ssh destroy --app myapp "
-        "--server test-server --remove-data"
-    ) in out
+    assert f"To delete it, run: {printed}\n" in out
+
+
+def test_root_domain_teardown_destroys_nothing_if_an_app_name_is_invalid(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example"}}
+    )
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "_host_caddy_apps", lambda executor: ["good", "bad name"]
+    )
+    confirm = mock.Mock()
+    destroy = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module.click, "confirm", confirm)
+    monkeypatch.setattr(docker_ssh_module.destroy, "callback", destroy)
+
+    with pytest.raises(click.ClickException) as error:
+        docker_ssh_module.ensure_root_domain_ready("lab", update=False)
+
+    assert not confirm.called and not destroy.called
+    message = error.value.message
+    assert "Can't destroy 'bad name' automatically" in message
+    assert "nothing was destroyed" in message
+    assert "rm -rf ~/dallinger/'bad name' ~/dallinger/caddy.d/'bad name'" in message
+    assert "'good'" not in message
 
 
 def test_destroy_remove_data_asks_before_teardown(monkeypatch):
@@ -1148,6 +1192,32 @@ def test_destroy_rejects_both_data_choices(monkeypatch):
     commands, result = _destroy_with_data(monkeypatch, ["--remove-data", "--keep-data"])
     assert result.exit_code == 2 and commands == []
     assert "Pass only one of --remove-data and --keep-data." in result.output
+
+
+def test_destroy_keeps_data_shared_with_another_app(monkeypatch):
+    shared = dict(server_apps="MyApp\nmyapp\n", volumes=("myapp_redis_data",))
+    for args in ["--remove-data", "--yes"], []:
+        commands, result = _destroy_with_data(monkeypatch, args, **shared)
+        assert result.exit_code == 1
+        assert "The data of myapp can't be deleted while MyApp exists" in result.output
+        assert not any(" down" in c for c in commands) and not _deletes(commands)
+
+    commands, result = _destroy_with_data(monkeypatch, ["--keep-data"], **shared)
+    assert result.exit_code == 0, result.output
+    assert any(" down" in c for c in commands) and not _deletes(commands)
+
+
+@pytest.mark.parametrize("update", [False, True])
+def test_deploy_refuses_a_name_another_apps_compose_project_uses(update, capsys):
+    executor = FakeExecutor({"caddy.d": "MyApp\nmyapp\n", "ls ~": "found"})
+    with pytest.raises(click.Abort):
+        docker_ssh_module._check_app_slot(executor, "myapp", update, "classic")
+    assert (
+        "App name myapp gives the same Docker Compose project, myapp, as the "
+        "existing app MyApp" in capsys.readouterr().out
+    )
+    executor = FakeExecutor({"caddy.d": "myapp\n", "ls ~": "found"})
+    docker_ssh_module._check_app_slot(executor, "myapp", True, "classic")
 
 
 def test_redis_volume_cleanup_uses_the_compose_project_name():

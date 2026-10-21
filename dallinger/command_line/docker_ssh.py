@@ -557,6 +557,15 @@ option_allow_private_ip = click.option(
         "address."
     ),
 )
+option_deploy_delete_data_command = click.option(
+    "--delete-data-command",
+    hidden=True,
+    help=(
+        "Command printed for deleting the kept data of apps that a root-domain "
+        "deploy destroys, with {app} standing for the app name, for tools that "
+        "wrap this command."
+    ),
+)
 
 
 def should_use_subdomain(app_name, archive_path):
@@ -925,11 +934,37 @@ def _upload_frontdoor_caddyfile(sftp, executor, app):
     )
 
 
+def _project_siblings(executor, app):
+    """Return the server's other apps whose Compose project is ``app``'s.
+
+    Such apps (for example ``MyApp`` and ``myapp``) share containers and
+    volumes.
+    """
+    project = _compose_project(app)
+    return [
+        name
+        for name in _discover_server_apps(executor)
+        if name != app and _compose_project(name) == project
+    ]
+
+
 def _check_app_slot(executor, app, update, ingress):
     """Abort unless ``app`` is free, or exists with this ingress for ``--update``.
 
     The manifest records ingress; apps deployed before manifests are classic.
+    Also aborts if another app has the same Compose project name.
     """
+    siblings = _project_siblings(executor, app)
+    if siblings:
+        others = ", ".join(siblings)
+        print(
+            f"{RED}App name {app} gives the same Docker Compose project, "
+            f"{_compose_project(app)}, as the existing "
+            f"app{'s' if len(siblings) > 1 else ''} {others}, so they would share "
+            f"containers and volumes. Use a different name, or destroy {others} "
+            f"first.{END}"
+        )
+        raise click.Abort()
     compose_path = f"~/dallinger/{app}/docker-compose.yml"
     if update:
         if not executor.run(f"ls {compose_path}", raise_=False):
@@ -1125,7 +1160,17 @@ def _abort_cloudflare(exc):
     raise click.Abort()
 
 
-def ensure_root_domain_ready(server, update, new_app=None):
+def _manual_removal_commands(name):
+    """Return shell commands that remove a classic app named ``name`` by hand."""
+    app_dir = f"~/dallinger/{quote(name)}"
+    return [
+        f"docker compose -f {app_dir}/docker-compose.yml down",
+        f"rm -rf {app_dir} ~/dallinger/caddy.d/{quote(name)}",
+        f"{SERVER_COMPOSE} exec -T httpserver caddy reload --config /etc/caddy/Caddyfile",
+    ]
+
+
+def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=None):
     """Offer to destroy the server's classic apps before a root-domain deploy.
 
     The teardown keeps each app's data, as ``destroy --keep-data`` does, so
@@ -1133,6 +1178,12 @@ def ensure_root_domain_ready(server, update, new_app=None):
     needed once the user agrees. If ``new_app``, the app being deployed, is
     one of them, the prompt says that the deploy replaces its database and
     Redis volume.
+
+    ``delete_data_command`` is the command printed for deleting an app's kept
+    data, with ``{app}`` standing for the app name; it defaults to
+    ``dallinger docker-ssh destroy … --remove-data``. If an app's name is not
+    a valid app name, nothing is destroyed and the error says how to remove
+    that app by hand.
     """
     if update:
         return True
@@ -1148,6 +1199,19 @@ def ensure_root_domain_ready(server, update, new_app=None):
         f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
         f"{RED}Found deployed experiments:{END} {joined}"
     )
+    invalid = [name for name in conflicts if not APP_NAME_PATTERN.fullmatch(name)]
+    if invalid:
+        commands = "\n".join(
+            f"  {command}"
+            for name in invalid
+            for command in _manual_removal_commands(name)
+        )
+        raise click.ClickException(
+            f"Can't destroy {', '.join(map(repr, invalid))} automatically: not a "
+            f"valid app name, so nothing was destroyed. Remove "
+            f"{'it' if len(invalid) == 1 else 'them'} on {server} by hand, for "
+            f"example with:\n{commands}\nThen deploy again."
+        )
     destroy_cmds = "\n".join(
         f"  dallinger docker-ssh destroy --app {name} --server {server} --keep-data"
         for name in conflicts
@@ -1169,7 +1233,13 @@ def ensure_root_domain_ready(server, update, new_app=None):
 
     for name in conflicts:
         print_bold(f"Destroying {name} on server {server}")
-        destroy.callback(server=server, app=name, keep_data=True)
+        destroy.callback(
+            server=server,
+            app=name,
+            keep_data=True,
+            delete_data_command=delete_data_command
+            and delete_data_command.replace("{app}", name),
+        )
 
     executor = _executor_for_server(server)
     remaining = _host_caddy_apps(executor)
@@ -1449,6 +1519,7 @@ def set_dozzle_password_cmd(server, password):
 @option_push_build
 @option_ingress
 @option_allow_private_ip
+@option_deploy_delete_data_command
 @validate_update
 def sandbox(**kwargs):  # pragma: no cover
     """Sandbox a dallinger experiment docker image to a server using ssh."""
@@ -1466,6 +1537,7 @@ def sandbox(**kwargs):  # pragma: no cover
 @option_push_build
 @option_ingress
 @option_allow_private_ip
+@option_deploy_delete_data_command
 @validate_update
 def deploy(**kwargs):  # pragma: no cover
     """Deploy a dallinger experiment docker image to a server using ssh."""
@@ -1540,6 +1612,7 @@ def _deploy_in_mode(
     push_build,
     ingress=None,
     allow_private_ip=False,
+    delete_data_command=None,
 ):
     """Check a docker-ssh deploy, build or reuse its image, then deploy it.
 
@@ -1597,7 +1670,12 @@ def _deploy_in_mode(
         _check_experiment_hostname_dns(ssh_host, experiment_hostname, allow_private_ip)
 
     if _root_domain_preflight_required(server, app_name, archive_path, ingress):
-        ensure_root_domain_ready(server=server, update=update, new_app=experiment_id)
+        ensure_root_domain_ready(
+            server=server,
+            update=update,
+            new_app=experiment_id,
+            delete_data_command=delete_data_command,
+        )
 
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
     try:
@@ -2797,6 +2875,17 @@ def destroy(
         if not data:
             print(f"No experiment data of {app} is left on {ssh_host}.")
             raise click.Abort()
+    if data and not keep_data:
+        siblings = _project_siblings(executor, app)
+        if siblings:
+            others = ", ".join(siblings)
+            raise click.ClickException(
+                f"The data of {app} can't be deleted while {others} exists on "
+                f"{ssh_host}: they have the same Docker Compose project, "
+                f"{_compose_project(app)}, so they share Docker volumes. Nothing "
+                f"was destroyed. Run destroy with --keep-data. Once {others} is "
+                "destroyed too, --remove-data can delete the data of each."
+            )
     # Ask before teardown, so declining --remove-data leaves a live app untouched.
     if data and not keep_data and not (remove_data and yes):
         _print_data(f"Experiment data of {app} on {ssh_host}:", data)
@@ -2900,7 +2989,7 @@ def _tear_down_app(
 def _stop_cloudflare_connector(executor, app):
     """Stop the tunnel connector so Cloudflare will accept tunnel deletion."""
     executor.run(
-        f"docker compose -f ~/dallinger/{app}/docker-compose.yml stop cloudflared",
+        f"docker compose -f ~/dallinger/{quote(app)}/docker-compose.yml stop cloudflared",
         raise_=False,
     )
 
