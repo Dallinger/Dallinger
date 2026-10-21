@@ -349,6 +349,13 @@
 
 ### Fixed
 
+- Building the Docker image for an experiment with its own `Dockerfile` no
+  longer prints "Could not determine Dallinger version. Using latest". That
+  message is about the Dallinger base image, which is only used when the
+  experiment has no `Dockerfile`. Such builds also no longer print the
+  message about prerelease Dallinger pins, and no longer read
+  `requirements.txt` to choose a base image, so a broken `-r` include there
+  is now left to the experiment's own `Dockerfile` to report.
 - Redis calls no longer fail with ``MaxConnectionsError`` once a process has
   100 connections in use, redis-py's default limit since 8.0. Under load,
   for example many participants waiting on their own websocket channel,
