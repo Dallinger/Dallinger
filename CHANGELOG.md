@@ -49,6 +49,36 @@
   - The `❯❯ Experiment UID: …` line (also printed by
     `dallinger develop bootstrap`) is no longer printed. The ID is still
     written to the develop directory's `config.txt` (`id`).
+- `dallinger develop debug` (used by `psynet debug local`) prints its server
+  output in one format for the web, worker and clock processes, for example
+  `13:35:51 web    Experiment launch complete!`. The level is only shown
+  for warnings and errors. Output redirected to a file or pipe has the same
+  text without colour. Routine lines are hidden from the console, but
+  `logs.jsonl` in the develop directory still records them:
+  - Flask's and werkzeug's start-up banner and debugger lines become one
+    line, such as `Development server on http://127.0.0.1:5000 (auto-reload
+    on, debugger PIN 123-456-789)`. Unless `WERKZEUG_DEBUG_PIN` is set, the
+    PIN is chosen at random for each session, so it no longer changes when
+    the server reloads. A code change prints `Reloading: experiment.py
+    changed`.
+  - Werkzeug's line for every request is replaced by a line for each
+    request that fails (status 400 or above, or an exception) or takes at
+    least a second, with its duration, for example
+    `GET /does-not-exist 404 in 3 ms`. Query strings are left out. Set
+    `DALLINGER_DEV_SLOW_REQUEST_SECONDS` to change the threshold.
+  - RQ and APScheduler messages below WARNING, and the worker's "Warm shut
+    down requested." messages when the server stops, are hidden.
+  - Errors keep their full tracebacks, and text that doesn't go through
+    logging (such as the debugger's traceback for a failed request) is
+    printed as before.
+  - Start-up ends with a `Ready.` block that shows the location of the full
+    log and, with `--no-browsers`, the recruitment message and dashboard
+    login (previously printed as `❯❯ Experiment dashboard: …` and
+    `Dashboard user: … password: …`).
+  - `dallinger develop debug --verbose`, or `DALLINGER_DEV_LOG=full`, shows
+    everything again, including werkzeug's line for every request.
+
+  Deployed experiments and `dallinger debug` are unchanged.
 - The worker's "Worker will exit if it hasn't registered with RQ within …"
   start-up notice is now logged at DEBUG instead of WARNING, so it only
   appears with `loglevel_worker = 0`. The message printed when the worker

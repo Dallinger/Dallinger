@@ -2,6 +2,7 @@ import contextlib
 import os
 import signal
 import subprocess
+import sys
 import threading
 import time
 from urllib.parse import urlparse, urlunparse
@@ -12,6 +13,7 @@ from rq import Queue
 from rq.exceptions import InvalidJobOperation
 from rq.job import Job, JobStatus
 
+from dallinger import dev_logging
 from dallinger.command_line.utils import (
     Output,
     get_experiment_files,
@@ -27,6 +29,7 @@ from dallinger.deployment import (
     stop_signals_raise_keyboard_interrupt,
 )
 from dallinger.utils import (
+    JSON_LOGFILE,
     develop_target_path,
     ignore_stop_signals,
     open_browser,
@@ -75,7 +78,15 @@ def develop():
     is_flag=True,
     help="Skip opening browsers; log the recruitment message and dashboard login",
 )
-def debug(port, skip_flask, no_browsers=False):
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help=(
+        "Show the server's full output, including a line for every request "
+        "(same as DALLINGER_DEV_LOG=full)"
+    ),
+)
+def debug(port, skip_flask, no_browsers=False, verbose=False):
     from dallinger.command_line.utils import verify_package
 
     files = get_experiment_files()
@@ -106,7 +117,8 @@ def debug(port, skip_flask, no_browsers=False):
     if not skip_flask:
         try:
             develop_dir = develop_target_path(get_config())
-            _run_dev_server(["./run.sh"], develop_dir)
+            env = {**os.environ, dev_logging.LOG_MODE_ENV: "full"} if verbose else None
+            _run_dev_server(["./run.sh"], develop_dir, env=env)
         finally:
             _cancel_pending_job(job)
 
@@ -122,7 +134,7 @@ def _cancel_pending_job(job):
         log(f"Could not cancel the launch job: {ex}")
 
 
-def _run_dev_server(cmd, cwd, stop_timeout=5):
+def _run_dev_server(cmd, cwd, stop_timeout=5, env=None):
     """Run the local server until it exits or this process is interrupted.
 
     The server runs in its own session, so Ctrl-C reaches only this process,
@@ -138,6 +150,8 @@ def _run_dev_server(cmd, cwd, stop_timeout=5):
         Directory to run ``cmd`` in.
     stop_timeout : float
         Seconds to wait after SIGTERM before killing the server's processes.
+    env : dict, optional
+        Environment for the server; defaults to this process's environment.
 
     Raises
     ------
@@ -146,7 +160,7 @@ def _run_dev_server(cmd, cwd, stop_timeout=5):
     """
     interrupted = False
     with stop_signals_raise_keyboard_interrupt():
-        proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True)
+        proc = subprocess.Popen(cmd, cwd=cwd, env=env, start_new_session=True)
         try:
             code = proc.wait()
         except KeyboardInterrupt:
@@ -205,27 +219,48 @@ def _bootstrap(exp_config=None, experiment_files=None):
 
 def launch_app_and_open_browser(port):
     _launch_app(port)
+    echo_ready()
     _async_browser("dashboard", port)
     time.sleep(0.1)  # A little delay to ensure they always open in the same order
     _async_browser("ad", port)
 
 
 def launch_app_without_browsers(port):
-    """Launch the app and log what the browsers would otherwise show.
-
-    Matches the output of ``dallinger debug --no-browsers``.
-    """
+    """Launch the app and print what the browsers would otherwise show."""
     launch_data = _launch_app(port)
-    if launch_data.get("recruitment_msg"):
-        log(launch_data["recruitment_msg"])
     config = get_config(load=True)
-    log("Experiment dashboard: {}".format(BASE_URL.format(port) + "dashboard/develop"))
-    log(
-        "Dashboard user: {} password: {}".format(
+    lines = []
+    if launch_data.get("recruitment_msg"):
+        lines.append(launch_data["recruitment_msg"])
+    lines.append(
+        "Dashboard: {}dashboard/develop (user {}, password {})".format(
+            BASE_URL.format(port),
             config.get("dashboard_user"),
             config.get("dashboard_password"),
         )
     )
+    echo_ready(lines)
+
+
+def echo_ready(lines=()):
+    """Print the block that ends the development server's start-up.
+
+    It starts with "Ready.", then ``lines``, the location of the full log
+    and how to stop the server.
+
+    Parameters
+    ----------
+    lines : sequence of str
+        Details to show, such as the participant link and dashboard login.
+    """
+    colour = dev_logging.use_colour(sys.stdout)
+    ready = click.style("Ready.", fg="green", bold=True) if colour else "Ready."
+    log_path = os.path.join(develop_target_path(get_config(load=True)), JSON_LOGFILE)
+    click.echo(ready, color=colour)
+    for line in lines:
+        click.echo(line)
+    click.echo(f"Full log: {log_path}")
+    click.echo("Press Ctrl+C to stop.")
 
 
 def _launch_app(port):

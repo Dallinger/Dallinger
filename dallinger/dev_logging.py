@@ -1,0 +1,414 @@
+"""Console logging for the local development server (``dallinger develop debug``).
+
+The development server runs as several processes that share one terminal: the
+``flask run`` reloader, the Flask process it restarts on every code change, and
+the RQ worker and clock that the Flask process starts. Each process configures
+its own logging, so this module gives them one line format::
+
+    13:35:51 web    Experiment launch complete!
+    13:35:52 worker WARNING Something worth a look
+    13:36:25 web    GET /does-not-exist 404 in 3 ms
+
+The level is shown for warnings and errors only. Text that bypasses logging,
+such as the werkzeug debugger's tracebacks or ``print()`` output, is printed
+as it is. The same text is written to a terminal and to a pipe or file; only
+a terminal gets colour.
+
+The console hides routine records: werkzeug's start-up banner and access log
+(replaced by one announcement line and :class:`AccessLogMiddleware`, which
+only reports errors and slow requests), and RQ and APScheduler messages below
+WARNING. ``logs.jsonl`` in the develop directory still receives every record.
+
+Environment variables:
+
+- ``DALLINGER_DEV_LOG=full`` turns the filtering off, restoring werkzeug's
+  banner and its log line for every request (``dallinger develop debug
+  --verbose`` sets it).
+- ``DALLINGER_DEV_SLOW_REQUEST_SECONDS`` sets how long a successful request
+  may take before it is reported (default 1).
+- ``NO_COLOR`` and ``FORCE_COLOR`` override the terminal check.
+
+Only the development server uses this module; deployed experiments (gunicorn,
+Heroku, Docker) and legacy ``dallinger debug`` keep their logging. Messages
+that test harnesses wait for, such as "Experiment launch complete!", "New
+participant requested:" and "Close recruitment.", are left intact.
+"""
+
+import logging
+import os
+import re
+import secrets
+import sys
+import time
+
+from werkzeug.wsgi import ClosingIterator
+
+LOG_MODE_ENV = "DALLINGER_DEV_LOG"
+ROLE_ENV = "DALLINGER_DEV_ROLE"
+SLOW_REQUEST_ENV = "DALLINGER_DEV_SLOW_REQUEST_SECONDS"
+_PIN_ENV = "WERKZEUG_DEBUG_PIN"
+_ANNOUNCED_PIN_ENV = "DALLINGER_DEV_ANNOUNCED_PIN"
+
+_DEFAULT_SLOW_REQUEST_SECONDS = 1.0
+_ROLE_WIDTH = 6
+_QUIET_BELOW_WARNING = ("rq", "apscheduler")
+# GeventWorker logs these on every stop; the development server only stops
+# its worker on purpose (Ctrl+C or a code reload).
+_WORKER_STOP_MESSAGES = {
+    "Warm shut down requested.",
+    "Stopping after all greenlets are finished. "
+    "Press Ctrl+C again for a cold shutdown.",
+}
+_WERKZEUG_ACCESS_SUFFIX = '"%s" %s %s'
+_RUNNING_ON = re.compile(r" \* Running on (\S+://\S+)")
+_DETECTED_CHANGE = re.compile(r" \* Detected change in '(.+)', reloading")
+
+_DIM, _YELLOW, _RED, _RESET = "\x1b[2m", "\x1b[33m", "\x1b[31m", "\x1b[0m"
+
+
+def full_output_requested():
+    """Return True if ``DALLINGER_DEV_LOG=full`` turns filtering off."""
+    return os.environ.get(LOG_MODE_ENV, "").strip().lower() == "full"
+
+
+def use_colour(stream):
+    """Return whether to colour text written to ``stream``.
+
+    ``FORCE_COLOR`` (any value but ``0`` or empty) forces colour on, and
+    ``NO_COLOR`` or ``TERM=dumb`` turn it off. Otherwise colour is used only
+    when ``stream`` is a terminal.
+    """
+    force = os.environ.get("FORCE_COLOR", "")
+    if force and force != "0":
+        return True
+    if "NO_COLOR" in os.environ or os.environ.get("TERM") == "dumb":
+        return False
+    isatty = getattr(stream, "isatty", None)
+    return bool(isatty and isatty())
+
+
+class ConsoleFormatter(logging.Formatter):
+    """Format records as ``HH:MM:SS <role> [LEVEL ]message``.
+
+    Parameters
+    ----------
+    role : str
+        Process name shown on every line, such as ``web``, ``worker`` or
+        ``clock``.
+    colour : bool
+        Dim the time and role, and colour warnings, errors and failed
+        requests.
+    """
+
+    def __init__(self, role, colour=False):
+        super().__init__()
+        self.role = role
+        self.colour = colour
+
+    def format(self, record):
+        message = getattr(record, "dallinger_console_message", None)
+        if message is None:
+            message = record.getMessage()
+        message = message.rstrip("\n")
+        if record.levelno >= logging.WARNING:
+            message = f"{record.levelname} {message}"
+        if record.exc_info:
+            record.exc_text = record.exc_text or self.formatException(record.exc_info)
+        if record.exc_text:
+            message = f"{message}\n{record.exc_text}"
+        if record.stack_info:
+            message = f"{message}\n{self.formatStack(record.stack_info)}"
+
+        prefix = "{} {} ".format(
+            time.strftime("%H:%M:%S", time.localtime(record.created)),
+            self.role.ljust(_ROLE_WIDTH),
+        )
+        if not self.colour:
+            return prefix + message
+        status = getattr(record, "dallinger_status", 0)
+        if record.levelno >= logging.ERROR or status >= 500:
+            message = f"{_RED}{message}{_RESET}"
+        elif record.levelno >= logging.WARNING or status >= 400:
+            message = f"{_YELLOW}{message}{_RESET}"
+        return f"{_DIM}{prefix}{_RESET}{message}"
+
+
+class ConsoleFilter(logging.Filter):
+    """Hide routine records from the console and shorten werkzeug's.
+
+    Records are never modified: a shortened werkzeug message is stored as
+    ``record.dallinger_console_message``, which :class:`ConsoleFormatter`
+    prints instead, so other handlers still see the original.
+
+    Parameters
+    ----------
+    server_details : str, optional
+        Text such as ``auto-reload on, debugger PIN 123-456-789`` added to
+        the "Development server on <url>" line that replaces werkzeug's
+        start-up banner.
+    """
+
+    def __init__(self, server_details=None):
+        super().__init__()
+        self.server_details = server_details
+
+    def filter(self, record):
+        if full_output_requested():
+            return True
+        if record.levelno < logging.WARNING:
+            if record.name.split(".")[0] in _QUIET_BELOW_WARNING:
+                return False
+        elif record.name == "rq.worker" and record.msg in _WORKER_STOP_MESSAGES:
+            return False
+        if record.name == "werkzeug":
+            return self._filter_werkzeug(record)
+        return True
+
+    def _filter_werkzeug(self, record):
+        if not isinstance(record.msg, str):
+            return True
+        if record.msg.rstrip().endswith(_WERKZEUG_ACCESS_SUFFIX):
+            return False
+        message = record.getMessage()
+        urls = _RUNNING_ON.findall(message)
+        if urls:
+            details = f" ({self.server_details})" if self.server_details else ""
+            record.dallinger_console_message = (
+                f"Development server on {', '.join(urls)}{details}"
+            )
+            return True
+        change = _DETECTED_CHANGE.match(message)
+        if change:
+            record.dallinger_console_message = (
+                f"Reloading: {_display_path(change.group(1))} changed"
+            )
+            return True
+        if "Press CTRL+C to quit" in message or message.startswith(
+            " * Restarting with "
+        ):
+            return False
+        pin = os.environ.get(_ANNOUNCED_PIN_ENV)
+        if pin and message in (" * Debugger is active!", f" * Debugger PIN: {pin}"):
+            return False
+        return True
+
+
+def _display_path(path):
+    """Return ``path`` relative to the working directory if it is inside it."""
+    relative = os.path.relpath(path)
+    return path if relative.startswith("..") else relative
+
+
+def configure_console_logging(role, level=logging.INFO, console_level=None):
+    """Replace the root logger's console handler with the development format.
+
+    File handlers, such as the ``logs.jsonl`` handler, are kept and keep
+    receiving every record at ``level``.
+
+    Parameters
+    ----------
+    role : str
+        Process name shown on every line (``web``, ``worker`` or ``clock``).
+    level : int
+        Level of the root logger.
+    console_level : int, optional
+        Minimum level printed to the console, if higher than ``level``.
+
+    Returns
+    -------
+    logging.Handler
+        The new console handler.
+    """
+    root = logging.getLogger()
+    for handler in list(root.handlers):
+        if type(handler) is logging.StreamHandler:
+            root.removeHandler(handler)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(ConsoleFormatter(role, colour=use_colour(sys.stderr)))
+    handler.addFilter(ConsoleFilter())
+    if console_level is not None:
+        handler.setLevel(console_level)
+    root.addHandler(handler)
+    root.setLevel(level)
+    return handler
+
+
+def configure_from_environment(level=logging.INFO, console_level=None):
+    """Configure console logging if the development server started this process.
+
+    The development server sets ``DALLINGER_DEV_ROLE`` for the worker and
+    clock processes it starts.
+
+    Parameters
+    ----------
+    level : int
+        Level of the root logger.
+    console_level : int, optional
+        Minimum level printed to the console, if higher than ``level``.
+
+    Returns
+    -------
+    bool
+        True if logging was configured.
+    """
+    role = os.environ.get(ROLE_ENV)
+    if not role:
+        return False
+    configure_console_logging(role, level=level, console_level=console_level)
+    return True
+
+
+def slow_request_seconds():
+    """Return the duration after which a successful request is reported."""
+    value = os.environ.get(SLOW_REQUEST_ENV)
+    if not value:
+        return _DEFAULT_SLOW_REQUEST_SECONDS
+    try:
+        return float(value)
+    except ValueError:
+        logging.getLogger(__name__).warning(
+            "Ignoring %s=%r, which isn't a number of seconds.", SLOW_REQUEST_ENV, value
+        )
+        return _DEFAULT_SLOW_REQUEST_SECONDS
+
+
+class AccessLogMiddleware:
+    """Log failed and slow requests, with their duration.
+
+    A request is logged (to the ``dallinger.access`` logger, at INFO) if its
+    status is 400 or above, if it raises, or if it takes at least
+    ``slow_seconds``. The path is logged without its query string. The
+    duration runs until the response has been sent.
+
+    Parameters
+    ----------
+    app : callable
+        The WSGI application to wrap.
+    slow_seconds : float, optional
+        Report successful requests that take at least this long. Defaults to
+        :func:`slow_request_seconds`.
+    """
+
+    logger = logging.getLogger("dallinger.access")
+
+    def __init__(self, app, slow_seconds=None):
+        self.app = app
+        self.slow_seconds = (
+            slow_request_seconds() if slow_seconds is None else slow_seconds
+        )
+
+    def __call__(self, environ, start_response):
+        started = time.monotonic()
+        status = []
+
+        def start_response_and_record(status_line, headers, exc_info=None):
+            status[:] = [int(status_line.split(None, 1)[0])]
+            return start_response(status_line, headers, exc_info)
+
+        try:
+            response = self.app(environ, start_response_and_record)
+        except BaseException:
+            self._log(environ, 500, started)
+            raise
+        return ClosingIterator(
+            response,
+            lambda: self._log(environ, status[0] if status else 500, started),
+        )
+
+    def _log(self, environ, status, started):
+        seconds = time.monotonic() - started
+        slow = status < 400 and status != 101 and seconds >= self.slow_seconds
+        if status < 400 and not slow:
+            return
+        duration = f"{seconds:.1f} s" if seconds >= 1 else f"{seconds * 1000:.0f} ms"
+        self.logger.info(
+            "%s %s %s in %s%s",
+            environ.get("REQUEST_METHOD", "-"),
+            environ.get("PATH_INFO", "") or "/",
+            status,
+            duration,
+            " (slow)" if slow else "",
+            extra={"dallinger_status": status},
+        )
+
+
+def setup_dev_server(app):
+    """Set up logging in a ``flask run`` process of the development server.
+
+    Called by the develop directory's ``app.py`` in both the reloader process
+    and the process that serves requests. Configures the console format,
+    logs failed and slow requests, and replaces werkzeug's start-up banner
+    and debugger lines with one "Development server on <url>" line that
+    includes the debugger PIN. Unless ``WERKZEUG_DEBUG_PIN`` is already set,
+    the PIN is chosen at random once per session, so it stays the same
+    across reloads. With ``DALLINGER_DEV_LOG=full``, only the format changes.
+
+    Parameters
+    ----------
+    app : flask.Flask
+        The experiment server's Flask application.
+    """
+    handler = configure_console_logging("web")
+    if full_output_requested():
+        return
+    app.wsgi_app = AccessLogMiddleware(app.wsgi_app)
+
+    from werkzeug.serving import is_running_from_reloader
+
+    if is_running_from_reloader():
+        return
+    reload, debugger = _flask_run_settings()
+    details = [f"auto-reload {'on' if reload else 'off'}"]
+    if debugger:
+        from werkzeug.debug import get_pin_and_cookie_name
+
+        # Werkzeug derives its PIN from the machine's MAC address, which some
+        # systems randomise per process, so its PIN can change on every
+        # reload. Choosing one here keeps it the same for the session.
+        os.environ.setdefault(_PIN_ENV, _random_pin())
+        pin = get_pin_and_cookie_name(app)[0]
+        details.append(f"debugger PIN {pin}" if pin else "debugger PIN disabled")
+        if pin:
+            # The serving process inherits this and hides werkzeug's PIN line.
+            os.environ[_ANNOUNCED_PIN_ENV] = pin
+    for log_filter in handler.filters:
+        log_filter.server_details = ", ".join(details)
+    _hide_flask_banner()
+
+
+def _random_pin():
+    """Return a random debugger PIN in werkzeug's ``123-456-789`` format."""
+    digits = f"{secrets.randbelow(10**9):09d}"
+    return "-".join((digits[:3], digits[3:6], digits[6:]))
+
+
+def _flask_run_settings():
+    """Return ``(reload, debugger)`` for the running ``flask run`` command.
+
+    Flask resolves unset ``--reload`` and ``--debugger`` options from its
+    debug flag after loading the app, so this does the same.
+    """
+    import click
+    from flask.helpers import get_debug_flag
+
+    ctx = click.get_current_context(silent=True)
+    params = ctx.params if ctx is not None else {}
+    debug = get_debug_flag()
+    reload = params.get("reload")
+    debugger = params.get("debugger")
+    return (
+        debug if reload is None else reload,
+        debug if debugger is None else debugger,
+    )
+
+
+def _hide_flask_banner():
+    """Stop ``flask run`` printing "Serving Flask app" and "Debug mode".
+
+    Flask prints these with ``click.echo`` after loading the app, so they
+    can't be filtered as log records.
+    """
+    import flask.cli
+
+    if hasattr(flask.cli, "show_server_banner"):
+        flask.cli.show_server_banner = lambda *args, **kwargs: None

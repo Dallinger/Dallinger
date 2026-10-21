@@ -1,5 +1,6 @@
 """A clock process."""
 
+import logging
 import time
 from collections import defaultdict
 from datetime import datetime
@@ -9,10 +10,10 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from sqlalchemy import text
 
 import dallinger
-from dallinger import db, recruiters
+from dallinger import db, dev_logging, recruiters
 from dallinger.experiment import EXPERIMENT_TASK_REGISTRATIONS
 from dallinger.models import Participant
-from dallinger.utils import ParticipationTime
+from dallinger.utils import ParticipationTime, attach_json_logger
 
 scheduler = BlockingScheduler()
 
@@ -99,6 +100,9 @@ def async_recruiter_status_check():
 
 
 def launch():
+    # APScheduler logs every job run at INFO, and some jobs run twice a second.
+    if dev_logging.configure_from_environment(logging.WARNING):
+        attach_json_logger(logging.getLogger())
     dallinger.config.get_config(load=True)
 
     # Import the experiment.

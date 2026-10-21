@@ -459,7 +459,9 @@ class TestDevelopCommand:
         assert "is PRESENT" not in result.output
         assert "Experiment UID" not in result.output
 
-    def test_debug_no_browsers_logs_launch_details(self, active_config, develop):
+    def test_debug_no_browsers_logs_launch_details(
+        self, active_config, develop, capsys
+    ):
         develop_module = sys.modules["dallinger.command_line.develop"]
         active_config.extend({"dashboard_user": "admin", "dashboard_password": "pw"})
         with mock.patch("dallinger.command_line.develop.Queue") as queue:
@@ -477,16 +479,26 @@ class TestDevelopCommand:
                 return_value={"recruitment_msg": "Recruitment is open"},
             ),
             mock.patch.object(develop_module, "open_browser") as open_browser,
-            mock.patch.object(develop_module, "log") as log,
         ):
             job(port=5001)
-        logged = [c.args[0] for c in log.call_args_list]
-        assert logged == [
+        out = capsys.readouterr().out.splitlines()
+        assert out[:3] == [
+            "Ready.",
             "Recruitment is open",
-            "Experiment dashboard: http://127.0.0.1:5001/dashboard/develop",
-            "Dashboard user: admin password: pw",
+            "Dashboard: http://127.0.0.1:5001/dashboard/develop "
+            "(user admin, password pw)",
         ]
+        assert out[3].startswith("Full log: ") and out[3].endswith("logs.jsonl")
         open_browser.assert_not_called()
+
+    def test_debug_verbose_shows_full_server_output(self, develop):
+        with (
+            mock.patch("dallinger.command_line.develop.Queue"),
+            mock.patch("dallinger.command_line.develop._run_dev_server") as server,
+        ):
+            result = CliRunner().invoke(develop, ["debug", "--verbose"])
+        assert result.exit_code == 0, result.output
+        assert server.call_args.kwargs["env"]["DALLINGER_DEV_LOG"] == "full"
 
     def test_debug_surfaces_invalid_policy(self, develop, tmp_path, monkeypatch):
         (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")

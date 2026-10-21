@@ -12,6 +12,7 @@ import sys  # noqa: E402
 import werkzeug  # noqa: E402
 import werkzeug.serving  # noqa: E402
 
+from dallinger import dev_logging  # noqa: E402
 from dallinger.experiment_server.experiment_server import app  # noqa: E402, F401
 
 # Werkzeug (2.1+) colours its log lines without checking where they go: stderr.
@@ -20,6 +21,7 @@ werkzeug.serving._log_add_style = (
     and sys.stderr.isatty()
     and "NO_COLOR" not in os.environ
 )
+dev_logging.setup_dev_server(app)
 
 
 @atexit.register
@@ -38,8 +40,13 @@ def _shutdown_logging_before_teardown():
 os.environ["FLASK_SECRET_KEY"] = codecs.encode(os.urandom(16), "hex").decode("ascii")
 
 if werkzeug.serving.is_running_from_reloader():
-    worker = subprocess.Popen(["dallinger_heroku_worker"])
-    clock = subprocess.Popen(["dallinger_heroku_clock"])
+    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+    worker = subprocess.Popen(
+        ["dallinger_heroku_worker"], env={**env, dev_logging.ROLE_ENV: "worker"}
+    )
+    clock = subprocess.Popen(
+        ["dallinger_heroku_clock"], env={**env, dev_logging.ROLE_ENV: "clock"}
+    )
 
     def cleanup():
         worker.kill()
