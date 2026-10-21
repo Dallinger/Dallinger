@@ -677,8 +677,9 @@ def docker_host_uri(host, user=None, port=22):
 
     docker-py splits this URL on ``@`` and cannot parse a username that
     itself contains ``@``, such as a Cambridge CRSid login. Those users are
-    left out of the URL, so the SSH client takes the user from
-    ``~/.ssh/config``; a hint is printed unless that file already sets it.
+    left out of the URL, so the SSH client chooses the user (usually from
+    ``~/.ssh/config``); a hint is printed unless ``ssh -G`` reports that it
+    would already log in as that user.
     """
     if user and "@" in user:
         if _ssh_config_user(host) != user:

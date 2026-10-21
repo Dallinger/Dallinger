@@ -39,6 +39,8 @@ def test_docker_host_uri_omits_at_sign_usernames(capsys, tmp_path, monkeypatch):
     monkeypatch.setenv("SSH_TEST_USER", "pmch2@cam.ac.uk")
     docker_ssh_module.docker_host_uri("rr-pc01.example", user="pmch2@cam.ac.uk")
     assert capsys.readouterr().out == "", "no hint once ssh would use that user"
+    docker_ssh_module.docker_host_uri("unknown.example", user="pmch2@cam.ac.uk")
+    assert "User pmch2@cam.ac.uk" in capsys.readouterr().out, "hint if ssh -G fails"
 
 
 class FakeExecutor:
