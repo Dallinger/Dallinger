@@ -3,6 +3,8 @@ mode = sandbox
 auto_recruit = true
 pairs = 1
 bargaining_seconds = 60
+rounds = 1
+chat = false
 
 [MTurk]
 title = Bargaining
