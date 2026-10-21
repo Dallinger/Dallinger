@@ -4,6 +4,7 @@ gevent.monkey.patch_all()
 # ^ patch must happen at top of file before other imports
 import atexit  # noqa: E402
 import codecs  # noqa: E402
+import logging  # noqa: E402
 import os  # noqa: E402
 import subprocess  # noqa: E402
 
@@ -15,6 +16,17 @@ from dallinger.experiment_server.experiment_server import app  # noqa: E402, F40
 
 # Raises for invalid game types, so the server doesn't start.
 sockets.process_games()
+
+
+@atexit.register
+def _shutdown_logging_before_teardown():
+    # Handlers that are garbage-collected during interpreter teardown take a
+    # lock that calls gevent's thread functions, which teardown has already
+    # cleared, and print a TypeError traceback. Logging skips that lock when
+    # its handler list is empty, so flush the handlers now and forget them.
+    logging.shutdown()
+    logging._handlerList.clear()
+
 
 os.environ["FLASK_SECRET_KEY"] = codecs.encode(os.urandom(16), "hex").decode("ascii")
 

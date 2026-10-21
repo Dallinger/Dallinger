@@ -14,6 +14,9 @@ from dallinger.utils import attach_json_logger, get_exp_klass
 logger = logging.getLogger(__name__)
 
 WORKER_CLASS = "gevent"
+# Web processes per CPU when ``web_processes = auto``, unless the deprecated
+# ``worker_multiplier`` is set.
+DEFAULT_WEB_PROCESSES_PER_CPU = 1.5
 
 
 def experiment_hook(func_name, *args, **kwargs):
@@ -115,9 +118,9 @@ class StandaloneServer(Application):
 
     def load_user_config(self):
         config = get_config()
-        workers = config.get("threads")
+        workers = config.get("web_processes")
         if workers == "auto":
-            multiplier = config.get("worker_multiplier")
+            multiplier = config.get("worker_multiplier", DEFAULT_WEB_PROCESSES_PER_CPU)
             workers = str(int(round(multiprocessing.cpu_count() * multiplier)) + 1)
 
         host = config.get("host")

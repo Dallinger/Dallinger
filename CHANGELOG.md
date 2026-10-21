@@ -4,6 +4,16 @@
 
 ### Added
 
+- Added the `cloudflare_keychain_service` config key, which names the macOS
+  Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
+  deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
+  already store the token under another name don't have to copy it. A
+  configured item is found whatever Keychain account it was saved under.
+- Worker processes that hang during start-up now exit after
+  `worker_startup_timeout` seconds (default 120; 0 disables) if they
+  haven't registered with the job queue, printing what each greenlet was
+  doing, so Heroku or Docker restarts them instead of leaving them idle.
+
 - `Experiment.publish_to_participants(payload, participant_ids, scope=None)`
   sends a payload to the WebSocket connections of specific participants, across
   gunicorn workers, instead of giving each participant a channel of their own.
@@ -150,6 +160,18 @@
   A custom experiment Dockerfile gets a final step that installs that wheel.
   Dallinger pins given as Git URLs are replaced by the local wheel as well
   (extras such as ``[docker]`` are dropped from the rewritten line).
+- Added Docker-first parallelism settings: ``web_processes`` (number of
+  gunicorn web processes, given as a number or ``auto``, the default),
+  ``worker_processes`` (number of worker containers in ``dallinger docker``
+  and Docker SSH deployments, default ``1``) and
+  ``worker_greenlets_per_process`` (tasks each worker process runs at once,
+  on Heroku and Docker, default ``20``). For CPU-heavy tasks, set
+  ``worker_greenlets_per_process = 1`` and add worker processes. Each
+  worker's Redis connection pool grows with its greenlets, so values above
+  40 don't wait for connections. Heroku still sizes worker dynos with
+  ``num_dynos_worker``. Docker deployments used to read ``num_dynos_worker``
+  too; if only ``num_dynos_worker`` is set, they still use it, with a
+  ``FutureWarning`` asking for ``worker_processes``.
 
 - A real-time engine for live multiplayer games (#9974). An experiment
   subclasses `RealtimeGame` to write a game type, lists its game types in
@@ -206,6 +228,37 @@
 
 ### Changed
 
+- ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
+  config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
+  Cloudflare settings and API token, and whether the app name is already
+  taken on the server before they build the experiment image, so these
+  mistakes are reported in seconds rather than after a build of several
+  minutes. The offer to destroy experiments for a root-domain deploy comes
+  after these checks. Because ``-c`` values are applied before the build,
+  ``-c docker_image_name`` now chooses the image to reuse.
+  ([#9846](https://github.com/Dallinger/Dallinger/issues/9846))
+- docker-ssh ``--server`` options also accept a server's short hostname,
+  such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
+  several configured servers is rejected with a list of the matches, and
+  servers registered by IP address (with or without a port) only match their
+  full address. Python
+  callers of ``get_apps``, ``select_running_app``, ``awaken_app``,
+  ``ensure_root_domain_ready`` and the ``destroy`` and ``set-dozzle-password``
+  command callbacks can pass short names too. ``--help`` no longer
+  lists the configured servers; use ``dallinger docker-ssh servers list`` or
+  shell completion.
+- ``dallinger docker-ssh destroy`` now reports the Cloudflare tunnel and DNS
+  record it deleted, any same-named tunnel it left in place because it
+  belongs to another deploy, or that there was nothing left to delete.
+  ``delete_experiment_tunnel`` returns a ``TunnelDeletion`` that is truthy
+  when the tunnel is gone and records what the call deleted or skipped.
+- Docker worker containers now get a low CPU weight (``cpu_shares``), so the
+  web server gets priority when the CPU is busy: all the workers together
+  weigh about a tenth of the web container. Postgres, pgbouncer, Redis and
+  Caddy keep Docker's default weight. ``docker_worker_cpu_shares`` is now
+  ignored.
+- ``docker-ssh deploy -c`` values are now type-checked and validated before
+  deployment starts, as values from config files are.
 - The installation and developer setup guides now use Python 3.14, the
   version in Dallinger's Docker images, in their pyenv and virtualenv
   examples.
@@ -264,6 +317,22 @@
   equivalents (see the
   [jQuery 4.0 upgrade guide](https://jquery.com/upgrade-guide/4.0/)). The sheep market and iterated
   drawing demos still load jQuery 1.7.2 because Raphael requires it.
+- Each process's database connection pool can now be set with the
+  ``DATABASE_POOL_SIZE`` (default 20), ``DATABASE_MAX_OVERFLOW`` (default -1,
+  no limit) and ``DATABASE_POOL_TIMEOUT`` (default 30 seconds; fractions such
+  as 0.5 are allowed) environment variables. With the defaults, requests
+  never wait for the pool. A process that should not open many connections,
+  such as a bot runner, can set a bounded pool; its requests then wait up to
+  ``DATABASE_POOL_TIMEOUT`` for a free connection. An invalid value, including
+  a pool size below 1, makes every ``dallinger`` command fail with an error
+  that names the variable. ``create_db_engine`` also accepts ``pool_size``,
+  ``max_overflow`` and ``pool_timeout`` arguments, which override the
+  variables and are checked the same way. Experiment replay
+  (``restore_state_from_replay``) now uses the same pool settings, checks
+  connections before use and closes its temporary engines. Idle connections
+  add up to about ``DATABASE_POOL_SIZE`` times the number of processes; keep
+  that below PostgreSQL's ``max_connections`` or, on docker-ssh, pgbouncer's
+  client limit of 10,000.
 - Skipped the live MTurk integration tests, because Amazon has discontinued
   Mechanical Turk and every call now fails with `AccessDeniedException`.
   Mocked MTurk tests still run.
@@ -274,6 +343,65 @@
   Set ``DALLINGER_NO_EGG_BUILD=1`` to deploy the pinned version instead.
 - The ``deployment-files`` CLI tests no longer use Click's deprecated
   ``CliRunner.isolated_filesystem``, which Click 9.0 removes.
+- docker-ssh deploys now need an experiment image built with this Dallinger,
+  because they check the app's ``/health``, which Dallinger 12.4.0 and older
+  lack. Rebuild older images before deploying them. The web image also needs
+  ``curl`` (the Dallinger and PsyNet images have it).
+- docker-ssh apps no longer fail under load with ``no more connections
+  allowed (max_client_conn)``: their pgbouncer now accepts up to 10,000
+  client connections instead of 100.
+- docker-ssh apps with their own Postgres (Cloudflare ingress) now let
+  pgbouncer keep up to 80 Postgres connections instead of 20, so requests no
+  longer queue at about 200 participants. On a 16-thread server, p95 response
+  time at 320 participants fell from 438 ms to 65 ms. Classic-ingress apps
+  share the server's Postgres, so they keep 20 connections each. Running apps
+  pick up the new limits after ``dallinger docker-ssh deploy --update``.
+- Each process now keeps at most 20 idle database connections instead of up
+  to 1,000, so idle connections no longer pile up after heavy load and use up
+  the database's or pgbouncer's client limit. Busy processes still open as
+  many connections as they need.
+- After a docker-ssh app's pgbouncer or Postgres container restarts, requests
+  no longer fail with ``server closed the connection unexpectedly``; dropped
+  idle connections are replaced when next used. Requests in flight during the
+  restart can still fail.
+- Classic-ingress docker-ssh deploys to a server whose SSH host resolves only
+  to private IP addresses now stop before building the image and suggest
+  ``--ingress cloudflare``, because Let's Encrypt cannot issue certificates
+  for such servers. ``docker-ssh servers add`` prints the same advice.
+  ``--update`` deploys of existing apps skip the check. For a server whose
+  public DNS name points at a public IP that forwards ports 80 and 443 to it,
+  pass ``--allow-private-ip``: the deploy then only checks that the
+  experiment hostname resolves, not that it matches the SSH host's address.
+- ``dallinger debug`` now keeps a ``FLASK_SECRET_KEY`` that is already set in
+  the environment, and generates a random one only when it is unset or empty.
+  Tools that restart the local server can set the key themselves so that
+  dashboard logins stay valid across restarts.
+- Dallinger's Docker PostgreSQL containers (docker-ssh, ``docker debug`` and
+  ``docker start-services``) now run with ``jit = off``, because JIT
+  compilation slows down the short queries that experiments make. The next
+  classic docker-ssh deploy on each server recreates the shared PostgreSQL
+  once, keeping its data but briefly interrupting every classic app on that
+  server, so make that deploy when no classic experiment is live. Each
+  Cloudflare app's PostgreSQL is likewise recreated on its next deploy,
+  including ``--update``. Classic deploys now wait up to 7 minutes for the
+  shared PostgreSQL to become healthy. A failing database now takes about
+  5.5–7 minutes to be reported as unhealthy, which also delays Cloudflare
+  ``up -d`` and ``docker debug`` failures. To turn JIT off in an existing local ``dallinger_postgres``
+  container, run ``dallinger docker stop-services`` and then
+  ``start-services``; the data volume is kept.
+
+### Deprecated
+
+- ``threads`` is deprecated in favour of ``web_processes``. The old name
+  still works, but setting or reading it (including with
+  ``docker-ssh deploy -c``) emits a ``FutureWarning``; if both names are
+  set in one place, ``web_processes`` wins. ``Configuration.canonical_key()``
+  maps an old name to its replacement. Setting ``worker_multiplier`` (set
+  ``web_processes`` to a number instead) or ``docker_worker_cpu_shares``
+  (now ignored) also warns. A config file with deprecated settings gets one
+  warning that names the file and all of them. The warning for
+  ``prolific_maximum_allowed_minutes`` is now a ``FutureWarning`` too, and no
+  longer changes the global warnings filter.
 
 - `db.queue_message` publishes only when the outermost transaction commits,
   not also when a savepoint is released. An error in a function run after a
@@ -295,6 +423,73 @@
   control events added in v9.10.0 asked each subscriber for its
   `client_info()`. The bot now has `client_info()`, and a `send()` that
   receives channel messages and does nothing until a subclass overrides it.
+- Redis calls no longer fail with ``MaxConnectionsError`` once a process has
+  100 connections in use, redis-py's default limit since 8.0. Under load,
+  for example many participants waiting on their own websocket channel,
+  ``connect_to_redis()`` now waits up to 20 seconds for a free connection in
+  a pool of 1,000. Websocket channel subscriptions use a separate pool, so
+  many open channels no longer hold up publishing, job queueing and other
+  Redis calls in the same process. A message published to a websocket
+  channel that is not valid UTF-8 (for example by another Redis client) is
+  dropped with a warning instead of ending its channel's listener
+  and leaving the channel's clients without messages, and an error while
+  closing a channel's pubsub is logged instead of keeping the stopped channel
+  registered.
+- `dallinger debug` no longer prints "Error fetching experiment status" while
+  the server shuts down or after a single failed request. Once recruitment
+  closes, it reports an error only after three failed status checks in a row,
+  and says when checks work again. Ending the debug session interrupts the
+  10-second wait between checks, and each check now times out after 5 seconds
+  instead of waiting indefinitely.
+- Stopping `dallinger develop debug` no longer prints a
+  `TypeError: 'NoneType' object is not callable` traceback from gevent
+  during interpreter shutdown on Python 3.13.
+- docker-ssh deploys no longer fail to launch when a new Cloudflare tunnel
+  takes several minutes to register. After checking the app's ``/health``
+  from inside the server, the deploy waits up to 7 minutes for the public
+  ``/health`` to answer 2xx, so recruitment does not open while participants
+  would see an error page. It then launches from inside the server with
+  ``curl`` in the web container, so the app still records its public URL. If
+  the URL does not answer 2xx in time, or redirects twice in a row (a login
+  such as Cloudflare Access, which waiting does not remove), nothing is
+  launched and the deploy prints how to check it, launch by hand and destroy
+  the app. A launch request that may
+  have reached the app is never sent again; the deploy says recruitment may
+  have started.
+- The web container in `dallinger docker` and `dallinger docker-ssh`
+  deployments may now hold 65,536 open files per process instead of the
+  Docker default of 1,024. Each open WebSocket connection holds a few file
+  descriptors in one gunicorn process, and connections do not spread evenly
+  across processes, so about 2,000 idle connections could exhaust one
+  process's limit. That process then failed new connections, and any
+  `/health` or `/dashboard/login` request routed to it, with
+  `OSError: [Errno 24] Too many open files`.
+- `dallinger docker debug` passes the Flask secret key to the web, worker and
+  clock containers again. Previously they ran with no secret key, because the
+  generated `.env` file prefixed the key with a stray `$` and the compose file
+  did not forward `FLASK_SECRET_KEY` to any service. The key is now quoted in
+  `.env`, so a key containing `$` or `#` also reaches the containers unchanged,
+  and an empty `FLASK_SECRET_KEY` in the host shell no longer replaces it. The
+  `.env` file is readable by its owner only and is written after the debug
+  image is built, so the key is not baked into the image, and compose refuses
+  to start the containers without a key.
+
+- Dallinger's Docker commands no longer import pip's private internals to
+  read an experiment's ``requirements.txt``, so they work in uv-created
+  environments without pip. ``packaging`` is now a declared dependency.
+  The Docker base image tag is now also found for ``dallinger == X`` pins and
+  pins with environment markers, and for UTF-16 requirements files written by
+  Windows PowerShell 5. ``-r``/``-c`` include cycles raise a clear error.
+- RQ workers no longer hang at start-up about once in 75 to 100 starts.
+  The worker imported ``rq.cli`` to colour one log line, which loaded
+  ``croniter``; at import time ``croniter`` runs ``file`` in a subprocess,
+  and under gevent waiting for it sometimes never returned. The worker now
+  takes the colour helper from ``rq.logutils``. The unused ``main()`` in
+  ``dallinger.heroku.rq_gevent_worker``, which also imported ``rq.cli``, is
+  removed; the ``dallinger_heroku_worker`` command is unchanged.
+- Fixed an intermittent failure of the ``docker debug`` CI test without
+  bots. With ``--verbose``, each recruitment URL is printed twice, and the
+  test sometimes sent its second bot to the first participant's URL.
 - A WebSocket connection waits for redis to confirm its channel subscription
   before it relays anything. A process subscribes to a channel the first time
   one of its connections names it, and the publish travels on a different redis
