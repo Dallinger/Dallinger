@@ -1005,9 +1005,7 @@ def resolve_server_option(ctx, param, value):
 option_app_name = click.option(
     "--app",
     "app_name",
-    help="Name to use for the app. If not provided a random one will be generated. "
-    "New apps can't use names starting with dlgr-, which Dallinger generates; "
-    "--update accepts them.",
+    help="Name to use for the app. If not provided a random one will be generated",
 )
 option_archive = click.option(
     "--archive",
@@ -1246,13 +1244,31 @@ def _load_remote_manifests(executor, app_names):
 # the Caddyfile for an app on the server's own host (root.d/<app>, or an older
 # Dallinger's Caddyfile route to the app), otherwise caddy.d/<app>. Older root
 # Caddyfiles don't import caddy.d, so the root route wins over a leftover site.
-_APP_RECORDS_SCRIPT = """for app in {apps}; do d=~/dallinger
+_ROOT_ROUTE_TEST = (
+    '[ -f "$d/root.d/$app" ] || '
+    'grep -qF "reverse_proxy ${app}_web:5000" "$d/Caddyfile" 2>/dev/null'
+)
+_APP_RECORDS_SCRIPT = (
+    """for app in {apps}; do d=~/dallinger
   f=$d/$app/deployment.json
   [ -f "$f" ] && printf '%s\\t' "$app" && tr -d '\\n' < "$f" && echo
   f=$d/caddy.d/$app
-  if [ -f "$d/root.d/$app" ] || grep -qF "reverse_proxy ${{app}}_web:5000" "$d/Caddyfile" 2>/dev/null; then f=$d/Caddyfile; fi
+  if """
+    + _ROOT_ROUTE_TEST.replace("{", "{{").replace("}", "}}")
+    + """; then f=$d/Caddyfile; fi
   [ -f "$f" ] && printf '%s\\tsite\\t%s\\n' "$app" "$(grep -m1 -E '^[^#[:space:]{{(@][^{{#]*[{{]' "$f")"
 done; true"""
+)
+
+
+def _served_at_server_host(executor, app):
+    """Return whether classic ingress serves the existing ``app`` at the server's own host."""
+    return bool(
+        executor.run(
+            f"d=~/dallinger; app={quote(app)}; if {_ROOT_ROUTE_TEST}; then echo yes; fi",
+            raise_=False,
+        )
+    )
 
 
 def _load_remote_app_records(executor, app_names):
@@ -1398,17 +1414,25 @@ def _classic_preflight(
     """Check TLS email, DNS and the server's shared services for a classic deploy.
 
     Runs before the image build. Returns the app's public hostname, which for
-    ``--update`` of an app routed by ``root.d`` is the server's own host.
+    ``--update`` of an app on the server's own host is that host. A new
+    deploy whose ``--app`` names such an app is refused, since ``--app``
+    would put it on a subdomain.
     """
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     server_info = CONFIGURED_HOSTS[server]
     _server_tls(server_info, experiment=True)
     executor = _build_executor(server_info)
     hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
-    if update and executor.run(
-        f"test -f ~/dallinger/root.d/{quote(app_name)} && echo yes", raise_=False
-    ):
+    if app_name and _served_at_server_host(executor, app_name):
         hostname = _server_host(server_info, dns_host)
+        if not update:
+            raise click.BadParameter(
+                f"{app_name} is already deployed at {hostname}, the server's "
+                "own host. A new deploy with --app would move it to a "
+                "subdomain. To update it in place, run the deploy with "
+                f"--update --app {app_name}.",
+                param_hint="'--app'",
+            )
     _check_experiment_hostname_dns(
         split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
     )
@@ -2182,15 +2206,6 @@ def _deploy_in_mode(
     follows the other checks. Only the app-name check comes after it, since
     the cleanup can free that name.
     """
-    if app_name and app_name.startswith("dlgr-") and not update:
-        raise click.BadParameter(
-            f"{app_name}: names starting with dlgr- belong to apps deployed "
-            "without --app, which classic ingress serves at the server's own "
-            "host. --app deploys a new app to a subdomain. To update the "
-            f"root-domain app, run the deploy with --update --app {app_name}; "
-            "to deploy a new app to the server's own host, leave out --app.",
-            param_hint="'--app'",
-        )
     experiment_files = get_experiment_files(os.getcwd())
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     # Existing apps already have their certificates, so updates skip the check.

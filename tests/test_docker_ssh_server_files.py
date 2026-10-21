@@ -719,37 +719,28 @@ def test_existing_app_commands_accept_generated_names(server, monkeypatch):
     assert not app_dir.exists()
 
 
-def test_updating_a_root_domain_app_checks_the_dns_of_the_servers_host(server):
+def test_app_on_the_servers_host_is_updated_there_and_not_redeployed(server):
     CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
     (server / "dallinger/root.d/dlgr-abcd1234").write_text("reverse_proxy x\n")
 
     with mock.patch.object(docker_ssh, "_check_experiment_hostname_dns") as dns:
-        for update, hostname in [
-            (True, "lab.example.org"),
-            (False, "dlgr-abcd1234.lab.example.org"),
+        for app, update, hostname in [
+            ("dlgr-abcd1234", True, "lab.example.org"),
+            ("dlgr-0000ffff", False, "dlgr-0000ffff.lab.example.org"),
         ]:
-            assert (
-                docker_ssh._classic_preflight(
-                    "lab", "dlgr-abcd1234", None, None, False, update
-                )
-                == hostname
-            )
+            preflight = docker_ssh._classic_preflight
+            assert preflight("lab", app, None, None, False, update) == hostname
             assert dns.call_args.args[1] == hostname
 
-
-@pytest.mark.parametrize("command", ["deploy", "sandbox"])
-def test_new_deploys_refuse_generated_names_but_updates_accept_them(server, command):
-    args = ["--app", "dlgr-abcd1234", "--server", "lab"]
-    result = CliRunner().invoke(getattr(docker_ssh, command), args)
-    assert result.exit_code == 2
-    assert "Invalid value for '--app'" in result.output
-    assert "--update --app dlgr-abcd1234" in result.output
-
-    with mock.patch.object(
-        docker_ssh, "get_experiment_files", side_effect=RuntimeError("checks passed")
-    ):
-        result = CliRunner().invoke(getattr(docker_ssh, command), args + ["--update"])
-    assert str(result.exception) == "checks passed"
+        for caddyfile in [None, RELEASED_ROOT_CADDYFILE]:
+            if caddyfile:
+                (server / "dallinger/root.d/dlgr-abcd1234").unlink()
+                (server / "dallinger/Caddyfile").chmod(0o644)
+                (server / "dallinger/Caddyfile").write_text(caddyfile)
+            with pytest.raises(
+                click.BadParameter, match="--update --app dlgr-abcd1234"
+            ):
+                preflight("lab", "dlgr-abcd1234", None, None, False, False)
 
 
 def test_invalid_env_json_only_warns(capsys):

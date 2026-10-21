@@ -254,13 +254,15 @@
   same SSH command as the manifests: the server's own site for a root-domain
   app (a `root.d/<app>` route, or an older Dallinger's `Caddyfile` route to
   the app), otherwise the app's `caddy.d/<app>` site. `deployment.json` still
-  takes priority. `docker-ssh deploy` and `sandbox` now refuse a new app
-  whose `--app` starts with `dlgr-`, the prefix of the names Dallinger
-  generates for apps deployed without `--app`: with `--app`, the app would go
-  to a subdomain instead of the server's own host. `--update --app dlgr-…`
-  still updates a root-domain app in place, and its DNS check before the
-  build now checks the server's own host rather than `dlgr-….<host>`.
-  `destroy`, `export`, `hibernate` and `awaken` keep accepting these names.
+  takes priority. A classic `docker-ssh deploy` or `sandbox` without
+  `--update` whose `--app` names an existing app on the server's own host
+  (such as `dlgr-…`, the name Dallinger generates for an app deployed without
+  `--app`) now stops before the build and suggests `--update --app <app>`,
+  instead of failing later on the DNS check for `<app>.<host>` or the
+  existing app. `--update --app dlgr-…` updates such an app in place, and its
+  DNS check before the build now checks the server's own host. New `dlgr-…`
+  names still deploy to a subdomain, and `destroy`, `export`, `hibernate` and
+  `awaken` accept these names.
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
   config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
   Cloudflare settings and API token, and whether the app name is already
