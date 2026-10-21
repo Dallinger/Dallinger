@@ -69,8 +69,18 @@ def _is_startup_status(status_code):
         return False
 
 
-def _https_wait_progress():
-    """Progress bar for the HTTPS wait. Disabled when stdout is not a TTY.
+def _show_https_wait_bar(context):
+    """Whether the HTTPS wait may draw a live progress bar.
+
+    A local server writes its log to the same terminal while ``/launch`` runs,
+    and a live bar can't move that output out of the way, so local launches
+    get the plain one-line notice instead.
+    """
+    return sys.stdout.isatty() and context != "local"
+
+
+def _https_wait_progress(context=None):
+    """Progress bar for the HTTPS wait, disabled unless :func:`_show_https_wait_bar`.
 
     The wait has no known length (the first POST may succeed, or we may retry
     until the timeout), so the bar is indeterminate: it pulses instead of
@@ -87,15 +97,15 @@ def _https_wait_progress():
         TimeElapsedColumn(),
         console=Console(highlight=False),
         transient=True,
-        disable=not sys.stdout.isatty(),
+        disable=not _show_https_wait_bar(context),
     )
 
 
-def _announce_https_wait(announced):
-    """Print a one-line wait notice on non-TTY logs; the progress bar covers TTYs."""
+def _announce_https_wait(announced, context=None):
+    """Print a one-line wait notice when there is no progress bar."""
     if announced:
         return True
-    if not sys.stdout.isatty():
+    if not _show_https_wait_bar(context):
         Console(highlight=False).print(HTTPS_WAIT_MESSAGE)
     return True
 
@@ -133,7 +143,7 @@ def handle_launch_data(
     saw_application_error = False
     announced_wait = False
 
-    with _https_wait_progress() as progress:
+    with _https_wait_progress(context) as progress:
         task_id = progress.add_task(HTTPS_WAIT_MESSAGE, total=None)
         for remaining_attempt in sorted(range(attempts), reverse=True):
             startup_failure = False
@@ -194,7 +204,7 @@ def handle_launch_data(
                 )
 
             if startup_failure and not saw_application_error:
-                announced_wait = _announce_https_wait(announced_wait)
+                announced_wait = _announce_https_wait(announced_wait, context)
                 attempt_number = attempts - remaining_attempt
                 progress.update(
                     task_id,

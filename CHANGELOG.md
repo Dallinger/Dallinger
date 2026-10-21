@@ -391,6 +391,11 @@
 
 ### Fixed
 
+- Local launches (``dallinger develop debug``, and tools such as PsyNet that
+  launch a local server the same way) no longer draw the "Waiting for the
+  experiment URL to become reachable" progress bar, which the local server's
+  own log lines were written onto. They print that message as one plain line
+  instead, and only if the first launch attempt fails. Deploys keep the bar.
 - A docker-ssh Cloudflare deploy that can't find the Cloudflare API token now
   stops before it connects to the server, builds the image there or removes
   the app's Redis and Postgres volumes. It fails with an `Error:` line that

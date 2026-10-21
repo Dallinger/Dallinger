@@ -1675,6 +1675,30 @@ class Testhandle_launch_data:
             for column in progress.columns
         )
 
+    def test_local_launch_prints_notice_instead_of_live_bar(self, handler, capsys):
+        from dallinger.deployment import HTTPS_WAIT_MESSAGE, Progress
+
+        gateway = mock.Mock(ok=False, status_code=502, text="Bad Gateway")
+        success = mock.Mock(ok=True, json=mock.Mock(return_value={"message": "msg!"}))
+        bars = []
+        original = Progress.add_task
+
+        def spy(self, *args, **kwargs):
+            bars.append(self)
+            return original(self, *args, **kwargs)
+
+        with (
+            mock.patch("dallinger.deployment.sys.stdout.isatty", return_value=True),
+            mock.patch("dallinger.deployment.requests.post") as mock_post,
+            mock.patch("dallinger.deployment.time.sleep"),
+            mock.patch.object(Progress, "add_task", spy),
+        ):
+            mock_post.side_effect = [gateway, success]
+            handler("/some-launch-url", error=mock.Mock(), delay=0.05, context="local")
+
+        assert [bar.disable for bar in bars] == [True]
+        assert capsys.readouterr().out.count(HTTPS_WAIT_MESSAGE) == 1
+
     def test_https_wait_bar_is_indeterminate(self, handler):
         from dallinger.deployment import HTTPS_WAIT_MESSAGE, Progress
 
