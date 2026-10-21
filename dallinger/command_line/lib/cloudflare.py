@@ -159,7 +159,9 @@ def load_api_token(config: Any | None = None) -> str:
         ) from exc
     token = result.stdout.strip()
     if not token:
-        raise CloudflareError("The Cloudflare Keychain item contained no token.")
+        raise CloudflareError(
+            f"The Cloudflare Keychain item {service!r} contained no token."
+        )
     return token
 
 
