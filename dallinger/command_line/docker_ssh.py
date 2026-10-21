@@ -2701,15 +2701,21 @@ def hibernate(server, app):
 @option_server
 def awaken(server, app):
     """Start a hibernated app without re-launching recruitment."""
-    awaken_app(server, app)
+    _run_hibernation_action(server, app, "awaken")
 
 
 def awaken_app(server, app, required=True):
-    """Wake a docker-ssh app, waiting until Postgres and web are ready."""
-    return _run_hibernation_action(server, app, "awaken", required=required)
+    """Wake a docker-ssh app, waiting until Postgres and web are ready.
+
+    Prints nothing if the app is already awake, so callers can use it as a
+    routine check before touching the app's database.
+    """
+    return _run_hibernation_action(
+        server, app, "awaken", required=required, report_awake=False
+    )
 
 
-def _run_hibernation_action(server, app, action, required=True):
+def _run_hibernation_action(server, app, action, required=True, report_awake=True):
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
     server_info = _resolve_server_info(server)
@@ -2723,7 +2729,8 @@ def _run_hibernation_action(server, app, action, required=True):
             raise click.Abort()
         return False
     if action == "awaken" and app not in _remote_hibernation_states(executor):
-        print(f"App {app} is awake")
+        if report_awake:
+            print(f"App {app} is awake")
         return True
     services = executor.run(
         f"docker compose -f {compose} config --services", raise_=False

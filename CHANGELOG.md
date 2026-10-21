@@ -235,7 +235,10 @@
   has one. After "Starting experiment.", a deploy goes straight on to
   "Initializing database...", reports the app's health check as "The
   experiment server is up.", and an `--update` ends with "Not launching
-  again: this is an update of a running experiment." The
+  again: this is an update of a running experiment." `docker-ssh export`
+  and other callers of `awaken_app`, such as PsyNet before destroying an
+  app, no longer print "App <app> is awake" when the app wasn't
+  hibernating; `dallinger docker-ssh awaken` still does. The
   `DOCKER_HOST`, experiment UID, deployment temp directory, "skipping push to
   registry" and "Removing any pre-existing ... volumes" lines are now
   debug-level logs, as is "Using custom Heroku ID root" in every command that

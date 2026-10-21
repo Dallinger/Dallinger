@@ -1509,7 +1509,7 @@ def test_hibernate_explains_apps_without_a_front_door(monkeypatch, capsys):
     assert not any("exec" in cmd for cmd in executor.commands)
 
 
-def test_awaken_skips_an_app_that_is_already_awake(monkeypatch):
+def test_awaken_skips_an_app_that_is_already_awake(monkeypatch, capsys):
     executor = FakeExecutor({"test -f": "Yes"})
     monkeypatch.setattr(
         docker_ssh_module, "CONFIGURED_HOSTS", {"s": {"host": "example.com"}}
@@ -1517,6 +1517,9 @@ def test_awaken_skips_an_app_that_is_already_awake(monkeypatch):
     monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
     assert docker_ssh_module.awaken_app("s", "demo", required=False) is True
     assert not any("exec" in cmd for cmd in executor.commands)
+    assert capsys.readouterr().out == ""
+    docker_ssh_module.awaken.callback(server="s", app="demo")
+    assert capsys.readouterr().out == "App demo is awake\n"
 
 
 def test_get_apps_reports_hibernation_from_markers():
