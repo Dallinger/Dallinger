@@ -1212,10 +1212,12 @@ def test_deploy_refuses_a_name_another_apps_compose_project_uses(update, capsys)
     executor = FakeExecutor({"caddy.d": "MyApp\nmyapp\n", "ls ~": "found"})
     with pytest.raises(click.Abort):
         docker_ssh_module._check_app_slot(executor, "myapp", update, "classic")
+    out = capsys.readouterr().out
     assert (
         "App name myapp gives the same Docker Compose project, myapp, as the "
-        "existing app MyApp" in capsys.readouterr().out
+        "existing app MyApp" in out
     )
+    assert ("Destroy MyApp first with --keep-data." in out) == update
     executor = FakeExecutor({"caddy.d": "myapp\nmyapp~\n", "ls ~": "found"})
     docker_ssh_module._check_app_slot(executor, "myapp", True, "classic")
 

@@ -959,12 +959,17 @@ def _check_app_slot(executor, app, update, ingress):
     siblings = _project_siblings(executor, app)
     if siblings:
         others = ", ".join(siblings)
+        # While app exists, destroy refuses to delete the other app's data.
+        advice = (
+            f"Destroy {others} first with --keep-data."
+            if update
+            else f"Use a different name, or destroy {others} first."
+        )
         print(
             f"{RED}App name {app} gives the same Docker Compose project, "
             f"{_compose_project(app)}, as the existing "
             f"app{'s' if len(siblings) > 1 else ''} {others}, so they would share "
-            f"containers and volumes. Use a different name, or destroy {others} "
-            f"first.{END}"
+            f"containers and volumes. {advice}{END}"
         )
         raise click.Abort()
     compose_path = f"~/dallinger/{app}/docker-compose.yml"
