@@ -6,7 +6,9 @@ default. Settings let players steal from each other, bounce off each other, or
 play against bots, from easy to as fast as you.
 
 The game is played by Dallinger's real-time engine, as described in
-[Real-Time Games](https://dallinger.readthedocs.io/en/latest/realtime_games.html).
+[Real-Time Games](https://dallinger.readthedocs.io/en/latest/realtime_games.html),
+and its page uses the helpers in the
+[real-time sessions section of the JavaScript API](https://dallinger.readthedocs.io/en/latest/javascript_api.html#real-time-sessions).
 How It's Built, below, walks through the parts a researcher would adapt for a
 game of their own. The bargaining demo covers the basics of a game type; this
 one adds a game where things move all the time.

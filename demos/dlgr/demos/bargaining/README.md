@@ -9,7 +9,9 @@ the two players.
 The demo is a small, complete example of a real-time experiment, written for
 researchers who want to build one of their own. This page walks through how
 it works. The engine itself is described in
-[Real-Time Games](https://dallinger.readthedocs.io/en/latest/realtime_games.html).
+[Real-Time Games](https://dallinger.readthedocs.io/en/latest/realtime_games.html),
+and the page's helpers in the
+[real-time sessions section of the JavaScript API](https://dallinger.readthedocs.io/en/latest/javascript_api.html#real-time-sessions).
 
 ## The Game
 
@@ -19,9 +21,9 @@ are whole cents from 0 to 100.
 
 - Each player can post an offer at any time, and replace it with a new one. An
   offer that would lose its player money is refused.
-- Either player can accept the other's standing offer. A deal pays the seller
-  the price minus their cost, and the buyer their value minus the price, and
-  ends the round.
+- Either player can accept the other's standing offer, unless the price would
+  lose them money. A deal pays the seller the price minus their cost, and the
+  buyer their value minus the price, and ends the round.
 - If time runs out first, neither player earns anything.
 
 Each player sees their own role and value, both standing offers, every offer

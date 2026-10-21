@@ -195,7 +195,6 @@
   the player's own moves at once, and `interpolatedView()`, which moves the
   other players smoothly between tick views. The "Real-Time Games" docs page
   describes a game's page.
-
 - A `bargaining` demo, a real-time game in which a buyer and a seller, each
   knowing only their own value, bargain over a price against a clock that
   starts once both players are there. Each player's bonus is paid from the
@@ -204,7 +203,6 @@
   play several rounds, each started from an effect when the last one ends,
   and `chat` lets the pair talk on `/chat`, with the experiment saving each
   message as an `Info`. Its README walks through building the game.
-
 - A `coins` demo, a real-time game in which two to four players move around
   an arena collecting coins. Its page uses prediction for the player's own
   moves and interpolation for the other players, and the game type caps how
@@ -213,7 +211,6 @@
   instructions describe them. Each steal and bounce is saved as
   an effect and an `Info`, and only the moves that collect a coin or touch
   another player are saved. Its README walks through building the game.
-
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
   experiment refuse an `/experiment-socket` connection when it opens. A falsy
   return closes the socket with code `1008`, and Dallinger's client helpers

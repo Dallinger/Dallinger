@@ -31,11 +31,11 @@ Issues = "https://github.com/Dallinger/Dallinger/issues"
 Repository = "https://github.com/Dallinger/Dallinger"
 
 [project.entry-points."dallinger.experiments"]
-Bartlett1932 = "dlgr.demos.bartlett1932.experiment:Bartlett1932"
-CoinCollection = "dlgr.demos.coins.experiment:CoinCollection"
 Bargaining = "dlgr.demos.bargaining.experiment:Bargaining"
+Bartlett1932 = "dlgr.demos.bartlett1932.experiment:Bartlett1932"
 TwentyFortyEight = "dlgr.demos.twentyfortyeight.experiment:TwentyFortyEight"
 CoordinationChatroom = "dlgr.demos.chatroom.experiment:CoordinationChatroom"
+CoinCollection = "dlgr.demos.coins.experiment:CoinCollection"
 ConcentrationGame = "dlgr.demos.concentration.experiment:ConcentrationGame"
 FunctionLearning = "dlgr.demos.function_learning.experiment:FunctionLearning"
 IteratedDrawing = "dlgr.demos.iterated_drawing.experiment:IteratedDrawing"

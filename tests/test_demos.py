@@ -100,9 +100,9 @@ class TestEntryPointImport:
         expected = {
             "Bargaining",
             "Bartlett1932",
-            "CoinCollection",
             "TwentyFortyEight",
             "CoordinationChatroom",
+            "CoinCollection",
             "ConcentrationGame",
             "FunctionLearning",
             "IteratedDrawing",
