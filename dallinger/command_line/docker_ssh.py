@@ -1423,20 +1423,21 @@ def _classic_preflight(
     _server_tls(server_info, experiment=True)
     executor = _build_executor(server_info)
     hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
-    if app_name and _served_at_server_host(executor, app_name):
+    on_server_host = app_name and _served_at_server_host(executor, app_name)
+    if on_server_host:
         hostname = _server_host(server_info, dns_host)
-        if not update:
-            raise click.BadParameter(
-                f"{app_name} is already deployed at {hostname}, the server's "
-                "own host. A new deploy with --app would move it to a "
-                "subdomain. To update it in place, run the deploy with "
-                f"--update --app {app_name}.",
-                param_hint="'--app'",
-            )
     _check_experiment_hostname_dns(
         split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
     )
+    # A server that still needs `servers upgrade` says so before the advice below.
     _check_server_setup(executor, server, server_info, hostname, dns_host)
+    if on_server_host and not update:
+        raise click.BadParameter(
+            f"{app_name} is already deployed at {hostname}, the server's own "
+            "host. A new deploy with --app would move it to a subdomain. To "
+            f"update it in place, run the deploy with --update --app {app_name}.",
+            param_hint="'--app'",
+        )
     return hostname
 
 

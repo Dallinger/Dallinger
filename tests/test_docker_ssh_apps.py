@@ -72,7 +72,7 @@ class LocalExecutor:
 def _mock_executor(manifest_lines=""):
     return FakeExecutor(
         {
-            "deployment.json": manifest_lines,
+            "for app in ": manifest_lines,
             "caddy.d": "alpha\n/home/test/dallinger/beta/docker-compose.yml\n",
             "docker ps": "beta\n",
         }

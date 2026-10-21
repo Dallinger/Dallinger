@@ -238,6 +238,7 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
     config._reset(register_defaults=True)
     config.ready = True
     built_image = mock.Mock(return_value=contextlib.nullcontext("image"))
+    preflight = mock.Mock(return_value=hostname)
     with mock.patch.multiple(
         docker_ssh,
         get_config=lambda load=False: config,
@@ -249,7 +250,7 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
         get_server_pem_path=mock.Mock(return_value="key.pem"),
         get_experiment_files=mock.DEFAULT,
         _check_classic_ingress_reachable=mock.DEFAULT,
-        _classic_preflight=mock.Mock(return_value=hostname),
+        _classic_preflight=preflight,
         ensure_root_domain_ready=mock.DEFAULT,
         _built_image=built_image,
     ) as mocks:
@@ -266,6 +267,8 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
         )
 
     assert checksums(server) == before
+    # The preflight refuses --app of an app on the server's host unless updating.
+    assert preflight.call_args.args[-1] is update
     # Only a new app that takes the server's own host replaces its other apps.
     assert mocks["ensure_root_domain_ready"].called == (
         hostname == "lab.example.org" and not app_name
@@ -705,6 +708,8 @@ def test_existing_app_commands_accept_generated_names(server, monkeypatch):
     export_db_uri = mock.Mock()
     monkeypatch.setattr(docker_ssh, "export_db_uri", export_db_uri)
     monkeypatch.setattr(docker_ssh, "awaken_app", mock.Mock())
+    hibernation = mock.Mock()
+    monkeypatch.setattr(docker_ssh, "_run_hibernation_action", hibernation)
     monkeypatch.setattr(
         docker_ssh, "remote_postgres", lambda *a: contextlib.nullcontext("db")
     )
@@ -713,6 +718,13 @@ def test_existing_app_commands_accept_generated_names(server, monkeypatch):
     result = CliRunner().invoke(docker_ssh.export, args + ["--local"])
     assert result.exit_code == 0, result.output
     assert export_db_uri.call_args.args == ("dlgr-abcd1234",)
+
+    result = CliRunner().invoke(docker_ssh.hibernate, args)
+    assert result.exit_code == 0, result.output
+    assert hibernation.call_args.args[1:] == ("dlgr-abcd1234", "hibernate")
+    result = CliRunner().invoke(docker_ssh.awaken, args)
+    assert result.exit_code == 0, result.output
+    assert docker_ssh.awaken_app.call_args.args[1] == "dlgr-abcd1234"
 
     result = CliRunner().invoke(docker_ssh.destroy, args)
     assert result.exit_code == 0, result.output
@@ -724,23 +736,17 @@ def test_app_on_the_servers_host_is_updated_there_and_not_redeployed(server):
     (server / "dallinger/root.d/dlgr-abcd1234").write_text("reverse_proxy x\n")
 
     with mock.patch.object(docker_ssh, "_check_experiment_hostname_dns") as dns:
-        for app, update, hostname in [
-            ("dlgr-abcd1234", True, "lab.example.org"),
-            ("dlgr-0000ffff", False, "dlgr-0000ffff.lab.example.org"),
+        for app, dns_host, update, hostname in [
+            ("dlgr-abcd1234", None, True, "lab.example.org"),
+            ("dlgr-abcd1234", "other.example.org", True, "lab.example.org"),
+            ("dlgr-0000ffff", None, False, "dlgr-0000ffff.lab.example.org"),
         ]:
             preflight = docker_ssh._classic_preflight
-            assert preflight("lab", app, None, None, False, update) == hostname
+            assert preflight("lab", app, None, dns_host, False, update) == hostname
             assert dns.call_args.args[1] == hostname
 
-        for caddyfile in [None, RELEASED_ROOT_CADDYFILE]:
-            if caddyfile:
-                (server / "dallinger/root.d/dlgr-abcd1234").unlink()
-                (server / "dallinger/Caddyfile").chmod(0o644)
-                (server / "dallinger/Caddyfile").write_text(caddyfile)
-            with pytest.raises(
-                click.BadParameter, match="--update --app dlgr-abcd1234"
-            ):
-                preflight("lab", "dlgr-abcd1234", None, None, False, False)
+        with pytest.raises(click.BadParameter, match="--update --app dlgr-abcd1234"):
+            preflight("lab", "dlgr-abcd1234", None, None, False, False)
 
 
 def test_invalid_env_json_only_warns(capsys):
