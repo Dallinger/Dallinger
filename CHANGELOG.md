@@ -197,10 +197,13 @@
   describes a game's page.
 
 - A `bargaining` demo, a real-time game in which a buyer and a seller, each
-  knowing only their own value, bargain over a price against a clock. Each
-  player's bonus is paid from the session's saved outcome, and participants
-  recruited as `HighPerformanceBotBase` bots are played by the game type's
-  `bot` method.
+  knowing only their own value, bargain over a price against a clock that
+  starts once both players are there. Each player's bonus is paid from the
+  saved outcomes, and participants recruited as `HighPerformanceBotBase` bots
+  are played by the game type's `bot` method. The `rounds` setting has a pair
+  play several rounds, each started from an effect when the last one ends,
+  and `chat` lets the pair talk on `/chat`, with the experiment saving each
+  message as an `Info`. Its README walks through building the game.
 
 - A `coins` demo, a real-time game in which two to four players move around
   an arena collecting coins. Its page uses prediction for the player's own
