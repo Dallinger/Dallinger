@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+
+{% block body %}
+    <div class="main_div">
+        <h1>Instructions</h1>
+        <hr>
+        <p>You will be paired with one other player. One of you is the seller and the other the buyer, and you bargain over the price of one item.</p>
+        <p>The seller has a cost and the buyer a value, in cents. Each of you sees only your own. A deal pays the seller the price minus their cost, and the buyer their value minus the price. You can make an offer at any time, change it, or accept the other player's offer.</p>
+        {% if experiment.chat %}
+        <p>You can also chat with the other player while you bargain.</p>
+        {% endif %}
+        <p>If you haven't agreed within {{ experiment.bargaining_seconds }} seconds, neither of you earns anything.</p>
+        {% if experiment.rounds > 1 %}
+        <p>You will play {{ experiment.rounds }} rounds with the same player. Each round draws new roles, costs and values, and your bonus is what you earn in all of them.</p>
+        {% endif %}
+        <hr>
+        <div>
+            <div class="row">
+                <div class="col-12">
+                    <button type="button" id="begin" class="btn btn-success btn-lg">Begin</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        $('#begin').on('click', join_pair);
+    </script>
+{% endblock %}
