@@ -86,7 +86,7 @@ def test_worker_that_never_registers_exits_after_startup_timeout(tmp_path):
 def test_development_server_worker_uses_the_console_format(tmp_path, monkeypatch):
     monkeypatch.setenv("DALLINGER_DEV_ROLE", "worker")
     result = run_worker(
-        tmp_path, "time.sleep(30)", extra_config="loglevel_worker = 0\n"
+        tmp_path, startup_timeout="60", extra_config="loglevel_worker = 0\n"
     )
     assert re.search(
         r"^\d\d:\d\d:\d\d worker Worker will exit if", result.stderr, re.MULTILINE
