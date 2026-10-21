@@ -265,9 +265,9 @@ Joins, Leaves and Bots
 opens the game's page, and
 :meth:`~dallinger.realtime.RealtimeGame.on_leave` when they close it. A
 player who reloads the page leaves and joins again. A bot has no page, so it
-joins as the session starts, before its first move, and never leaves. By default the game
-carries on without a player who has left, and a game type can override
-``on_leave`` to pause or end the game.
+joins as the session starts, before its first move, and never leaves. By
+default the game carries on without a player who has left, and a game type can
+override ``on_leave`` to pause or end the game.
 
 A bot is a player Dallinger plays for. Its moves come from the game type's
 :meth:`~dallinger.realtime.RealtimeGame.bot` method, which is given the
@@ -375,13 +375,13 @@ without opening a browser, and their ``recruiter_id`` starts with
         SealedBid, [p.id for p in players], bots=bots
     )
 
-A ``HighPerformanceBotBase`` bot signs off when its ``participate`` method
-returns, and the experiment is complete once every participant has signed off,
-so a bot that the game type plays for waits for its game to end first, with
-:meth:`~dallinger.bots.HighPerformanceBotBase.wait_for_realtime_sessions`.
-It reads the sessions from the experiment's database, so it works for bots the
-bots recruiter runs on the experiment's workers, as under
-``dallinger debug --bot``::
+A bot that the game type plays for has nothing left to do once it has joined,
+so its ``participate`` method returns and the bot signs off. The game is still
+played to its end, since the experiment isn't complete while any of its
+sessions is running. The bot has signed off before its games end, though, so
+the experiment's :meth:`~dallinger.experiment.Experiment.bonus` and
+:meth:`~dallinger.experiment.Experiment.data_check` run for it without their
+outcomes::
 
     import requests
 
@@ -392,8 +392,10 @@ bots recruiter runs on the experiment's workers, as under
         def participate(self):
             # Creating the bot's node puts it in a network, as createAgent
             # does for a page
-            requests.post("{}/node/{}".format(self.host, self.participant_id))
-            self.wait_for_realtime_sessions(SealedBid)
+            url = "{}/node/{}".format(self.host, self.participant_id)
+            result = requests.post(url)
+            if not result.ok:
+                self.log("Couldn't join: {}".format(result.text))
 
 A bot that plays the game itself, from outside the experiment's processes,
 is an ordinary player and isn't listed in ``bots``. One that drives a browser,
@@ -401,8 +403,7 @@ such as one built on ``BotBase``, opens the game's page as a person would and
 makes its moves on the page. One that talks to the experiment over HTTP and
 WebSockets, such as one started with ``dallinger bot``, uses the web API and
 the session's socket the way the game's page does, and finds out the game is
-over from the session's ending, as the page does, rather than waiting with
-``wait_for_realtime_sessions``.
+over from the session's ending, as the page does.
 
 How each player's page joins the session is described in the section on game
 pages below.
@@ -439,6 +440,12 @@ reason, such as :data:`~dallinger.realtime.game.FINISHED`, so a game can score
 one that was cut short. It sends each player a final view, saves the ending to
 Postgres a moment later, and then tells each player's page that the ending is
 saved, so the page can wait for that before it's submitted.
+
+The experiment isn't complete while any of its sessions is running, even once
+every participant has signed off. A participant who plays several sessions one
+after another needs the next one created before the last one's ending is
+saved, for example from the last one's ``handle_effect``, or the experiment
+can be complete in between.
 
 Reading the Outcome
 ~~~~~~~~~~~~~~~~~~~

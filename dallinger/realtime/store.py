@@ -512,6 +512,45 @@ def running_sessions():
     return sorted(int(session_id) for session_id in redis_conn.smembers(RUNNING))
 
 
+def sessions_still_running():
+    """Return whether any session is still being played, or its ending is
+    still being saved, so the experiment isn't complete yet.
+
+    A session whose row says ``running`` but whose keys are gone from redis,
+    as after redis lost its data, can never end. It's marked failed and
+    logged instead, so it doesn't hold the experiment open.
+    """
+    ids = [
+        row.id
+        for row in db.session.query(RealtimeSession.id).filter_by(status="running")
+    ]
+    if not ids:
+        return False
+    with redis_conn.pipeline(transaction=False) as pipe:
+        for session_id in ids:
+            pipe.exists(session_key(session_id, "state"))
+        present = pipe.execute()
+    orphans = [session_id for session_id, found in zip(ids, present) if not found]
+    if orphans:
+        logger.warning(
+            "Marking real-time sessions %s failed: they're running in Postgres "
+            "but gone from redis.",
+            orphans,
+        )
+        with db.session_factory() as own:
+            own.query(RealtimeSession).filter(
+                RealtimeSession.id.in_(orphans), RealtimeSession.status == "running"
+            ).update(
+                {
+                    "status": "failed",
+                    "error": "The session's keys were gone from redis.",
+                },
+                synchronize_session=False,
+            )
+            own.commit()
+    return len(orphans) < len(ids)
+
+
 def load_session(session_id):
     """Return a session's ``game`` channel, ``saved`` session, stream
     ``position``, which is ``None`` before any entry is applied, and the

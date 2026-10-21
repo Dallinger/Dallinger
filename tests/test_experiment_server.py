@@ -1194,6 +1194,22 @@ class TestSummaryRoute:
             "unfilled_networks": 1,
         }
 
+    def test_summary_isnt_complete_while_a_realtime_session_runs(
+        self, webapp, active_config, monkeypatch
+    ):
+        from dallinger import experiment
+        from dallinger.realtime import store
+
+        active_config.register_extra_parameters()
+        active_config.extend({"_is_completed": True})
+        monkeypatch.setattr(experiment.load(), "realtime_games", ["a game type"])
+        running = mock.Mock(return_value=True)
+        monkeypatch.setattr(store, "sessions_still_running", running)
+
+        assert json.loads(webapp.get("/summary").data)["completed"] is False
+        running.return_value = False
+        assert json.loads(webapp.get("/summary").data)["completed"] is True
+
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
