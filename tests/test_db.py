@@ -256,8 +256,20 @@ def test_create_db_engine_arguments_override_the_environment(monkeypatch):
         engine.dispose()
 
 
-def test_create_db_engine_rejects_invalid_arguments():
+@pytest.mark.parametrize(
+    "argument, value, message",
+    [
+        ("pool_size", 0, "pool_size must be an integer of at least 1, not 0."),
+        (
+            "max_overflow",
+            -5,
+            r"max_overflow must be an integer of at least -1 \(no limit\), not -5.",
+        ),
+        ("pool_timeout", 0, "pool_timeout must be a number greater than 0, not 0."),
+    ],
+)
+def test_create_db_engine_rejects_invalid_arguments(argument, value, message):
     from dallinger.db import create_db_engine, db_url
 
-    with pytest.raises(ValueError, match="pool_size"):
-        create_db_engine(db_url, pool_size=0)
+    with pytest.raises(ValueError, match=message):
+        create_db_engine(db_url, **{argument: value})
