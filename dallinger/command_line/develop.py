@@ -1,14 +1,19 @@
+import contextlib
+import os
+import signal
 import subprocess
 import threading
 import time
 from urllib.parse import urlparse, urlunparse
 
 import click
+from redis.exceptions import RedisError
 from rq import Queue
+from rq.exceptions import InvalidJobOperation
+from rq.job import Job, JobStatus
 
 from dallinger.command_line.utils import (
     Output,
-    error,
     get_experiment_files,
     header,
     log,
@@ -16,9 +21,14 @@ from dallinger.command_line.utils import (
 )
 from dallinger.config import get_config
 from dallinger.db import redis_conn
-from dallinger.deployment import DevelopmentDeployment, handle_launch_data
+from dallinger.deployment import (
+    DevelopmentDeployment,
+    handle_launch_data,
+    stop_signals_raise_keyboard_interrupt,
+)
 from dallinger.utils import (
     develop_target_path,
+    ignore_stop_signals,
     open_browser,
     setup_warning_hooks,
 )
@@ -93,13 +103,86 @@ def debug(port, skip_flask, no_browsers=False):
         job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
 
     if not skip_flask:
-        config = get_config()
-        develop_dir = develop_target_path(config)
         try:
-            subprocess.check_call(["./run.sh"], cwd=develop_dir)
-        except subprocess.CalledProcessError as ex:
+            develop_dir = develop_target_path(get_config())
+            _run_dev_server(["./run.sh"], develop_dir)
+        finally:
+            _cancel_pending_job(job)
+
+
+def _cancel_pending_job(job):
+    """Cancel ``job`` if it hasn't started, so it can't run in a later session."""
+    pending = (JobStatus.QUEUED, JobStatus.DEFERRED, JobStatus.SCHEDULED)
+    try:
+        # A finished job's record expires, and then get_status() raises.
+        if Job.exists(job.id, job.connection) and job.get_status() in pending:
             job.cancel()
-            error("Failed to run flask: {} See traceback above for details.".format(ex))
+    except (InvalidJobOperation, RedisError) as ex:
+        log(f"Could not cancel the launch job: {ex}")
+
+
+def _run_dev_server(cmd, cwd, stop_timeout=5):
+    """Run the local server until it exits or this process is interrupted.
+
+    The server runs in its own session, so Ctrl-C reaches only this process,
+    which then stops the server's whole process group. SIGTERM and SIGHUP
+    are treated like Ctrl-C. A SIGKILL to this process can't be passed on,
+    so it leaves the server running.
+
+    Parameters
+    ----------
+    cmd : list of str
+        Command that starts the server.
+    cwd : str
+        Directory to run ``cmd`` in.
+    stop_timeout : float
+        Seconds to wait after SIGTERM before killing the server's processes.
+
+    Raises
+    ------
+    click.ClickException
+        If the server fails of its own accord.
+    """
+    interrupted = False
+    with stop_signals_raise_keyboard_interrupt():
+        proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True)
+        try:
+            code = proc.wait()
+        except KeyboardInterrupt:
+            interrupted = True
+            log("Stopping the local server...")
+        finally:
+            _stop_process_group(proc, stop_timeout)
+    if interrupted:
+        log("Local server stopped.")
+    elif code < 0:
+        raise click.ClickException(
+            f"The local server was killed by signal {-code}; see its output above."
+        )
+    elif code:
+        raise click.ClickException(
+            f"The local server exited with status {code}; see its output above."
+        )
+
+
+def _stop_process_group(proc, timeout=5):
+    """Stop the process group led by ``proc`` and reap ``proc``.
+
+    Sends SIGTERM to the group, then SIGKILL to any member still alive after
+    ``timeout`` seconds. In the main thread, Ctrl-C, SIGTERM and SIGHUP are
+    ignored meanwhile, so repeating them can't cut the cleanup short.
+    """
+    with ignore_stop_signals():
+        # macOS reports EPERM for a group that only has zombies left.
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(proc.pid, signal.SIGTERM)
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                proc.poll()
+                os.killpg(proc.pid, 0)
+                time.sleep(0.1)
+            os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
 
 
 @develop.command()

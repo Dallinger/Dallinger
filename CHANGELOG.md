@@ -2,13 +2,58 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Local debugging (`dallinger debug`, `LoaderDeployment`, and the
+  `pytest_dallinger` debug fixtures) now starts the Procfile processes with
+  [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,
+  so it no longer needs the Heroku CLI. `honcho` is a new Dallinger
+  dependency. honcho and the Procfile commands run from the current Python
+  environment, so this also works when the virtualenv is not activated. The
+  web process still runs gunicorn with the configured number of workers.
+- Stopping the local server now waits for the Procfile processes to exit and
+  kills any that remain. Previously `heroku local` exited straight away and
+  left gunicorn processes running. Pressing Ctrl+C during startup, or
+  sending SIGTERM or SIGHUP (e.g. `kill <pid>`, an IDE stop button, or
+  closing the terminal) to a local debug session, now also stops these
+  processes. Repeating Ctrl+C or one of these signals while the processes
+  are stopping no longer cuts the cleanup short.
+- `dallinger develop debug` (used by `psynet debug local`) now runs the
+  Flask server in its own process group and stops that whole group when
+  interrupted. Ctrl+C prints "Local server stopped." instead of several
+  tracebacks, and SIGTERM or SIGHUP also stops the server, worker and clock.
+  If the server exits with an error, for example because the port is in
+  use, the command now exits with a non-zero status instead of 0. A launch
+  job that hasn't run yet is cancelled when the server stops, so it no
+  longer runs in the next session.
+- Migration notes for code that builds on local debugging:
+  - The wrapper class is now `LocalProcfileWrapper`. `HerokuLocalWrapper`
+    remains as an alias.
+  - Its `shell_command` attribute is now a sequence of arguments
+    (`(sys.executable, "-m", "honcho")`) instead of a string.
+  - Log messages say "local server" instead of "local Heroku". For example,
+    "Local server processes terminated." replaces "Local Heroku process
+    terminated.", and "Starting up the local server..." replaces
+    "Starting up the Heroku Local server...". Docker debugging now says
+    "Starting up the Docker server..." and "Monitoring the Docker server...".
+    Update any scripts that wait for the old text.
+  - The Procfile processes run with `PYTHONUNBUFFERED=1`.
+
 ### Added
 
+- Added `dallinger.command_line.docker_ssh.check_deploy_credentials(server,
+  ingress, config_options)`, which runs the docker-ssh deploy's Cloudflare
+  API token check on its own and returns the token. Tools that wrap
+  `docker-ssh deploy`, such as PsyNet, can call it before their own
+  preparation so a missing token stops them before they change anything.
+  Dallinger reads each Keychain item at most once per process, so such a
+  check followed by the deploy doesn't ask the Keychain twice.
 - Added the `cloudflare_keychain_service` config key, which names the macOS
   Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
   deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
   already store the token under another name don't have to copy it. A
-  configured item is found whatever Keychain account it was saved under.
+  configured item is found whatever Keychain account it was saved under,
+  and Keychain errors name the item.
 - Worker processes that hang during start-up now exit after
   `worker_startup_timeout` seconds (default 120; 0 disables) if they
   haven't registered with the job queue, printing what each greenlet was
@@ -123,7 +168,8 @@
   ``<app>_web`` on the shared network now names the front door; web and
   workers also wait for pgbouncer's health check. Waking treats an older
   experiment image without ``/health`` as ready once web answers. Deploy
-  also chowns the front door's state directory.
+  also chowns the front door's state directory. Hibernation gives
+  PostgreSQL 60 seconds to stop and other containers 30.
 - docker-ssh disk cleanup prunes only stopped containers outside Compose
   projects, and the host Caddy image is pinned to ``caddy:2.10.2``.
 - docker-ssh experiment containers built from now on run as the SSH user
@@ -188,7 +234,8 @@
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
   servers registered by IP address (with or without a port) only match their
-  full address. Python
+  full address. Servers registered as ``host:port`` match too, such as
+  ``pc04`` for ``pc04:2200``. Python
   callers of ``get_apps``, ``select_running_app``, ``awaken_app``,
   ``ensure_root_domain_ready`` and the ``destroy`` and ``set-dozzle-password``
   command callbacks can pass short names too. ``--help`` no longer
@@ -269,7 +316,8 @@
   such as a bot runner, can set a bounded pool; its requests then wait up to
   ``DATABASE_POOL_TIMEOUT`` for a free connection. An invalid value, including
   a pool size below 1, makes every ``dallinger`` command fail with an error
-  that names the variable. ``create_db_engine`` also accepts ``pool_size``,
+  that names the variable and its smallest allowed value, for example
+  ``at least -1 (no limit)``. ``create_db_engine`` also accepts ``pool_size``,
   ``max_overflow`` and ``pool_timeout`` arguments, which override the
   variables and are checked the same way. Experiment replay
   (``restore_state_from_replay``) now uses the same pool settings, checks
@@ -291,9 +339,6 @@
   because they check the app's ``/health``, which Dallinger 12.4.0 and older
   lack. Rebuild older images before deploying them. The web image also needs
   ``curl`` (the Dallinger and PsyNet images have it).
-- docker-ssh apps no longer fail under load with ``no more connections
-  allowed (max_client_conn)``: their pgbouncer now accepts up to 10,000
-  client connections instead of 100.
 - docker-ssh apps with their own Postgres (Cloudflare ingress) now let
   pgbouncer keep up to 80 Postgres connections instead of 20, so requests no
   longer queue at about 200 participants. On a 16-thread server, p95 response
@@ -304,10 +349,6 @@
   to 1,000, so idle connections no longer pile up after heavy load and use up
   the database's or pgbouncer's client limit. Busy processes still open as
   many connections as they need.
-- After a docker-ssh app's pgbouncer or Postgres container restarts, requests
-  no longer fail with ``server closed the connection unexpectedly``; dropped
-  idle connections are replaced when next used. Requests in flight during the
-  restart can still fail.
 - Classic-ingress docker-ssh deploys to a server whose SSH host resolves only
   to private IP addresses now stop before building the image and suggest
   ``--ingress cloudflare``, because Let's Encrypt cannot issue certificates
@@ -316,8 +357,9 @@
   public DNS name points at a public IP that forwards ports 80 and 443 to it,
   pass ``--allow-private-ip``: the deploy then only checks that the
   experiment hostname resolves, not that it matches the SSH host's address.
-- ``dallinger debug`` now keeps a ``FLASK_SECRET_KEY`` that is already set in
-  the environment, and generates a random one only when it is unset or empty.
+- ``dallinger debug`` and ``dallinger docker debug`` now keep a
+  ``FLASK_SECRET_KEY`` that is already set in the environment, and generate a
+  random one only when it is unset or empty.
   Tools that restart the local server can set the key themselves so that
   dashboard logins stay valid across restarts.
 - Dallinger's Docker PostgreSQL containers (docker-ssh, ``docker debug`` and
@@ -355,6 +397,57 @@
   `recruiter = multi` their questionnaire submission failed with
   `NotImplementedError` from `MultiRecruiter.on_task_completion`.
 
+- A docker-ssh Cloudflare deploy that can't find the Cloudflare API token now
+  stops before it connects to the server, builds the image there or removes
+  the app's Redis and Postgres volumes. It fails with an `Error:` line that
+  says how to provide the token (`CLOUDFLARE_API_TOKEN`, `cloudflare_api_token`
+  in the config or via `-c`, including `-c cloudflare_api_token file:<path>`,
+  or a Keychain item, with a `security add-generic-password` command that
+  stores it where the lookup finds it) instead of ending with a bare
+  "Aborted!". The Keychain error includes the reason `security` gave, and a
+  `-c` option such as `-c cloudflare_api_token file:<path>` pointing at a
+  missing file fails with `Error: Could not read <path>: …` instead of a
+  traceback. A classic-ingress deploy to a
+  private-network server, or one without a valid `contact_email_on_error`,
+  also fails with an `Error:` line. Previously these reasons went to stdout
+  and, when output was piped, could appear after "Aborted!".
+- A root-domain docker-ssh deploy to a server that still has other
+  classic-ingress experiments now fails without a terminal with an `Error:` line
+  that lists those experiments and the `docker-ssh destroy` commands to run
+  first, instead of a bare "Aborted!" from the confirmation prompt. They are
+  never destroyed automatically without a terminal, so a piped answer such as
+  `yes | dallinger docker-ssh deploy` is refused too; in a terminal, the
+  deploy still offers to destroy them.
+- ``dallinger debug`` counts an HTTP error from ``/summary`` as a failed
+  status check.
+- ``restore_state_from_replay`` closes its import database connections when
+  it fails.
+- docker-ssh apps no longer fail under load with ``no more connections
+  allowed (max_client_conn)``: their pgbouncer now accepts up to 10,000
+  client connections instead of 100.
+- After a docker-ssh app's pgbouncer or Postgres container restarts, requests
+  no longer fail with ``server closed the connection unexpectedly``; dropped
+  idle connections are replaced when next used. Requests in flight during the
+  restart can still fail.
+- Building the Docker image for an experiment with its own `Dockerfile` no
+  longer prints "Could not determine Dallinger version. Using latest". That
+  message is about the Dallinger base image, which is only used when the
+  experiment has no `Dockerfile`. Such builds also no longer print the
+  message about prerelease Dallinger pins, and no longer read
+  `requirements.txt` to choose a base image, so a broken `-r` include there
+  is now left to the experiment's own `Dockerfile` to report.
+- Redis calls no longer fail with ``MaxConnectionsError`` once a process has
+  100 connections in use, redis-py's default limit since 8.0. Under load,
+  for example many participants waiting on their own websocket channel,
+  ``connect_to_redis()`` now waits up to 20 seconds for a free connection in
+  a pool of 1,000. Websocket channel subscriptions use a separate pool, so
+  many open channels no longer hold up publishing, job queueing and other
+  Redis calls in the same process. A message published to a websocket
+  channel that is not valid UTF-8 (for example by another Redis client) is
+  dropped with a warning instead of ending its channel's listener
+  and leaving the channel's clients without messages, and an error while
+  closing a channel's pubsub is logged instead of keeping the stopped channel
+  registered.
 - `dallinger debug` no longer prints "Error fetching experiment status" while
   the server shuts down or after a single failed request. Once recruitment
   closes, it reports an error only after three failed status checks in a row,
@@ -367,9 +460,12 @@
 - docker-ssh deploys no longer fail to launch when a new Cloudflare tunnel
   takes several minutes to register. After checking the app's ``/health``
   from inside the server, the deploy waits up to 7 minutes for the public
-  ``/health`` to answer 2xx, so recruitment does not open while participants
-  would see an error page. It then launches from inside the server with
-  ``curl`` in the web container, so the app still records its public URL. If
+  ``/health`` to answer 2xx for an awake app, so recruitment does not open
+  while participants would see an error page. If the public ``/health``
+  reports a hibernating app twice in a row, the wait stops and the deploy
+  prints the ``docker-ssh awaken`` command to run. It then launches from
+  inside the server with ``curl`` in the web container, waiting up to 15
+  minutes for ``/launch``, so the app still records its public URL. If
   the URL does not answer 2xx in time, or redirects twice in a row (a login
   such as Cloudflare Access, which waiting does not remove), nothing is
   launched and the deploy prints how to check it, launch by hand and destroy

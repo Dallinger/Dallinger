@@ -6,4 +6,4 @@ export FLASK_DEBUG=1
 # See somewhat indirect reference:
 # https://github.com/miguelgrinberg/Flask-SocketIO/issues/901
 
-flask run ${FLASK_OPTIONS} "$@"
+exec flask run ${FLASK_OPTIONS} "$@"
