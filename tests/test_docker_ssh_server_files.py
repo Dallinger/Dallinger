@@ -268,7 +268,7 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
 
     assert checksums(server) == before
     # The preflight refuses --app of an app on the server's host unless updating.
-    assert preflight.call_args.args[-1] is update
+    assert preflight.call_args.args[5] is update
     # Only a new app that takes the server's own host replaces its other apps.
     assert mocks["ensure_root_domain_ready"].called == (
         hostname == "lab.example.org" and not app_name
@@ -731,11 +731,22 @@ def test_existing_app_commands_accept_generated_names(server, monkeypatch):
     assert not app_dir.exists()
 
 
-def test_app_on_the_servers_host_is_updated_there_and_not_redeployed(server):
-    CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
-    (server / "dallinger/root.d/dlgr-abcd1234").write_text("reverse_proxy x\n")
+def test_app_on_the_servers_host_is_updated_there_and_not_redeployed(server, capsys):
+    (server / "dallinger/Caddyfile").write_text(RELEASED_ROOT_CADDYFILE)
+    (server / "dallinger/dlgr-abcd1234").mkdir()
+    (server / "dallinger/dlgr-abcd1234/docker-compose.yml").write_text("")
 
     with mock.patch.object(docker_ssh, "_check_experiment_hostname_dns") as dns:
+        # Released Dallinger's layout needs `servers upgrade` first.
+        with pytest.raises(click.Abort):
+            docker_ssh._classic_preflight("lab", "dlgr-abcd1234", None, None, False)
+        assert "servers upgrade --host lab" in capsys.readouterr().out
+        assert dns.call_args.args[1] == "lab.example.org"
+
+        CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
+        assert (server / "dallinger/root.d/dlgr-abcd1234").exists()
+        # A leftover route without an app is left to the app-name check.
+        (server / "dallinger/root.d/dlgr-0000ffff").write_text("reverse_proxy x\n")
         for app, dns_host, update, hostname in [
             ("dlgr-abcd1234", None, True, "lab.example.org"),
             ("dlgr-abcd1234", "other.example.org", True, "lab.example.org"),

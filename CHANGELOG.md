@@ -257,9 +257,10 @@
   takes priority. A classic `docker-ssh deploy` or `sandbox` without
   `--update` whose `--app` names an existing app on the server's own host
   (such as `dlgr-…`, the name Dallinger generates for an app deployed without
-  `--app`) now stops before the build and suggests `--update --app <app>`,
-  instead of failing later on the DNS check for `<app>.<host>` or the
-  existing app. `--update --app dlgr-…` updates such an app in place, and its
+  `--app`) now stops before the build and suggests `--update --app <app>`
+  (or, on a server that needs it, `servers upgrade` first), instead of
+  failing later on the DNS check for `<app>.<host>` or the existing app.
+  `--update --app dlgr-…` updates such an app in place, and its
   DNS check before the build now checks the server's own host. New `dlgr-…`
   names still deploy to a subdomain, and `destroy`, `export`, `hibernate` and
   `awaken` accept these names.

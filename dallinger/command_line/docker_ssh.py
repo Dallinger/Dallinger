@@ -1005,7 +1005,8 @@ def resolve_server_option(ctx, param, value):
 option_app_name = click.option(
     "--app",
     "app_name",
-    help="Name to use for the app. If not provided a random one will be generated",
+    help="Name to use for the app. If not provided a random one will be generated. "
+    "To redeploy an app on the server's own host, pass its name with --update.",
 )
 option_archive = click.option(
     "--archive",
@@ -1265,7 +1266,9 @@ def _served_at_server_host(executor, app):
     """Return whether classic ingress serves the existing ``app`` at the server's own host."""
     return bool(
         executor.run(
-            f"d=~/dallinger; app={quote(app)}; if {_ROOT_ROUTE_TEST}; then echo yes; fi",
+            f"d=~/dallinger; app={quote(app)}; "
+            f'if [ -f "$d/$app/docker-compose.yml" ] && {{ {_ROOT_ROUTE_TEST}; }}; '
+            "then echo yes; fi",
             raise_=False,
         )
     )
