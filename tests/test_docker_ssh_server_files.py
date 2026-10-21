@@ -751,6 +751,7 @@ def test_app_on_the_servers_host_is_updated_there_and_not_redeployed(server, cap
             ("dlgr-abcd1234", None, True, "lab.example.org"),
             ("dlgr-abcd1234", "other.example.org", True, "lab.example.org"),
             ("dlgr-0000ffff", None, False, "dlgr-0000ffff.lab.example.org"),
+            ("dlgr-deadbeef", None, False, "dlgr-deadbeef.lab.example.org"),
         ]:
             preflight = docker_ssh._classic_preflight
             assert preflight("lab", app, None, dns_host, False, update) == hostname

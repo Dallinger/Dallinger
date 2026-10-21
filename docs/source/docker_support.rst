@@ -185,10 +185,10 @@ deploy's ``--dns-host``. ``apps`` lists it under that name, which
 ``destroy``, ``export``, ``hibernate`` and ``awaken`` accept with ``--app``.
 To update an app on the server's own host in place, run the deploy with
 ``--update --app dlgr-d5543ddd``. Without ``--update``, a deploy whose
-``--app`` names an app on the server's own host is refused, because ``--app``
-would move it to a subdomain. A new ``--app`` name starting with ``dlgr-``
-deploys to a subdomain like any other name; leave out ``--app`` to deploy a
-new app to the server's own host.
+``--app`` names an app already deployed on the server's own host is
+refused, because ``--app`` would move it to a subdomain. A new ``--app``
+name starting with ``dlgr-`` deploys to a subdomain like any other name;
+leave out ``--app`` to deploy a new app to the server's own host.
 
 The app's database password lives in ``~/dallinger/<app>/.env`` (mode
 ``0600``), which Compose reads, so ``docker-compose.yml`` no longer holds it.

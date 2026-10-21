@@ -1316,6 +1316,7 @@ def test_awaken_skips_an_app_that_is_already_awake(monkeypatch):
 def test_get_apps_reports_hibernation_from_markers():
     executor = FakeExecutor(
         {
+            "for app in ": "",
             "caddy.d": "alpha\nbeta\n",
             "state/hibernating": "/home/test/dallinger/alpha/state/hibernating\n",
         }

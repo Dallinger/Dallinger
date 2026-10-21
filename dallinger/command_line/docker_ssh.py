@@ -1018,7 +1018,8 @@ option_archive = click.option(
 option_config = click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 option_dns_host = click.option(
     "--dns-host",
-    help="Classic Caddy DNS name for this app's site (<app>.<dns-host> with --app). "
+    help="Classic Caddy DNS name for this app's site (<app>.<dns-host> with --app, "
+    "except for --update of an app on the server's own host). "
     "Must resolve all its subdomains to the IP address specified as ssh host. "
     "Defaults to the server's DNS host. The server's own sites, including the "
     "log viewer, use its saved DNS host, or this one on a server registered by "
@@ -1425,10 +1426,11 @@ def _classic_preflight(
     server_info = CONFIGURED_HOSTS[server]
     _server_tls(server_info, experiment=True)
     executor = _build_executor(server_info)
-    hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
     on_server_host = app_name and _served_at_server_host(executor, app_name)
     if on_server_host:
         hostname = _server_host(server_info, dns_host)
+    else:
+        hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
     _check_experiment_hostname_dns(
         split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
     )
