@@ -299,6 +299,7 @@ def test_deploy_launches_once_the_public_url_answers(deploy_dir, capsys):
 
         assert docker_ssh._record_then_launch(executor, TARGET, ["n"], "pw", True) == {}
         assert events == ["health", "check", "launch"]
+        assert "Not launching again" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("show_summary", [True, False])
