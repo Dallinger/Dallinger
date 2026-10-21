@@ -489,6 +489,7 @@ class TestDevelopCommand:
             "(user admin, password pw)",
         ]
         assert out[3].startswith("Full log: ") and out[3].endswith("logs.jsonl")
+        assert out[4] == "Press Ctrl+C to stop."
         open_browser.assert_not_called()
 
     def test_debug_verbose_shows_full_server_output(self, develop):

@@ -156,9 +156,23 @@ def test_werkzeug_access_records_are_hidden(caplog):
     assert console_lines(caplog.records) == []
 
 
-def test_development_role_is_only_used_when_set(monkeypatch):
+def test_development_role_sets_up_the_console(monkeypatch, capsys):
     monkeypatch.delenv("DALLINGER_DEV_ROLE", raising=False)
     assert configure_from_environment() is False
+
+    root = logging.getLogger()
+    handlers, level = root.handlers[:], root.level
+    monkeypatch.setenv("DALLINGER_DEV_ROLE", "clock")
+    try:
+        assert configure_from_environment(logging.WARNING) is True
+        logging.getLogger("dallinger.test").info("hidden")
+        logging.getLogger("dallinger.test").warning("job overran")
+    finally:
+        root.handlers[:] = handlers
+        root.setLevel(level)
+    err = capsys.readouterr().err
+    assert re.search(r"^\d\d:\d\d:\d\d clock  WARNING job overran$", err, re.M)
+    assert "hidden" not in err
 
 
 def wsgi_app(environ, start_response):

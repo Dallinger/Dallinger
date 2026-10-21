@@ -49,15 +49,21 @@
   - The `❯❯ Experiment UID: …` line (also printed by
     `dallinger develop bootstrap`) is no longer printed. The ID is still
     written to the develop directory's `config.txt` (`id`).
+- The worker's "Worker will exit if it hasn't registered with RQ within …"
+  start-up notice is now logged at DEBUG instead of WARNING, so it only
+  appears with `loglevel_worker = 0`. The message printed when the worker
+  does exit for this reason is unchanged.
 - `dallinger develop debug` (used by `psynet debug local`) prints its server
   output in one format for the web, worker and clock processes, for example
   `13:35:51 web    Experiment launch complete!`. The level is only shown
   for warnings and errors. Output redirected to a file or pipe has the same
-  text without colour. Routine lines are hidden from the console, but
-  `logs.jsonl` in the develop directory still records them:
-  - Flask's and werkzeug's start-up banner and debugger lines become one
-    line, such as `Development server on http://127.0.0.1:5000 (auto-reload
-    on, debugger PIN 123-456-789)`. Unless `WERKZEUG_DEBUG_PIN` is set, the
+  text without colour. Routine lines are hidden from the console; the web
+  process's routine lines, such as werkzeug's, are still recorded in
+  `logs.jsonl` in the develop directory:
+  - Werkzeug's start-up banner and debugger lines become one line, such as
+    `Development server on http://127.0.0.1:5000 (auto-reload on, debugger
+    PIN 123-456-789)`, and Flask's "Serving Flask app" and "Debug mode"
+    lines are no longer printed. Unless `WERKZEUG_DEBUG_PIN` is set, the
     PIN is chosen at random for each session, so it no longer changes when
     the server reloads. A code change prints `Reloading: experiment.py
     changed`.
@@ -83,10 +89,6 @@
     everything again, including werkzeug's line for every request.
 
   Deployed experiments and `dallinger debug` are unchanged.
-- The worker's "Worker will exit if it hasn't registered with RQ within …"
-  start-up notice is now logged at DEBUG instead of WARNING, so it only
-  appears with `loglevel_worker = 0`. The message printed when the worker
-  does exit for this reason is unchanged.
 
 ### Added
 
@@ -190,8 +192,8 @@
 - Added a Cursor `/release` command and release skill for cutting
   Dallinger releases to PyPI and ghcr.
 - Added `--no-browsers` to `dallinger develop debug`. Instead of opening the
-  dashboard and participant browsers, it logs the recruitment message, the
-  dashboard URL and the dashboard login, like `dallinger debug --no-browsers`.
+  dashboard and participant browsers, it prints the recruitment message, the
+  dashboard URL and the dashboard login when the server is ready.
 - docker-ssh apps can hibernate automatically after a quiet period when
   ``docker_ssh_idle_hibernate`` is set (``docker_ssh_idle_hibernate_minutes``,
   default 60). ``/health`` probes do not count as traffic. With idle sleep
