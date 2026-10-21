@@ -58,28 +58,21 @@ class TestImageUsableFromRegistry:
         assert "Could not find image img:1" in capsys.readouterr().out
 
 
-def test_deploy_failure_is_not_reported_as_a_registry_error(monkeypatch, capsys):
-    """A command that aborts must not be retried as though the registry failed."""
-    deployed_with = []
-
-    @docker_ssh_module.build_and_push_image
-    def deploy(**kwargs):
-        deployed_with.append(kwargs["image_name"])
-        raise click.Abort()
-
-    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
-    monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
-    monkeypatch.setattr(
-        docker_ssh_module,
-        "get_config",
-        lambda load=False: {"docker_image_name": "img:1"},
-    )
+def test_registry_image_is_deployed_without_building(monkeypatch):
+    setup = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "setup_experiment", setup)
     monkeypatch.setattr(
         docker, "from_env", lambda **kwargs: _client(registry_data=mock.Mock())
     )
 
-    with pytest.raises(click.Abort):
-        deploy(app_name="app", server="server", local_build=True)
+    image_name = docker_ssh_module._build_and_push_image(
+        {"docker_image_name": "img:1"},
+        [],
+        "app",
+        "server",
+        local_build=True,
+        push_build=False,
+    )
 
-    assert deployed_with == ["img:1"]
-    assert "Error checking remote image" not in capsys.readouterr().out
+    assert image_name == "img:1"
+    setup.assert_not_called()
