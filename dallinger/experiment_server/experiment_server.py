@@ -29,6 +29,7 @@ from sqlalchemy.sql.expression import true
 from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
+from dallinger.realtime import store
 from dallinger.utils import (
     attach_json_logger,
     generate_random_id,
@@ -751,6 +752,10 @@ def summary():
 
     if state["completed"] is None:
         state["completed"] = False
+    # Bots that a game type plays for sign off once they've joined, so an
+    # experiment whose participants have all signed off can still be playing
+    if state["completed"] and exp.realtime_games:
+        state["completed"] = not store.sessions_still_running()
 
     # Regenerate a waiting room message when checking status
     # to counter missed messages at the end of the waiting room

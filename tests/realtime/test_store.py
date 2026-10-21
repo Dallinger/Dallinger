@@ -448,6 +448,37 @@ class TestSessionsFor:
             store.realtime_sessions_for(node, TurnTally)
 
 
+class TestStillRunning:
+    def test_a_session_is_running_until_its_ending_is_saved(self):
+        assert not store.sessions_still_running()
+        session_id = create_session(TurnTally, ["1"])
+        assert store.sessions_still_running()
+
+        save_ending(session_id, {"winner": "1"})
+
+        assert not store.sessions_still_running()
+
+    def test_a_running_row_whose_keys_are_gone_is_marked_failed(self, caplog):
+        orphan = create_session(TurnTally, ["1"])
+        live = create_session(TurnTally, ["2"])
+        store.redis_conn.delete(store.session_key(orphan, "state"))
+
+        assert store.sessions_still_running()
+        store.redis_conn.delete(store.session_key(live, "state"))
+        assert not store.sessions_still_running()
+
+        db.session.remove()
+        rows = {row.id: row for row in RealtimeSession.query}
+        assert rows[orphan].status == rows[live].status == "failed"
+        assert rows[orphan].error == "The session's keys were gone from redis."
+        warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+        assert warnings == [
+            "Marking real-time sessions [{}] failed: they're running in Postgres "
+            "but gone from redis.".format(session_id)
+            for session_id in (orphan, live)
+        ]
+
+
 class TestClaims:
     def test_a_held_claim_cannot_be_taken(self):
         session_id = create_session(TurnTally, ["1"])

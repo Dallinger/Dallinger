@@ -43,10 +43,10 @@ These bots interact primarily via websockets rather than HTTP.
 
 In an experiment with real-time games, a game type's ``bot`` method can make
 the moves of a high-performance bot that the bots recruiter runs on the
-experiment's workers, and the bot waits for its game to end with
-:meth:`~HighPerformanceBotBase.wait_for_realtime_sessions`. A bot that plays
-the game itself over HTTP and WebSockets joins the session as the game's page
-does instead, as :doc:`realtime_games` describes.
+experiment's workers. Such a bot signs off once it has joined, and the
+experiment isn't complete until its games end. A bot that plays the game
+itself over HTTP and WebSockets joins the session as the game's page does
+instead, as :doc:`realtime_games` describes.
 
 API documentation
 *****************
