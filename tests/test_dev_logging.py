@@ -151,6 +151,33 @@ def test_an_experiment_that_fails_to_load_gets_a_short_500_page():
     assert "SyntaxError" in response.text
 
 
+def test_scheduler_overlap_warnings_are_collapsed(monkeypatch):
+    now = [0.0]
+    monkeypatch.setattr("dallinger.dev_logging.time.monotonic", lambda: now[0])
+    log_filter = ConsoleFilter()
+
+    def shown(
+        at,
+        msg='Execution of job "%s" skipped: maximum number of running '
+        "instances reached (%d)",
+    ):
+        now[0] = at
+        overlap = record("apscheduler.scheduler", logging.WARNING, msg, ("job", 1))
+        if not log_filter.filter(overlap):
+            return None
+        return getattr(overlap, "dallinger_console_message", overlap.getMessage())
+
+    assert shown(1) is None and shown(29) is None, "hidden while warming up"
+    assert shown(31).endswith(
+        "(2 similar scheduler warnings not shown; they are shown at most once a minute)"
+    )
+    assert shown(40, 'Run time of job "%s" was missed by %s') is None
+    assert shown(92) is not None
+    assert log_filter.filter(
+        record("apscheduler.executors.default", logging.ERROR, "Job failed")
+    )
+
+
 def test_announced_debugger_lines_are_hidden_unless_unsecured(monkeypatch):
     monkeypatch.setenv("DALLINGER_DEV_PIN_ANNOUNCED", "1")
     lines = console_lines(

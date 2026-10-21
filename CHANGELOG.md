@@ -82,6 +82,11 @@
     threshold.
   - RQ and APScheduler messages below WARNING, and the worker's "Warm shut
     down requested." messages when the server stops, are hidden.
+  - APScheduler's warnings that a job run was skipped ("maximum number of
+    running instances reached") or missed ("was missed by"), which come in
+    bursts while the clock starts up or after the computer slept, are not
+    shown in the clock's first 30 seconds, and after that at most once a
+    minute, with the number of similar warnings not shown.
   - Errors keep their full tracebacks, and text that doesn't go through
     logging (such as the debugger's traceback for a failed request) is
     printed as before.

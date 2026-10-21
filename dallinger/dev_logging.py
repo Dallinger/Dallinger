@@ -16,8 +16,11 @@ a terminal gets colour.
 
 The console hides routine records: werkzeug's start-up banner and access log
 (replaced by one announcement line and :class:`AccessLogMiddleware`, which
-only reports errors and slow requests), and RQ and APScheduler messages below
-WARNING. ``logs.jsonl`` in the develop directory still receives every record.
+only reports errors and slow requests), RQ and APScheduler messages below
+WARNING, and most of APScheduler's warnings that a job run was skipped or
+missed because the previous run or the clock was late: none in the clock's
+first 30 seconds, then at most one a minute, with a count of those hidden.
+``logs.jsonl`` in the develop directory still receives every record.
 
 If a code change stops the experiment importing, the develop directory's
 ``app.py`` serves :func:`load_error_app` and logs the error once with
@@ -69,6 +72,15 @@ _WERKZEUG_ACCESS_SUFFIX = '"%s" %s %s'
 _RUNNING_ON = re.compile(r" \* Running on (\S+://\S+)")
 _DETECTED_CHANGE = re.compile(r" \* Detected change in '(.+)', reloading")
 _DEBUGGER_PIN = re.compile(r" \* Debugger PIN: [\d-]+")
+# APScheduler warns once per job whenever a run overlaps the previous one or
+# the clock fell behind: routine while the clock warms up, or after the
+# computer slept or a debugger paused it, and a burst of lines each time.
+_SCHEDULER_OVERLAP_MESSAGES = (
+    "skipped: maximum number of running instances reached",
+    "was missed by",
+)
+_SCHEDULER_WARM_UP_SECONDS = 30
+_SCHEDULER_REPEAT_SECONDS = 60
 
 _DIM, _YELLOW, _RED, _RESET = "\x1b[2m", "\x1b[33m", "\x1b[31m", "\x1b[0m"
 
@@ -158,6 +170,9 @@ class ConsoleFilter(logging.Filter):
     def __init__(self, server_details=None):
         super().__init__()
         self.server_details = server_details
+        self._started = time.monotonic()
+        self._overlap_shown_at = None
+        self._overlaps_hidden = 0
 
     def filter(self, record):
         if full_output_requested():
@@ -167,8 +182,30 @@ class ConsoleFilter(logging.Filter):
                 return False
         elif record.name == "rq.worker" and record.msg in _WORKER_STOP_MESSAGES:
             return False
+        elif record.name.startswith("apscheduler.") and any(
+            text in str(record.msg) for text in _SCHEDULER_OVERLAP_MESSAGES
+        ):
+            return self._filter_scheduler_overlap(record)
         if record.name == "werkzeug":
             return self._filter_werkzeug(record)
+        return True
+
+    def _filter_scheduler_overlap(self, record):
+        """Hide overlap warnings while the clock warms up, then show one a minute."""
+        now = time.monotonic()
+        if now - self._started < _SCHEDULER_WARM_UP_SECONDS or (
+            self._overlap_shown_at is not None
+            and now - self._overlap_shown_at < _SCHEDULER_REPEAT_SECONDS
+        ):
+            self._overlaps_hidden += 1
+            return False
+        if self._overlaps_hidden:
+            record.dallinger_console_message = (
+                f"{record.getMessage()} ({self._overlaps_hidden} similar scheduler "
+                "warnings not shown; they are shown at most once a minute)"
+            )
+        self._overlap_shown_at = now
+        self._overlaps_hidden = 0
         return True
 
     def _filter_werkzeug(self, record):
