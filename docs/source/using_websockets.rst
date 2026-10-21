@@ -579,3 +579,43 @@ unique channel like `"participant_${participant_id}_channel"`, to which the
 experiment instance could send private messages using
 `self.publish_to_subscribers(payload, channel_name=channel)` or
 `redis_conn.publish(f"participant_${participant_id}_channel", payload)`.
+
+
+Connection Limits
+-----------------
+
+Each web process holds one Redis connection for every channel that has at
+least one client in that process, and releases it when the last client leaves.
+Channels that the experiment itself subscribes to stay open for the whole run,
+and the listener for directed sends (``dallinger_direct``) keeps running after
+its last client leaves, so each process also holds one connection for it
+alongside the experiment and control channels.
+With one channel per participant, the number of Redis connections is therefore
+about the number of participants connected at once.
+
+Channel subscriptions use their own pool of up to 1,000 Redis connections per
+web process, separate from the pool used for other Redis calls such as
+publishing and queueing jobs, so busy channels never hold up those calls.
+Once a process has 1,000 channels open, a further channel relays no messages
+until another channel closes and frees a connection; its listener keeps
+retrying in the meantime.
+
+Because an empty channel is released, a client that joins it again starts a
+new Redis subscription. Messages published to that channel before the
+subscription reaches Redis are not relayed, so don't rely on a message sent
+the instant a client connects; have the client request the current state once
+it is connected instead.
+
+The 1,000-connection limits apply to each web process separately, so all the
+web processes of an app (see ``web_processes``) together can open more
+connections than Redis accepts. Redis's own client limit, ``maxclients``,
+is shared by every process and defaults to 10,000, but Redis lowers it at
+startup when its own open-file limit is too low. Hosted Redis plans, such as
+those on Heroku, often allow far fewer clients. Run ``CONFIG GET maxclients``
+in ``redis-cli`` to check the limit of your Redis server.
+
+Each connection also uses a file descriptor in its web process, alongside the
+participant's websocket. The web container of ``dallinger docker`` and
+``dallinger docker-ssh`` deployments allows 65,536 open files per process, but
+other containers and hosts often keep a soft limit of 1,024, which caps each
+web process at about 500 participants with their own channel.
