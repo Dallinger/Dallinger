@@ -2014,9 +2014,13 @@ class TestDebugServer:
         debugger = status_debugger
         debugger.new_recruit = mock.Mock(return_value=None)
         response = mock.Mock(json=mock.Mock(return_value={"completed": True}))
-        with mock.patch("dallinger.deployment.requests.get", return_value=response):
+        with mock.patch(
+            "dallinger.deployment.requests.get", return_value=response
+        ) as get:
             debugger.notify(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX)
             debugger.status_thread.join()
+
+        assert get.call_args.kwargs["timeout"] == debugger.status_request_timeout
 
         debugger.out.log.assert_called_with("Experiment completed, all nodes filled.")
         debugger.heroku.stop.assert_called_once()
@@ -2028,7 +2032,13 @@ class TestDebugServer:
         down = requests.exceptions.ConnectionError("refused")
         done = mock.Mock(json=mock.Mock(return_value={"completed": True}))
         pending = mock.Mock(json=mock.Mock(return_value={"completed": False}))
-        responses = [down, pending, down, down, down, down, done]
+        server_error = mock.Mock(
+            json=mock.Mock(return_value={"error": "boom"}),
+            raise_for_status=mock.Mock(
+                side_effect=requests.exceptions.HTTPError("500 Server Error")
+            ),
+        )
+        responses = [down, pending, down, server_error, down, done]
         with mock.patch("dallinger.deployment.requests.get", side_effect=responses):
             debugger.check_status()
 
