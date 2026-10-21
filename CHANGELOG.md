@@ -2,6 +2,43 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Local debugging (`dallinger debug`, `LoaderDeployment`, and the
+  `pytest_dallinger` debug fixtures) now starts the Procfile processes with
+  [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,
+  so it no longer needs the Heroku CLI. `honcho` is a new Dallinger
+  dependency. honcho and the Procfile commands run from the current Python
+  environment, so this also works when the virtualenv is not activated. The
+  web process still runs gunicorn with the configured number of workers.
+- Stopping the local server now waits for the Procfile processes to exit and
+  kills any that remain. Previously `heroku local` exited straight away and
+  left gunicorn processes running. Pressing Ctrl+C during startup, or
+  sending SIGTERM or SIGHUP (e.g. `kill <pid>`, an IDE stop button, or
+  closing the terminal) to a local debug session, now also stops these
+  processes. Repeating Ctrl+C or one of these signals while the processes
+  are stopping no longer cuts the cleanup short.
+- `dallinger develop debug` (used by `psynet debug local`) now runs the
+  Flask server in its own process group and stops that whole group when
+  interrupted. Ctrl+C prints "Local server stopped." instead of several
+  tracebacks, and SIGTERM or SIGHUP also stops the server, worker and clock.
+  If the server exits with an error, for example because the port is in
+  use, the command now exits with a non-zero status instead of 0. A launch
+  job that hasn't run yet is cancelled when the server stops, so it no
+  longer runs in the next session.
+- Migration notes for code that builds on local debugging:
+  - The wrapper class is now `LocalProcfileWrapper`. `HerokuLocalWrapper`
+    remains as an alias.
+  - Its `shell_command` attribute is now a sequence of arguments
+    (`(sys.executable, "-m", "honcho")`) instead of a string.
+  - Log messages say "local server" instead of "local Heroku". For example,
+    "Local server processes terminated." replaces "Local Heroku process
+    terminated.", and "Starting up the local server..." replaces
+    "Starting up the Heroku Local server...". Docker debugging now says
+    "Starting up the Docker server..." and "Monitoring the Docker server...".
+    Update any scripts that wait for the old text.
+  - The Procfile processes run with `PYTHONUNBUFFERED=1`.
+
 ### Added
 
 - Added `dallinger.command_line.docker_ssh.check_deploy_credentials(server,
@@ -430,6 +467,12 @@
   control events added in v9.10.0 asked each subscriber for its
   `client_info()`. The bot now has `client_info()`, and a `send()` that
   receives channel messages and does nothing until a subclass overrides it.
+- A participant who signs up through `POST /participant`, as the page's
+  `dallinger.createParticipant()` does, keeps the recruiter named in their
+  ad URL. They had been given the configured recruiter, and with
+  `recruiter = multi` their questionnaire submission failed with
+  `NotImplementedError` from `MultiRecruiter.on_task_completion`.
+
 - A docker-ssh Cloudflare deploy that can't find the Cloudflare API token now
   stops before it connects to the server, builds the image there or removes
   the app's Redis and Postgres volumes. It fails with an `Error:` line that

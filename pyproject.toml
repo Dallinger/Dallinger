@@ -43,6 +43,7 @@ dependencies = [
     "gevent",
     "gunicorn[gevent]",
     "heroku3",
+    "honcho",
     "packaging",
     "paramiko>=5,<6",
     "pexpect",
