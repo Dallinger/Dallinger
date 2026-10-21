@@ -175,7 +175,6 @@
   engine. A `HighPerformanceBotBase` bot that a game type plays for calls
   `wait_for_realtime_sessions(game_type)` before signing off, so the
   experiment doesn't complete while its game is still being played.
-  engine.
 - JavaScript helpers for real-time game pages, in the new
   `dallinger-realtime.js`, which the base layout loads after `dallinger2.js`
   when an experiment has game types.
