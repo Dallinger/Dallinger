@@ -101,7 +101,8 @@ def async_recruiter_status_check():
 
 def launch():
     # APScheduler logs every job run at INFO, and some jobs run twice a second.
-    if dev_logging.configure_from_environment(logging.WARNING):
+    level = logging.INFO if dev_logging.full_output_requested() else logging.WARNING
+    if dev_logging.configure_from_environment(level):
         attach_json_logger(logging.getLogger())
     dallinger.config.get_config(load=True)
 

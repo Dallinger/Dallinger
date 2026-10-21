@@ -4,12 +4,14 @@ import re
 import sys
 
 import pytest
+from werkzeug.serving import WSGIRequestHandler
 from werkzeug.test import Client
 
 from dallinger.dev_logging import (
     AccessLogMiddleware,
     ConsoleFilter,
     ConsoleFormatter,
+    configure_from_environment,
     use_colour,
 )
 
@@ -85,6 +87,7 @@ ROUTINE = [
 KEPT = [
     record("psynet", msg="Experiment launch complete!"),
     record("dallinger.recruiters", msg="New participant requested: http://x/ad"),
+    record("dallinger.recruiters", msg="Close recruitment."),
     record("apscheduler.executors.default", level=logging.ERROR, msg="Job failed"),
     record("rq.worker", level=logging.WARNING, msg="Cold shut down."),
     record("werkzeug", level=logging.ERROR, msg="code 400, message Bad request"),
@@ -120,18 +123,37 @@ def test_werkzeug_banner_becomes_one_line_without_changing_the_record():
     assert banner.getMessage().startswith("WARNING: This is a development server.")
 
 
-def test_announced_debugger_pin_is_not_repeated(monkeypatch):
-    monkeypatch.setenv("DALLINGER_DEV_ANNOUNCED_PIN", "123-456-789")
-    pin = " * Debugger PIN: %s"
+def test_debugger_lines_are_hidden_unless_the_debugger_is_unsecured():
     lines = console_lines(
         [
             record("werkzeug", level=logging.WARNING, msg=" * Debugger is active!"),
-            record("werkzeug", msg=pin, args=("123-456-789",)),
-            record("werkzeug", msg=pin, args=("999-999-999",)),
+            record("werkzeug", msg=" * Debugger PIN: %s", args=("123-456-789",)),
+            record(
+                "werkzeug",
+                level=logging.WARNING,
+                msg=" * Debugger PIN disabled. DEBUGGER UNSECURED!",
+            ),
         ]
     )
     assert len(lines) == 1
-    assert lines[0].endswith("Debugger PIN: 999-999-999")
+    assert lines[0].endswith("WARNING  * Debugger PIN disabled. DEBUGGER UNSECURED!")
+
+
+def test_werkzeug_access_records_are_hidden(caplog):
+    class Handler(WSGIRequestHandler):
+        def __init__(self):
+            self.client_address = ("127.0.0.1", 1)
+            self.requestline = "GET / HTTP/1.1"
+
+    caplog.set_level(logging.INFO, logger="werkzeug")
+    Handler().log_request(200)
+    assert caplog.records
+    assert console_lines(caplog.records) == []
+
+
+def test_development_role_is_only_used_when_set(monkeypatch):
+    monkeypatch.delenv("DALLINGER_DEV_ROLE", raising=False)
+    assert configure_from_environment() is False
 
 
 def wsgi_app(environ, start_response):
@@ -149,7 +171,9 @@ def test_access_log_reports_failed_and_slow_requests_only(caplog):
     client.get("/missing?assignmentId=abc", buffered=True)
     with pytest.raises(ValueError):
         client.get("/boom")
-    Client(AccessLogMiddleware(wsgi_app, slow_seconds=0)).get("/slow", buffered=True)
+    slow = Client(AccessLogMiddleware(wsgi_app, slow_seconds=0))
+    slow.get("/slow", buffered=True)
+    slow.get("/chat", headers={"Upgrade": "websocket"}, buffered=True)
 
     messages = [r.getMessage() for r in caplog.records]
     assert len(messages) == 3

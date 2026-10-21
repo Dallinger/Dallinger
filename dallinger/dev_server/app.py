@@ -41,6 +41,7 @@ os.environ["FLASK_SECRET_KEY"] = codecs.encode(os.urandom(16), "hex").decode("as
 
 if werkzeug.serving.is_running_from_reloader():
     env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+    env.pop(dev_logging.PIN_ENV, None)
     worker = subprocess.Popen(
         ["dallinger_heroku_worker"], env={**env, dev_logging.ROLE_ENV: "worker"}
     )

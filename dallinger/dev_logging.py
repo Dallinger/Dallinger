@@ -46,8 +46,7 @@ from werkzeug.wsgi import ClosingIterator
 LOG_MODE_ENV = "DALLINGER_DEV_LOG"
 ROLE_ENV = "DALLINGER_DEV_ROLE"
 SLOW_REQUEST_ENV = "DALLINGER_DEV_SLOW_REQUEST_SECONDS"
-_PIN_ENV = "WERKZEUG_DEBUG_PIN"
-_ANNOUNCED_PIN_ENV = "DALLINGER_DEV_ANNOUNCED_PIN"
+PIN_ENV = "WERKZEUG_DEBUG_PIN"
 
 _DEFAULT_SLOW_REQUEST_SECONDS = 1.0
 _ROLE_WIDTH = 6
@@ -62,6 +61,7 @@ _WORKER_STOP_MESSAGES = {
 _WERKZEUG_ACCESS_SUFFIX = '"%s" %s %s'
 _RUNNING_ON = re.compile(r" \* Running on (\S+://\S+)")
 _DETECTED_CHANGE = re.compile(r" \* Detected change in '(.+)', reloading")
+_DEBUGGER_PIN = re.compile(r" \* Debugger PIN: [\d-]+")
 
 _DIM, _YELLOW, _RED, _RESET = "\x1b[2m", "\x1b[33m", "\x1b[31m", "\x1b[0m"
 
@@ -187,8 +187,8 @@ class ConsoleFilter(logging.Filter):
             " * Restarting with "
         ):
             return False
-        pin = os.environ.get(_ANNOUNCED_PIN_ENV)
-        if pin and message in (" * Debugger is active!", f" * Debugger PIN: {pin}"):
+        # The serving process's debugger lines; the banner line announced them.
+        if message == " * Debugger is active!" or _DEBUGGER_PIN.fullmatch(message):
             return False
         return True
 
@@ -274,8 +274,9 @@ class AccessLogMiddleware:
 
     A request is logged (to the ``dallinger.access`` logger, at INFO) if its
     status is 400 or above, if it raises, or if it takes at least
-    ``slow_seconds``. The path is logged without its query string. The
-    duration runs until the response has been sent.
+    ``slow_seconds``; successful WebSocket requests, which last as long as
+    their connection, are not. The path is logged without its query string.
+    The duration runs until the response has been sent.
 
     Parameters
     ----------
@@ -304,7 +305,7 @@ class AccessLogMiddleware:
 
         try:
             response = self.app(environ, start_response_and_record)
-        except BaseException:
+        except Exception:
             self._log(environ, 500, started)
             raise
         return ClosingIterator(
@@ -314,7 +315,10 @@ class AccessLogMiddleware:
 
     def _log(self, environ, status, started):
         seconds = time.monotonic() - started
-        slow = status < 400 and status != 101 and seconds >= self.slow_seconds
+        if status < 400 and environ.get("HTTP_UPGRADE", "").lower() == "websocket":
+            # A WebSocket request lasts as long as its connection.
+            return
+        slow = status < 400 and seconds >= self.slow_seconds
         if status < 400 and not slow:
             return
         duration = f"{seconds:.1f} s" if seconds >= 1 else f"{seconds * 1000:.0f} ms"
@@ -362,12 +366,9 @@ def setup_dev_server(app):
         # Werkzeug derives its PIN from the machine's MAC address, which some
         # systems randomise per process, so its PIN can change on every
         # reload. Choosing one here keeps it the same for the session.
-        os.environ.setdefault(_PIN_ENV, _random_pin())
+        os.environ.setdefault(PIN_ENV, _random_pin())
         pin = get_pin_and_cookie_name(app)[0]
         details.append(f"debugger PIN {pin}" if pin else "debugger PIN disabled")
-        if pin:
-            # The serving process inherits this and hides werkzeug's PIN line.
-            os.environ[_ANNOUNCED_PIN_ENV] = pin
     for log_filter in handler.filters:
         log_filter.server_details = ", ".join(details)
     _hide_flask_banner()

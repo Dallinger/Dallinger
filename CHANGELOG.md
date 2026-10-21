@@ -71,10 +71,12 @@
   - Errors keep their full tracebacks, and text that doesn't go through
     logging (such as the debugger's traceback for a failed request) is
     printed as before.
-  - Start-up ends with a `Ready.` block that shows the location of the full
-    log and, with `--no-browsers`, the recruitment message and dashboard
-    login (previously printed as `❯❯ Experiment dashboard: …` and
-    `Dashboard user: … password: …`).
+  - `dallinger develop debug`'s start-up ends with a `Ready.` block that
+    shows the location of the full log and, with `--no-browsers`, the
+    recruitment message and dashboard login (previously printed as
+    `❯❯ Experiment dashboard: …` and `Dashboard user: … password: …`).
+    Tools that replace the launch job, such as PsyNet, can print the same
+    block with `dallinger.command_line.develop.echo_ready()`.
   - `dallinger develop debug --verbose`, or `DALLINGER_DEV_LOG=full`, shows
     everything again, including werkzeug's line for every request.
 
