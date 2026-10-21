@@ -199,20 +199,20 @@ def _display_path(path):
     return path if relative.startswith("..") else relative
 
 
-def configure_console_logging(role, level=logging.INFO, console_level=None):
+def configure_console_logging(role, level=logging.INFO):
     """Replace the root logger's console handler with the development format.
 
     File handlers, such as the ``logs.jsonl`` handler, are kept and keep
-    receiving every record at ``level``.
+    receiving every record that reaches them, including records from loggers
+    set to a lower level than the root logger. The console only shows
+    records at ``level`` or above, unless ``DALLINGER_DEV_LOG=full``.
 
     Parameters
     ----------
     role : str
         Process name shown on every line (``web``, ``worker`` or ``clock``).
     level : int
-        Level of the root logger.
-    console_level : int, optional
-        Minimum level printed to the console, if higher than ``level``.
+        Level of the root logger and of the console.
 
     Returns
     -------
@@ -226,14 +226,13 @@ def configure_console_logging(role, level=logging.INFO, console_level=None):
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(ConsoleFormatter(role, colour=use_colour(sys.stderr)))
     handler.addFilter(ConsoleFilter())
-    if console_level is not None:
-        handler.setLevel(console_level)
+    handler.setLevel(logging.NOTSET if full_output_requested() else level)
     root.addHandler(handler)
     root.setLevel(level)
     return handler
 
 
-def configure_from_environment(level=logging.INFO, console_level=None):
+def configure_from_environment(level=logging.INFO):
     """Configure console logging if the development server started this process.
 
     The development server sets ``DALLINGER_DEV_ROLE`` for the worker and
@@ -243,8 +242,6 @@ def configure_from_environment(level=logging.INFO, console_level=None):
     ----------
     level : int
         Level of the root logger.
-    console_level : int, optional
-        Minimum level printed to the console, if higher than ``level``.
 
     Returns
     -------
@@ -254,7 +251,7 @@ def configure_from_environment(level=logging.INFO, console_level=None):
     role = os.environ.get(ROLE_ENV)
     if not role:
         return False
-    configure_console_logging(role, level=level, console_level=console_level)
+    configure_console_logging(role, level=level)
     return True
 
 
