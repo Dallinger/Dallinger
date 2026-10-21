@@ -82,6 +82,15 @@ def test_worker_that_never_registers_exits_after_startup_timeout(tmp_path):
     assert "hasn't registered with RQ within 5 s; exiting" in result.stderr
 
 
+def test_debug_log_level_announces_startup_timeout(tmp_path):
+    result = run_worker(
+        tmp_path, "time.sleep(30)", extra_config="loglevel_worker = 0\n"
+    )
+    assert "Worker will exit if it hasn't registered with RQ within 1 s" in (
+        result.stderr
+    )
+
+
 def test_startup_timeout_from_config_txt(tmp_path):
     result = run_worker(
         tmp_path,

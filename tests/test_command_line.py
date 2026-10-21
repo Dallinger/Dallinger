@@ -233,6 +233,18 @@ class TestVerify:
         assert "✗ base_payment must be greater than or equal to zero" in out
         assert "Experiment files OK" not in out
 
+    def test_summary_shows_every_check_when_one_warns(
+        self, v_package, capsys, tmp_path, monkeypatch
+    ):
+        shutil.copytree(Path.cwd(), tmp_path / "exp")
+        monkeypatch.chdir(tmp_path / "exp")
+        Path("templates").mkdir(exist_ok=True)
+        Path("templates", "launch.html").write_text("")
+        assert v_package(verify_experiment=False, summary=True) is True
+        out = capsys.readouterr().out
+        assert "launch.html OVERWRITES shared frontend files" in out
+        assert "Experiment files OK" not in out
+
     def test_verify_package_imports_experiment_by_default(self, v_package):
         assert v_package() is True
         assert "dallinger_experiment" in sys.modules

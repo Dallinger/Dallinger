@@ -147,6 +147,8 @@ def get_server_pem_path() -> Path:
 
 _EXPERIMENT_FILES_META = "dallinger.experiment_files"
 
+REQUIRED_EXPERIMENT_FILES = ("config.txt", "experiment.py")
+
 
 def get_experiment_files(root="."):
     """Return the command-scoped experiment files, building them if needed.
@@ -226,13 +228,16 @@ def verify_package(
     if summary and verbose:
         output = StringIO()
         with redirect_stdout(output):
-            ok = verify_package(True, verify_experiment, file_source)
+            ok = verify_package(
+                verbose=True,
+                verify_experiment=verify_experiment,
+                experiment_files=file_source,
+            )
         details = output.getvalue()
         if ok and "✗" not in details:
             size_in_mb = round(file_source.size / (1000 * 1000))
-            click.echo(
-                f"✓ Experiment files OK (config.txt, experiment.py; {size_in_mb} MB)"
-            )
+            names = ", ".join(REQUIRED_EXPERIMENT_FILES)
+            click.echo(f"✓ Experiment files OK ({names}; {size_in_mb} MB)")
         else:
             click.echo(details, nl=False)
         return ok
@@ -259,9 +264,7 @@ def verify_directory(verbose=True, experiment_files=None):
     # Check required files
     ok = True
     mb_to_bytes = 1000 * 1000
-    expected_files = ["config.txt", "experiment.py"]
-
-    for f in expected_files:
+    for f in REQUIRED_EXPERIMENT_FILES:
         if os.path.exists(f):
             log("✓ {} is PRESENT".format(f), chevrons=False, verbose=verbose)
         else:
