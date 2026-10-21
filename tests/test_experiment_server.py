@@ -1044,6 +1044,24 @@ class TestParticipantCreateRoute:
                 entry_information={"additional_stuff": "1"},
             )
 
+    def test_post_participant_keeps_the_recruiter_from_the_form(
+        self, a, db_session, webapp
+    ):
+        resp = webapp.post(
+            "/participant",
+            data={
+                "hitId": "H",
+                "workerId": "W",
+                "assignmentId": "A",
+                "mode": "debug",
+                "recruiter": "test-recruiter",
+            },
+        )
+
+        participant_id = json.loads(resp.data)["participant"]["id"]
+        participant = models.Participant.query.get(participant_id)
+        assert participant.recruiter_id == "test-recruiter"
+
     def test_post_participant_removes_fingerprint(self, a, db_session, webapp):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.create_participant"
