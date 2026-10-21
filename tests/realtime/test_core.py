@@ -375,6 +375,21 @@ class TestJoinAndLeave:
 
         assert log(first) == log(second) == [["join", "9", 0]]
 
+    def test_a_game_a_bots_join_ends_is_over_before_the_bot_moves(self):
+        class StopsOnJoin(TurnTally):
+            def on_join(self, state, player_id, now):
+                state["log"].append([player_id, "stop", now])
+
+            def bot(self, view, player_id, now):
+                return "move"
+
+        game = StopsOnJoin()
+
+        result = play(game, new_session(game, ["1", "9"], bots=["9"]), [], 1)
+
+        assert log(result) == [["9", "stop", 0]]
+        assert (result.ended["time"], result.ended["reason"]) == (0, FINISHED)
+
     def test_a_page_that_left_gets_no_view(self):
         game = Tally()
 

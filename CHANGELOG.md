@@ -203,9 +203,9 @@
   check an experiment's game types. Dallinger now needs Redis 7.0 or
   later. `RealtimeGame`, `Reject` and the session functions import from
   `dallinger.realtime`, and the new "Real-Time Games" docs page describes the
-  engine. A `HighPerformanceBotBase` bot that a game type plays for calls
-  `wait_for_realtime_sessions(game_type)` before signing off, so the
-  experiment doesn't complete while its game is still being played.
+  engine. The experiment isn't complete while any of its sessions is
+  running, so a `HighPerformanceBotBase` bot that a game type plays for can
+  sign off once it has joined.
 - JavaScript helpers for real-time game pages, in the new
   `dallinger-realtime.js`, which the base layout loads after `dallinger2.js`
   when an experiment has game types.
