@@ -1206,6 +1206,13 @@ def test_destroy_keeps_data_shared_with_another_app(monkeypatch):
         assert "The data of myapp can't be deleted while MyApp exists" in result.output
         assert not any(" down" in c for c in commands) and not _deletes(commands)
 
+    assert "this also stops the containers of MyApp" in result.output
+
+    _, result = _destroy_with_data(monkeypatch, [], deployed=False, **shared)
+    assert result.exit_code == 1
+    assert "Nothing was destroyed" not in result.output
+    assert "Once MyApp is destroyed too, --remove-data" in result.output
+
     commands, result = _destroy_with_data(monkeypatch, ["--keep-data"], **shared)
     assert result.exit_code == 0, result.output
     assert any(" down" in c for c in commands) and not _deletes(commands)
@@ -1227,9 +1234,17 @@ def test_deploy_refuses_a_name_another_apps_compose_project_uses(update, capsys)
         "App name myapp gives the same Docker Compose project, myapp, as the "
         "existing app MyApp" in out
     )
-    assert ("Destroy MyApp first with --keep-data." in out) == update
+    assert ("Destroy MyApp first with --keep-data;" in out) == update
     executor = FakeExecutor({"caddy.d": "myapp\nmyapp~\n"})
     docker_ssh_module._check_compose_project_free(executor, "myapp", update)
+
+
+def test_stop_cloudflare_connector_quotes_the_app_name():
+    executor = FakeExecutor({})
+    docker_ssh_module._stop_cloudflare_connector(executor, "my app")
+    assert executor.commands == [
+        "docker compose -f ~/dallinger/'my app'/docker-compose.yml stop cloudflared"
+    ]
 
 
 def test_redis_volume_cleanup_uses_the_compose_project_name():

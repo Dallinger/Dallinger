@@ -957,7 +957,9 @@ def _check_compose_project_free(executor, app, update):
         others = ", ".join(siblings)
         # While app exists, destroy refuses to delete the other app's data.
         advice = (
-            f"Destroy {others} first with --keep-data."
+            f"Destroy {others} first with --keep-data; this also stops the "
+            f"containers of {app}, which share the project, until this update "
+            "starts them again."
             if update
             else f"Use a different name, or destroy {others} first."
         )
@@ -1221,8 +1223,9 @@ def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=N
         raise click.ClickException(
             f"Can't destroy {', '.join(map(repr, invalid))} automatically: not a "
             f"valid app name, so nothing was destroyed. Remove "
-            f"{'it' if len(invalid) == 1 else 'them'} on {server} by hand, for "
-            f"example with:\n{commands}\nThen deploy again."
+            f"{'its' if len(invalid) == 1 else 'their'} files on {server} by "
+            f"hand, for example with:\n{commands}\nThese commands don't stop "
+            "any containers or delete any data. Then deploy again."
         )
     destroy_cmds = "\n".join(
         f"  dallinger docker-ssh destroy --app {name} --server {server} --keep-data"
@@ -2893,12 +2896,20 @@ def destroy(
         siblings = _project_siblings(executor, app)
         if siblings:
             others = ", ".join(siblings)
+            keep = (
+                f"Nothing was destroyed. To remove {app} and keep its data, run "
+                "destroy with --keep-data; this also stops the containers of "
+                f"{others}, which share the project, until {others} is "
+                "deployed again with --update. "
+                if deployed
+                else ""
+            )
             raise click.ClickException(
                 f"The data of {app} can't be deleted while {others} exists on "
                 f"{ssh_host}: they have the same Docker Compose project, "
-                f"{_compose_project(app)}, so they share Docker volumes. Nothing "
-                f"was destroyed. Run destroy with --keep-data. Once {others} is "
-                "destroyed too, --remove-data can delete the data of each."
+                f"{_compose_project(app)}, so they share Docker volumes. {keep}"
+                f"Once {others} is destroyed too, --remove-data can delete the "
+                "data of each."
             )
     # Ask before teardown, so declining --remove-data leaves a live app untouched.
     if data and not keep_data and not (remove_data and yes):
