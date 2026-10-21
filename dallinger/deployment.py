@@ -123,8 +123,10 @@ def handle_launch_data(
     """POST to ``url`` (``/launch``), retrying with exponential backoff.
 
     Connection, TLS, and gateway-startup failures are expected while the
-    server becomes reachable. Those retries show a progress bar instead of
-    error output. Application errors are still reported as they happen. If
+    server becomes reachable. Those retries show a live progress bar instead
+    of error output, except for ``context="local"`` or when stdout is not a
+    TTY: then a one-line notice is printed on the first startup failure.
+    Application errors are still reported as they happen. If
     every attempt fails, the last error is reported and a
     ``click.ClickException`` summarizing the failure is raised.
 
@@ -135,7 +137,9 @@ def handle_launch_data(
         attempts: Maximum number of retry attempts
         dns_host: Hostname for Docker SSH deployments
         dozzle_password: Password for Dozzle logs in Docker SSH deployments
-        context: Deployment context ('heroku', 'ssh', 'local', etc.)
+        context: Deployment context ('heroku', 'ssh', 'local', etc.).
+            'local' disables the live bar, because a local server writes its
+            log to the same terminal.
     """
     launch_data = None
     launch_request = None

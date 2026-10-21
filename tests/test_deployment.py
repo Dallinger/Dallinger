@@ -1675,7 +1675,10 @@ class Testhandle_launch_data:
             for column in progress.columns
         )
 
-    def test_local_launch_prints_notice_instead_of_live_bar(self, handler, capsys):
+    @pytest.mark.parametrize("context", ["local", "heroku"])
+    def test_only_local_launch_swaps_live_bar_for_notice(
+        self, handler, capsys, context
+    ):
         from dallinger.deployment import HTTPS_WAIT_MESSAGE, Progress
 
         gateway = mock.Mock(ok=False, status_code=502, text="Bad Gateway")
@@ -1694,10 +1697,11 @@ class Testhandle_launch_data:
             mock.patch.object(Progress, "add_task", spy),
         ):
             mock_post.side_effect = [gateway, success]
-            handler("/some-launch-url", error=mock.Mock(), delay=0.05, context="local")
+            handler("/some-launch-url", error=mock.Mock(), delay=0.05, context=context)
 
-        assert [bar.disable for bar in bars] == [True]
-        assert capsys.readouterr().out.count(HTTPS_WAIT_MESSAGE) == 1
+        local = context == "local"
+        assert [bar.disable for bar in bars] == [local]
+        assert capsys.readouterr().out.count(HTTPS_WAIT_MESSAGE) == int(local)
 
     def test_https_wait_bar_is_indeterminate(self, handler):
         from dallinger.deployment import HTTPS_WAIT_MESSAGE, Progress
