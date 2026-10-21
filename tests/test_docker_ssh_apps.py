@@ -603,6 +603,9 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         ("_check_experiment_hostname_dns", "dns", None),
     ):
         monkeypatch.setattr(docker_ssh_module, name, step(event, result))
+    monkeypatch.setattr(
+        docker_ssh_module, "_check_compose_project_free", step("compose-project")
+    )
     root_domain = mock.Mock(side_effect=step("root-domain", True))
     app_slot = mock.Mock(side_effect=step("app-slot"))
     monkeypatch.setattr(docker_ssh_module, "ensure_root_domain_ready", root_domain)
@@ -624,6 +627,7 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         "recruiter",
         "tls",
         "dns",
+        "compose-project",
         "root-domain",
         "app-slot",
         "build",
@@ -1206,20 +1210,26 @@ def test_destroy_keeps_data_shared_with_another_app(monkeypatch):
     assert result.exit_code == 0, result.output
     assert any(" down" in c for c in commands) and not _deletes(commands)
 
+    commands, result = _destroy_with_data(
+        monkeypatch, ["--remove-data", "--yes"], server_apps="myapp\nmyapp~\n"
+    )
+    assert result.exit_code == 0, result.output
+    assert "docker volume rm myapp_redis_data" in _deletes(commands)
+
 
 @pytest.mark.parametrize("update", [False, True])
 def test_deploy_refuses_a_name_another_apps_compose_project_uses(update, capsys):
-    executor = FakeExecutor({"caddy.d": "MyApp\nmyapp\n", "ls ~": "found"})
+    executor = FakeExecutor({"caddy.d": "MyApp\nmyapp\n"})
     with pytest.raises(click.Abort):
-        docker_ssh_module._check_app_slot(executor, "myapp", update, "classic")
+        docker_ssh_module._check_compose_project_free(executor, "myapp", update)
     out = capsys.readouterr().out
     assert (
         "App name myapp gives the same Docker Compose project, myapp, as the "
         "existing app MyApp" in out
     )
     assert ("Destroy MyApp first with --keep-data." in out) == update
-    executor = FakeExecutor({"caddy.d": "myapp\nmyapp~\n", "ls ~": "found"})
-    docker_ssh_module._check_app_slot(executor, "myapp", True, "classic")
+    executor = FakeExecutor({"caddy.d": "myapp\nmyapp~\n"})
+    docker_ssh_module._check_compose_project_free(executor, "myapp", update)
 
 
 def test_redis_volume_cleanup_uses_the_compose_project_name():

@@ -950,12 +950,8 @@ def _project_siblings(executor, app):
     ]
 
 
-def _check_app_slot(executor, app, update, ingress):
-    """Abort unless ``app`` is free, or exists with this ingress for ``--update``.
-
-    The manifest records ingress; apps deployed before manifests are classic.
-    Also aborts if another app has the same Compose project name.
-    """
+def _check_compose_project_free(executor, app, update):
+    """Abort if another app on the server has ``app``'s Compose project name."""
     siblings = _project_siblings(executor, app)
     if siblings:
         others = ", ".join(siblings)
@@ -972,6 +968,13 @@ def _check_app_slot(executor, app, update, ingress):
             f"containers and volumes. {advice}{END}"
         )
         raise click.Abort()
+
+
+def _check_app_slot(executor, app, update, ingress):
+    """Abort unless ``app`` is free, or exists with this ingress for ``--update``.
+
+    The manifest records ingress; apps deployed before manifests are classic.
+    """
     compose_path = f"~/dallinger/{app}/docker-compose.yml"
     if update:
         if not executor.run(f"ls {compose_path}", raise_=False):
@@ -1628,7 +1631,8 @@ def _deploy_in_mode(
     Building the image can take minutes, so every check that does not need
     the image runs first. The root-domain cleanup, which can destroy apps,
     follows the other checks. Only the app-name check comes after it, since
-    the cleanup can free that name.
+    the cleanup can free that name; the Compose project check comes before
+    it, since the cleanup keeps the data that a clashing name would share.
     """
     experiment_files = get_experiment_files(os.getcwd())
     server = resolve_server_name(server, CONFIGURED_HOSTS)
@@ -1678,16 +1682,16 @@ def _deploy_in_mode(
         )
         _check_experiment_hostname_dns(ssh_host, experiment_hostname, allow_private_ip)
 
-    if _root_domain_preflight_required(server, app_name, archive_path, ingress):
-        ensure_root_domain_ready(
-            server=server,
-            update=update,
-            new_app=experiment_id,
-            delete_data_command=delete_data_command,
-        )
-
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
     try:
+        _check_compose_project_free(slot_executor, experiment_id, update)
+        if _root_domain_preflight_required(server, app_name, archive_path, ingress):
+            ensure_root_domain_ready(
+                server=server,
+                update=update,
+                new_app=experiment_id,
+                delete_data_command=delete_data_command,
+            )
         _check_app_slot(slot_executor, experiment_id, update, resolved_ingress)
     finally:
         slot_executor.client.close()
@@ -2830,7 +2834,8 @@ def destroy(
     """Tear down an experiment run on a server you control via ssh.
 
     Without --remove-data or --keep-data, asks whether to delete the
-    experiment's data.
+    experiment's data. While another app on the server has the same Docker
+    Compose project name (such as MyApp and myapp), only --keep-data works.
     """
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
