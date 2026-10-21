@@ -926,7 +926,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     """
     config = get_config(load=True)
 
-    recruiter_name = request.args.get("recruiter")
+    recruiter_name = request.args.get("recruiter") or request.form.get("recruiter")
     fingerprint_hash = request.args.get("fingerprint_hash") or request.form.get(
         "fingerprint_hash"
     )
