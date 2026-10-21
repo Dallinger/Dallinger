@@ -47,7 +47,8 @@
     lines when its stderr is not a terminal (for example when redirected to a
     file or pipe), or when `NO_COLOR` is set.
   - The `❯❯ Experiment UID: …` line (also printed by
-    `dallinger develop bootstrap`) is now logged at debug level instead.
+    `dallinger develop bootstrap`) is no longer printed. The ID is still
+    written to the develop directory's `config.txt` (`id`).
 - The worker's "Worker will exit if it hasn't registered with RQ within …"
   start-up notice is now logged at DEBUG instead of WARNING, so it only
   appears with `loglevel_worker = 0`. The message printed when the worker
