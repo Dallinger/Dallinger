@@ -856,10 +856,15 @@ def test_deploy_reports_a_missing_config_option_file(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize(
-    "configured, base_name", [("base-image", "base-image"), (None, "my_study")]
+    "configured, app, base_name",
+    [
+        ("base-image", "My_Study", "base-image"),
+        (None, "My_Study", "my_study"),
+        (None, None, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+    ],
 )
 def test_docker_ssh_build_assembles_the_validated_source(
-    tmp_path, monkeypatch, configured, base_name
+    tmp_path, monkeypatch, configured, app, base_name
 ):
     pytest.importorskip("docker")
     source = mock.Mock(deployment_plan=object())
@@ -891,7 +896,7 @@ def test_docker_ssh_build_assembles_the_validated_source(
             "test-server",
             local_build=False,
             push_build=False,
-            app="My_Study",
+            app=app,
         )
 
     assert image_name == "built:image"
