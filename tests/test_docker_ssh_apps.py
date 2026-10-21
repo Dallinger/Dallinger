@@ -655,8 +655,8 @@ def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatc
     )
     for app in ("old", "older"):
         assert (
-            f"  dallinger docker-ssh destroy --app {app} --server pc01.lab.example.org"
-            in result.output
+            f"  dallinger docker-ssh destroy --app {app} --server "
+            "pc01.lab.example.org --keep-data\n" in result.output + "\n"
         )
     assert "Aborted!" not in result.output
     destroy.assert_not_called()

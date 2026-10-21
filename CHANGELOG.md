@@ -421,11 +421,11 @@
   and, when output was piped, could appear after "Aborted!".
 - A root-domain docker-ssh deploy to a server that still has other
   classic-ingress experiments now fails without a terminal with an `Error:` line
-  that lists those experiments and the `docker-ssh destroy` commands to run
-  first, instead of a bare "Aborted!" from the confirmation prompt. They are
-  never destroyed automatically without a terminal, so a piped answer such as
-  `yes | dallinger docker-ssh deploy` is refused too; in a terminal, the
-  deploy still offers to destroy them.
+  that lists those experiments and the `docker-ssh destroy --keep-data`
+  commands to run first, instead of a bare "Aborted!" from the confirmation
+  prompt. They are never destroyed automatically without a terminal, so a
+  piped answer such as `yes | dallinger docker-ssh deploy` is refused too;
+  in a terminal, the deploy still offers to destroy them.
 - ``dallinger debug`` counts an HTTP error from ``/summary`` as a failed
   status check.
 - ``restore_state_from_replay`` closes its import database connections when

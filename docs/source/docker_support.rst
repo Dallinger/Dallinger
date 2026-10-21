@@ -200,7 +200,7 @@ default. Cloudflare apps don't block a classic root-domain deploy.
 A classic deploy without ``--app`` takes over the server's root domain, so the
 other classic apps on the server must be destroyed first. In a terminal the
 deploy offers to destroy them; without one it stops with an error that lists
-the ``dallinger docker-ssh destroy`` commands to run.
+the ``dallinger docker-ssh destroy … --keep-data`` commands to run.
 
 Classic ingress needs a server that the internet can reach, because Let's
 Encrypt must reach it to issue TLS certificates. If the SSH host resolves only
