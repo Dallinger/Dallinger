@@ -197,6 +197,10 @@ that deploy when no classic experiment is live.
 ``--ingress cloudflare`` starts an isolated Compose stack and a per-app
 tunnel; ``servers add --default-ingress cloudflare`` makes it a server's
 default. Cloudflare apps don't block a classic root-domain deploy.
+A classic deploy without ``--app`` takes over the server's root domain, so the
+other classic apps on the server must be destroyed first. In a terminal the
+deploy offers to destroy them; without one it stops with an error that lists
+the ``dallinger docker-ssh destroy`` commands to run.
 
 Classic ingress needs a server that the internet can reach, because Let's
 Encrypt must reach it to issue TLS certificates. If the SSH host resolves only
@@ -216,9 +220,11 @@ in Dallinger config. The API token is read from ``CLOUDFLARE_API_TOKEN``, then
 Dallinger config, then a macOS Keychain item: the one named by
 ``cloudflare_keychain_service``, or ``dallinger-cloudflare-api-token`` if that
 is unset. It is never written to host records, the
-manifest, or the app's Compose file. Tunnel names do not include the server,
-so a deploy refuses an app name whose tunnel already exists, unless it is the
-tunnel this server recorded for that app (in its manifest, or next to the
+manifest, or the app's Compose file. The deploy loads the token before it
+contacts the server; tools that wrap the deploy can do the same check earlier
+with ``dallinger.command_line.docker_ssh.check_deploy_credentials``.
+Tunnel names do not include the server, so a deploy refuses an app name whose
+tunnel already exists, unless it is the tunnel this server recorded for that app (in its manifest, or next to the
 connector token from an earlier attempt). Destroy stops the connector, then deletes the DNS record and
 tunnel, but never a same-named tunnel with a different id. If that cleanup fails, destroy leaves the app's files in place so it
 can be run again.
@@ -537,7 +543,9 @@ the app's public ``/health`` URL to answer with a 2xx. Cloudflare and gateway
 error pages, including the "tunnel not connected" answer (HTTP 530, error
 1033), do not count, and nor do redirects, such as a Cloudflare Access login.
 Waiting does not remove a login, so the deploy stops waiting as soon as
-``/health`` redirects twice in a row. Progress lines name only the kind of
+``/health`` redirects twice in a row. A 2xx answer that reports the app as
+``hibernating`` or ``waking`` does not count either, and two ``hibernating``
+answers in a row stop the wait with the ``docker-ssh awaken`` command to run. Progress lines name only the kind of
 error, such as ``SSLError``; the final message gives the full last result.
 If the app's own ``/health`` keeps failing, or the app
 has no ``/health`` because its image was built with an older Dallinger, the

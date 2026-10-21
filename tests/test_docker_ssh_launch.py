@@ -2,6 +2,7 @@ import dataclasses
 import importlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -337,6 +338,21 @@ def test_public_wait_retries_errors_and_one_redirect_until_2xx(no_sleep):
     assert events == ["check"] * 4
 
 
+def test_public_wait_does_not_launch_a_waking_app(no_sleep):
+    events = []
+    with public_check(events, 200, text='{"status": "waking"}'):
+        with pytest.raises(click.ClickException, match="answered for a stopped app"):
+            launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert len(events) > 1
+
+
+def test_public_wait_accepts_an_apps_own_health_body(no_sleep):
+    events = []
+    with public_check(events, 200, text='{"status": "ok", "ready": true}'):
+        launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert events == ["check"]
+
+
 def test_public_wait_stops_early_on_a_second_redirect_in_a_row(no_sleep, capsys):
     events = []
     with public_check(
@@ -347,6 +363,22 @@ def test_public_wait_stops_early_on_a_second_redirect_in_a_row(no_sleep, capsys)
     assert events == ["check"] * 2
     assert launch.time.now == launch.PUBLIC_CHECK_INTERVAL
     assert "redirected twice in a row" in capsys.readouterr().out
+
+
+def test_public_wait_stops_early_on_a_second_hibernating_answer(no_sleep, capsys):
+    awaken = f"awaken --server {TARGET.server} --app {TARGET.app}"
+    states = ["hibernating", "waking", "hibernating", "ok"]
+    bodies = [f'{{"status": "{state}"}}' for state in states]
+    with mock.patch.object(launch, "_probe", lambda *a: (200, bodies.pop(0))):
+        launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert not bodies
+
+    events = []
+    with public_check(events, 200, text='{"status": "hibernating"}'):
+        with pytest.raises(click.ClickException, match=re.escape(awaken)):
+            launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert events == ["check"] * 2
+    assert f"dallinger docker-ssh {awaken}" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(

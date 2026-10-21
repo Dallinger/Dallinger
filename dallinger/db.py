@@ -34,30 +34,31 @@ def corrected_db_url(db_url):
     return db_url
 
 
-# create_db_engine argument, environment variable, default, exclusive minimum, type
+# create_db_engine argument, environment variable, default, minimum, type.
+# Integer minimums are inclusive; float minimums are exclusive.
 _POOL_SETTINGS = (
-    ("pool_size", "DATABASE_POOL_SIZE", 20, 0, int),
-    ("max_overflow", "DATABASE_MAX_OVERFLOW", -1, -2, int),
+    ("pool_size", "DATABASE_POOL_SIZE", 20, 1, int),
+    ("max_overflow", "DATABASE_MAX_OVERFLOW", -1, -1, int),
     ("pool_timeout", "DATABASE_POOL_TIMEOUT", 30, 0, float),
 )
 
 
 def _check_number(name, value, minimum, cast):
-    """Return ``value`` if it is a finite ``cast`` greater than ``minimum``.
+    """Return ``value`` if it is a finite ``cast`` that meets ``minimum``.
 
-    ``float`` settings also accept integers. Otherwise raise a ``ValueError``
-    that names ``name``.
+    ``int`` settings must be at least ``minimum``. ``float`` settings must be
+    greater than ``minimum`` and also accept integers. Otherwise raise a
+    ``ValueError`` that names ``name``.
     """
-    types = (int,) if cast is int else (int, float)
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, types)
-        or not minimum < value < math.inf
-    ):
-        kind = "an integer" if cast is int else "a number"
-        raise ValueError(
-            f"{name} must be {kind} greater than {minimum}, not {value!r}."
-        )
+    if cast is int:
+        valid = isinstance(value, int) and value >= minimum
+        no_limit = " (no limit)" if minimum == -1 else ""
+        requirement = f"an integer of at least {minimum}{no_limit}"
+    else:
+        valid = isinstance(value, (int, float)) and minimum < value < math.inf
+        requirement = f"a number greater than {minimum}"
+    if isinstance(value, bool) or not valid:
+        raise ValueError(f"{name} must be {requirement}, not {value!r}.")
     return value
 
 

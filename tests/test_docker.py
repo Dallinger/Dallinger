@@ -472,22 +472,24 @@ def test_docker_debug_dotenv_treats_a_none_secret_key_as_empty(tmp_path, stub_co
     assert wrapper.env["FLASK_SECRET_KEY"] == ""
 
 
-def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path):
+def test_custom_dockerfile_reinstalls_a_staged_local_wheel_without_base_image(
+    tmp_path, capsys
+):
     import docker
 
     from dallinger.docker import tools
 
     (tmp_path / "Dockerfile").write_text("FROM python:3.12\nCOPY . /experiment\n")
-    (tmp_path / "requirements.txt").write_text("dallinger==12.0.0\n")
+    (tmp_path / "requirements.txt").write_text("psynet\n")
     (tmp_path / "dallinger-1-py3-none-any.whl").write_bytes(b"wheel")
     client = mock.Mock()
     client.api.inspect_image.side_effect = docker.errors.ImageNotFound("missing")
     with (
         mock.patch("docker.client.from_env", return_value=client),
-        mock.patch.object(tools, "get_base_image", return_value="base"),
         mock.patch.object(tools, "check_output") as check_output,
     ):
         tools.build_image(tmp_path, "exp", mock.Mock(), image_tag="t")
+    assert "Could not determine Dallinger version" not in capsys.readouterr().out
     build_args = check_output.call_args.args[0]
     assert f"{tools.RUNS_AS_SSH_USER_LABEL}=1" in build_args
     dockerfile = (tmp_path / "Dockerfile").read_text()
@@ -532,6 +534,51 @@ def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit
     kept_logs = list(log_dir.iterdir())
     assert len(kept_logs) == exit_code
     assert all("+ ansi2html" in log.read_text() for log in kept_logs)
+
+
+@pytest.mark.parametrize(
+    "requirements, tag, message",
+    [("dallinger==12.0.0\n", "12.0.0", ""), ("psynet\n", "latest", "Using latest")],
+)
+def test_generated_dockerfile_uses_the_pinned_base_image(
+    tmp_path, capsys, requirements, tag, message
+):
+    import docker
+
+    from dallinger.docker import tools
+
+    (tmp_path / "requirements.txt").write_text(requirements)
+    client = mock.Mock()
+    client.api.inspect_image.side_effect = docker.errors.ImageNotFound("missing")
+    with (
+        mock.patch("docker.client.from_env", return_value=client),
+        mock.patch.object(tools, "check_output"),
+    ):
+        tools.build_image(
+            tmp_path, "exp", mock.Mock(), needs_chrome=True, image_tag="t"
+        )
+    dockerfile = (tmp_path / "Dockerfile").read_text()
+    assert f"FROM ghcr.io/dallinger/dallinger-bot:{tag}" in dockerfile
+    assert message in capsys.readouterr().out
+
+
+def test_build_image_reuses_an_existing_image_without_resolving_the_base_image(
+    tmp_path,
+):
+    from dallinger.docker import tools
+
+    client = mock.Mock()
+    with (
+        mock.patch("docker.client.from_env", return_value=client),
+        mock.patch.object(tools, "get_base_image") as get_base_image,
+        mock.patch.object(tools, "check_output") as check_output,
+    ):
+        name = tools.build_image(
+            tmp_path, "exp", mock.Mock(), force_build=False, image_tag="t"
+        )
+    assert name == "exp:t"
+    get_base_image.assert_not_called()
+    check_output.assert_not_called()
 
 
 def test_deploy_image_tag_is_unique_per_launch():
