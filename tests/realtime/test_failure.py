@@ -59,7 +59,7 @@ class TestFailure:
             ("end", 5, None),
         ]
         end = result.records[-1]
-        assert end["outcome"] == {"reason": FAILED, "moves": 4}
+        assert end["outcome"] == {"reason": FAILED, "moves": 5}
         assert end["error"] == result.ended["error"]
         assert "in apply" in error(result)
         assert "KeyError: 'no such move'" in error(result)

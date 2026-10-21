@@ -367,6 +367,14 @@ class TestJoinAndLeave:
             }
         ]
 
+    def test_a_bot_joins_once_as_the_session_starts(self):
+        game = TurnTally()
+
+        first = play(game, new_session(game, ["1", "9"], bots=["9"]), [], 3)
+        second = play(game, first.saved, [], 4)
+
+        assert log(first) == log(second) == [["join", "9", 0]]
+
     def test_a_page_that_left_gets_no_view(self):
         game = Tally()
 
@@ -479,7 +487,8 @@ class TestEndings:
 
         assert (waiting.ended, waiting.next_due) == (None, 5)
         assert (result.ended["reason"], result.ended["time"]) == (NOT_JOINED, 5)
-        assert log(result) == []
+        # The bot joined as the session started; the player came too late
+        assert log(result) == [["join", "9", 0]]
 
     @pytest.mark.parametrize(
         "join_timeout, members, bots, entries",
@@ -548,7 +557,7 @@ class TestBots:
 
         result = play(game, saved, [message(0.1, "1", "a")], 0.5)
 
-        assert log(result)[1:] == [
+        assert log(result)[2:] == [
             ["1", "a", 0.1],
             ["tick", 0.25],
             ["9", {"bot": "9"}, 0.25],
@@ -574,7 +583,7 @@ class TestBots:
     def test_without_ticks_bots_move_at_the_start_and_answer_each_other(self):
         class Rally(TurnBot):
             def bot(self, view, player_id, now):
-                moves = view["log"]
+                moves = [each for each in view["log"] if each[0] != "join"]
                 if len(moves) < 4 and (not moves or moves[-1][0] != player_id):
                     return {"bot": player_id}
                 return None
@@ -584,6 +593,8 @@ class TestBots:
         result = play(game, new_session(game, ["8", "9"], bots=["8", "9"]), [], 1)
 
         assert log(result) == [
+            ["join", "8", 0],
+            ["join", "9", 0],
             ["8", {"bot": "8"}, 0],
             ["9", {"bot": "9"}, 0],
             ["8", {"bot": "8"}, 0],
@@ -596,7 +607,7 @@ class TestBots:
 
         result = play(game, saved, [leave(1, "1"), join(2, "1")], 2)
 
-        assert log(result)[2:] == [
+        assert log(result)[3:] == [
             ["leave", "1", 1],
             ["9", "move", 1],
             ["join", "1", 2],
@@ -609,7 +620,7 @@ class TestBots:
 
         second = play(game, first.saved, [], 6)
 
-        assert log(first) == log(second) == [["9", "move", 0]]
+        assert log(first) == log(second) == [["join", "9", 0], ["9", "move", 0]]
 
     def test_a_rejected_bot_move_is_not_tried_again(self):
         class Stubborn(TurnTally):
@@ -641,7 +652,7 @@ class TestBots:
 
         result = play(game, saved, [message(1, "1", "stop")], 1)
 
-        assert log(result)[1:] == [["1", "stop", 1]]
+        assert log(result)[2:] == [["1", "stop", 1]]
         assert set(result.ended["views"]) == {"1"}
 
 

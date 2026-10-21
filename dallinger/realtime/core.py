@@ -342,6 +342,10 @@ class _Pass:
         )
         if not session["started"]:
             session["started"] = True
+            # A bot has no page, so it joins as the session starts
+            for bot in session["bots"]:
+                self.record_effects(self.effects_of("on_join", self.state, bot, 0))
+            self.check_over()
             if not self.game.tick_rate:
                 self.bots_play()
         pending = iter(entries)

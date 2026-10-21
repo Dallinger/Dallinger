@@ -744,7 +744,7 @@ class TestEndedSessions:
         ending = {
             "session_id": int(session_id),
             "reason": "abandoned",
-            "view": {"for": "1", "log": []},
+            "view": {"for": "1", "log": [["join", "9", 0]]},
         }
         if saved:
             ending.update(type="realtime_saved", status="ended")

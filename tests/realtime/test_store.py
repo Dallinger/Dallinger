@@ -578,7 +578,7 @@ class TestSave:
         assert claim_token(session_id, "b", 30) is None
         assert store.load_ending(session_id) == {
             "reason": "abandoned",
-            "views": {"1": {"for": "1", "log": []}},
+            "views": {"1": {"for": "1", "log": [["join", "9", 0]]}},
             "status": None,
         }
         store.end_realtime_session(session_id, "again")

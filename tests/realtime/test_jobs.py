@@ -331,13 +331,16 @@ class TestEnding:
         assert (ended.status, ended.end_reason, ended.final_state, ended.error) == (
             "ended",
             "finished",
-            {"players": ["1", "2", "9"], "log": [["1", "up", 1], ["1", "stop", 2]]},
+            {
+                "players": ["1", "2", "9"],
+                "log": [["join", "9", 0], ["1", "up", 1], ["1", "stop", 2]],
+            },
             None,
         )
         # Stream IDs count whole milliseconds.
         assert before - timedelta(milliseconds=1) <= ended.end_time <= after
-        assert store.realtime_result(session_id) == {"reason": "finished", "moves": 2}
-        log = [["1", "up", 1], ["1", "stop", 2]]
+        assert store.realtime_result(session_id) == {"reason": "finished", "moves": 3}
+        log = [["join", "9", 0], ["1", "up", 1], ["1", "stop", 2]]
         assert saved_frames() == [
             (
                 [player],

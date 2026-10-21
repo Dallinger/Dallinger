@@ -261,7 +261,8 @@ Joins, Leaves and Bots
 :meth:`~dallinger.realtime.RealtimeGame.on_join` is called when a player
 opens the game's page, and
 :meth:`~dallinger.realtime.RealtimeGame.on_leave` when they close it. A
-player who reloads the page leaves and joins again. By default the game
+player who reloads the page leaves and joins again. A bot has no page, so it
+joins as the session starts, before its first move, and never leaves. By default the game
 carries on without a player who has left, and a game type can override
 ``on_leave`` to pause or end the game.
 

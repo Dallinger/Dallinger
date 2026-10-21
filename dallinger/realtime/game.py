@@ -258,9 +258,11 @@ class RealtimeGame(ABC):
         return None
 
     def on_join(self, state, player_id, now):
-        """Respond to a player opening a page while none of theirs is open.
+        """Respond to a player arriving: opening a page while none of theirs
+        is open, or for a bot, which has no page, the session starting.
 
-        A player who reloads their page leaves and then joins again.
+        A player who reloads their page leaves and then joins again. A bot
+        joins once and never leaves.
         """
 
     def on_leave(self, state, player_id, now):
