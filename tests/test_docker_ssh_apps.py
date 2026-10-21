@@ -16,7 +16,8 @@ from dallinger.docker.tools import docker_tag_from_experiment_id
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
 
 
-def test_docker_host_uri_omits_at_sign_usernames(capsys):
+def test_docker_host_uri_omits_at_sign_usernames(capsys, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
     assert (
         docker_ssh_module.docker_host_uri("rr-pc01.example", user="pmch2@cam.ac.uk")
         == "ssh://rr-pc01.example"
@@ -26,6 +27,13 @@ def test_docker_host_uri_omits_at_sign_usernames(capsys):
         docker_ssh_module.docker_host_uri("musix.example", user="pmch2", port=2222)
         == "ssh://pmch2@musix.example:2222"
     )
+
+    (tmp_path / ".ssh").mkdir()
+    (tmp_path / ".ssh" / "config").write_text(
+        "Host rr-pc01.example\n  User pmch2@cam.ac.uk\n"
+    )
+    docker_ssh_module.docker_host_uri("rr-pc01.example", user="pmch2@cam.ac.uk")
+    assert capsys.readouterr().out == "", "no hint once ~/.ssh/config sets the user"
 
 
 class FakeExecutor:

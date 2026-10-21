@@ -678,19 +678,31 @@ def docker_host_uri(host, user=None, port=22):
     docker-py splits this URL on ``@`` and cannot parse a username that
     itself contains ``@``, such as a Cambridge CRSid login. Those users are
     left out of the URL, so the SSH client takes the user from
-    ``~/.ssh/config``.
+    ``~/.ssh/config``; a hint is printed unless that file already sets it.
     """
+    if user and "@" in user:
+        if _ssh_config_user(host) != user:
+            print(
+                f"SSH user {user!r} contains '@', so Docker connects without it. "
+                f"Set `User {user}` for {host} in ~/.ssh/config."
+            )
+        user = None
     if ":" in host and not host.startswith("["):
         host = f"[{host}]"
-    if user and "@" in user:
-        print(
-            f"SSH user {user!r} contains '@', so Docker connects without it. "
-            f"Set `User {user}` for {host} in ~/.ssh/config."
-        )
-        user = None
     user_part = f"{user}@" if user else ""
     port_part = f":{port}" if port != 22 else ""
     return f"ssh://{user_part}{host}{port_part}"
+
+
+def _ssh_config_user(host):
+    """Return the ``User`` that ``~/.ssh/config`` sets for ``host``, or None."""
+    path = Path.home() / ".ssh" / "config"
+    try:
+        return paramiko.SSHConfig.from_path(str(path)).lookup(host).get("user")
+    except (OSError, ImportError, paramiko.SSHException) as exc:
+        if path.exists():
+            logging.getLogger(__name__).debug("Couldn't read %s: %s", path, exc)
+        return None
 
 
 def _resolve_server_info(server):

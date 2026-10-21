@@ -245,7 +245,9 @@
   prints it, and `/launch` omits empty "Initial recruitment list" and
   "Additional details" headings. The `DALLINGER_SOURCE` message and the
   editable-install notice, now one line, point at the Dallinger pin in
-  `constraints.txt`.
+  `constraints.txt`. For a server whose SSH user contains `@`, the hint to
+  set `User …` in `~/.ssh/config` is only printed if that file doesn't set
+  it already.
 - Debugging and deploying print less in other ways too. Building the
   editable Dallinger wheel uses the running Python interpreter, so it works
   without an activated virtualenv, and the build tool's output is printed
