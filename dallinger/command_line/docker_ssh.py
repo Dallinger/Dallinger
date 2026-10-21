@@ -105,7 +105,8 @@ class App:
     ingress : str
         ``classic`` host Caddy or ``cloudflare`` per-app tunnel.
     public_origin : str or None
-        HTTPS origin when known from a deployment manifest.
+        HTTPS origin from the app's deployment manifest or, for a classic app
+        without one, from the Caddy site that serves it.
     """
 
     name: str
@@ -1004,7 +1005,9 @@ def resolve_server_option(ctx, param, value):
 option_app_name = click.option(
     "--app",
     "app_name",
-    help="Name to use for the app. If not provided a random one will be generated",
+    help="Name to use for the app. If not provided a random one will be generated. "
+    "New apps can't use names starting with dlgr-, which Dallinger generates; "
+    "--update accepts them.",
 )
 option_archive = click.option(
     "--archive",
@@ -1234,26 +1237,56 @@ def _host_caddy_apps(executor):
 
 
 def _load_remote_manifests(executor, app_names):
-    """Read ``deployment.json`` for the given apps in one SSH call.
+    """Read ``deployment.json`` for the given apps in one SSH call."""
+    return _load_remote_app_records(executor, app_names)[0]
 
-    Each file is printed as one ``<app><TAB><json>`` line. Names that are not
-    valid app names (for example stray files) are skipped, not sent to the shell.
+
+# For each app, prints "<app>\t<deployment.json on one line>" and
+# "<app>\tsite\t<line>", the first site line of the Caddy file that routes it:
+# the Caddyfile for an app on the server's own host (root.d/<app>, or an older
+# Dallinger's Caddyfile route to the app), otherwise caddy.d/<app>. Older root
+# Caddyfiles don't import caddy.d, so the root route wins over a leftover site.
+_APP_RECORDS_SCRIPT = """for app in {apps}; do d=~/dallinger
+  f=$d/$app/deployment.json
+  [ -f "$f" ] && printf '%s\\t' "$app" && tr -d '\\n' < "$f" && echo
+  f=$d/caddy.d/$app
+  if [ -f "$d/root.d/$app" ] || grep -qF "reverse_proxy ${{app}}_web:5000" "$d/Caddyfile" 2>/dev/null; then f=$d/Caddyfile; fi
+  [ -f "$f" ] && printf '%s\\tsite\\t%s\\n' "$app" "$(grep -m1 -E '^[^#[:space:]{{(@][^{{#]*[{{]' "$f")"
+done; true"""
+
+
+def _load_remote_app_records(executor, app_names):
+    """Read the given apps' manifests and Caddy sites in one SSH call.
+
+    Names that are not valid app names (for example stray files) are skipped,
+    not sent to the shell.
+
+    Returns
+    -------
+    tuple of dict
+        ``{app: DeploymentManifest}`` and ``{app: public origin}``, the
+        latter from the first address of the Caddy site that serves the app.
     """
     app_names = [name for name in app_names if APP_NAME_PATTERN.fullmatch(name)]
     if not app_names:
-        return {}
+        return {}, {}
     raw = executor.run(
-        f"for app in {' '.join(app_names)}; do f=~/dallinger/$app/deployment.json; "
-        '[ -f "$f" ] && printf "%s\\t" "$app" && tr -d "\\n" < "$f" && echo; done; true',
-        raise_=False,
+        _APP_RECORDS_SCRIPT.format(apps=" ".join(app_names)), raise_=False
     )
-    manifests = {}
+    manifests, origins = {}, {}
     for line in (raw or "").splitlines():
         name, _, text = line.partition("\t")
+        if name not in app_names:
+            continue
+        if text.startswith("site\t"):
+            names = _site_names(text[len("site\t") :])
+            if names:
+                origins[name] = public_origin_for_hostname(names[0])
+            continue
         manifest = DeploymentManifest.from_json(text)
-        if name in app_names and manifest is not None:
+        if manifest is not None:
             manifests[name] = manifest
-    return manifests
+    return manifests, origins
 
 
 def _upload_app_manifest(sftp, manifest: DeploymentManifest) -> None:
@@ -1359,21 +1392,27 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     return dns_host
 
 
-def _classic_preflight(server, app_name, archive_path, dns_host, allow_private_ip):
+def _classic_preflight(
+    server, app_name, archive_path, dns_host, allow_private_ip, update=False
+):
     """Check TLS email, DNS and the server's shared services for a classic deploy.
 
-    Runs before the image build. Returns the app's public hostname.
+    Runs before the image build. Returns the app's public hostname, which for
+    ``--update`` of an app routed by ``root.d`` is the server's own host.
     """
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     server_info = CONFIGURED_HOSTS[server]
     _server_tls(server_info, experiment=True)
+    executor = _build_executor(server_info)
     hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
+    if update and executor.run(
+        f"test -f ~/dallinger/root.d/{quote(app_name)} && echo yes", raise_=False
+    ):
+        hostname = _server_host(server_info, dns_host)
     _check_experiment_hostname_dns(
         split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
     )
-    _check_server_setup(
-        _build_executor(server_info), server, server_info, hostname, dns_host
-    )
+    _check_server_setup(executor, server, server_info, hostname, dns_host)
     return hostname
 
 
@@ -2143,6 +2182,15 @@ def _deploy_in_mode(
     follows the other checks. Only the app-name check comes after it, since
     the cleanup can free that name.
     """
+    if app_name and app_name.startswith("dlgr-") and not update:
+        raise click.BadParameter(
+            f"{app_name}: names starting with dlgr- belong to apps deployed "
+            "without --app, which classic ingress serves at the server's own "
+            "host. --app deploys a new app to a subdomain. To update the "
+            f"root-domain app, run the deploy with --update --app {app_name}; "
+            "to deploy a new app to the server's own host, leave out --app.",
+            param_hint="'--app'",
+        )
     experiment_files = get_experiment_files(os.getcwd())
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     # Existing apps already have their certificates, so updates skip the check.
@@ -2186,7 +2234,7 @@ def _deploy_in_mode(
         cloudflare_settings = None
         tls = _server_tls(server_info, experiment=True)
         experiment_hostname = _classic_preflight(
-            server, app_name, archive_path, dns_host, allow_private_ip
+            server, app_name, archive_path, dns_host, allow_private_ip, update
         )
         if _root_domain_preflight_required(
             server, app_name, archive_path, ingress
@@ -2235,13 +2283,6 @@ def _deploy_in_mode(
         app_identifier = app_name or experiment_id
         executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
         takes_server_root = experiment_hostname == _server_host(server_info, dns_host)
-        if update and executor.run(
-            f"test -f ~/dallinger/root.d/{quote(app_identifier)} && echo yes",
-            raise_=False,
-        ):
-            # --update needs --app, but this app was deployed on the server's root.
-            experiment_hostname = _server_host(server_info, dns_host)
-            takes_server_root = True
         if not update:
             print("Removing any pre-existing Redis volumes.")
             remove_redis_volumes(app_identifier, executor)
@@ -2714,7 +2755,8 @@ def get_apps(server):
     Returns
     -------
     list of App
-        App objects discovered on the server, each with ``name`` and ``state``.
+        App objects discovered on the server, each with ``name``, ``state``,
+        ``ingress`` and, when known, ``public_origin``.
 
     Raises
     ------
@@ -2726,12 +2768,13 @@ def get_apps(server):
 
     app_names = _discover_server_apps(executor)
     running_projects = _get_running_app_names(executor)
-    manifests = _load_remote_manifests(executor, app_names)
+    manifests, caddy_origins = _load_remote_app_records(executor, app_names)
     parked = _remote_hibernation_states(executor)
 
     apps = []
     for app_name in app_names:
         manifest = manifests.get(app_name)
+        public_origin = manifest.public_origin if manifest else None
         if app_name in parked:
             state = parked[app_name]
         elif app_name in running_projects:
@@ -2743,7 +2786,7 @@ def get_apps(server):
                 name=app_name,
                 state=state,
                 ingress=manifest.ingress if manifest else "classic",
-                public_origin=(manifest.public_origin or None) if manifest else None,
+                public_origin=public_origin or caddy_origins.get(app_name),
             )
         )
     return apps

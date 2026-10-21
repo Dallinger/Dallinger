@@ -218,7 +218,8 @@ def test_servers_upgrade_saves_a_given_contact_email(server, monkeypatch):
         ("myapp", "myapp.1.2.3.4.nip.io", "caddy.d", False),
         (None, "1.2.3.4.nip.io", "caddy.d", False),
         (None, "lab.example.org", "root.d", False),
-        ("myapp", "myapp.1.2.3.4.nip.io", "root.d", True),
+        # The preflight gives an updated root.d app the server's own host.
+        ("myapp", "lab.example.org", "root.d", True),
     ],
     ids=["subdomain", "own-host", "server-root", "update-server-root"],
 )
@@ -265,8 +266,10 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
         )
 
     assert checksums(server) == before
-    # Only an app that takes the server's own host replaces its other apps.
-    assert mocks["ensure_root_domain_ready"].called == (hostname == "lab.example.org")
+    # Only a new app that takes the server's own host replaces its other apps.
+    assert mocks["ensure_root_domain_ready"].called == (
+        hostname == "lab.example.org" and not app_name
+    )
     # A failed new deploy removes the image it built; an update keeps it.
     assert built_image.call_args.kwargs["remove_for_app"] == (
         None if update else result["app"]
@@ -626,6 +629,127 @@ def test_ec2_provision_sets_up_the_shared_services(
         assert (server / "dallinger" / name).stat().st_mode & 0o777 == 0o444
     assert capsys.readouterr().out.count("password = ") == 1
     assert "up -d" in docker_calls(server)
+
+
+# Released Dallinger 12.4's Caddyfile after a deploy without --app.
+RELEASED_ROOT_CADDYFILE = """
+# This is a configuration file for the Caddy http Server
+{
+    grace_period 30s
+}
+
+
+lab.example.org {
+    tls lab@example.org
+    handle /health-check {
+        respond 200
+    }
+    handle /logs* {
+        reverse_proxy dozzle:8080
+    }
+    handle {
+        reverse_proxy dlgr-abcd1234_web:5000
+    }
+}
+"""
+SITE = "caddy.d/dlgr-abcd1234"
+APP_SITE = "exp.example.org {\n    tls lab@example.org\n    reverse_proxy x\n}"
+MANIFEST = docker_ssh.DeploymentManifest(
+    app="dlgr-abcd1234", server="lab", public_origin="https://manifest.example.org"
+)
+
+
+@pytest.mark.parametrize(
+    "caddyfile, files, origin",
+    [
+        (RELEASED_ROOT_CADDYFILE, {}, "https://lab.example.org"),
+        # The old root Caddyfile doesn't import caddy.d, so a leftover site isn't served.
+        (RELEASED_ROOT_CADDYFILE, {SITE: APP_SITE}, "https://lab.example.org"),
+        (
+            docker_ssh.CADDYFILE_SERVER.format(host="lab.example.org", tls="tls x"),
+            {"root.d/dlgr-abcd1234": "reverse_proxy dlgr-abcd1234_web:5000\n"},
+            "https://lab.example.org",
+        ),
+        (OLD_CADDYFILE, {SITE: APP_SITE}, "https://exp.example.org"),
+        (
+            OLD_CADDYFILE,
+            {SITE: APP_SITE, "dlgr-abcd1234/deployment.json": MANIFEST.to_json()},
+            "https://manifest.example.org",
+        ),
+        (OLD_CADDYFILE, {}, None),
+    ],
+    ids=["released-root", "leftover-site", "root.d", "caddy.d", "manifest", "none"],
+)
+def test_get_apps_finds_the_address_of_apps_without_a_manifest(
+    server, caddyfile, files, origin
+):
+    files = {"Caddyfile": caddyfile, "dlgr-abcd1234/docker-compose.yml": "", **files}
+    for name, text in files.items():
+        path = server / "dallinger" / name
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(text)
+
+    [app] = docker_ssh.get_apps("lab")
+
+    assert (app.name, app.ingress, app.public_origin) == (
+        "dlgr-abcd1234",
+        "classic",
+        origin,
+    )
+
+
+def test_existing_app_commands_accept_generated_names(server, monkeypatch):
+    app_dir = server / "dallinger/dlgr-abcd1234"
+    app_dir.mkdir()
+    (app_dir / "docker-compose.yml").write_text("services: {}\n")
+    export_db_uri = mock.Mock()
+    monkeypatch.setattr(docker_ssh, "export_db_uri", export_db_uri)
+    monkeypatch.setattr(docker_ssh, "awaken_app", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh, "remote_postgres", lambda *a: contextlib.nullcontext("db")
+    )
+
+    args = ["--app", "dlgr-abcd1234", "--server", "lab"]
+    result = CliRunner().invoke(docker_ssh.export, args + ["--local"])
+    assert result.exit_code == 0, result.output
+    assert export_db_uri.call_args.args == ("dlgr-abcd1234",)
+
+    result = CliRunner().invoke(docker_ssh.destroy, args)
+    assert result.exit_code == 0, result.output
+    assert not app_dir.exists()
+
+
+def test_updating_a_root_domain_app_checks_the_dns_of_the_servers_host(server):
+    CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
+    (server / "dallinger/root.d/dlgr-abcd1234").write_text("reverse_proxy x\n")
+
+    with mock.patch.object(docker_ssh, "_check_experiment_hostname_dns") as dns:
+        for update, hostname in [
+            (True, "lab.example.org"),
+            (False, "dlgr-abcd1234.lab.example.org"),
+        ]:
+            assert (
+                docker_ssh._classic_preflight(
+                    "lab", "dlgr-abcd1234", None, None, False, update
+                )
+                == hostname
+            )
+            assert dns.call_args.args[1] == hostname
+
+
+@pytest.mark.parametrize("command", ["deploy", "sandbox"])
+def test_new_deploys_refuse_generated_names_but_updates_accept_them(server, command):
+    args = ["--app", "dlgr-abcd1234", "--server", "lab"]
+    result = CliRunner().invoke(getattr(docker_ssh, command), args)
+    assert result.exit_code == 2
+    assert "Invalid value for '--app'" in result.output
+    assert "--update --app dlgr-abcd1234" in result.output
+
+    with mock.patch.object(
+        docker_ssh, "get_experiment_files", side_effect=RuntimeError("checks passed")
+    ):
+        result = CliRunner().invoke(getattr(docker_ssh, command), args + ["--update"])
+    assert str(result.exception) == "checks passed"
 
 
 def test_invalid_env_json_only_warns(capsys):

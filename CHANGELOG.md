@@ -247,6 +247,20 @@
   root-domain app offline and can make Caddy request new certificates, a
   deploy stops before the image build and asks for `servers upgrade`;
   `destroy` warns and carries on.
+- `dallinger docker-ssh apps` and `get_apps()` now report the public origin
+  of every classic-ingress app, including apps without
+  `~/dallinger/<app>/deployment.json`, such as those deployed by Dallinger
+  12.4 or earlier. The origin comes from the app's Caddy route, read in the
+  same SSH command as the manifests: the server's own site for a root-domain
+  app (a `root.d/<app>` route, or an older Dallinger's `Caddyfile` route to
+  the app), otherwise the app's `caddy.d/<app>` site. `deployment.json` still
+  takes priority. `docker-ssh deploy` and `sandbox` now refuse a new app
+  whose `--app` starts with `dlgr-`, the prefix of the names Dallinger
+  generates for apps deployed without `--app`: with `--app`, the app would go
+  to a subdomain instead of the server's own host. `--update --app dlgr-…`
+  still updates a root-domain app in place, and its DNS check before the
+  build now checks the server's own host rather than `dlgr-….<host>`.
+  `destroy`, `export`, `hibernate` and `awaken` keep accepting these names.
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
   config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
   Cloudflare settings and API token, and whether the app name is already

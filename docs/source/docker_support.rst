@@ -172,8 +172,21 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
 Each ``docker-ssh`` deploy writes ``~/dallinger/<app>/deployment.json`` on the
 server. The file records non-secret metadata: the public HTTPS origin, the
 ingress mode, and the monitoring kind and path. ``apps`` shows the recorded
-ingress and origin. Host records reject fields whose names look like tokens
-or passwords.
+ingress and origin. For a classic app without this file, such as one
+deployed by Dallinger 12.4 or earlier, ``apps`` reads the origin from the
+app's Caddy route: the server's own site for a root-domain app, otherwise the
+app's ``caddy.d/<app>`` site. Host records reject fields whose names look like
+tokens or passwords.
+
+A deploy without ``--app`` names the app ``dlgr-`` followed by the first eight
+characters of the experiment UUID (for example ``dlgr-d5543ddd``). With
+classic ingress, the app is served at the server's own host, or at the
+deploy's ``--dns-host``. ``apps`` lists it under that name, which
+``destroy``, ``export``, ``hibernate`` and ``awaken`` accept with ``--app``.
+To update an app on the server's own host in place, run the deploy with
+``--update --app dlgr-d5543ddd``. A new deploy refuses an ``--app`` name
+starting with ``dlgr-``, because ``--app`` deploys to a subdomain; leave out
+``--app`` to deploy a new app to the server's own host.
 
 The app's database password lives in ``~/dallinger/<app>/.env`` (mode
 ``0600``), which Compose reads, so ``docker-compose.yml`` no longer holds it.
