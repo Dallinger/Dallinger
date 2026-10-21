@@ -187,3 +187,14 @@ def test_create_db_engine_rejects_invalid_arguments(argument, value, message):
 
     with pytest.raises(ValueError, match=message):
         create_db_engine(db_url, **{argument: value})
+
+
+def test_sessions_scope_reraises_without_logging_the_traceback(db_session, caplog):
+    from dallinger.db import sessions_scope
+
+    with caplog.at_level("DEBUG", logger="dallinger.db"):
+        with pytest.raises(ValueError, match="boom"):
+            with sessions_scope():
+                raise ValueError("boom")
+
+    assert not [r for r in caplog.records if r.exc_info or r.levelname == "ERROR"]

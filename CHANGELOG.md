@@ -89,6 +89,14 @@
     everything again, including werkzeug's line for every request.
 
   Deployed experiments and `dallinger debug` are unchanged.
+- A request, worker job or clock task that fails inside `db.sessions_scope()`
+  (or `db.scoped_session_decorator`, or PsyNet's `with_transaction`) now
+  prints its traceback once. `sessions_scope()` no longer logs "Exception
+  during scoped worker transaction, rolling back." with a copy of the
+  traceback at ERROR; it notes the rollback at DEBUG and re-raises as before,
+  so Flask (deployed), werkzeug's debugger (`dallinger develop debug`), RQ or
+  APScheduler reports the error with its traceback. This applies to deployed
+  experiments too.
 
 ### Added
 
