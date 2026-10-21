@@ -528,7 +528,10 @@ def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit
             quiet=True,
         )
     output = "".join(messages)
-    assert messages[0].startswith("Building image exp:t (custom Dockerfile; ")
+    assert messages[0] == (
+        "Building image exp:t (custom Dockerfile; "
+        "set DALLINGER_VERBOSE_BUILD=1 to show docker's output)...\n"
+    )
     assert ("+ ansi2html" in output) == bool(exit_code)
     assert ("Built image: exp:" in output) == (not exit_code)
     if not exit_code:
