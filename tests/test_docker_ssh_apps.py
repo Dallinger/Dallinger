@@ -1039,7 +1039,7 @@ def test_root_domain_teardown_destroys_nothing_if_an_app_name_is_invalid(
     )
     monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
     monkeypatch.setattr(
-        docker_ssh_module, "_host_caddy_apps", lambda executor: ["good", "bad name"]
+        docker_ssh_module, "_host_caddy_apps", lambda executor: ["good", "good~"]
     )
     confirm = mock.Mock()
     destroy = mock.Mock()
@@ -1051,10 +1051,10 @@ def test_root_domain_teardown_destroys_nothing_if_an_app_name_is_invalid(
 
     assert not confirm.called and not destroy.called
     message = error.value.message
-    assert "Can't destroy 'bad name' automatically" in message
+    assert "Can't destroy 'good~' automatically" in message
     assert "nothing was destroyed" in message
-    assert "rm -rf ~/dallinger/'bad name' ~/dallinger/caddy.d/'bad name'" in message
-    assert "'good'" not in message
+    assert "rm -rf ~/dallinger/'good~' ~/dallinger/caddy.d/'good~'" in message
+    assert "'good'" not in message and " down" not in message
 
 
 def test_destroy_remove_data_asks_before_teardown(monkeypatch):
@@ -1216,7 +1216,7 @@ def test_deploy_refuses_a_name_another_apps_compose_project_uses(update, capsys)
         "App name myapp gives the same Docker Compose project, myapp, as the "
         "existing app MyApp" in capsys.readouterr().out
     )
-    executor = FakeExecutor({"caddy.d": "myapp\n", "ls ~": "found"})
+    executor = FakeExecutor({"caddy.d": "myapp\nmyapp~\n", "ls ~": "found"})
     docker_ssh_module._check_app_slot(executor, "myapp", True, "classic")
 
 

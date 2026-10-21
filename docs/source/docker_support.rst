@@ -602,7 +602,7 @@ keeps their data, as ``--keep-data`` does, and prints the command that
 deletes each app's data later. If the new deploy has the same name as one of
 those apps, it replaces that app's database and Redis volume, and the prompt
 says so. If one of the apps has a name that docker-ssh doesn't accept (for
-example a stray file in ``~/dallinger/caddy.d``), the deploy destroys none of
+example a stray file ``~/dallinger/caddy.d/myapp~``), the deploy destroys none of
 them and prints the commands that remove that app by hand.
 Export anything you need before you delete the data.
 You can also decide up front:
@@ -624,8 +624,9 @@ mounts that you added with ``docker_volumes`` are always kept. Volume names use 
 name as Docker Compose writes it, in lowercase without dots. Two app names
 that Docker Compose writes the same way, such as ``MyApp`` and ``myapp``,
 would share containers and volumes, so a deploy refuses a name that matches
-another app on the server in this way, and destroy won't delete the data of
-such an app while the other one exists (``--keep-data`` still works).
+another app on the server in this way. While the other app exists, destroy
+won't delete the data of such an app: it stops before the teardown, without
+asking, unless you pass ``--keep-data``.
 
 Kept data stays on the server until you delete it. A new deploy with the same
 app name and without ``--update`` deletes the volumes left under that name (a

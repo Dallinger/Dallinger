@@ -210,8 +210,9 @@
 - docker-ssh refuses names that Docker Compose turns into the same project
   name as another app on the server, such as `MyApp` next to `myapp`, because
   such apps share containers and volumes: `deploy` and `sandbox` stop before
-  building the image, and `destroy` won't delete the data (`--keep-data`
-  still works) while the other app exists.
+  building the image, and `destroy` stops before the teardown unless you
+  pass `--keep-data` while the other app exists, so it never deletes the
+  other app's data.
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
   config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
   Cloudflare settings and API token, and whether the app name is already

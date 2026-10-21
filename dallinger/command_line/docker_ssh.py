@@ -938,13 +938,15 @@ def _project_siblings(executor, app):
     """Return the server's other apps whose Compose project is ``app``'s.
 
     Such apps (for example ``MyApp`` and ``myapp``) share containers and
-    volumes.
+    volumes. Entries that are not valid app names are not apps.
     """
     project = _compose_project(app)
     return [
         name
         for name in _discover_server_apps(executor)
-        if name != app and _compose_project(name) == project
+        if name != app
+        and APP_NAME_PATTERN.fullmatch(name)
+        and _compose_project(name) == project
     ]
 
 
@@ -1161,11 +1163,13 @@ def _abort_cloudflare(exc):
 
 
 def _manual_removal_commands(name):
-    """Return shell commands that remove a classic app named ``name`` by hand."""
-    app_dir = f"~/dallinger/{quote(name)}"
+    """Return shell commands that remove the files of an invalid app name by hand.
+
+    There is no ``docker compose down``: Compose can strip such a name to the
+    project of a live app (``myapp~`` becomes ``myapp``).
+    """
     return [
-        f"docker compose -f {app_dir}/docker-compose.yml down",
-        f"rm -rf {app_dir} ~/dallinger/caddy.d/{quote(name)}",
+        f"rm -rf ~/dallinger/{quote(name)} ~/dallinger/caddy.d/{quote(name)}",
         f"{SERVER_COMPOSE} exec -T httpserver caddy reload --config /etc/caddy/Caddyfile",
     ]
 
