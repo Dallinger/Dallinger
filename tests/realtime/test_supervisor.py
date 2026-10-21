@@ -17,13 +17,15 @@ pytestmark = pytest.mark.timeout(10)
 
 EXITS = "import os, sys; open(sys.argv[1], 'a').write(f'{os.getpid()}\\n')"
 
+# The handler goes in before the pid is written, since a test stops the
+# supervisor as soon as it sees the pid
 WAITS_FOR_SIGTERM = """
 import os, signal, sys, time
-open(sys.argv[1], 'a').write(f'{os.getpid()}\\n')
 def stopped(*args):
     open(sys.argv[1], 'a').write('stopped\\n')
     sys.exit()
 signal.signal(signal.SIGTERM, stopped)
+open(sys.argv[1], 'a').write(f'{os.getpid()}\\n')
 time.sleep(60)
 """
 

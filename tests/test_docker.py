@@ -1,7 +1,9 @@
 import importlib
+import os
 import re
 import sys
 import time
+import warnings
 from pathlib import Path
 from unittest import mock
 
@@ -227,6 +229,27 @@ def get_yaml(config, ingress="classic"):
     return yaml.safe_load(yaml_contents)
 
 
+def test_postgres_services_disable_jit(tmp_path, stub_config):
+    from dallinger.command_line.docker_ssh import DOCKER_COMPOSE_SERVER_TPL
+    from dallinger.docker.tools import DockerComposeWrapper
+
+    wrapper = DockerComposeWrapper(stub_config, None, str(tmp_path), str(tmp_path))
+    with mock.patch(
+        "dallinger.docker.tools.get_experiment_image_tag", return_value="tag"
+    ):
+        wrapper.copy_docker_compose_files()
+    composes = [
+        get_yaml({}, ingress="cloudflare"),
+        yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base="")),
+        yaml.safe_load((tmp_path / "docker-compose.yml").read_text()),
+    ]
+    for compose in composes:
+        postgres = compose["services"]["postgresql"]
+        assert postgres["command"] == "postgres -c jit=off"
+        assert "pg_isready -h 127.0.0.1 " in postgres["healthcheck"]["test"][1]
+        assert "start_period" in postgres["healthcheck"]
+
+
 def test_compose_reads_the_database_password_from_the_app_env():
     result = get_yaml({})
     database_url = result["services"]["web"]["environment"]["DATABASE_URL"]
@@ -237,12 +260,37 @@ def test_compose_reads_the_database_password_from_the_app_env():
     )
 
 
-def test_num_dynos():
-    """Make sure the correct number of worker services is created"""
-    n = 3
-    result = get_yaml({"num_dynos_worker": n})
-    for i in range(n):
-        assert f"worker_{i + 1}" in result["services"]
+def test_pgbouncer_allows_more_connections_than_its_defaults():
+    pgbouncer = get_yaml({}, ingress="cloudflare")["services"]["pgbouncer"]
+    assert "PGBOUNCER_MAX_CLIENT_CONN=10000" in pgbouncer["environment"]
+    assert "PGBOUNCER_DEFAULT_POOL_SIZE=80" in pgbouncer["environment"]
+    assert pgbouncer["ulimits"]["nofile"] == {"soft": 16384, "hard": 16384}
+
+
+def test_pgbouncer_keeps_a_small_pool_on_the_shared_postgres():
+    pgbouncer = get_yaml({}, ingress="classic")["services"]["pgbouncer"]
+    assert "PGBOUNCER_MAX_CLIENT_CONN=10000" in pgbouncer["environment"]
+    assert "PGBOUNCER_DEFAULT_POOL_SIZE=20" in pgbouncer["environment"]
+
+
+@pytest.mark.parametrize("n, shares", [(1, 102), (3, 34), (100, 2)])
+def test_worker_processes_get_low_cpu_weight(n, shares):
+    """Each worker process gets its own container, weighted below the web server."""
+    services = get_yaml({"worker_processes": n})["services"]
+    workers = [name for name in services if name.startswith("worker_")]
+    assert len(workers) == n
+    assert {services[name]["cpu_shares"] for name in workers} == {shares}
+    assert "cpu_shares" not in services["web"]
+
+
+WEB_NOFILE = {"nofile": {"soft": 65536, "hard": 65536}}
+
+
+@pytest.mark.parametrize("ingress", ["classic", "cloudflare"])
+def test_web_container_can_hold_many_open_files(ingress):
+    """Idle websockets must not exhaust the web container's file descriptors."""
+    services = get_yaml({}, ingress=ingress)["services"]
+    assert services["web"]["ulimits"] == WEB_NOFILE
 
 
 def make_experiment_tmp_dir(tmp_path, name="exp"):
@@ -254,6 +302,42 @@ def make_experiment_tmp_dir(tmp_path, name="exp"):
     (exp_dir / "experiment.py").write_text("class Exp:\n    pass\n")
     (exp_dir / "static" / "script.js").write_text("console.log('hi');\n")
     return exp_dir
+
+
+@pytest.mark.parametrize(
+    "settings, replicas, shares", [({}, 1, 102), ({"worker_processes": 3}, 3, 34)]
+)
+def test_local_compose_runs_low_weight_worker_replicas(
+    tmp_path, stub_config, settings, replicas, shares
+):
+    from dallinger.docker.tools import DockerComposeWrapper
+
+    stub_config.extend(settings)
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    wrapper = DockerComposeWrapper(
+        stub_config, mock.Mock(), str(tmp_path), str(exp_dir)
+    )
+    wrapper.copy_docker_compose_files()
+    services = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())["services"]
+    assert services["worker"]["deploy"]["replicas"] == replicas
+    assert services["worker"]["cpu_shares"] == shares
+    assert "cpu_shares" not in services["web"]
+    assert services["web"]["ulimits"] == WEB_NOFILE
+
+
+def test_docker_worker_processes_falls_back_to_num_dynos_worker(stub_config):
+    from dallinger.docker.tools import docker_worker_processes
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert docker_worker_processes(stub_config) == 1
+    stub_config.extend({"num_dynos_worker": 3})
+    with pytest.warns(FutureWarning, match="worker_processes"):
+        assert docker_worker_processes(stub_config) == 3
+    stub_config.extend({"worker_processes": 2})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert docker_worker_processes(stub_config) == 2
 
 
 def test_deps_image_tag_ignores_experiment_code(tmp_path):
@@ -287,6 +371,103 @@ def test_deps_image_tag_changes_when_prepare_script_changes(tmp_path):
     tag_before = get_experiment_image_tag(str(exp_dir))
     (exp_dir / "prepare_docker_image.sh").write_text("#!/bin/sh\necho other\n")
     assert get_experiment_image_tag(str(exp_dir)) != tag_before
+
+
+def make_docker_debug_wrapper(config, exp_dir, environ):
+    """Build the compose wrapper the way ``HerokuLocalDeployment.run`` does."""
+    from dallinger.docker.tools import DockerComposeWrapper
+
+    return DockerComposeWrapper(
+        config,
+        mock.Mock(),
+        str(exp_dir),
+        str(exp_dir),
+        env={**os.environ, **environ},
+    )
+
+
+def test_docker_debug_containers_get_the_deployment_flask_secret_key(
+    tmp_path, stub_config
+):
+    from dallinger.docker.deployment import DockerDebugDeployment
+    from dallinger.docker.tools import _quote_dotenv_value
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    deployment = DockerDebugDeployment(mock.Mock(), False, False, None, {})
+    dotenv_path = exp_dir / ".env"
+    dotenv_path.touch()
+    dotenv_path.chmod(0o644)
+    make_docker_debug_wrapper(
+        stub_config, exp_dir, deployment.environ
+    ).copy_docker_compose_files()
+
+    key = deployment.environ["FLASK_SECRET_KEY"]
+    assert (
+        f"FLASK_SECRET_KEY={_quote_dotenv_value(key)}"
+        in dotenv_path.read_text().splitlines()
+    )
+    assert dotenv_path.stat().st_mode & 0o777 == 0o600
+    compose = yaml.safe_load((exp_dir / "docker-compose.yml").read_text())
+    for service in ("web", "worker", "clock"):
+        environment = compose["services"][service]["environment"]
+        assert environment["FLASK_SECRET_KEY"].startswith("${FLASK_SECRET_KEY:?")
+
+
+def test_docker_debug_compose_calls_override_an_empty_host_secret_key(
+    tmp_path, stub_config
+):
+    from dallinger.docker import tools
+
+    with mock.patch.dict(os.environ, {"FLASK_SECRET_KEY": ""}):
+        wrapper = make_docker_debug_wrapper(
+            stub_config, tmp_path, {"FLASK_SECRET_KEY": "k"}
+        )
+    with (
+        mock.patch.object(tools, "check_output") as check_output,
+        mock.patch.object(tools, "call") as call,
+    ):
+        wrapper.run_compose(["up", "-d"])
+        wrapper.stop()
+    assert check_output.call_args.kwargs["env"]["FLASK_SECRET_KEY"] == "k"
+    assert call.call_args.kwargs["env"]["FLASK_SECRET_KEY"] == "k"
+
+
+def test_docker_debug_image_build_context_has_no_dotenv(tmp_path, stub_config):
+    from dallinger.docker import tools
+
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    wrapper = make_docker_debug_wrapper(stub_config, exp_dir, {"FLASK_SECRET_KEY": "k"})
+    dotenv_seen_by_build = []
+    with (
+        mock.patch.object(
+            tools,
+            "build_image",
+            side_effect=lambda *args: dotenv_seen_by_build.append(
+                (exp_dir / ".env").exists()
+            ),
+        ),
+        mock.patch.object(wrapper, "run_compose", side_effect=RuntimeError),
+        pytest.raises(RuntimeError),
+    ):
+        wrapper.start()
+    assert dotenv_seen_by_build == [False]
+    assert (exp_dir / ".env").exists()
+
+
+def test_dotenv_quoting_keeps_compose_special_characters_literal():
+    from dallinger.docker.tools import _quote_dotenv_value
+
+    assert _quote_dotenv_value('a$b #"c\\') == '"a\\$b #\\"c\\\\"'
+
+
+def test_docker_debug_dotenv_treats_a_none_secret_key_as_empty(tmp_path, stub_config):
+    exp_dir = make_experiment_tmp_dir(tmp_path)
+    wrapper = make_docker_debug_wrapper(
+        stub_config, exp_dir, {"FLASK_SECRET_KEY": None}
+    )
+    wrapper.copy_docker_compose_files()
+    assert 'FLASK_SECRET_KEY=""' in (exp_dir / ".env").read_text().splitlines()
+    assert wrapper.env["FLASK_SECRET_KEY"] == ""
 
 
 def test_custom_dockerfile_reinstalls_a_staged_local_wheel(tmp_path):
@@ -414,6 +595,9 @@ def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypa
 
         def connect(self, **kwargs):
             pass
+
+        def get_transport(self):
+            return mock.Mock()
 
         def save_host_keys(self, filename):
             assert Path(filename).exists()
@@ -636,6 +820,89 @@ def test_get_required_dallinger_version_prerelease_falls_back_to_latest(tmp_path
     requirements.write_text("dallinger==12.2.0a1\n")
 
     assert get_required_dallinger_version(str(tmp_path)) == LATEST_VERSION
+
+
+def test_get_required_dallinger_version_follows_includes_and_options(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "constraints.txt").write_text(
+        "# pinned\ndallinger==7.2.0 \\\n    --hash=sha256:abc  # trailing comment\n"
+    )
+    (tmp_path / "requirements.txt").write_text(
+        "-e ./local-package\n\n--index-url https://example.org\nrequests\n-c constraints.txt\n"
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_from_wheel_file(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_text(
+        "file:dallinger-7.3.0-py3-none-any.whl\n"
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.3.0"
+
+
+def test_get_required_dallinger_version_windows_file(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_bytes(
+        "\ufeffdallinger==7.2.0\r\n    # via -r requirements.txt\r\n".encode()
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_utf16_file(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_text(
+        "dallinger==7.2.0\r\n", encoding="utf-16"
+    )
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_follows_requirement_include(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "base.txt").write_text("dallinger==7.2.0\n")
+    (tmp_path / "requirements.txt").write_text("requests\n-r base.txt\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_get_required_dallinger_version_include_cycle(tmp_path):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "base.txt").write_text("-r requirements.txt\n")
+    (tmp_path / "requirements.txt").write_text("-r base.txt\n")
+
+    with pytest.raises(ValueError, match="cycle"):
+        get_required_dallinger_version(str(tmp_path))
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["dallinger == 7.2.0", 'dallinger==7.2.0 ; python_version>="3.10"'],
+)
+def test_get_required_dallinger_version_parses_specifier(tmp_path, line):
+    from dallinger.docker.tools import get_required_dallinger_version
+
+    (tmp_path / "requirements.txt").write_text(line + "\n")
+
+    assert get_required_dallinger_version(str(tmp_path)) == "7.2.0"
+
+
+def test_docker_tools_import_without_pip():
+    """``dallinger.docker.tools`` must import in environments without pip, e.g. uv."""
+    import subprocess
+    import sys
+
+    code = "import sys; sys.modules['pip'] = None; import dallinger.docker.tools"
+    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 def test_get_required_dallinger_version_dev_release_falls_back_to_latest(tmp_path):

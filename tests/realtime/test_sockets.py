@@ -51,7 +51,8 @@ def pubsub():
 def sockets(pubsub, monkeypatch):
     sockets = sockets_module
     monkeypatch.setattr(sockets, "redis_conn", Mock())
-    sockets.redis_conn.pubsub.return_value = pubsub
+    monkeypatch.setattr(sockets, "pubsub_conn", Mock())
+    sockets.pubsub_conn.pubsub.return_value = pubsub
     monkeypatch.setattr(sockets, "chat_backend", sockets.ChatBackend())
     monkeypatch.setattr(socket_admission, "_process_experiment", None)
     monkeypatch.setattr(sockets, "_process_games", None)
@@ -329,7 +330,7 @@ class TestSessionSockets:
             pubsub.listen.side_effect = listen
             return pubsub
 
-        sockets.redis_conn.pubsub.side_effect = a_pubsub
+        sockets.pubsub_conn.pubsub.side_effect = a_pubsub
         ws = scripted()
 
         with patch.object(sockets, "SUBSCRIPTION_TIMEOUT_SECS", 30):
@@ -473,7 +474,7 @@ def withheld_session_listener(sockets):
         pubsub.listen.side_effect = listen
         return pubsub
 
-    sockets.redis_conn.pubsub.side_effect = a_pubsub
+    sockets.pubsub_conn.pubsub.side_effect = a_pubsub
     return confirm
 
 
