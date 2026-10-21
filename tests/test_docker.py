@@ -539,6 +539,24 @@ def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit
     assert all("+ ansi2html" in log.read_text() for log in kept_logs)
 
 
+def test_verbose_rebuild_streams_docker_output(tmp_path, monkeypatch):
+    from dallinger.command_line.utils import Output
+    from dallinger.docker import tools
+
+    monkeypatch.setenv("DALLINGER_VERBOSE_BUILD", "1")
+    messages = []
+    with (
+        mock.patch("docker.client.from_env"),
+        mock.patch.object(tools, "get_base_image", return_value="base"),
+        mock.patch.object(tools, "check_output") as check_output,
+    ):
+        tools.build_image(
+            tmp_path, "exp", Output(blather=messages.append), image_tag="t", quiet=True
+        )
+    check_output.assert_called_once()
+    assert messages == ["Rebuilding image exp:t...\n", "Built image: exp:t\n"]
+
+
 @pytest.mark.parametrize(
     "requirements, tag, message",
     [

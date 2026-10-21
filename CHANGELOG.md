@@ -225,9 +225,9 @@
   and errors no longer interleave with spinner frames. Each command shares one
   SSH connection per server instead of reconnecting for every step, and
   reconnects if that connection drops. The image build prints two lines,
-  "Building image ..." (which also says whether a custom Dockerfile is used)
-  and "Built image: ...", instead of the BuildKit output; if it fails, the
-  full build log is printed and kept in a file (set
+  "Building image ..." (which mentions the experiment's custom Dockerfile if
+  it has one) and "Built image: ...", instead of the BuildKit output; if it
+  fails, the full build log is printed and kept in a file (set
   `DALLINGER_VERBOSE_BUILD=1` to stream it instead). Every command that
   builds an image prints that one "Building image" line (or "Rebuilding
   image") before the build starts, instead of separate "not found - building"
