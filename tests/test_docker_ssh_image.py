@@ -76,3 +76,27 @@ def test_registry_image_is_deployed_without_building(monkeypatch):
 
     assert image_name == "img:1"
     setup.assert_not_called()
+
+
+class TestImageBaseName:
+    @pytest.mark.parametrize(
+        "app, expected",
+        [
+            ("bartlett1932", "bartlett1932"),
+            ("My_Study", "my_study"),
+            ("a..b._c---d___e.", "a-b-c---d-e"),
+        ],
+    )
+    def test_server_only_image_is_named_after_the_app(self, app, expected):
+        assert docker_ssh_module._image_base_name({}, app, push=False) == expected
+
+    def test_configured_name_wins(self):
+        config = {"docker_image_base_name": "ghcr.io/org/exp"}
+
+        assert docker_ssh_module._image_base_name(config, "app", push=True) == (
+            "ghcr.io/org/exp"
+        )
+
+    def test_pushed_image_needs_the_setting(self):
+        with pytest.raises(click.ClickException, match="docker_image_base_name = "):
+            docker_ssh_module._image_base_name({}, "app", push=True)

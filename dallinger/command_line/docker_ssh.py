@@ -1324,15 +1324,63 @@ def _image_usable_from_registry(docker_client, image_name):
     return True
 
 
+_IMAGE_NAME_SEPARATORS = re.compile(r"[._-]+")
+
+
+def _image_base_name(config, app, push):
+    """Return the repository name for the image a deploy builds.
+
+    Parameters
+    ----------
+    config : Configuration or dict
+        Experiment config, read for ``docker_image_base_name``.
+    app : str
+        The docker-ssh app name, which already matches ``APP_NAME_PATTERN``.
+    push : bool
+        Whether the image will be pushed to a registry.
+
+    Returns
+    -------
+    str
+        ``docker_image_base_name`` if set. Otherwise, for an image that stays
+        on the server, the app name made into a valid Docker repository name:
+        lowercase, with runs of ``.``, ``_`` and ``-`` that Docker rejects
+        replaced by ``-``.
+
+    Raises
+    ------
+    click.ClickException
+        If the image will be pushed and ``docker_image_base_name`` is unset,
+        since only the user knows which registry to push to.
+    """
+    base_name = config.get("docker_image_base_name", None)
+    if base_name:
+        return base_name
+    if push:
+        raise click.ClickException(
+            "docker_image_base_name is not set. Pushing the image to a registry "
+            "(--push-build or --local_build) needs it to name the registry and "
+            "repository, for example in config.txt:\n"
+            "    docker_image_base_name = ghcr.io/<github-user>/<experiment>"
+        )
+
+    def separator(match):
+        run = match.group()
+        return run if run in (".", "_", "__") or set(run) == {"-"} else "-"
+
+    return _IMAGE_NAME_SEPARATORS.sub(separator, app.lower()).strip("._-")
+
+
 def _build_and_push_image(
-    config, experiment_files, app_name, server, local_build, push_build
+    config, experiment_files, app_name, server, local_build, push_build, app=None
 ):
     """Return the experiment image to deploy, building and pushing it if needed.
 
     Reuses ``docker_image_name`` when the registry has it. Otherwise
     assembles the experiment and builds the image, on the server unless
     ``local_build`` is set, and pushes it for a local build or with
-    ``push_build``.
+    ``push_build``. ``app`` is the deployed app name, which names the image
+    when ``docker_image_base_name`` is unset; it defaults to ``app_name``.
     """
     import docker
 
@@ -1382,7 +1430,7 @@ def _build_and_push_image(
         )
         image_name = build_image(
             tmp_dir,
-            config.get("docker_image_base_name"),
+            _image_base_name(config, app or app_name, push_build),
             out=Output(),
             image_tag=docker_tag_from_experiment_id(config.get("id")),
         )
@@ -1641,6 +1689,9 @@ def _deploy_in_mode(
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
     if not APP_NAME_PATTERN.fullmatch(experiment_id):
         raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
+    if not config.get("docker_image_name", None):
+        # Fail before the root-domain cleanup, which can destroy apps.
+        _image_base_name(config, experiment_id, push_build or local_build)
 
     resolved_ingress = _resolve_ingress(server_info, ingress)
     if resolved_ingress == INGRESS_CLOUDFLARE:
@@ -1671,7 +1722,13 @@ def _deploy_in_mode(
         slot_executor.client.close()
 
     image_name = _build_and_push_image(
-        config, experiment_files, app_name, server, local_build, push_build
+        config,
+        experiment_files,
+        app_name,
+        server,
+        local_build,
+        push_build,
+        app=experiment_id,
     )
     # Read after the build, which sets a dashboard password if config has none.
     dashboard_user = config.get("dashboard_user", "admin")

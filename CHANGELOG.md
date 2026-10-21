@@ -4,6 +4,14 @@
 
 ### Changed
 
+- `docker_image_base_name` is now optional for `dallinger docker-ssh deploy`
+  and `sandbox` when the image is built on the server and not pushed (the
+  default, without `--push-build` or `--local_build`). The image is then
+  named after the app, lowercased (e.g. `my-study:<launch id>`). Deploys
+  that push the image still need the setting and now stop with an `Error:`
+  line naming it before building or changing anything on the server.
+  Previously every docker-ssh build stopped with a `KeyError` after
+  assembling the experiment when the setting was unset.
 - Local debugging (`dallinger debug`, `LoaderDeployment`, and the
   `pytest_dallinger` debug fixtures) now starts the Procfile processes with
   [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,

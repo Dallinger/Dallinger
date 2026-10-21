@@ -731,7 +731,7 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
 
         return run
 
-    def build(config, experiment_files, *args):
+    def build(config, experiment_files, *args, **kwargs):
         events.append("build")
         assert experiment_files is source
         assert config.get("docker_image_name") == "registry.example/exp:1"
@@ -771,6 +771,33 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         "app-slot",
         "build",
     ]
+
+
+def test_pushed_deploy_without_image_base_name_stops_before_side_effects(
+    monkeypatch,
+):
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.ready = True
+    root_domain = mock.Mock()
+    build = mock.Mock()
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example.org"}}
+    )
+    monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: None)
+    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "ensure_root_domain_ready", root_domain)
+    monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
+
+    with pytest.raises(click.ClickException, match="docker_image_base_name"):
+        docker_ssh_module._deploy_in_mode(
+            **_deploy_kwargs(server="lab", push_build=True)
+        )
+
+    root_domain.assert_not_called()
+    build.assert_not_called()
 
 
 def test_cloudflare_deploy_without_api_token_stops_before_the_build(monkeypatch):

@@ -56,7 +56,9 @@ Examples:
 Image creation
 **************
 
-Make sure your experiment specifies an ``docker_image_base_name`` for your image in its ``config.txt``.
+To push images to a registry, make sure your experiment specifies a ``docker_image_base_name``
+for your image in its ``config.txt``. A ``dallinger docker-ssh deploy`` that builds the image on
+the server without ``--push-build`` doesn't need it: the image is then named after the app.
 The specified ``docker_image_base_name`` should include the docker registry you want to use and
 the destination where the docker image should be pushed.
 The ``bartlett1932`` experiment, for instance, has it set to ``ghcr.io/dallinger/dallinger/bartlett1932``
