@@ -424,6 +424,11 @@ def test_up_to_date_constraints_are_reported_only_by_the_ensure_command(
     assert result.exit_code == 0, result.output
     assert result.output.count("up to date") == 1
 
+    requirements.write_text("flask\nrequests\n")
+    with patch("dallinger.constraints.generate_constraints"):
+        result = CliRunner().invoke(dallinger_cli, ["constraints", "ensure"])
+    assert "up to date with" not in result.output
+
 
 def test_dallinger_constraints_unknown_extra_is_click_error(
     in_tempdir, python_version_file

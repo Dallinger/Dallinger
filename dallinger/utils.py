@@ -238,11 +238,21 @@ class GitClient:
         return tempdir
 
     def files(self):
+        """Return the tracked and untracked, non-ignored files, or an empty set.
+
+        Outside a Git repository the set is empty and nothing is printed;
+        other git failures are logged as warnings.
+        """
         cmd = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
         try:
-            raw = check_output(cmd, stderr=subprocess.DEVNULL).decode(
+            raw = check_output(cmd, stderr=subprocess.PIPE).decode(
                 locale.getpreferredencoding()
             )
+        except subprocess.CalledProcessError as exc:
+            message = (exc.stderr or b"").decode(errors="replace").strip()
+            if "not a git repository" not in message:
+                logging.getLogger(__name__).warning("git ls-files failed: %s", message)
+            return set()
         except Exception:
             return set()
 
