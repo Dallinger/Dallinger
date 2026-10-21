@@ -773,8 +773,9 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
     ]
 
 
+@pytest.mark.parametrize("build_option", ["push_build", "local_build"])
 def test_pushed_deploy_without_image_base_name_stops_before_side_effects(
-    monkeypatch,
+    monkeypatch, build_option
 ):
     config = Configuration()
     config._reset(register_defaults=True)
@@ -793,7 +794,7 @@ def test_pushed_deploy_without_image_base_name_stops_before_side_effects(
 
     with pytest.raises(click.ClickException, match="docker_image_base_name"):
         docker_ssh_module._deploy_in_mode(
-            **_deploy_kwargs(server="lab", push_build=True)
+            **_deploy_kwargs(server="lab", **{build_option: True})
         )
 
     root_domain.assert_not_called()
@@ -854,13 +855,18 @@ def test_deploy_reports_a_missing_config_option_file(monkeypatch, tmp_path):
         )
 
 
-def test_docker_ssh_build_assembles_the_validated_source(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "configured, base_name", [("base-image", "base-image"), (None, "my_study")]
+)
+def test_docker_ssh_build_assembles_the_validated_source(
+    tmp_path, monkeypatch, configured, base_name
+):
     pytest.importorskip("docker")
     source = mock.Mock(deployment_plan=object())
     config = mock.Mock()
     config.get.side_effect = lambda key, default=None: {
         "docker_image_name": None,
-        "docker_image_base_name": "base-image",
+        "docker_image_base_name": configured,
         "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     }.get(key, default)
     config.as_dict.return_value = {"example": "value"}
@@ -879,11 +885,18 @@ def test_docker_ssh_build_assembles_the_validated_source(tmp_path, monkeypatch):
         ) as build_image,
     ):
         image_name = docker_ssh_module._build_and_push_image(
-            config, source, None, "test-server", local_build=False, push_build=False
+            config,
+            source,
+            None,
+            "test-server",
+            local_build=False,
+            push_build=False,
+            app="My_Study",
         )
 
     assert image_name == "built:image"
     assert setup.call_args.kwargs["experiment_files"] is source
+    assert build_image.call_args.args[1] == base_name
     assert build_image.call_args.kwargs["image_tag"] == (
         "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     )

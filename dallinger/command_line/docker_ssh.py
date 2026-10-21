@@ -1380,7 +1380,8 @@ def _build_and_push_image(
     assembles the experiment and builds the image, on the server unless
     ``local_build`` is set, and pushes it for a local build or with
     ``push_build``. ``app`` is the deployed app name, which names the image
-    when ``docker_image_base_name`` is unset; it defaults to ``app_name``.
+    when ``docker_image_base_name`` is unset; it defaults to ``app_name``,
+    then to the launch id.
     """
     import docker
 
@@ -1430,7 +1431,7 @@ def _build_and_push_image(
         )
         image_name = build_image(
             tmp_dir,
-            _image_base_name(config, app or app_name, push_build),
+            _image_base_name(config, app or app_name or config.get("id"), push_build),
             out=Output(),
             image_tag=docker_tag_from_experiment_id(config.get("id")),
         )
