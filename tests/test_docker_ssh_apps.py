@@ -1235,6 +1235,13 @@ def test_deploy_refuses_a_name_another_apps_compose_project_uses(update, capsys)
         "existing app MyApp" in out
     )
     assert ("Destroy MyApp first with --keep-data;" in out) == update
+    if update:
+        with pytest.raises(click.Abort):
+            docker_ssh_module._check_compose_project_free(
+                FakeExecutor({"caddy.d": "MyApp\n"}), "myapp", update
+            )
+        out = capsys.readouterr().out
+        assert "There is no app myapp to update; did you mean MyApp?" in out
     executor = FakeExecutor({"caddy.d": "myapp\nmyapp~\n"})
     docker_ssh_module._check_compose_project_free(executor, "myapp", update)
 

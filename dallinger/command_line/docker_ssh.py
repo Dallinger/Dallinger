@@ -934,8 +934,8 @@ def _upload_frontdoor_caddyfile(sftp, executor, app):
     )
 
 
-def _project_siblings(executor, app):
-    """Return the server's other apps whose Compose project is ``app``'s.
+def _project_siblings(app, server_apps):
+    """Return the other ``server_apps`` whose Compose project is ``app``'s.
 
     Such apps (for example ``MyApp`` and ``myapp``) share containers and
     volumes. Entries that are not valid app names are not apps.
@@ -943,7 +943,7 @@ def _project_siblings(executor, app):
     project = _compose_project(app)
     return [
         name
-        for name in _discover_server_apps(executor)
+        for name in server_apps
         if name != app
         and APP_NAME_PATTERN.fullmatch(name)
         and _compose_project(name) == project
@@ -952,17 +952,21 @@ def _project_siblings(executor, app):
 
 def _check_compose_project_free(executor, app, update):
     """Abort if another app on the server has ``app``'s Compose project name."""
-    siblings = _project_siblings(executor, app)
+    server_apps = _discover_server_apps(executor)
+    siblings = _project_siblings(app, server_apps)
     if siblings:
         others = ", ".join(siblings)
-        # While app exists, destroy refuses to delete the other app's data.
-        advice = (
-            f"Destroy {others} first with --keep-data; this also stops the "
-            f"containers of {app}, which share the project, until this update "
-            "starts them again."
-            if update
-            else f"Use a different name, or destroy {others} first."
-        )
+        if not update:
+            advice = f"Use a different name, or destroy {others} first."
+        elif app in server_apps:
+            # While app exists, destroy refuses to delete the other app's data.
+            advice = (
+                f"Destroy {others} first with --keep-data; this also stops the "
+                f"containers of {app}, which share the project, until this "
+                "update starts them again."
+            )
+        else:
+            advice = f"There is no app {app} to update; did you mean {others}?"
         print(
             f"{RED}App name {app} gives the same Docker Compose project, "
             f"{_compose_project(app)}, as the existing "
@@ -2893,7 +2897,7 @@ def destroy(
             print(f"No experiment data of {app} is left on {ssh_host}.")
             raise click.Abort()
     if data and not keep_data:
-        siblings = _project_siblings(executor, app)
+        siblings = _project_siblings(app, _discover_server_apps(executor))
         if siblings:
             others = ", ".join(siblings)
             keep = (

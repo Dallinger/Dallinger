@@ -212,7 +212,9 @@
   such apps share containers and volumes: `deploy` and `sandbox` stop before
   building the image or destroying other apps for a root-domain deploy, and
   `destroy` stops before the teardown unless you pass `--keep-data` while
-  the other app exists, so it never deletes the other app's data.
+  the other app exists, so it never deletes the other app's data. The
+  messages say that destroying one of two such apps also stops the other
+  one's containers.
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
   config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
   Cloudflare settings and API token, and whether the app name is already
