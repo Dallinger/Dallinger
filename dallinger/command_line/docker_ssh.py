@@ -695,14 +695,29 @@ def docker_host_uri(host, user=None, port=22):
 
 
 def _ssh_config_user(host):
-    """Return the ``User`` that ``~/.ssh/config`` sets for ``host``, or None."""
-    path = Path.home() / ".ssh" / "config"
+    """Return the user OpenSSH would log in to ``host`` as, or None if unknown.
+
+    Docker's SSH transport runs ``ssh``, so ``ssh -G`` answers for exactly
+    the configuration it uses (``Include``, ``Match`` and system files too).
+    """
     try:
-        return paramiko.SSHConfig.from_path(str(path)).lookup(host).get("user")
-    except (OSError, ImportError, paramiko.SSHException) as exc:
-        if path.exists():
-            logging.getLogger(__name__).debug("Couldn't read %s: %s", path, exc)
+        result = subprocess.run(
+            ["ssh", "-G", "--", host],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        logging.getLogger(__name__).debug("ssh -G %s failed: %s", host, exc)
         return None
+    if result.returncode != 0:
+        return None
+    for line in result.stdout.splitlines():
+        key, _, value = line.partition(" ")
+        if key == "user":
+            return value
+    return None
 
 
 def _resolve_server_info(server):

@@ -17,7 +17,13 @@ docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
 
 
 def test_docker_host_uri_omits_at_sign_usernames(capsys, tmp_path, monkeypatch):
-    monkeypatch.setenv("HOME", str(tmp_path))
+    # A stand-in for OpenSSH's `ssh -G`, which reports the user it would use.
+    ssh = tmp_path / "ssh"
+    ssh.write_text(
+        '#!/bin/sh\necho "hostname $3"\necho "user ${SSH_TEST_USER:-peter}"\n'
+    )
+    ssh.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
     assert (
         docker_ssh_module.docker_host_uri("rr-pc01.example", user="pmch2@cam.ac.uk")
         == "ssh://rr-pc01.example"
@@ -28,12 +34,9 @@ def test_docker_host_uri_omits_at_sign_usernames(capsys, tmp_path, monkeypatch):
         == "ssh://pmch2@musix.example:2222"
     )
 
-    (tmp_path / ".ssh").mkdir()
-    (tmp_path / ".ssh" / "config").write_text(
-        "Host rr-pc01.example\n  User pmch2@cam.ac.uk\n"
-    )
+    monkeypatch.setenv("SSH_TEST_USER", "pmch2@cam.ac.uk")
     docker_ssh_module.docker_host_uri("rr-pc01.example", user="pmch2@cam.ac.uk")
-    assert capsys.readouterr().out == "", "no hint once ~/.ssh/config sets the user"
+    assert capsys.readouterr().out == "", "no hint once ssh would use that user"
 
 
 class FakeExecutor:
