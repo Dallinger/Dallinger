@@ -107,8 +107,7 @@ def test_the_clock_starts_once_both_players_are_here(game, new_round):
     game.on_join(new_round, SELLER, 2.0)
     assert game.view(new_round, SELLER)["deadline"] is None
 
-    # A bot has no page, so it arrives with its first offer
-    send(game, new_round, BUYER, {"offer": 40}, now=5.0)
+    game.on_join(new_round, BUYER, 5.0)
 
     assert game.view(new_round, SELLER)["deadline"] == 65.0
 

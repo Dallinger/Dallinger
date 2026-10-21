@@ -89,9 +89,9 @@ all the time, like the coins demo, sets a `tick_rate` instead.
 
 A round starts as soon as the pair is complete, which can be before both pages
 have opened. So that neither player loses time, the clock waits until both are
-there. Dallinger calls `on_join` when a player's page opens; a bot has no page,
-so it arrives with its first offer, which it makes straight away. Once both
-are there, the game sets the deadline `bargaining_seconds` later. If someone
+there. Dallinger calls `on_join` when a player's page opens, and for a bot,
+which has no page, as the round starts. Once both are there, the game sets
+the deadline `bargaining_seconds` later. If someone
 still hasn't arrived after `JOIN_SECONDS` (30), the clock starts anyway, so a
 player who never opens the page can't hold the round open. The page counts
 down from the deadline in the view.

@@ -104,7 +104,7 @@ class Bargain(RealtimeGame):
             "standing": {"seller": None, "buyer": None},
             "offers": [],
             "deal": None,
-            # The players who have opened the page or sent a message
+            # The players who have arrived
             "present": [],
             # When the clock started and runs out, in seconds into the round
             "started": None,
@@ -131,7 +131,6 @@ class Bargain(RealtimeGame):
                 raise Reject("that price would lose you money")
             state["standing"][role] = price
             state["offers"].append({"by": role, "price": price, "time": now})
-            self.arrive(state, player_id, now)
         elif "accept" in message:
             price = state["standing"][other_role(role)]
             if price is None:
@@ -148,12 +147,8 @@ class Bargain(RealtimeGame):
             raise Reject("a message is an offer or an accept")
 
     def on_join(self, state, player_id, now):
-        # Called when a player's page opens. A bot has no page, so it arrives
-        # with its first offer, which it makes as soon as the round starts.
-        self.arrive(state, player_id, now)
-
-    def arrive(self, state, player_id, now):
-        """Note that a player is here, and start the clock once both are."""
+        # Called when a player's page opens, and for a bot, which has no page,
+        # as the round starts. Starts the clock once both players are here.
         if player_id not in state["present"]:
             state["present"].append(player_id)
         if state["started"] is None and len(state["present"]) == len(state["roles"]):
