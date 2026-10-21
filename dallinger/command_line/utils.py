@@ -227,13 +227,17 @@ def verify_package(
     file_source = experiment_files or ExperimentFileSource(os.getcwd())
     if summary and verbose:
         output = StringIO()
-        with redirect_stdout(output):
-            ok = verify_package(
-                verbose=True,
-                verify_experiment=verify_experiment,
-                experiment_files=file_source,
-                summary=False,
-            )
+        try:
+            with redirect_stdout(output):
+                ok = verify_package(
+                    verbose=True,
+                    verify_experiment=verify_experiment,
+                    experiment_files=file_source,
+                    summary=False,
+                )
+        except BaseException:
+            click.echo(output.getvalue(), nl=False)
+            raise
         details = output.getvalue()
         if ok and "✗" not in details:
             size_in_mb = round(file_source.size / (1000 * 1000))
