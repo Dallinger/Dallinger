@@ -47,6 +47,7 @@ LOG_MODE_ENV = "DALLINGER_DEV_LOG"
 ROLE_ENV = "DALLINGER_DEV_ROLE"
 SLOW_REQUEST_ENV = "DALLINGER_DEV_SLOW_REQUEST_SECONDS"
 PIN_ENV = "WERKZEUG_DEBUG_PIN"
+_PIN_ANNOUNCED_ENV = "DALLINGER_DEV_PIN_ANNOUNCED"
 
 _DEFAULT_SLOW_REQUEST_SECONDS = 1.0
 _ROLE_WIDTH = 6
@@ -172,6 +173,10 @@ class ConsoleFilter(logging.Filter):
         message = record.getMessage()
         urls = _RUNNING_ON.findall(message)
         if urls:
+            if "debugger PIN " in (self.server_details or ""):
+                # Werkzeug starts the serving process after this line, so it
+                # inherits this and can hide werkzeug's own PIN line.
+                os.environ[_PIN_ANNOUNCED_ENV] = "1"
             details = f" ({self.server_details})" if self.server_details else ""
             record.dallinger_console_message = (
                 f"Development server on {', '.join(urls)}{details}"
@@ -187,8 +192,9 @@ class ConsoleFilter(logging.Filter):
             " * Restarting with "
         ):
             return False
-        # The serving process's debugger lines; the banner line announced them.
-        if message == " * Debugger is active!" or _DEBUGGER_PIN.fullmatch(message):
+        if os.environ.get(_PIN_ANNOUNCED_ENV) and (
+            message == " * Debugger is active!" or _DEBUGGER_PIN.fullmatch(message)
+        ):
             return False
         return True
 
@@ -342,7 +348,8 @@ def setup_dev_server(app):
     and debugger lines with one "Development server on <url>" line that
     includes the debugger PIN. Unless ``WERKZEUG_DEBUG_PIN`` is already set,
     the PIN is chosen at random once per session, so it stays the same
-    across reloads. With ``DALLINGER_DEV_LOG=full``, only the format changes.
+    across reloads. With ``DALLINGER_DEV_LOG=full``, only the line format is
+    set up: werkzeug's banner, PIN and request lines are left as they are.
 
     Parameters
     ----------

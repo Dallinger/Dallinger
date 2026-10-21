@@ -64,8 +64,10 @@
   - Werkzeug's line for every request is replaced by a line for each
     request that fails (status 400 or above, or an exception) or takes at
     least a second, with its duration, for example
-    `GET /does-not-exist 404 in 3 ms`. Query strings are left out. Set
-    `DALLINGER_DEV_SLOW_REQUEST_SECONDS` to change the threshold.
+    `GET /does-not-exist 404 in 3 ms`. Successful WebSocket requests, which
+    last as long as their connection, aren't reported. Query strings are
+    left out. Set `DALLINGER_DEV_SLOW_REQUEST_SECONDS` to change the
+    threshold.
   - RQ and APScheduler messages below WARNING, and the worker's "Warm shut
     down requested." messages when the server stops, are hidden.
   - Errors keep their full tracebacks, and text that doesn't go through

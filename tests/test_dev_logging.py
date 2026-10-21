@@ -105,7 +105,10 @@ def test_full_mode_keeps_everything(monkeypatch):
     assert len(console_lines(ROUTINE + KEPT)) == len(ROUTINE + KEPT)
 
 
-def test_werkzeug_banner_becomes_one_line_without_changing_the_record():
+def test_werkzeug_banner_becomes_one_line_without_changing_the_record(monkeypatch):
+    monkeypatch.setenv("DALLINGER_DEV_PIN_ANNOUNCED", "")
+    pin = record("werkzeug", msg=" * Debugger PIN: %s", args=("123-456-789",))
+    assert console_lines([pin]), "werkzeug's PIN line is shown until announced"
     banner = record(
         "werkzeug",
         msg="WARNING: This is a development server.\n"
@@ -114,7 +117,8 @@ def test_werkzeug_banner_becomes_one_line_without_changing_the_record():
     reload = record(
         "werkzeug", msg=" * Detected change in '/elsewhere/experiment.py', reloading"
     )
-    lines = console_lines([banner, reload], "auto-reload on, debugger PIN 123")
+    lines = console_lines([banner, reload, pin], "auto-reload on, debugger PIN 123")
+    assert len(lines) == 2
     assert lines[0].endswith(
         "web    Development server on http://127.0.0.1:5000 "
         "(auto-reload on, debugger PIN 123)"
@@ -123,7 +127,8 @@ def test_werkzeug_banner_becomes_one_line_without_changing_the_record():
     assert banner.getMessage().startswith("WARNING: This is a development server.")
 
 
-def test_debugger_lines_are_hidden_unless_the_debugger_is_unsecured():
+def test_announced_debugger_lines_are_hidden_unless_unsecured(monkeypatch):
+    monkeypatch.setenv("DALLINGER_DEV_PIN_ANNOUNCED", "1")
     lines = console_lines(
         [
             record("werkzeug", level=logging.WARNING, msg=" * Debugger is active!"),
@@ -174,9 +179,11 @@ def test_access_log_reports_failed_and_slow_requests_only(caplog):
     slow = Client(AccessLogMiddleware(wsgi_app, slow_seconds=0))
     slow.get("/slow", buffered=True)
     slow.get("/chat", headers={"Upgrade": "websocket"}, buffered=True)
+    slow.get("/missing", headers={"Upgrade": "websocket"}, buffered=True)
 
     messages = [r.getMessage() for r in caplog.records]
-    assert len(messages) == 3
+    assert len(messages) == 4
     assert re.fullmatch(r"GET /missing 404 in \d+ ms", messages[0])
     assert re.fullmatch(r"GET /boom 500 in \d+ ms", messages[1])
     assert re.fullmatch(r"GET /slow 200 in \d+ ms \(slow\)", messages[2])
+    assert messages[3].startswith("GET /missing 404")
