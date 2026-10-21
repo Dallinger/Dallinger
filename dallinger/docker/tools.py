@@ -526,7 +526,6 @@ def build_image(
     """
     tag = image_tag or get_experiment_image_tag(tmp_dir)
     image_name = f"{base_image_name}:{tag}"
-    base_image_name = get_base_image(tmp_dir, needs_chrome)
     client = docker.client.from_env()
     try:
         client.api.inspect_image(image_name)
@@ -569,7 +568,7 @@ def build_image(
         )
     else:
         dockerfile_text = rf"""# syntax=docker/dockerfile:1
-        FROM {base_image_name}
+        FROM {get_base_image(tmp_dir, needs_chrome)}
         #
         RUN mkdir /experiment
         WORKDIR /experiment
