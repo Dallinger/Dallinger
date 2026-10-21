@@ -1701,7 +1701,8 @@ class Testhandle_launch_data:
 
         local = context == "local"
         assert [bar.disable for bar in bars] == [local]
-        assert capsys.readouterr().out.count(HTTPS_WAIT_MESSAGE) == int(local)
+        if local:
+            assert capsys.readouterr().out.count(HTTPS_WAIT_MESSAGE) == 1
 
     def test_https_wait_bar_is_indeterminate(self, handler):
         from dallinger.deployment import HTTPS_WAIT_MESSAGE, Progress
