@@ -1428,7 +1428,7 @@ def _classic_preflight(
     executor = _build_executor(server_info)
     on_server_host = app_name and _served_at_server_host(executor, app_name)
     if on_server_host:
-        hostname = _server_host(server_info, dns_host)
+        hostname = _server_host(server_info, dns_host, deploy=True)
     else:
         hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
     _check_experiment_hostname_dns(
@@ -2255,7 +2255,7 @@ def _deploy_in_mode(
         cloudflare_settings = None
         tls = _server_tls(server_info, experiment=True)
         experiment_hostname = _classic_preflight(
-            server, app_name, archive_path, dns_host, allow_private_ip, update
+            server, app_name, archive_path, dns_host, allow_private_ip, update=update
         )
         if _root_domain_preflight_required(
             server, app_name, archive_path, ingress

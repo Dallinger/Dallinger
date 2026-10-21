@@ -29,7 +29,7 @@ def test_docker_host_uri_omits_at_sign_usernames(capsys):
 
 
 class FakeExecutor:
-    """Answer remote commands by the first matching substring, in any order."""
+    """Answer remote commands by the first matching substring, in ``replies`` order."""
 
     def __init__(self, replies):
         self.replies = replies

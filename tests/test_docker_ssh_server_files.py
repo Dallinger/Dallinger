@@ -268,7 +268,7 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
 
     assert checksums(server) == before
     # The preflight refuses --app of an app on the server's host unless updating.
-    assert preflight.call_args.args[5] is update
+    assert preflight.call_args.kwargs["update"] is update
     # Only a new app that takes the server's own host replaces its other apps.
     assert mocks["ensure_root_domain_ready"].called == (
         hostname == "lab.example.org" and not app_name
