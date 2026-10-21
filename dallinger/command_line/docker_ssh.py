@@ -1086,7 +1086,7 @@ def _record_then_launch(
         _print_deployment_infos(deployment_infos, dashboard_password)
     _record_deployment_infos(target.app, deployment_infos)
     if update:
-        print("Skipping experiment launch logic because we are in update mode.")
+        print("Not launching again: this is an update of a running experiment.")
         return {}
     try:
         check_internal_health(executor, target)
@@ -3286,7 +3286,6 @@ def _bring_up_app_containers(
     if update and "was-hibernating" in (output or ""):
         print(f"App {experiment_id} was hibernating. The update woke it.")
     if archive_path is None and not update:
-        print(f"Experiment {experiment_id} started.")
         print("Initializing database...")
         executor.run(
             f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml "

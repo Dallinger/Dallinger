@@ -295,7 +295,7 @@ def test_deploy_launches_once_the_public_url_answers(deploy_dir, capsys):
         )
         assert events == ["health", "check", "launch"]
         assert launch_data["recruitment_msg"] == "open"
-        assert "The app answers /health inside the server." in capsys.readouterr().out
+        assert "The experiment server is up." in capsys.readouterr().out
 
         assert docker_ssh._record_then_launch(executor, TARGET, ["n"], "pw", True) == {}
         assert events == ["health", "check", "launch"]

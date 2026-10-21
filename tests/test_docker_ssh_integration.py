@@ -178,7 +178,7 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
         update_result = fresh_docker_ssh_server.update_sandbox(app_id)
         update_output = f"{update_result.stdout}\n{update_result.stderr}"
         assert (
-            "Skipping experiment launch logic because we are in update mode."
+            "Not launching again: this is an update of a running experiment."
             in update_output
         )
 

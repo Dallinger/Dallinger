@@ -535,12 +535,12 @@ def build_image(
     client = docker.client.from_env()
     try:
         client.api.inspect_image(image_name)
-        out.blather(f"Image {image_name} found\n")
         if not force_build:
+            out.blather(f"Image {image_name} found\n")
             return image_name
-        out.blather("Rebuilding\n")
+        action = "Rebuilding"
     except docker.errors.ImageNotFound:
-        out.blather(f"Image {image_name} not found - building\n")
+        action = "Building"
 
     env = {
         **os.environ.copy(),
@@ -562,10 +562,9 @@ def build_image(
     docker_build_invocation += ["--label", f"{RUNS_AS_SSH_USER_LABEL}=1"]
     docker_build_invocation += ["-t", image_name]
     dockerfile_path = Path(tmp_dir) / "Dockerfile"
+    notes = []
     if dockerfile_path.exists():
-        out.blather(
-            "Found a custom Dockerfile in the experiment directory, will use this for deployment.\n"
-        )
+        notes.append("custom Dockerfile")
         dockerfile_text = dockerfile_path.read_text(encoding="utf-8")
         if list(Path(tmp_dir).glob("dallinger-*.whl")):
             dockerfile_text += LOCAL_DALLINGER_WHEEL_SNIPPET
@@ -619,15 +618,20 @@ def build_image(
         CMD dallinger_heroku_web
         """
         dockerfile_path.write_text(ensure_experiment_workdir_writable(dockerfile_text))
-    # Our messages must reach the terminal before docker's own output does.
-    sys.stdout.flush()
     verbose = os.environ.get("DALLINGER_VERBOSE_BUILD", "").strip().lower() in {
         "1",
         "true",
         "yes",
     }
-    if quiet and not verbose:
-        _build_with_log_file(docker_build_invocation, env, image_name, out)
+    quiet = quiet and not verbose
+    if quiet:
+        notes.append("set DALLINGER_VERBOSE_BUILD=1 to show docker's output")
+    details = f" ({'; '.join(notes)})" if notes else ""
+    out.blather(f"{action} image {image_name}{details}...\n")
+    # Our messages must reach the terminal before docker's own output does.
+    sys.stdout.flush()
+    if quiet:
+        _build_with_log_file(docker_build_invocation, env, out)
     else:
         try:
             check_output(docker_build_invocation, env=env)
@@ -637,16 +641,11 @@ def build_image(
     return image_name
 
 
-def _build_with_log_file(docker_build_invocation, env, image_name, out):
+def _build_with_log_file(docker_build_invocation, env, out):
     """Run ``docker build`` into a log file, printing and keeping it only on failure."""
     with tempfile.NamedTemporaryFile(
         "w", prefix="dallinger-docker-build-", suffix=".log", delete=False
     ) as log_file:
-        out.blather(
-            f"Building image {image_name} (set DALLINGER_VERBOSE_BUILD=1 "
-            "to show docker's output)...\n"
-        )
-        sys.stdout.flush()
         result = run(docker_build_invocation, env=env, stdout=log_file, stderr=STDOUT)
     log_path = Path(log_file.name)
     if result.returncode == 0:

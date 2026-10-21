@@ -224,10 +224,17 @@
 - docker-ssh commands print much less. Spinners only animate in a terminal,
   and errors no longer interleave with spinner frames. Each command shares one
   SSH connection per server instead of reconnecting for every step, and
-  reconnects if that connection drops. The image build prints a "Building
-  image" line instead of the BuildKit output; if it fails, the full build log
-  is printed and kept in a file (set `DALLINGER_VERBOSE_BUILD=1` to stream it
-  instead). Build messages now appear in order, each on its own line. The
+  reconnects if that connection drops. The image build prints two lines,
+  "Building image ..." (which also says whether a custom Dockerfile is used)
+  and "Built image: ...", instead of the BuildKit output; if it fails, the
+  full build log is printed and kept in a file (set
+  `DALLINGER_VERBOSE_BUILD=1` to stream it instead). Every command that
+  builds an image prints that one "Building image" line (or "Rebuilding
+  image") before the build starts, instead of separate "not found - building"
+  and "Found a custom Dockerfile" lines. A deploy no longer prints
+  "Experiment <app> started." after "Starting experiment.", reports the app's
+  health check as "The experiment server is up.", and an `--update` says
+  "Not launching again: this is an update of a running experiment." The
   `DOCKER_HOST`, experiment UID, deployment temp directory, "skipping push to
   registry" and "Removing any pre-existing ... volumes" lines are now
   debug-level logs, as is "Using custom Heroku ID root" in every command that
@@ -242,8 +249,7 @@
   An experiment directory that isn't a Git repository no longer prints
   git's "fatal: not a git repository" error. Deploys no longer say that
   `constraints.txt` is up to date or was written manually;
-  `dallinger constraints ensure` still does. The recruiter config check no
-  longer starts the output with a blank line.
+  `dallinger constraints ensure` still does.
 - docker-ssh deploys (classic and Cloudflare) also return the launch
   recruitment message as `recruitment_msg` in their result dict, or `None`
   if there isn't one (for example with `--update`), plus `image_name` and,

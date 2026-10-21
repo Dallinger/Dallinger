@@ -494,7 +494,7 @@ The above command will output:
     Connected.
     Launched http and postgresql servers. Starting experiment
     Creating database dlgr-d5543ddd
-    Experiment dlgr-d5543ddd started. Initializing database
+    Initializing database...
     Database initialized
     Launching experiment
     Initial recruitment list:
@@ -507,8 +507,8 @@ The above command will output:
 
 This example deploys a prebuilt image. Without a ``docker_image_name`` that the
 registry has (set in config or with ``-c docker_image_name <image>``), the deploy
-first builds one and prints a single ``Building image ...`` line, followed by
-``Built image: ...``.
+first builds one and prints a single ``Building image ...`` line, which says
+whether the experiment's own ``Dockerfile`` is used, followed by ``Built image: ...``.
 If the build fails, the full ``docker build`` log is printed with the path of its saved copy.
 Set ``DALLINGER_VERBOSE_BUILD=1`` to see the build output as it runs.
 Python callers that print their own summary, such as PsyNet, can invoke the command

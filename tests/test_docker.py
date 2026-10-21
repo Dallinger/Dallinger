@@ -528,8 +528,11 @@ def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit
             quiet=True,
         )
     output = "".join(messages)
+    assert messages[0].startswith("Building image exp:t (custom Dockerfile; ")
     assert ("+ ansi2html" in output) == bool(exit_code)
     assert ("Built image: exp:" in output) == (not exit_code)
+    if not exit_code:
+        assert len(messages) == 2
     assert all(message.endswith("\n") for message in messages)
     kept_logs = list(log_dir.iterdir())
     assert len(kept_logs) == exit_code
@@ -569,18 +572,25 @@ def test_generated_dockerfile_uses_the_pinned_base_image(
 def test_build_image_reuses_an_existing_image_without_resolving_the_base_image(
     tmp_path,
 ):
+    from dallinger.command_line.utils import Output
     from dallinger.docker import tools
 
     client = mock.Mock()
+    messages = []
     with (
         mock.patch("docker.client.from_env", return_value=client),
         mock.patch.object(tools, "get_base_image") as get_base_image,
         mock.patch.object(tools, "check_output") as check_output,
     ):
         name = tools.build_image(
-            tmp_path, "exp", mock.Mock(), force_build=False, image_tag="t"
+            tmp_path,
+            "exp",
+            Output(blather=messages.append),
+            force_build=False,
+            image_tag="t",
         )
     assert name == "exp:t"
+    assert messages == ["Image exp:t found\n"]
     get_base_image.assert_not_called()
     check_output.assert_not_called()
 
