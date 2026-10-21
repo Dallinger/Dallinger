@@ -216,13 +216,14 @@ def _display_path(path):
     if not relative.startswith(".."):
         return relative
     real = os.path.realpath(path)
-    for entry in os.scandir("."):
-        if entry.is_symlink():
-            target = os.path.realpath(entry.path)
-            if real == target:
-                return entry.name
-            if real.startswith(target + os.sep):
-                return os.path.join(entry.name, os.path.relpath(real, target))
+    with os.scandir(".") as entries:
+        links = [entry for entry in entries if entry.is_symlink()]
+    for entry in links:
+        target = os.path.realpath(entry.path)
+        if real == target:
+            return entry.name
+        if real.startswith(target + os.sep):
+            return os.path.join(entry.name, os.path.relpath(real, target))
     return path
 
 
