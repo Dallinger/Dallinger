@@ -76,7 +76,7 @@ def develop():
 @click.option(
     "--no-browsers",
     is_flag=True,
-    help="Skip opening browsers; log the recruitment message and dashboard login",
+    help="Skip opening browsers; print the recruitment message and dashboard login",
 )
 @click.option(
     "--verbose",

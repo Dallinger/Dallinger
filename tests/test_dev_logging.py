@@ -13,6 +13,7 @@ from dallinger.dev_logging import (
     ConsoleFormatter,
     configure_from_environment,
     load_error_app,
+    report_load_error,
     use_colour,
 )
 
@@ -151,6 +152,15 @@ def test_an_experiment_that_fails_to_load_gets_a_short_500_page():
     assert "SyntaxError" in response.text
 
 
+def test_a_load_error_is_logged_once_with_its_traceback(caplog):
+    error = SyntaxError("invalid syntax")
+    with caplog.at_level(logging.ERROR):
+        report_load_error(error)
+    (logged,) = caplog.records
+    assert logged.getMessage().startswith("The experiment failed to load.")
+    assert logged.exc_info[1] is error
+
+
 def test_scheduler_overlap_warnings_are_collapsed(monkeypatch):
     now = [0.0]
     monkeypatch.setattr("dallinger.dev_logging.time.monotonic", lambda: now[0])
@@ -167,12 +177,12 @@ def test_scheduler_overlap_warnings_are_collapsed(monkeypatch):
             return None
         return getattr(overlap, "dallinger_console_message", overlap.getMessage())
 
-    assert shown(1) is None and shown(29) is None, "hidden while warming up"
-    assert shown(31).endswith(
+    assert shown(5) is None and shown(34) is None, "hidden while warming up"
+    assert shown(36).endswith(
         "(2 similar scheduler warnings not shown; they are shown at most once a minute)"
     )
-    assert shown(40, 'Run time of job "%s" was missed by %s') is None
-    assert shown(92) is not None
+    assert shown(45, 'Run time of job "%s" was missed by %s') is None
+    assert shown(97) is not None
     assert log_filter.filter(
         record("apscheduler.executors.default", logging.ERROR, "Job failed")
     )

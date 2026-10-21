@@ -198,3 +198,4 @@ def test_sessions_scope_reraises_without_logging_the_traceback(db_session, caplo
                 raise ValueError("boom")
 
     assert not [r for r in caplog.records if r.exc_info or r.levelname == "ERROR"]
+    assert any("Rolling back" in r.getMessage() for r in caplog.records)
