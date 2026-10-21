@@ -66,7 +66,13 @@
     lines are no longer printed. Unless `WERKZEUG_DEBUG_PIN` is set, the
     PIN is chosen at random for each session, so it no longer changes when
     the server reloads. A code change prints `Reloading: experiment.py
-    changed`.
+    changed`, naming the file as it appears in the experiment directory.
+  - If a code change stops the experiment loading (for example a syntax
+    error), the error and its traceback are printed once, as
+    `ERROR The experiment failed to load. Fix the error and save: the server
+    reloads automatically.`, and requests get a short 500 page saying so
+    until the next change fixes it. Previously the traceback was printed
+    again for every request, in werkzeug's own format with query strings.
   - Werkzeug's line for every request is replaced by a line for each
     request that fails (status 400 or above, or an exception) or takes at
     least a second, with its duration, for example

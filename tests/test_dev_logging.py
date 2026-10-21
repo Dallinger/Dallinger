@@ -12,6 +12,7 @@ from dallinger.dev_logging import (
     ConsoleFilter,
     ConsoleFormatter,
     configure_from_environment,
+    load_error_app,
     use_colour,
 )
 
@@ -125,6 +126,29 @@ def test_werkzeug_banner_becomes_one_line_without_changing_the_record(monkeypatc
     )
     assert lines[1].endswith("web    Reloading: /elsewhere/experiment.py changed")
     assert banner.getMessage().startswith("WARNING: This is a development server.")
+
+
+def test_a_reload_through_a_linked_file_shows_its_name_here(tmp_path, monkeypatch):
+    experiment = tmp_path / "experiment" / "experiment.py"
+    experiment.parent.mkdir()
+    experiment.write_text("")
+    develop = tmp_path / "develop"
+    develop.mkdir()
+    (develop / "experiment.py").symlink_to(experiment)
+    monkeypatch.chdir(develop)
+    reload = record("werkzeug", msg=f" * Detected change in '{experiment}', reloading")
+    assert console_lines([reload])[0].endswith("Reloading: experiment.py changed")
+
+
+def test_an_experiment_that_fails_to_load_gets_a_short_500_page():
+    try:
+        compile("def broken(:", "experiment.py", "exec")
+    except SyntaxError as error:
+        app = load_error_app(error)
+    response = Client(app).get("/timeline?unique_id=1")
+    assert response.status_code == 500
+    assert "The experiment failed to load: " in response.text
+    assert "SyntaxError" in response.text
 
 
 def test_announced_debugger_lines_are_hidden_unless_unsecured(monkeypatch):

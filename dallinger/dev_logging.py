@@ -19,6 +19,11 @@ The console hides routine records: werkzeug's start-up banner and access log
 only reports errors and slow requests), and RQ and APScheduler messages below
 WARNING. ``logs.jsonl`` in the develop directory still receives every record.
 
+If a code change stops the experiment importing, the develop directory's
+``app.py`` serves :func:`load_error_app` and logs the error once with
+:func:`report_load_error`, so the console keeps this format until the next
+change fixes it.
+
 Environment variables:
 
 - ``DALLINGER_DEV_LOG=full`` turns the filtering off, restoring werkzeug's
@@ -40,6 +45,7 @@ import re
 import secrets
 import sys
 import time
+import traceback
 
 from werkzeug.wsgi import ClosingIterator
 
@@ -200,9 +206,24 @@ class ConsoleFilter(logging.Filter):
 
 
 def _display_path(path):
-    """Return ``path`` relative to the working directory if it is inside it."""
+    """Return ``path`` relative to the working directory if it is inside it.
+
+    The develop directory links to the experiment's files, and werkzeug may
+    report a change under either name, so a file reached through one of the
+    directory's links is shown by its name there too.
+    """
     relative = os.path.relpath(path)
-    return path if relative.startswith("..") else relative
+    if not relative.startswith(".."):
+        return relative
+    real = os.path.realpath(path)
+    for entry in os.scandir("."):
+        if entry.is_symlink():
+            target = os.path.realpath(entry.path)
+            if real == target:
+                return entry.name
+            if real.startswith(target + os.sep):
+                return os.path.join(entry.name, os.path.relpath(real, target))
+    return path
 
 
 def configure_console_logging(role, level=logging.INFO):
@@ -379,6 +400,52 @@ def setup_dev_server(app):
     for log_filter in handler.filters:
         log_filter.server_details = ", ".join(details)
     _hide_flask_banner()
+
+
+def load_error_app(error):
+    """Return a Flask app to serve while the experiment fails to import.
+
+    Used by the develop directory's ``app.py`` after a code change, so that
+    the error is reported once (see :func:`report_load_error`) and the server
+    keeps running until the next change fixes it. Every request gets a short
+    500 page instead of the traceback again.
+
+    Parameters
+    ----------
+    error : Exception
+        The exception raised while importing the experiment.
+    """
+    from flask import Flask
+
+    summary = "".join(traceback.format_exception_only(error)).strip()
+    message = (
+        f"The experiment failed to load: {summary}\n"
+        "Fix it and save: the server reloads automatically. The traceback is "
+        "in the server's output.\n"
+    )
+    app = Flask(__name__)
+
+    @app.route("/", defaults={"path": ""}, methods=["GET", "POST"])
+    @app.route("/<path:path>", methods=["GET", "POST"])
+    def experiment_failed_to_load(path):
+        return message, 500, {"Content-Type": "text/plain; charset=utf-8"}
+
+    return app
+
+
+def report_load_error(error):
+    """Log the error that stopped the experiment loading, with its traceback.
+
+    Parameters
+    ----------
+    error : Exception
+        The exception raised while importing the experiment.
+    """
+    logging.getLogger("dallinger.dev_server").error(
+        "The experiment failed to load. Fix the error and save: the server "
+        "reloads automatically.",
+        exc_info=error,
+    )
 
 
 def _random_pin():
