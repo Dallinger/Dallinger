@@ -243,6 +243,7 @@ class TestVerify:
         assert v_package(verify_experiment=False, summary=True) is True
         out = capsys.readouterr().out
         assert "launch.html OVERWRITES shared frontend files" in out
+        assert "✓ config.txt is PRESENT" in out
         assert "Experiment files OK" not in out
 
     def test_verify_package_imports_experiment_by_default(self, v_package):

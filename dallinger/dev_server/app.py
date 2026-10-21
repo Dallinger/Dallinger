@@ -16,7 +16,7 @@ from dallinger.experiment_server.experiment_server import app  # noqa: E402, F40
 
 # Werkzeug (2.1+) colours its log lines without checking where they go: stderr.
 werkzeug.serving._log_add_style = (
-    werkzeug.serving._log_add_style
+    getattr(werkzeug.serving, "_log_add_style", True)
     and sys.stderr.isatty()
     and "NO_COLOR" not in os.environ
 )

@@ -147,7 +147,7 @@ def get_server_pem_path() -> Path:
 
 _EXPERIMENT_FILES_META = "dallinger.experiment_files"
 
-REQUIRED_EXPERIMENT_FILES = ("config.txt", "experiment.py")
+_REQUIRED_EXPERIMENT_FILES = ("config.txt", "experiment.py")
 
 
 def get_experiment_files(root="."):
@@ -232,11 +232,12 @@ def verify_package(
                 verbose=True,
                 verify_experiment=verify_experiment,
                 experiment_files=file_source,
+                summary=False,
             )
         details = output.getvalue()
         if ok and "✗" not in details:
             size_in_mb = round(file_source.size / (1000 * 1000))
-            names = ", ".join(REQUIRED_EXPERIMENT_FILES)
+            names = ", ".join(_REQUIRED_EXPERIMENT_FILES)
             click.echo(f"✓ Experiment files OK ({names}; {size_in_mb} MB)")
         else:
             click.echo(details, nl=False)
@@ -264,7 +265,7 @@ def verify_directory(verbose=True, experiment_files=None):
     # Check required files
     ok = True
     mb_to_bytes = 1000 * 1000
-    for f in REQUIRED_EXPERIMENT_FILES:
+    for f in _REQUIRED_EXPERIMENT_FILES:
         if os.path.exists(f):
             log("✓ {} is PRESENT".format(f), chevrons=False, verbose=verbose)
         else:
