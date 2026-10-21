@@ -77,9 +77,8 @@ def run_worker(
 def test_worker_that_never_registers_exits_after_startup_timeout(tmp_path):
     result = run_worker(tmp_path, "time.sleep(30)", startup_timeout="5")
     assert result.returncode == 1
-    assert (
-        "Worker will exit if it hasn't registered with RQ within 5 s" in result.stderr
-    )
+    # The announcement is logged at DEBUG, so only loglevel_worker = 0 shows it.
+    assert "Worker will exit" not in result.stderr
     assert "hasn't registered with RQ within 5 s; exiting" in result.stderr
 
 

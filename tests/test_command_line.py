@@ -217,6 +217,22 @@ class TestVerify:
         active_config.extend({"base_payment": -1.99})
         assert v_package() is False
 
+    def test_summary_is_one_line_when_checks_pass(self, v_package, capsys):
+        assert v_package(verify_experiment=False, summary=True) is True
+        out = capsys.readouterr().out
+        assert out.startswith("✓ Experiment files OK (")
+        assert out.count("\n") == 1
+
+    def test_summary_shows_every_check_when_one_fails(
+        self, active_config, v_package, capsys
+    ):
+        active_config.extend({"base_payment": -1.99})
+        assert v_package(verify_experiment=False, summary=True) is False
+        out = capsys.readouterr().out
+        assert "✓ config.txt is PRESENT" in out
+        assert "✗ base_payment must be greater than or equal to zero" in out
+        assert "Experiment files OK" not in out
+
     def test_verify_package_imports_experiment_by_default(self, v_package):
         assert v_package() is True
         assert "dallinger_experiment" in sys.modules

@@ -4,6 +4,7 @@ import platform
 import re
 import sys
 import tempfile
+from contextlib import redirect_stdout
 from functools import wraps
 from io import StringIO
 from pathlib import Path
@@ -196,14 +197,45 @@ def verify_package(
     verbose=True,
     verify_experiment=True,
     experiment_files=None,
+    summary=False,
 ):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
 
     A command can pass one ``ExperimentFileSource`` here and to
     ``setup_experiment`` so verification and assembly share one frozen plan.
+
+    Parameters
+    ----------
+    verbose : bool
+        Print the result of each check.
+    verify_experiment : bool
+        Import ``experiment.py`` from a temporary copy and check its classes.
+    experiment_files : dallinger.utils.ExperimentFileSource, optional
+        The experiment's files; built from the current directory if omitted.
+    summary : bool
+        With ``verbose``, print one line if every check passes without a
+        warning, and every check's output otherwise.
+
+    Returns
+    -------
+    bool
+        True if the experiment passed every check.
     """
     file_source = experiment_files or ExperimentFileSource(os.getcwd())
+    if summary and verbose:
+        output = StringIO()
+        with redirect_stdout(output):
+            ok = verify_package(True, verify_experiment, file_source)
+        details = output.getvalue()
+        if ok and "✗" not in details:
+            size_in_mb = round(file_source.size / (1000 * 1000))
+            click.echo(
+                f"✓ Experiment files OK (config.txt, experiment.py; {size_in_mb} MB)"
+            )
+        else:
+            click.echo(details, nl=False)
+        return ok
     return all(
         (
             verify_directory(verbose, file_source),

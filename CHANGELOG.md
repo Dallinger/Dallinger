@@ -38,6 +38,18 @@
     "Starting up the Docker server..." and "Monitoring the Docker server...".
     Update any scripts that wait for the old text.
   - The Procfile processes run with `PYTHONUNBUFFERED=1`.
+- Quieter `dallinger develop debug` (used by `psynet debug local`) output:
+  - When every experiment file check passes, one line
+    (`✓ Experiment files OK (config.txt, experiment.py; 0 MB)`) replaces the
+    four `✓` lines. If a check fails or warns, every check's line is printed
+    as before. `verify_package()` has a new `summary` argument for this.
+  - The development server no longer writes ANSI colour codes into its log
+    lines when its output is redirected to a file or pipe, or when
+    `NO_COLOR` is set.
+- The worker's "Worker will exit if it hasn't registered with RQ within …"
+  start-up notice is now logged at DEBUG instead of WARNING, so it only
+  appears with `loglevel_worker = 0`. The message printed when the worker
+  does exit for this reason is unchanged.
 
 ### Added
 

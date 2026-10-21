@@ -7,10 +7,15 @@ import codecs  # noqa: E402
 import logging  # noqa: E402
 import os  # noqa: E402
 import subprocess  # noqa: E402
+import sys  # noqa: E402
 
 import werkzeug  # noqa: E402
+import werkzeug.serving  # noqa: E402
 
 from dallinger.experiment_server.experiment_server import app  # noqa: E402, F401
+
+# Werkzeug colours its log lines unconditionally; its records go to stderr.
+werkzeug.serving._log_add_style = sys.stderr.isatty() and "NO_COLOR" not in os.environ
 
 
 @atexit.register

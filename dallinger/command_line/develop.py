@@ -85,6 +85,7 @@ def debug(port, skip_flask, no_browsers=False):
     if not verify_package(
         verify_experiment=False,
         experiment_files=files,
+        summary=True,
     ):
         # We could instead use the @require_exp_directory decorator,
         # but this doesn't print anything useful without the verbose flag.
