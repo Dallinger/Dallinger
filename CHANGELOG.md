@@ -212,7 +212,7 @@
   between players and set the bots' speed and the bonus per coin, and the
   instructions describe them. Each steal and bounce is saved as
   an effect and an `Info`, and only the moves that collect a coin or touch
-  another player are saved.
+  another player are saved. Its README walks through building the game.
 
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
   experiment refuse an `/experiment-socket` connection when it opens. A falsy

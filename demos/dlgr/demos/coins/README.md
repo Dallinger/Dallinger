@@ -7,6 +7,9 @@ play against bots, from easy to as fast as you.
 
 The game is played by Dallinger's real-time engine, as described in
 [Real-Time Games](https://dallinger.readthedocs.io/en/latest/realtime_games.html).
+How It's Built, below, walks through the parts a researcher would adapt for a
+game of their own. The bargaining demo covers the basics of a game type; this
+one adds a game where things move all the time.
 
 ## Playing
 
@@ -58,6 +61,71 @@ who was heading toward whom:
 The instructions and the game page explain whichever rules are on, and the
 end of the game tells each player how many coins they stole and lost, and how
 many times they were bounced and bounced others.
+
+## How It's Built
+
+The demo has three parts, like the bargaining demo: `Coins`, the game type, and
+`CoinCollection`, the experiment, both in `experiment.py`, and the page,
+`static/scripts/experiment.js`.
+
+### A Game That Ticks
+
+Coins sets `tick_rate = 20`, so Dallinger calls the game's `tick` 20 times a
+second whether or not anyone has moved, and sends every player a new view
+after each one. `tick` is where time-driven things happen: here, a coin
+appears every two seconds until there are six. `max_duration = 60` ends the
+game after a minute. A game without anything that happens on its own, like
+bargaining, leaves `tick_rate` at 0.
+
+### Moves Held to the Clock
+
+A page sends a move as `{"dx": 1, "dy": 0, "seconds": 0.05}`: which way, and
+for how long the key was held. `apply` doesn't trust the page's count of
+time. Each player has a `moved_until` time in the state, and a move can only
+spend time between that and the game's clock, `now`, so however many moves a
+page sends, its player moves no faster than everyone else. A player held up
+for a moment can catch up by half a second, no more.
+
+`apply` handles messages in the order they arrive, so a coin goes to whoever
+reached it first, and that's the rule for anything two players compete for.
+
+### Keeping the Record Small
+
+Pages send many moves a second. By default every message is saved, which lets
+a game be replayed exactly, but here `save_message` keeps only the moves that
+collected a coin or touched another player.
+
+Steals and bounces are queued as effects, as bargaining queues the start of
+its next round. Each is saved in the record, and `handle_effect` also adds it
+as an `Info` on the node of the player who did it, so it sits with the rest of
+the experiment's data.
+
+### Drawing a Moving Game
+
+The page draws the arena about 60 times a second, more often than views
+arrive, and two optional features of the client keep the movement smooth:
+
+- **Prediction.** `predict(view, message)` returns the view as it would be
+  once the game applied one of the player's moves. With it, the player's own
+  piece moves the moment they press a key instead of when the next view
+  arrives, and `socket.predictedView()` gives the view with the moves the game
+  hasn't answered yet already applied. The page's `predict` copies the game's
+  movement rules, so it agrees with the game except when something it can't
+  see, such as a collision, happens.
+- **Interpolation.** `interpolate(a, b, fraction)` returns a view part of the
+  way between two tick views. `socket.interpolatedView()` draws the game a
+  little in the past, between the last two views, so the other players glide
+  rather than jump 20 times a second.
+
+Both are passed to `joinRealtimeSession`. A page works without them, drawing
+each view as it comes, at the cost of movement that looks jumpy.
+
+### Bots
+
+`bot` plays for the bots recruiter's players: it goes for the nearest coin it
+has a good chance of reaching first, and otherwise waits in the middle of the
+part of the arena nearer to it than to anyone else. Its moves go through
+`apply` like a player's, so it's held to the same speed.
 
 ## Playing With Bots
 
