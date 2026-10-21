@@ -455,6 +455,9 @@ class TestDevelopCommand:
             result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
 
         assert result.exit_code == 0, result.output
+        assert "✓ Experiment files OK" in result.output
+        assert "is PRESENT" not in result.output
+        assert "Experiment UID" not in result.output
 
     def test_debug_no_browsers_logs_launch_details(self, active_config, develop):
         develop_module = sys.modules["dallinger.command_line.develop"]

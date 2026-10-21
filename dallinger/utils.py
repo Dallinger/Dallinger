@@ -546,7 +546,7 @@ def bootstrap_development_session(
     from dallinger.experiment import Experiment
 
     experiment_uid = Experiment.make_uuid()
-    log("Experiment UID: {}".format(experiment_uid))
+    logging.getLogger(__name__).debug("Experiment UID: %s", experiment_uid)
 
     # Load and update the config
     config = get_config(load=True)
