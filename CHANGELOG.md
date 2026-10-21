@@ -214,7 +214,9 @@
   once if one is running, waiting on an `/experiment-socket` connection with
   the new `wait_for_game` query parameter.
   `dallinger.joinRealtimeSession(gameChannel)` waits the same way, then joins
-  the session and resolves with its socket.
+  the session and resolves with its socket. Both take an `afterSession`
+  option, so that only a session newer than one the page already has counts,
+  and a `scope` option for the page load.
   `openExperimentSocket` and `openChatSocket` take `session` and
   `gameChannel` options to join a session. Such a socket's `send` numbers the
   messages it sends on the game channel, and `onView`, `onRejected`,

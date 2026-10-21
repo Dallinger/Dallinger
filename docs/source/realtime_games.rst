@@ -618,6 +618,15 @@ A participant who plays several sessions of the game type, one after another,
 passes the id of the session the page already has, the socket's ``session``,
 as the ``afterSession`` option, so that only a newer one counts.
 
+Each load of a page needs a scope of its own, the value that tells a session
+one of a player's pages from another. Dallinger's helpers use
+``dallinger.pageScope``, which is new on every load, unless they're given a
+``scope`` option. An experiment that names its pages can pass that name as the
+``scope``. If the name stays the same when the page is reloaded, add
+``dallinger.pageScope`` to it, since a reloaded page that reuses its scope
+while the earlier load is still connected can have its messages mixed up with
+that load's.
+
 Dallinger refuses a connection to a session from a participant who isn't one
 of its players. It doesn't check who is on the other end of a connection, so
 an experiment that needs to can check connections itself with

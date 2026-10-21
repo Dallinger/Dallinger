@@ -111,7 +111,7 @@ WebSocket routes, as described in
 
 .. _realtime-sessions-label:
 
-Real-time sessions
+Real-Time Sessions
 ~~~~~~~~~~~~~~~~~~
 
 A socket opened with a ``session`` joins a session of one of the experiment's
