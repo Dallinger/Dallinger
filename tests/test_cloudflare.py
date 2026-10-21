@@ -1,10 +1,12 @@
 import json
+import subprocess
 import urllib.parse
 from unittest import mock
 
 import pytest
 
 from dallinger.command_line.lib import cloudflare as cf
+from dallinger.config import Configuration
 
 
 class FakeCloudflareAPI:
@@ -213,7 +215,9 @@ def test_delete_experiment_tunnel_is_idempotent():
         api_token="tok",
         request_func=api,
     )
-    assert removed is True
+    assert removed == cf.TunnelDeletion(
+        True, "dallinger-consonance", "consonance.science-of-music.org"
+    )
     deletes = [path for method, path, _payload in api.calls if method == "DELETE"]
     connection_delete = next(
         index for index, path in enumerate(deletes) if path.endswith("/connections")
@@ -225,7 +229,7 @@ def test_delete_experiment_tunnel_is_idempotent():
     )
     assert connection_delete < tunnel_delete
     assert api.dns == []
-    cf.delete_experiment_tunnel(
+    again = cf.delete_experiment_tunnel(
         account_id="acct",
         zone_id="zone",
         app="consonance",
@@ -233,6 +237,7 @@ def test_delete_experiment_tunnel_is_idempotent():
         api_token="tok",
         request_func=api,
     )
+    assert again == cf.TunnelDeletion(True)
     assert all(item.get("deleted") for item in api.tunnels)
 
 
@@ -257,7 +262,9 @@ def test_delete_leaves_a_same_named_tunnel_from_another_deploy():
         own_tunnel_id="ours",
         request_func=api,
     )
-    assert removed is True
+    assert removed == cf.TunnelDeletion(
+        True, skipped_tunnel_name="dallinger-consonance"
+    )
     assert not api.tunnels[0].get("deleted")
     assert [record["id"] for record in api.dns] == ["c1"]
 
@@ -352,7 +359,7 @@ def test_delete_experiment_tunnel_logs_dns_failures(caplog):
             api_token="tok",
             request_func=api,
         )
-    assert removed is False
+    assert not removed
     assert "Could not delete Cloudflare DNS record dns1" in caplog.text
     assert "Leaving Cloudflare tunnel tid in place" in caplog.text
     assert api.dns[0]["id"] == "dns1"
@@ -374,7 +381,7 @@ def test_delete_experiment_tunnel_logs_tunnel_failures(caplog):
             api_token="tok",
             request_func=api,
         )
-    assert removed is False
+    assert not removed
     assert "Could not delete Cloudflare tunnel tid" in caplog.text
     assert not api.tunnels[0].get("deleted")
 
@@ -384,6 +391,57 @@ def test_load_api_token_prefers_environment(monkeypatch):
     config = mock.Mock()
     config.get.return_value = "from-config"
     assert cf.load_api_token(config) == "from-env"
+
+
+def _keychain_config(service):
+    config = Configuration()
+    config.register("cloudflare_api_token", str)
+    config.register("cloudflare_keychain_service", str)
+    config.extend({"cloudflare_keychain_service": service})
+    config.ready = True
+    return config
+
+
+@pytest.fixture
+def security_calls(monkeypatch):
+    """Record ``security`` invocations instead of reading the real Keychain."""
+    monkeypatch.delenv("CLOUDFLARE_API_TOKEN", raising=False)
+    monkeypatch.setattr(cf.shutil, "which", lambda name: "/usr/bin/security")
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return mock.Mock(stdout="from-keychain\n")
+
+    monkeypatch.setattr(cf.subprocess, "run", run)
+    return calls
+
+
+def test_load_api_token_reads_the_configured_keychain_item_under_any_account(
+    security_calls,
+):
+    config = _keychain_config("org.example.cloudflare-token")
+    assert cf.load_api_token(config) == "from-keychain"
+    args = security_calls[0]
+    assert args[args.index("-s") + 1] == "org.example.cloudflare-token"
+    assert "-a" not in args
+
+
+@pytest.mark.parametrize("service", ["", "   "])
+def test_load_api_token_defaults_to_the_users_dallinger_item(security_calls, service):
+    cf.load_api_token(_keychain_config(service))
+    args = security_calls[0]
+    assert args[args.index("-s") + 1] == cf.KEYCHAIN_SERVICE
+    assert "-a" in args
+
+
+def test_load_api_token_failure_names_the_configured_item(security_calls, monkeypatch):
+    def run(args, **kwargs):
+        raise subprocess.CalledProcessError(44, args)
+
+    monkeypatch.setattr(cf.subprocess, "run", run)
+    with pytest.raises(cf.CloudflareError, match="'org.example.cloudflare-token'"):
+        cf.load_api_token(_keychain_config("org.example.cloudflare-token"))
 
 
 def test_load_api_token_requires_a_source(monkeypatch):

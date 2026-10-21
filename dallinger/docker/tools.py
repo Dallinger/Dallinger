@@ -1,16 +1,19 @@
+import codecs
 import os
+import re
 import time
+import warnings
 from hashlib import sha256
 from pathlib import Path
 from shutil import which
-from subprocess import CalledProcessError, check_output
+from subprocess import CalledProcessError, call, check_output
 
 import click
 import docker
 from jinja2 import Template
+from packaging.requirements import InvalidRequirement, Requirement
+from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
-from pip._internal.network.session import PipSession
-from pip._internal.req import parse_requirements
 
 from dallinger.docker.wheel_filename import parse_wheel_filename
 from dallinger.utils import (
@@ -20,6 +23,53 @@ from dallinger.utils import (
 )
 
 LATEST_VERSION = ""  # use :latest image tag
+
+# Worker containers get a low CPU weight so the web server wins when CPU is
+# short: their combined weight is about 10% of the web container's default
+# weight of 1024. Docker rejects weights below 2.
+WORKERS_COMBINED_CPU_SHARES = 102
+MIN_CPU_SHARES = 2
+
+
+def worker_cpu_shares(worker_processes):
+    """Return the Docker ``cpu_shares`` for each worker container.
+
+    Parameters
+    ----------
+    worker_processes : int
+        Number of worker containers sharing the combined worker weight.
+    """
+    return max(
+        MIN_CPU_SHARES, round(WORKERS_COMBINED_CPU_SHARES / max(worker_processes, 1))
+    )
+
+
+def docker_worker_processes(config):
+    """Return the number of worker containers for a Docker deployment.
+
+    Uses ``worker_processes`` if it is set explicitly. Otherwise, an
+    explicitly set ``num_dynos_worker`` (which used to size Docker workers
+    too) is used with a ``FutureWarning``.
+
+    Parameters
+    ----------
+    config : dallinger.config.Configuration
+        The loaded configuration.
+    """
+    if not config.is_set_explicitly("worker_processes") and config.is_set_explicitly(
+        "num_dynos_worker"
+    ):
+        count = config.get("num_dynos_worker")
+        warnings.warn(
+            "Docker deployments now use 'worker_processes' for the number of "
+            f"worker containers; using num_dynos_worker = {count} instead. "
+            "Set 'worker_processes' to silence this warning.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        return count
+    return config.get("worker_processes", 1)
+
 
 docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
@@ -32,6 +82,20 @@ LOCAL_DALLINGER_WHEEL_SNIPPET = """
 COPY dallinger-*.whl /tmp/dallinger-wheel/
 RUN python -m pip install --no-cache-dir --force-reinstall --no-deps /tmp/dallinger-wheel/dallinger-*.whl
 """
+
+
+def _quote_dotenv_value(value):
+    """Quote ``value`` so docker compose reads it back from ``.env`` unchanged.
+
+    Unquoted ``.env`` values are interpolated (``$name``) and cut at `` #``.
+    """
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
+    return f'"{escaped}"'
+
+
+def _private_opener(path, flags):
+    """Open ``path`` readable and writable by the owner only."""
+    return os.open(path, flags, 0o600)
 
 
 class DockerComposeWrapper:
@@ -66,6 +130,7 @@ class DockerComposeWrapper:
         self.out = output
         self.verbose = verbose
         self.env = env if env is not None else os.environ.copy()
+        self.env["FLASK_SECRET_KEY"] = self.env.get("FLASK_SECRET_KEY") or ""
         self.tmp_dir = tmp_dir
         self.original_dir = original_dir
         self.experiment_name = Path(self.original_dir).name
@@ -73,7 +138,12 @@ class DockerComposeWrapper:
         self.needs_chrome = needs_chrome
 
     def copy_docker_compose_files(self):
-        """Prepare a docker-compose.yml file and place it in the experiment tmp dir"""
+        """Prepare a docker-compose.yml file and place it in the experiment tmp dir.
+
+        Dallinger's own compose calls pass the key via ``env=self.env``; the
+        ``.env`` copy serves manual ``docker compose logs`` or ``down`` in the
+        tmp dir, which fail without it because the template requires the key.
+        """
         logger_filename = JSON_LOGFILE
         volumes = [
             f"{self.original_dir}:{self.original_dir}",
@@ -99,6 +169,7 @@ class DockerComposeWrapper:
                 f"{editable_dallinger_path}/dallinger:/usr/local/lib/python3.11/dist-packages/dallinger/"
             )
         tag = get_experiment_image_tag(self.tmp_dir)
+        worker_processes = docker_worker_processes(self.config)
         with open(os.path.join(self.tmp_dir, "docker-compose.yml"), "w") as fh:
             fh.write(
                 docker_compose_template.render(
@@ -107,11 +178,16 @@ class DockerComposeWrapper:
                     experiment_image=f"{self.experiment_name}:{tag}",
                     needs_chrome=self.needs_chrome,
                     config=self.config,
+                    worker_processes=worker_processes,
+                    worker_cpu_shares=worker_cpu_shares(worker_processes),
                 )
             )
-        with open(os.path.join(self.tmp_dir, ".env"), "w") as fh:
+        dotenv_path = os.path.join(self.tmp_dir, ".env")
+        with open(dotenv_path, "w", opener=_private_opener) as fh:
+            os.fchmod(fh.fileno(), 0o600)
             fh.write(f"COMPOSE_PROJECT_NAME={self.experiment_name}\n")
-            fh.write(f"FLASK_SECRET_KEY=${self.env.get('FLASK_SECRET_KEY')}\n")
+            flask_secret_key = _quote_dotenv_value(self.env["FLASK_SECRET_KEY"])
+            fh.write(f"FLASK_SECRET_KEY={flask_secret_key}\n")
             fh.write(f"UID={os.getuid()}\n")
             fh.write(f"GID={os.getgid()}\n")
 
@@ -141,13 +217,19 @@ class DockerComposeWrapper:
         self.out.blather("Postgresql ready\n")
 
     def start(self):
-        self.copy_docker_compose_files()
+        """Build the image, then write the compose files and start the services.
+
+        The image is built first because ``COPY . /experiment`` would
+        otherwise bake ``.env``, and with it the Flask secret key, into it.
+        """
         build_image(self.tmp_dir, self.experiment_name, self.out, self.needs_chrome)
-        check_output("docker compose up -d".split())
+        self.copy_docker_compose_files()
+        self.run_compose(["up", "-d"])
         # Wait for postgres to complete initialization
         self.wait_postgres_ready()
         try:
-            self.run_compose(["exec", "worker", "dallinger-housekeeper", "initdb"])
+            # ``web`` always exists; ``worker`` may have no replicas.
+            self.run_compose(["exec", "web", "dallinger-housekeeper", "initdb"])
         except CalledProcessError:
             self.out.error("There was a problem initializing the database")
             self.stop()
@@ -185,7 +267,7 @@ class DockerComposeWrapper:
         self.stop()
 
     def stop(self):
-        os.system(f"docker compose -f '{self.tmp_dir}/docker-compose.yml' stop")
+        call(self._compose_command() + ["stop"], env=self.env)
 
     def get_container_name(self, service_name):
         """Return the name of the first container for the given service name
@@ -216,11 +298,16 @@ class DockerComposeWrapper:
         compose_commands = ["ps"]
         # Run `redis-cli ping` inside the `redis` container and return its output
         compose_commands = ["exec", "redis", "redis-cli", "ping"]
+
+        Compose prefers process variables over ``.env``, so commands run with
+        ``self.env``; otherwise a host ``FLASK_SECRET_KEY`` would replace the
+        deployment's key.
         """
-        return check_output(
-            ["docker", "compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
-            + compose_commands,
-        )
+        return check_output(self._compose_command() + compose_commands, env=self.env)
+
+    def _compose_command(self):
+        """Return the ``docker compose`` invocation for this experiment's file."""
+        return ["docker", "compose", "-f", f"{self.tmp_dir}/docker-compose.yml"]
 
 
 class DockerStartupError(click.Abort):
@@ -244,21 +331,103 @@ def get_base_image(experiment_tmp_path: str, needs_chrome: bool = False) -> str:
     return f"{base_image_name}:{dallinger_version or 'latest'}"
 
 
+_COMMENT_RE = re.compile(r"(^|\s+)#.*$")
+_INCLUDE_RE = re.compile(
+    r"^(?:-[rc]\s*|--(?:requirement|constraint)(?:\s+|=))(?P<path>\S+)$"
+)
+_OPTION_RE = re.compile(r"\s+-")
+
+
+def _read_requirement_lines(path: Path, _including=()) -> list[str]:
+    """Return the requirement specifiers in a pip requirements file.
+
+    Supports the subset of the pip requirements file format that Dallinger
+    generates or experiments commonly use: comments, blank lines, backslash
+    line continuations, ``-r``/``-c`` includes (resolved relative to the
+    including file) and per-requirement options such as ``--hash``. Other
+    option lines, including editable (``-e``) requirements, are skipped.
+    Files are read as UTF-8, or as UTF-16 when they start with a UTF-16 byte
+    order mark (as written by ``pip freeze >`` in Windows PowerShell 5). URL
+    includes are not supported.
+
+    Parameters
+    ----------
+    path : Path
+        Path to a requirements or constraints file.
+
+    Returns
+    -------
+    list of str
+        Requirement specifiers, e.g. ``"dallinger==7.2.0"``, with trailing
+        options removed.
+
+    Raises
+    ------
+    ValueError
+        If ``-r``/``-c`` includes form a cycle.
+    """
+    path = Path(path).resolve()
+    if path in _including:
+        chain = " -> ".join(str(p) for p in (*_including, path))
+        raise ValueError(f"Requirements files include each other in a cycle: {chain}")
+    data = path.read_bytes()
+    is_utf16 = data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE))
+    text = data.decode("utf-16" if is_utf16 else "utf-8-sig")
+
+    logical_lines = []
+    current = ""
+    for raw_line in text.splitlines():
+        line = _COMMENT_RE.sub("", raw_line)
+        if line.endswith("\\"):
+            current += line[:-1] + " "
+            continue
+        logical_lines.append((current + line).strip())
+        current = ""
+    logical_lines.append(current.strip())
+
+    requirements = []
+    for line in logical_lines:
+        if not line:
+            continue
+        if line.startswith("-"):
+            include = _INCLUDE_RE.match(line)
+            if include:
+                requirements.extend(
+                    _read_requirement_lines(
+                        path.parent / include["path"], (*_including, path)
+                    )
+                )
+            continue
+        requirements.append(_OPTION_RE.split(line, maxsplit=1)[0])
+    return requirements
+
+
+def _dallinger_pin(line: str):
+    """Return the Dallinger version pinned by a requirement line, or ``None``."""
+    # In case dallinger is installed in editable mode
+    if line.startswith("file:dallinger-"):
+        return str(parse_wheel_filename(line[len("file:") :]).version)
+    try:
+        requirement = Requirement(line)
+    except InvalidRequirement:
+        return None
+    if canonicalize_name(requirement.name) != "dallinger":
+        return None
+    pins = [spec.version for spec in requirement.specifier if spec.operator == "=="]
+    return pins[0] if pins else None
+
+
 def get_required_dallinger_version(experiment_tmp_path: str) -> str:
     """Examine the requirements.txt in an experiment tmp directory
     and return the dallinger version required by the experiment.
     """
-    requirements_path = str(Path(experiment_tmp_path) / "requirements.txt")
-    all_requirements = parse_requirements(requirements_path, session=PipSession())
-    dallinger_requirements = [
-        el.requirement
-        for el in all_requirements
-        if el.requirement.startswith("dallinger==")
-        or el.requirement.startswith(
-            "file:dallinger-"
-        )  # In case dallinger is installed in editable mode
+    requirements_path = Path(experiment_tmp_path) / "requirements.txt"
+    pinned_versions = [
+        version
+        for version in map(_dallinger_pin, _read_requirement_lines(requirements_path))
+        if version
     ]
-    if not dallinger_requirements:
+    if not pinned_versions:
         print("Could not determine Dallinger version. Using latest")
         return LATEST_VERSION
 
@@ -275,14 +444,7 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
             return LATEST_VERSION
         return version_text
 
-    # The constraints generator should have created a single spec in the form "dallinger==7.2.0"
-    if "==" in dallinger_requirements[0]:
-        return _normalize_version(dallinger_requirements[0].split("==")[1])
-    # Or we might have a requirement like `file:dallinger-7.2.0-py3-none-any.whl`
-    wheel_version = parse_wheel_filename(
-        dallinger_requirements[0][len("file:") :]
-    ).version
-    return _normalize_version(str(wheel_version))
+    return _normalize_version(pinned_versions[0])
 
 
 def get_experiment_image_tag(experiment_tmp_path: str) -> str:

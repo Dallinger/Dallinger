@@ -47,7 +47,7 @@ from dallinger.command_line.utils import (
 from dallinger.config import get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
-from dallinger.deployment import handle_launch_data, setup_experiment
+from dallinger.deployment import setup_experiment
 from dallinger.hibernation import STATE_HIBERNATING as HIBERNATING
 from dallinger.hibernation import STATE_WAKING as WAKING
 from dallinger.utils import (
@@ -77,11 +77,20 @@ from .lib.cloudflare import (
     tunnel_name_for_app,
     validate_app_dns_label,
 )
+from .lib.cloudflare import config_str as cloudflare_config_str
 from .lib.cloudflare import public_hostname as cloudflare_public_hostname
+from .lib.launch import (
+    LaunchTarget,
+    check_internal_health,
+    launch_from_server,
+    ssh_command,
+    wait_for_public_url,
+)
 from .utils import get_server_pem_path
 
 # Hibernated apps keep stopped Compose containers that ``awaken`` restarts.
 CONTAINER_PRUNE = "docker container prune -f --filter label!=com.docker.compose.project"
+SERVER_COMPOSE = "docker compose -f ~/dallinger/docker-compose.yml"
 
 
 @dataclass(frozen=True)
@@ -257,6 +266,9 @@ def add(host, user, default_ingress):
     """
     prepare_server(host, user)
     store_host({"host": host, "user": user, "default_ingress": default_ingress})
+    advice = default_ingress == INGRESS_CLASSIC and _private_network_advice(host, user)
+    if advice:
+        print(f"{RED}Warning: {advice}{END}")
 
 
 @servers.command()
@@ -369,6 +381,60 @@ def copy_docker_config(host, user):
 CONFIGURED_HOSTS = get_configured_hosts()
 
 
+def _is_ip_address(host):
+    """Whether ``host`` (optionally ``host:port`` or ``[host]:port``) is an IP."""
+    try:
+        ipaddress.ip_address(split_ssh_host_port(host)[0])
+    except (ValueError, click.UsageError):
+        return False
+    return True
+
+
+def resolve_server_name(name, hosts):
+    """Return the configured server that ``name`` refers to.
+
+    Parameters
+    ----------
+    name : str
+        A full configured server name, or its short hostname (the part before
+        the first dot), e.g. ``rr-pc02`` for ``rr-pc02.example.ac.uk``.
+        Servers registered by IP address only match their full address.
+    hosts : iterable of str
+        Configured server names.
+
+    Returns
+    -------
+    str
+        The full configured server name.
+
+    Raises
+    ------
+    ValueError
+        If ``name`` matches no configured server, or is a short hostname
+        shared by several of them.
+    """
+    hosts = tuple(hosts)
+    if name in hosts:
+        return name
+    matches = [
+        host
+        for host in hosts
+        if host.split(".", 1)[0] == name and not _is_ip_address(host)
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        raise ValueError(
+            f"Server '{name}' is ambiguous. It matches: {', '.join(matches)}"
+        )
+    choices = ", ".join(hosts) if hosts else "<none>"
+    raise ValueError(f"Unknown server '{name}'. Configured servers: {choices}")
+
+
+def _complete_server_name(ctx, param, incomplete):
+    return [host for host in get_configured_hosts() if host.startswith(incomplete)]
+
+
 def resolve_server_option(ctx, param, value):
     hosts = tuple(get_configured_hosts().keys())
     option_name = (
@@ -377,13 +443,10 @@ def resolve_server_option(ctx, param, value):
     action = ctx.command.name if ctx is not None and ctx.command is not None else None
 
     if value is not None:
-        if value not in hosts:
-            choices = ", ".join(hosts) if hosts else "<none>"
-            raise click.BadParameter(
-                f"Unknown server '{value}'. Configured servers: {choices}",
-                param=param,
-            )
-        return value
+        try:
+            return resolve_server_name(value, hosts)
+        except ValueError as exc:
+            raise click.BadParameter(str(exc), param=param) from exc
 
     if len(hosts) == 1:
         return hosts[0]
@@ -446,8 +509,10 @@ option_server = click.option(
     "--server",
     required=False,
     default=None,
-    help="Name of the remote server",
-    type=click.Choice(tuple(CONFIGURED_HOSTS.keys())),
+    help="Name of the remote server, or its short hostname "
+    "(see `dallinger docker-ssh servers list`)",
+    type=str,
+    shell_complete=_complete_server_name,
     callback=resolve_server_option,
 )
 option_update = click.option(
@@ -476,6 +541,18 @@ option_ingress = click.option(
     help=(
         "How participants reach the experiment: classic host Caddy or a per-app "
         "Cloudflare tunnel. Defaults to the server's default_ingress, or classic."
+    ),
+)
+option_allow_private_ip = click.option(
+    "--allow-private-ip",
+    is_flag=True,
+    default=False,
+    help=(
+        "Deploy with classic ingress even though the SSH host resolves to a "
+        "private IP address, for servers whose public DNS name points at a "
+        "public IP that forwards ports 80 and 443 to them. The experiment "
+        "hostname must still resolve, but is not compared with the SSH host's "
+        "address."
     ),
 )
 
@@ -592,12 +669,7 @@ def docker_host_uri(host, user=None, port=22):
 
 
 def _resolve_server_info(server):
-    try:
-        return CONFIGURED_HOSTS[server]
-    except KeyError as exc:
-        raise ValueError(
-            f"Unknown server '{server}', expected one of {list(CONFIGURED_HOSTS.keys())}."
-        ) from exc
+    return CONFIGURED_HOSTS[resolve_server_name(server, CONFIGURED_HOSTS)]
 
 
 def _build_executor(server_info, app=None):
@@ -687,7 +759,10 @@ def _root_domain_preflight_required(server, app_name, archive_path, ingress):
     """
     if should_use_subdomain(app_name, archive_path):
         return False
-    server_info = CONFIGURED_HOSTS.get(server) or {}
+    try:
+        server_info = _resolve_server_info(server)
+    except ValueError:
+        server_info = {}
     if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
         return False
     return True
@@ -704,6 +779,45 @@ def _resolve_ingress(server_info, ingress=None):
     return requested
 
 
+def _private_network_advice(host, user):
+    """Return advice against classic ingress if ``host`` has no public IPv4 address.
+
+    ``host`` may include an SSH port. Loopback and unspecified (``0.0.0.0``)
+    addresses count as public, for servers that are tunnelled to locally.
+    """
+    ip_addrs = _ipv4_addresses(split_ssh_host_port(host)[0])
+    for ip_addr in ip_addrs:
+        address = ipaddress.ip_address(ip_addr)
+        if address.is_global or address.is_loopback or address.is_unspecified:
+            return None
+    if not ip_addrs:
+        return None
+    ip_addr = ip_addrs[0]
+    user_option = f" --user {user}" if user else ""
+    return (
+        f"{host} has a private IP address ({ip_addr}), so Let's Encrypt cannot "
+        "issue TLS certificates for it and participants outside its network "
+        "cannot reach classic ingress. Deploy with --ingress cloudflare, or "
+        "re-register the server with `dallinger docker-ssh servers add "
+        f"--host {host}{user_option} --default-ingress cloudflare`. If the "
+        "server's public DNS name points at a public IP that forwards ports 80 "
+        "and 443 to it, deploy with --allow-private-ip instead."
+    )
+
+
+def _check_classic_ingress_reachable(server, ingress=None):
+    """Abort classic-ingress deploys to servers on a private network."""
+    server_info = CONFIGURED_HOSTS.get(server) or {}
+    if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
+        return
+    advice = _private_network_advice(
+        server_info.get("host", server), server_info.get("user")
+    )
+    if advice:
+        print(f"{RED}Error: {advice}{END}")
+        raise click.Abort()
+
+
 def _cloudflare_settings(config, dns_zone=None):
     """Read non-secret Cloudflare account/zone settings from Dallinger config.
 
@@ -711,8 +825,8 @@ def _cloudflare_settings(config, dns_zone=None):
     Cloudflare DNS zone. ``dns_zone`` overrides config (destroy passes the
     zone recorded in the manifest).
     """
-    account_id = str(config.get("cloudflare_account_id", "") or "").strip()
-    zone_id = str(config.get("cloudflare_zone_id", "") or "").strip()
+    account_id = cloudflare_config_str(config, "cloudflare_account_id")
+    zone_id = cloudflare_config_str(config, "cloudflare_zone_id")
     dns_zone = str(dns_zone or config.get("cloudflare_dns_zone", "") or "")
     dns_zone = dns_zone.strip().lower().rstrip(".")
     missing = [
@@ -893,13 +1007,21 @@ def _image_runs_as_ssh_user(executor, image_name):
     return False
 
 
+def _ssh_prefix(ssh_host, ssh_port, ssh_user):
+    """Return the ``ssh`` invocation an operator can use to reach the server."""
+    ssh_port_part = f"-p {ssh_port} " if ssh_port != 22 else ""
+    destination = f"{ssh_user}@{ssh_host}" if ssh_user else ssh_host
+    return (
+        f"ssh {ssh_port_part}-i {quote(str(get_server_pem_path()))} "
+        f"{quote(destination)}"
+    )
+
+
 def _log_command(ssh_host, ssh_port, ssh_user, app):
     """Return the ssh command that follows an app's Compose logs."""
-    ssh_port_part = f"-p {ssh_port} " if ssh_port != 22 else ""
-    return (
-        f"ssh {ssh_port_part}-i {get_server_pem_path()} "
-        f"{(ssh_user + '@') if ssh_user else ''}{ssh_host} "
-        f"docker compose -f '~/dallinger/{app}/docker-compose.yml' logs -f"
+    return ssh_command(
+        _ssh_prefix(ssh_host, ssh_port, ssh_user),
+        f"docker compose -f ~/dallinger/{app}/docker-compose.yml logs -f",
     )
 
 
@@ -916,6 +1038,26 @@ def _record_deployment_infos(experiment_id, lines, dashboard_password):
     deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
     deploy_log_path.parent.mkdir(exist_ok=True)
     deploy_log_path.write_text("\n".join(lines) + "\n")
+
+
+def _record_then_launch(executor, target, deployment_infos, dashboard_password, update):
+    """Record the deployment, wait for the public URL, then launch the experiment.
+
+    The record comes first so it exists even if the deploy stops here. A
+    missing ``curl`` in the web image, or an app whose own ``/health`` does
+    not answer 2xx, fails before the long public wait.
+    Launching opens recruitment, so it only happens once participants can
+    reach the public URL; if the bounded wait times out, nothing is launched.
+    """
+    _record_deployment_infos(target.app, deployment_infos, dashboard_password)
+    if update:
+        print("Skipping experiment launch logic because we are in update mode.")
+        return
+    check_internal_health(executor, target)
+    wait_for_public_url(executor, target)
+    print("Launching experiment")
+    launch_data = launch_from_server(executor, target)
+    print(launch_data.get("recruitment_msg"))
 
 
 def _install_tunnel_token(executor, sftp, app, connector_token, tunnel_id):
@@ -945,6 +1087,7 @@ def ensure_root_domain_ready(server, update):
     if update:
         return True
 
+    server = resolve_server_name(server, CONFIGURED_HOSTS)
     executor = _executor_for_server(server)
     conflicts = _host_caddy_apps(executor)
     if not conflicts:
@@ -1061,116 +1204,93 @@ def _image_usable_from_registry(docker_client, image_name):
     return True
 
 
-def build_and_push_image(f):
-    """Decorator for click commands that depend on a pushed docker image.
+def _build_and_push_image(
+    config, experiment_files, app_name, server, local_build, push_build
+):
+    """Return the experiment image to deploy, building and pushing it if needed.
 
-    Commands using this decorator can rely on the image being present in
-    the remote registry, and thus can use it to deploy to a remote server.
-
-    Checks if the image is already present on the remote repository.
-    If it's not builds the image and pushes it.
+    Reuses ``docker_image_name`` when the registry has it. Otherwise
+    assembles the experiment and builds the image, on the server unless
+    ``local_build`` is set, and pushes it for a local build or with
+    ``push_build``.
     """
+    import docker
 
-    @wraps(f)
-    def wrapper(*args, **kwargs):  # pragma: no cover
-        files = get_experiment_files(os.getcwd())
+    from dallinger.command_line.docker import push_image
+    from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
-        import docker
+    image_name = config.get("docker_image_name", None)
 
-        from dallinger.command_line.docker import push_image
-        from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
+    # If we build locally we have to push the image to the registry
+    push_build = push_build or local_build
 
-        config = get_config(load=True)
-        image_name = config.get("docker_image_name", None)
-        local_build = kwargs.get("local_build", False)
+    # Save any current values from environment so we can restore them
+    original_docker_host = os.environ.get("DOCKER_HOST")
 
-        # If we build locally we have to push the image to the registry
-        push_build = kwargs.get("push_build", False) or local_build
-
-        preflight_root_clean = False
-        if _root_domain_preflight_required(
-            kwargs["server"],
-            kwargs.get("app_name"),
-            kwargs.get("archive_path"),
-            kwargs.get("ingress"),
-        ):
-            preflight_root_clean = ensure_root_domain_ready(
-                server=kwargs["server"], update=kwargs.get("update", False)
+    docker_client = None
+    try:
+        if not local_build:
+            # Set DOCKER_HOST to point to the remote server via SSH
+            server_info = _resolve_server_info(server)
+            ssh_host, ssh_port = split_ssh_host_port(server_info["host"])
+            ssh_user = server_info.get("user")
+            ensure_remote_host_in_known_hosts(server_info["host"], ssh_user)
+            os.environ["DOCKER_HOST"] = docker_host_uri(
+                ssh_host, user=ssh_user, port=ssh_port
             )
-        kwargs["preflight_root_clean"] = preflight_root_clean
-
-        # Save any current values from environment so we can restore them
-        original_docker_host = os.environ.get("DOCKER_HOST")
-
-        docker_client = None
-        try:
-            if not local_build:
-                # Set DOCKER_HOST to point to the remote server via SSH
-                server_info = CONFIGURED_HOSTS[kwargs["server"]]
-                ssh_host, ssh_port = split_ssh_host_port(server_info["host"])
-                ssh_user = server_info.get("user")
-                ensure_remote_host_in_known_hosts(server_info["host"], ssh_user)
-                os.environ["DOCKER_HOST"] = docker_host_uri(
-                    ssh_host, user=ssh_user, port=ssh_port
-                )
-                print(
-                    f"Attempting to build image on remote host: {os.environ['DOCKER_HOST']}"
-                )
-                # Add server_pem to SSH agent so docker-py's SSH client can use it
-                # (necessary because docker.from_env() does not accept PEM files directly).
-                add_server_pem_to_ssh_agent()
-            # docker-py leaks shell-out SSH resources; mute the GC warnings
-            # before the client exists so they cannot fire mid-command.
-            _ignore_docker_ssh_resource_warnings()
-            # Avoid Paramiko by using the system ssh client
-            docker_client = docker.from_env(use_ssh_client=True)
-
-            if image_name and _image_usable_from_registry(docker_client, image_name):
-                return f(*args, **dict(kwargs, image_name=image_name))
-
-            app_name = kwargs.get("app_name", None)
-            _, tmp_dir = setup_experiment(
-                Output().log,
-                exp_config=config.as_dict(),
-                local_checks=False,
-                app=app_name,
-                experiment_files=files,
+            print(
+                f"Attempting to build image on remote host: {os.environ['DOCKER_HOST']}"
             )
-            image_name = build_image(
-                tmp_dir,
-                config.get("docker_image_base_name"),
-                out=Output(),
-                image_tag=docker_tag_from_experiment_id(config.get("id")),
+            # Add server_pem to SSH agent so docker-py's SSH client can use it
+            # (necessary because docker.from_env() does not accept PEM files directly).
+            add_server_pem_to_ssh_agent()
+        # docker-py leaks shell-out SSH resources; mute the GC warnings
+        # before the client exists so they cannot fire mid-command.
+        _ignore_docker_ssh_resource_warnings()
+        # Avoid Paramiko by using the system ssh client
+        docker_client = docker.from_env(use_ssh_client=True)
+
+        if image_name and _image_usable_from_registry(docker_client, image_name):
+            return image_name
+
+        _, tmp_dir = setup_experiment(
+            Output().log,
+            exp_config=config.as_dict(),
+            local_checks=False,
+            app=app_name,
+            experiment_files=experiment_files,
+        )
+        image_name = build_image(
+            tmp_dir,
+            config.get("docker_image_base_name"),
+            out=Output(),
+            image_tag=docker_tag_from_experiment_id(config.get("id")),
+        )
+
+        remote_build = not local_build
+        if remote_build and not push_build:
+            # If built remotely and not pushing, the image is only on the remote daemon.
+            # We need to get its full name (repo:tag) for deployment.
+            # The build_image function already returns the image name, so we use that.
+            print(
+                f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
             )
+            return image_name
+        # If it's a local build, or if it's a remote build and push_build, then push.
+        return push_image(image_name)
+    finally:
+        # Close client first so the SSH connection tears down cleanly
+        if docker_client is not None:
+            try:
+                docker_client.close()
+            except Exception:
+                pass
 
-            remote_build = not local_build
-            if remote_build and not push_build:
-                # If built remotely and not pushing, the image is only on the remote daemon.
-                # We need to get its full name (repo:tag) for deployment.
-                # The build_image function already returns the image name, so we use that.
-                print(
-                    f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
-                )
-            else:
-                # If it's a local build, or if it's a remote build and push_build, then push.
-                image_name = push_image(image_name)
-
-            return f(*args, **dict(kwargs, image_name=image_name))
-        finally:
-            # Close client first so the SSH connection tears down cleanly
-            if docker_client is not None:
-                try:
-                    docker_client.close()
-                except Exception:
-                    pass
-
-            # Restore DOCKER_HOST
-            if original_docker_host is None:
-                os.environ.pop("DOCKER_HOST", None)
-            else:
-                os.environ["DOCKER_HOST"] = original_docker_host
-
-    return wrapper
+        # Restore DOCKER_HOST
+        if original_docker_host is None:
+            os.environ.pop("DOCKER_HOST", None)
+        else:
+            os.environ["DOCKER_HOST"] = original_docker_host
 
 
 def validate_update(f):
@@ -1225,11 +1345,28 @@ def set_dozzle_password(executor, sftp, new_password):
         executor.restart_dozzle()
 
 
+def _start_server_services(executor):
+    """Start the shared server services and wait until Postgres is healthy."""
+    executor.run(f"{SERVER_COMPOSE} up -d")
+    # A changed server compose file recreates the shared Postgres. Waiting
+    # only on it keeps a crash-looping Caddy or Dozzle from blocking deploys.
+    # coreutils `timeout` replaces `--wait-timeout`, which needs Compose 2.17.
+    # The limit must exceed the worst case of docker-compose-server.yml.j2's
+    # healthcheck: a 300 s start_period, then 15 retries that each cost the
+    # 2 s interval plus the 5 s timeout when pg_isready hangs (405 s).
+    limit = 420
+    executor.run(
+        f"timeout {limit} {SERVER_COMPOSE} up -d --wait postgresql"
+        f" || {{ code=$?; [ $code -ne 124 ] || echo 'The shared PostgreSQL"
+        f" was not healthy after {limit} s.' >&2; exit $code; }}"
+    )
+
+
 def ensure_postgres_schema_permissions(executor, experiment_id):
     # PostgreSQL 15+ no longer grants CREATE on schema public to all users.
     grant_schema_script = f'GRANT USAGE, CREATE ON SCHEMA public TO "{experiment_id}"'
     executor.run(
-        "docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql "
+        f"{SERVER_COMPOSE} exec -T postgresql "
         f'psql -U dallinger -d "{experiment_id}" -c {quote(grant_schema_script)}'
     )
 
@@ -1238,7 +1375,7 @@ def ensure_postgres_schema_permissions(executor, experiment_id):
 @option_server
 @click.password_option()
 def set_dozzle_password_cmd(server, password):
-    server_info = CONFIGURED_HOSTS[server]
+    server_info = _resolve_server_info(server)
     ssh_host = server_info["host"]
     ssh_user = server_info.get("user")
 
@@ -1258,8 +1395,8 @@ def set_dozzle_password_cmd(server, password):
 @option_local_build
 @option_push_build
 @option_ingress
+@option_allow_private_ip
 @validate_update
-@build_and_push_image
 def sandbox(**kwargs):  # pragma: no cover
     """Sandbox a dallinger experiment docker image to a server using ssh."""
     return _deploy_in_mode(mode="sandbox", **kwargs)
@@ -1275,79 +1412,29 @@ def sandbox(**kwargs):  # pragma: no cover
 @option_local_build
 @option_push_build
 @option_ingress
+@option_allow_private_ip
 @validate_update
-@build_and_push_image
 def deploy(**kwargs):  # pragma: no cover
     """Deploy a dallinger experiment docker image to a server using ssh."""
     return _deploy_in_mode(mode="live", **kwargs)
 
 
-def _deploy_in_mode(
-    app_name,
-    archive_path,
-    config_options,
-    dns_host,
-    image_name,
-    mode,
-    server,
-    update,
-    local_build,  # noqa
-    push_build,
-    preflight_root_clean,
-    ingress=None,
-):
-    config = get_config(load=True)
+def _classic_tls_and_dns_host(config, ssh_host, dns_host):
+    """Return the Caddy ``tls`` directive and the DNS host of a classic deploy.
 
-    run_pre_launch_checks(**locals())
-
-    server_info = CONFIGURED_HOSTS[server]
-    ssh_address = server_info["host"]
-    ssh_host, ssh_port = split_ssh_host_port(ssh_address)
-    ssh_user = server_info.get("user")
-    dashboard_user = config.get("dashboard_user", "admin")
-    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
-
-    experiment_uuid = str(uuid4())
-    use_subdomain = should_use_subdomain(app_name, archive_path)
-    if app_name:
-        experiment_id = app_name
-    elif archive_path:
-        experiment_id = get_experiment_id_from_archive(archive_path)
-    else:
-        experiment_id = f"dlgr-{experiment_uuid[:8]}"
-    if not APP_NAME_PATTERN.fullmatch(experiment_id):
-        raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
-
-    app_identifier = app_name or experiment_id
-    if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
-        return _deploy_cloudflare_in_mode(
-            archive_path=archive_path,
-            config=config,
-            config_options=config_options,
-            dashboard_password=dashboard_password,
-            dashboard_user=dashboard_user,
-            experiment_id=experiment_id,
-            experiment_uuid=experiment_uuid,
-            image_name=image_name,
-            mode=mode,
-            push_build=push_build,
-            server=server,
-            server_info=server_info,
-            update=update,
-        )
-
-    # We deleted this because synchronizing configs between local and remote can cause problems especially when using
-    # different credential managers
-    # copy_docker_config(ssh_host, ssh_user)
-    HAS_TLS = not is_loopback_host(ssh_host)
+    Aborts if a server that needs a Let's Encrypt certificate has no valid
+    ``contact_email_on_error``, or a server given as an IP address has no
+    ``--dns-host``.
+    """
+    has_tls = not is_loopback_host(ssh_host)
     # We abuse the mturk contact_email_on_error to provide an email for let's encrypt certificate
     email_addr = config.get("contact_email_on_error")
-    if HAS_TLS:
+    if has_tls:
         if "@" not in parseaddr(email_addr)[1]:
             print(f"Email address absent or invalid. Value {email_addr} found")
             print("Run `dallinger email-test` to verify your configuration")
             raise click.Abort
-    tls = "tls internal" if not HAS_TLS else f"tls {email_addr}"
+    tls = "tls internal" if not has_tls else f"tls {email_addr}"
 
     # Check if server is an IP address
     try:
@@ -1385,24 +1472,116 @@ You can override this by creating a DNS A record pointing to
 {GREEN}{ssh_host}{END} and using option --dns-host to deploy the experiment.
 {BLUE}For instance to use the name experiment1.my-custom-domain.example.com
 you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}""")
-    experiment_hostname = f"{experiment_id}.{dns_host}" if use_subdomain else dns_host
+    return tls, dns_host
 
-    _check_experiment_hostname_dns(ssh_host, experiment_hostname)
 
+def _deploy_in_mode(
+    app_name,
+    archive_path,
+    config_options,
+    dns_host,
+    mode,
+    server,
+    update,
+    local_build,
+    push_build,
+    ingress=None,
+    allow_private_ip=False,
+):
+    """Check a docker-ssh deploy, build or reuse its image, then deploy it.
+
+    Building the image can take minutes, so every check that does not need
+    the image runs first. The root-domain cleanup, which can destroy apps,
+    follows the other checks. Only the app-name check comes after it, since
+    the cleanup can free that name.
+    """
+    experiment_files = get_experiment_files(os.getcwd())
+    server = resolve_server_name(server, CONFIGURED_HOSTS)
+    # Existing apps already have their certificates, so updates skip the check.
+    if not allow_private_ip and not update:
+        _check_classic_ingress_reachable(server, ingress)
+    config = get_config(load=True)
+    config_options = {
+        config.canonical_key(key): value for key, value in dict(config_options).items()
+    }
+    config.extend(config_options, cast_types=True)
+
+    run_pre_launch_checks(**locals())
+
+    server_info = CONFIGURED_HOSTS[server]
+    ssh_address = server_info["host"]
+    ssh_host, ssh_port = split_ssh_host_port(ssh_address)
+    ssh_user = server_info.get("user")
+
+    experiment_uuid = str(uuid4())
+    use_subdomain = should_use_subdomain(app_name, archive_path)
+    if app_name:
+        experiment_id = app_name
+    elif archive_path:
+        experiment_id = get_experiment_id_from_archive(archive_path)
+    else:
+        experiment_id = f"dlgr-{experiment_uuid[:8]}"
+    if not APP_NAME_PATTERN.fullmatch(experiment_id):
+        raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
+
+    resolved_ingress = _resolve_ingress(server_info, ingress)
+    if resolved_ingress == INGRESS_CLOUDFLARE:
+        try:
+            validate_app_dns_label(experiment_id)
+        except CloudflareError as exc:
+            _abort_cloudflare(exc)
+        cloudflare_settings = _cloudflare_settings(config)
+        try:
+            api_token = load_api_token(config)
+        except CloudflareError as exc:
+            _abort_cloudflare(exc)
+    else:
+        cloudflare_settings = None
+        tls, dns_host = _classic_tls_and_dns_host(config, ssh_host, dns_host)
+        experiment_hostname = (
+            f"{experiment_id}.{dns_host}" if use_subdomain else dns_host
+        )
+        _check_experiment_hostname_dns(ssh_host, experiment_hostname, allow_private_ip)
+
+    if _root_domain_preflight_required(server, app_name, archive_path, ingress):
+        ensure_root_domain_ready(server=server, update=update)
+
+    slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
+    try:
+        _check_app_slot(slot_executor, experiment_id, update, resolved_ingress)
+    finally:
+        slot_executor.client.close()
+
+    image_name = _build_and_push_image(
+        config, experiment_files, app_name, server, local_build, push_build
+    )
+    # Read after the build, which sets a dashboard password if config has none.
+    dashboard_user = config.get("dashboard_user", "admin")
+    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
+
+    if cloudflare_settings is not None:
+        return _deploy_cloudflare_in_mode(
+            api_token=api_token,
+            archive_path=archive_path,
+            config=config,
+            config_options=config_options,
+            dashboard_password=dashboard_password,
+            dashboard_user=dashboard_user,
+            experiment_id=experiment_id,
+            experiment_uuid=experiment_uuid,
+            image_name=image_name,
+            mode=mode,
+            push_build=push_build,
+            server=server,
+            server_info=server_info,
+            settings=cloudflare_settings,
+            update=update,
+        )
+
+    app_identifier = app_name or experiment_id
     executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
     executor.run("mkdir -p ~/dallinger/caddy.d")
 
-    if not use_subdomain and not preflight_root_clean:
-        conflicts = _discover_server_apps(executor)
-        if conflicts:
-            joined = ", ".join(conflicts)
-            print(
-                f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
-                f"{RED}Found deployed experiments:{END} {joined}"
-            )
-            raise click.Abort()
-
-    _check_app_slot(executor, app_identifier, update, INGRESS_CLASSIC)
     if not update:
         print("Removing any pre-existing Redis volumes.")
         remove_redis_volumes(app_identifier, executor)
@@ -1426,7 +1605,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     set_dozzle_password(executor, sftp, dozzle_password)
 
     print("Launching http, postgresql and dozzle servers.")
-    executor.run("docker compose -f ~/dallinger/docker-compose.yml up -d")
+    _start_server_services(executor)
 
     if not update:
         print("Starting experiment.")
@@ -1461,9 +1640,9 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         ingress=INGRESS_CLASSIC,
         secrets=app_secrets,
     )
-    # We invoke the "ls" command in the context of the `web` container.
-    # `docker compose` will honour `web`'s dependencies and block
-    # until postgresql is ready. This way we can be sure we can start creating the database.
+    # Running "ls" in the `web` container blocks until `web`'s own dependencies
+    # (redis and pgbouncer) are healthy. The shared Postgres belongs to another
+    # compose project; the `up --wait` above already waited for it.
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
     )
@@ -1473,14 +1652,14 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     if not update:
         print("Cleaning up db/user")
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+            rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
         )
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+            rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
         )
         print(f"Creating database {experiment_id}")
         executor.run(
-            rf"""docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
+            rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
         )
 
         if archive_path is not None:
@@ -1499,24 +1678,24 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         rf"""SELECT FROM pg_catalog.pg_roles WHERE rolname = '{experiment_id}'"""
     )
     query_user_result = executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
+        f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
         raise_=False,
     )
     if "0 rows" in query_user_result:
         # Create the user: it doesn't exist yet
         create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
         executor.run(
-            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+            f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
         )
     else:
         # Change the password of the existing user
         change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{postgresql_password}'"""
         executor.run(
-            f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
+            f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
         )
 
     executor.run(
-        f"docker compose -f ~/dallinger/docker-compose.yml exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
+        f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
     )
     ensure_postgres_schema_permissions(executor, experiment_id)
 
@@ -1543,20 +1722,14 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     # Tell caddy we changed something in the configuration
     executor.reload_caddy()
 
-    if update:
-        print("Skipping experiment launch logic because we are in update mode.")
-    else:
-        print("Launching experiment")
-        launch_data = handle_launch_data(
-            f"https://{experiment_hostname}/launch",
-            print,
-            dns_host=dns_host,
-            dozzle_password=dozzle_password,
-            context="ssh",
-            verify=HAS_TLS,
-        )
-        print(launch_data.get("recruitment_msg"))
-
+    launch_target = LaunchTarget(
+        app=experiment_id,
+        server=server,
+        public_origin=public_origin,
+        ingress=INGRESS_CLASSIC,
+        ssh_prefix=_ssh_prefix(ssh_host, ssh_port, ssh_user),
+        verify=not is_loopback_host(ssh_host),
+    )
     dashboard_link = _public_dashboard_url(experiment_hostname)
     log_command = _log_command(ssh_host, ssh_port, ssh_user, experiment_id)
     deployment_infos = []
@@ -1569,7 +1742,9 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
         f"Or you can head to {logs_url} (user = dallinger)",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
-    _record_deployment_infos(experiment_id, deployment_infos, dashboard_password)
+    _record_then_launch(
+        executor, launch_target, deployment_infos, dashboard_password, update
+    )
     return {
         "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,
@@ -1586,6 +1761,8 @@ def _compose_environment(
     config, config_options, mode, experiment_uuid, image_name, flask_secret_key
 ):
     """Build the Compose environment map shared by classic and tunnel stacks."""
+    from dallinger.docker.tools import docker_worker_processes
+
     cfg = config.as_dict(include_sensitive=True)
     for key in "aws_access_key_id", "aws_secret_access_key":
         cfg[key.upper()] = cfg.pop(key, None)
@@ -1602,7 +1779,9 @@ def _compose_environment(
             "docker_image_name": image_name,
         }
     )
-    cfg.update(config_options)
+    for key, value in dict(config_options).items():
+        cfg[config.canonical_key(key)] = value
+    cfg["worker_processes"] = docker_worker_processes(config)
     # ``HOST`` is set by the template; the rest are secrets the app must not get.
     for key in "host", "database_url", "heroku_auth_token", "cloudflare_api_token":
         cfg.pop(key, None)
@@ -1616,6 +1795,7 @@ def _compose_environment(
 
 def _deploy_cloudflare_in_mode(
     *,
+    api_token,
     archive_path,
     config,
     config_options,
@@ -1628,15 +1808,15 @@ def _deploy_cloudflare_in_mode(
     push_build,
     server,
     server_info,
+    settings,
     update,
 ):
-    """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host."""
-    try:
-        validate_app_dns_label(experiment_id)
-    except CloudflareError as exc:
-        _abort_cloudflare(exc)
+    """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host.
 
-    settings = _cloudflare_settings(config)
+    ``settings`` are the account and zone from ``_cloudflare_settings``.
+    The caller has already checked that the app slot is free (or exists,
+    for ``--update``) and loaded ``api_token``.
+    """
     hostname = cloudflare_public_hostname(experiment_id, settings["dns_zone"])
     public_origin = public_origin_for_hostname(hostname)
     ssh_address = server_info["host"]
@@ -1644,7 +1824,6 @@ def _deploy_cloudflare_in_mode(
     ssh_user = server_info.get("user")
     executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
 
-    _check_app_slot(executor, experiment_id, update, INGRESS_CLOUDFLARE)
     if not update:
         print("Removing any pre-existing Redis and Postgres volumes.")
         remove_named_volume(f"{experiment_id}_redis_data", executor)
@@ -1665,7 +1844,6 @@ def _deploy_cloudflare_in_mode(
         own_tunnel_id = (manifest.cloudflare.get("tunnel_id") if manifest else "") or ""
     sftp = get_sftp(ssh_address, user=ssh_user)
     try:
-        api_token = load_api_token(config)
         tunnel = ensure_experiment_tunnel(
             account_id=settings["account_id"],
             zone_id=settings["zone_id"],
@@ -1745,18 +1923,13 @@ def _deploy_cloudflare_in_mode(
         restore=True,
     )
 
-    if update:
-        print("Skipping experiment launch logic because we are in update mode.")
-    else:
-        print("Launching experiment")
-        launch_data = handle_launch_data(
-            f"{public_origin}/launch",
-            print,
-            dns_host=None,
-            context="ssh",
-        )
-        print(launch_data.get("recruitment_msg"))
-
+    launch_target = LaunchTarget(
+        app=experiment_id,
+        server=server,
+        public_origin=public_origin,
+        ingress=INGRESS_CLOUDFLARE,
+        ssh_prefix=_ssh_prefix(ssh_host, ssh_port, ssh_user),
+    )
     dashboard_link = _public_dashboard_url(hostname)
     log_command = _log_command(ssh_host, ssh_port, ssh_user, experiment_id)
     deployment_infos = []
@@ -1768,7 +1941,9 @@ def _deploy_cloudflare_in_mode(
         f"Public origin: {public_origin}",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
-    _record_deployment_infos(experiment_id, deployment_infos, dashboard_password)
+    _record_then_launch(
+        executor, launch_target, deployment_infos, dashboard_password, update
+    )
     return {
         "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,
@@ -2209,7 +2384,7 @@ def _inspect_container_env(executor, container):
 @option_server
 def destroy(server, app):
     """Tear down an experiment run on a server you control via ssh."""
-    server_info = CONFIGURED_HOSTS[server]
+    server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
     ssh_host, _ = split_ssh_host_port(ssh_address)
     ssh_user = server_info.get("user")
@@ -2322,9 +2497,23 @@ def _destroy_cloudflare_resources(app, manifest=None, own_tunnel_id=None):
     except (CloudflareError, click.UsageError) as exc:
         print(f"{RED}Cloudflare cleanup failed:{END} {exc}")
         return False
+    deleted = []
+    if removed.tunnel_name:
+        deleted.append(f"Cloudflare tunnel {removed.tunnel_name}")
+    if removed.hostname:
+        deleted.append(f"DNS record {removed.hostname}")
+    if deleted:
+        print(f"Deleted {' and '.join(deleted)}.")
+    if removed.skipped_tunnel_name:
+        print(
+            f"Left Cloudflare tunnel {removed.skipped_tunnel_name} in place "
+            "because it belongs to another deploy."
+        )
     if not removed:
         print(f"{RED}Cloudflare cleanup failed.{END} See the warnings above.")
-    return removed
+    elif not deleted and not removed.skipped_tunnel_name:
+        print(f"No Cloudflare tunnel or DNS record left to delete for {app}.")
+    return bool(removed)
 
 
 @docker_ssh.command()
@@ -2351,7 +2540,7 @@ def awaken_app(server, app, required=True):
 def _run_hibernation_action(server, app, action, required=True):
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
-    server_info = CONFIGURED_HOSTS[server]
+    server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
     ssh_user = server_info.get("user")
     executor = Executor(ssh_address, user=ssh_user, app=app)
@@ -2507,6 +2696,9 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         except Exception:
             spinner.fail("✖ Connection failed")
             raise
+    # Deploys can sit idle for minutes (public URL wait, slow /launch);
+    # keepalives stop NATs and firewalls from dropping the connection.
+    client.get_transport().set_keepalive(30)
 
     try:
         client.save_host_keys(known_hosts_path)
@@ -2561,12 +2753,12 @@ class Executor:
         """Run the given command and block until it completes.
         If `raise` is True and the command fails, print the reason and raise an exception.
         """
-        status, stdout, stderr = self._run_with_status(cmd)
+        status, stdout, stderr = self.run_with_status(cmd)
         if raise_ and status != 0:
             print(f"Error: exit code was not 0 ({status})")
             print(stdout)
             print(stderr)
-            compose_logs = self.print_docker_compose_logs()
+            compose_logs = self.print_docker_compose_logs(server=SERVER_COMPOSE in cmd)
             if _is_remote_disk_full_error(stdout, stderr, compose_logs):
                 print(get_remote_disk_full_guidance(self.host))
                 self.offer_safe_disk_cleanup()
@@ -2604,22 +2796,26 @@ class Executor:
         status = channel.recv_exit_status()
         return (
             status,
-            b"".join(stdout_chunks).decode(),
-            b"".join(stderr_chunks).decode(),
+            b"".join(stdout_chunks).decode(errors="replace"),
+            b"".join(stderr_chunks).decode(errors="replace"),
         )
 
-    def _run_with_status(self, cmd):
+    def run_with_status(self, cmd):
+        """Run ``cmd`` and return ``(exit_status, stdout, stderr)`` without raising."""
         channel = self.client.get_transport().open_session()
         channel.exec_command(cmd)
         return self._drain_channel(channel)
 
-    def print_docker_compose_logs(self):
-        if self.app:
-            channel = self.client.get_transport().open_session()
-            channel.exec_command(
-                f'docker compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
-            )
-            status, logs, _ = self._drain_channel(channel)
+    def print_docker_compose_logs(self, server=False):
+        """Print and return the app's Compose logs, or the server stack's if ``server``."""
+        if server:
+            command = f"{SERVER_COMPOSE} logs --tail 200"
+        elif self.app:
+            command = f'docker compose -f "$HOME/dallinger/{self.app}/docker-compose.yml" logs'
+        else:
+            command = None
+        if command:
+            status, logs, _ = self.run_with_status(command)
             if status != 0:
                 print("`docker compose` logs failed to run.")
                 return ""
@@ -2646,7 +2842,7 @@ class Executor:
             ("Remove stopped containers", CONTAINER_PRUNE),
         ):
             print(f"- {description}: {command}")
-            status, stdout, stderr = self._run_with_status(command)
+            status, stdout, stderr = self.run_with_status(command)
             if status != 0:
                 print(f"Cleanup step failed with exit code {status}.")
                 if stdout:
@@ -2671,13 +2867,13 @@ class Executor:
     def reload_caddy(self):
         with yaspin(text="Reloading Caddy config file", color="green"):
             self.run(
-                "docker compose -f ~/dallinger/docker-compose.yml exec -T httpserver "
+                f"{SERVER_COMPOSE} exec -T httpserver "
                 "caddy reload --config /etc/caddy/Caddyfile"
             )
 
     def restart_dozzle(self):
         with yaspin(text="Restarting Dozzle", color="green"):
-            self.run("docker compose -f ~/dallinger/docker-compose.yml restart dozzle")
+            self.run(f"{SERVER_COMPOSE} restart dozzle")
 
     def run_and_echo(self, cmd):  # pragma: no cover
         """Execute the given command on the remote host and prints its output
@@ -2725,7 +2921,10 @@ def get_docker_compose_yml(
     run_as_ssh_user: bool = True,
 ) -> str:
     """Render an app's docker-compose.yml. Secrets come from the app's ``.env``."""
+    from dallinger.docker.tools import worker_cpu_shares
+
     docker_volumes = config.get("docker_volumes", "")
+    worker_processes = int(config.get("worker_processes", 1))
     logger_filename = JSON_LOGFILE
     if logger_filename:
         new_volume = f"./{logger_filename}:/experiment/{logger_filename}"
@@ -2741,6 +2940,8 @@ def get_docker_compose_yml(
         experiment_image=experiment_image,
         config=config_str,
         docker_volumes=docker_volumes,
+        worker_processes=worker_processes,
+        worker_cpu_shares=worker_cpu_shares(worker_processes),
         idle_enabled=str(idle_enabled).lower(),
         idle_minutes=idle_minutes,
         controller_image=CONTROLLER_IMAGE,
@@ -2898,20 +3099,39 @@ def get_retrying_http_client():
     return http
 
 
-def _first_ipv4(hostname):
-    """Return the first IPv4 address for hostname, or None if lookup fails."""
+def _ipv4_addresses(hostname):
+    """Return the IPv4 addresses for hostname, or an empty list if lookup fails."""
     try:
-        return gethostbyname_ex(hostname)[2][0]
+        return gethostbyname_ex(hostname)[2]
     except (OSError, UnicodeError):
         # UnicodeError comes from the idna codec for malformed names,
         # for example a label longer than 63 characters.
-        return None
+        return []
 
 
-def _check_experiment_hostname_dns(ssh_host, experiment_hostname):
-    """Abort unless the experiment hostname resolves to the SSH host IP."""
-    ipaddr_server = _first_ipv4(ssh_host)
-    ipaddr_experiment = _first_ipv4(experiment_hostname)
+def _check_experiment_hostname_dns(
+    ssh_host, experiment_hostname, allow_private_ip=False
+):
+    """Abort unless the experiment hostname resolves to the SSH host IP.
+
+    Parameters
+    ----------
+    ssh_host : str
+        Host name or IP address used for SSH, without a port.
+    experiment_hostname : str
+        Public host name participants will use.
+    allow_private_ip : bool
+        If true, the SSH host's address may differ from the public one, so only
+        require that ``experiment_hostname`` resolves.
+    """
+    ipaddr_experiment = next(iter(_ipv4_addresses(experiment_hostname)), None)
+    if allow_private_ip and ipaddr_experiment:
+        print(
+            f"{experiment_hostname} resolves to {ipaddr_experiment}. Because of "
+            "--allow-private-ip, this was not compared with the SSH host's address."
+        )
+        return
+    ipaddr_server = next(iter(_ipv4_addresses(ssh_host)), None)
     if ipaddr_server and ipaddr_experiment == ipaddr_server:
         return
 
@@ -2922,9 +3142,13 @@ def _check_experiment_hostname_dns(ssh_host, experiment_hostname):
 
     checker_url = f"https://dnschecker.org/#A/{experiment_hostname}"
     print(f"{RED}DNS resolution error:{END}")
-    if ipaddr_server:
+    if allow_private_ip or ipaddr_server:
+        if allow_private_ip:
+            expected = "the public IP that forwards ports 80 and 443 to the server"
+        else:
+            expected = ipaddr_server
         print(
-            f"  The experiment hostname ({experiment_hostname}) should resolve to {ipaddr_server}."
+            f"  The experiment hostname ({experiment_hostname}) should resolve to {expected}."
         )
         print(f"  It currently resolves to {current_text}.")
         print("  Check that --dns-host is correct.")

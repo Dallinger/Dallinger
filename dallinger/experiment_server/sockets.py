@@ -31,6 +31,7 @@ from dallinger.db import (
     session,
 )
 from dallinger.realtime import session_sockets, store
+from dallinger.redis_utils import connect_to_redis
 from dallinger.utils import normalized_participant_id
 
 from . import socket_admission
@@ -38,6 +39,13 @@ from .experiment_server import app
 from .utils import date_handler
 
 sock = Sock(app)
+
+#: Channel listeners hold a connection each for as long as their channel has
+#: clients, so they get their own pool. Otherwise enough busy channels would
+#: make every other Redis call in the process wait for a free connection.
+#: It is built independently of ``dallinger.db.redis_conn``, so replacing that
+#: client redirects publishes but not subscriptions; replace both together.
+pubsub_conn = connect_to_redis()
 
 # Send a ping on the websocket channel every 25 seconds
 app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
@@ -143,6 +151,11 @@ class Channel:
     on the specified channel name.
 
     When a message is received, it is relayed to all clients that have subscribed.
+
+    A channel is stopped when its last client leaves, and a new one is started
+    when a client joins again. Until the new channel's ``SUBSCRIBE`` reaches
+    Redis, messages published to that name are not relayed, so a message sent
+    straight after a client (re)joins an empty channel can be lost.
     """
 
     #: Seconds to wait before re-reading after a lost redis connection,
@@ -203,9 +216,18 @@ class Channel:
         """Send one pubsub message to every subscribed client."""
         if message["type"] != "message":
             return
-        payload = channel_frame(
-            message["channel"].decode("utf-8"), message["data"].decode("utf-8")
-        )
+        # Only redis errors are caught by ``listen``, so a decode error raised
+        # here would end the listener and leave this channel's clients deaf.
+        try:
+            channel = message["channel"].decode("utf-8")
+            data = message["data"].decode("utf-8")
+        except UnicodeDecodeError:
+            log(
+                "Dropped a message on channel {} that is not UTF-8.".format(self.name),
+                level="warning",
+            )
+            return
+        payload = channel_frame(channel, data)
         for client in self.clients:
             gevent.spawn(self._relay, client, payload)
 
@@ -231,7 +253,7 @@ class Channel:
         refused, so the listener ends and ``ChatBackend.forget`` drops the
         channel. ``rebuilds_on_protocol_error`` rebuilds even then.
         """
-        pubsub = redis_conn.pubsub()
+        pubsub = pubsub_conn.pubsub()
         name = self.name
         if isinstance(name, str):
             name = name.encode("utf-8")
@@ -284,8 +306,8 @@ class Channel:
                     if not retryable:
                         # ``close()`` disconnects, so the new pubsub starts on
                         # a fresh stream.
-                        pubsub.close()
-                        pubsub = redis_conn.pubsub()
+                        self._close(pubsub)
+                        pubsub = pubsub_conn.pubsub()
                         subscribed = False
                     if reported:
                         app.logger.warning(template.format(self.name, delay))
@@ -299,8 +321,19 @@ class Channel:
         finally:
             # Returns the connection to the redis pool. ``stop()`` reaches this
             # too, because killing a greenlet raises inside it.
-            pubsub.close()
+            self._close(pubsub)
             chat_backend.forget(self)
+
+    def _close(self, pubsub):
+        """Close a pubsub without letting a close error replace ``GreenletExit``
+        or skip ``ChatBackend.forget``."""
+        try:
+            pubsub.close()
+        except Exception as error:
+            log(
+                "Could not close redis channel {}: {!r}".format(self.name, error),
+                level="warning",
+            )
 
     @staticmethod
     def _relay(client, payload):
@@ -327,13 +360,13 @@ class Channel:
 class DirectChannel(Channel):
     """Relays directed sends published by other processes to local clients.
 
-    A process runs one of these on :data:`~dallinger.db.DIRECT_CHANNEL` while
-    it holds any connection that named a participant, and one on
-    :data:`~dallinger.db.REALTIME_SESSION_CHANNEL` once it holds a connection
-    that joined or waits for a real-time session. It has no subscribers of its
-    own: an envelope names participants, and the backend looks up their
-    connections, so a client is addressable without having subscribed to
-    anything.
+    A process starts one of these on :data:`~dallinger.db.DIRECT_CHANNEL` with
+    its first connection that names a participant, and one on
+    :data:`~dallinger.db.REALTIME_SESSION_CHANNEL` with its first connection
+    that joins or waits for a real-time session, and keeps each running after
+    those connections leave. It has no subscribers of its own: an envelope
+    names participants, and the backend looks up their connections, so a
+    client is addressable without having subscribed to anything.
     """
 
     #: Registrations live on the backend rather than here, so a listener that
