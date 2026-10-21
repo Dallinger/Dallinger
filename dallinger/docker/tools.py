@@ -440,8 +440,8 @@ def get_required_dallinger_version(experiment_tmp_path: str) -> str:
             return version_text
         if parsed_version.is_prerelease:
             print(
-                f"Dallinger version {parsed_version} is not guaranteed to have a published base image tag. "
-                "Using latest"
+                f"Using the latest base image, because Dallinger {parsed_version} "
+                "is a pre-release and may have no published image."
             )
             return LATEST_VERSION
         return version_text

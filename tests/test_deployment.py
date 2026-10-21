@@ -1400,7 +1400,9 @@ class TestSetupExperiment:
             log = mock.Mock()
             tmp_dir = assemble_experiment_temp_dir(log, active_config, for_remote=True)
 
-        assert "Dallinger is installed as an editable package" in log.call_args[0][0]
+        notice = log.call_args[0][0]
+        assert notice.startswith("Dallinger is installed as an editable package")
+        assert "DALLINGER_NO_EGG_BUILD=1" in notice and "\n" not in notice
         assert "dallinger==" not in (Path(tmp_dir) / "requirements.txt").read_text()
         shutil.rmtree(tmp_dir)
 

@@ -2,7 +2,10 @@ import io
 import locale
 import os
 import socket
+import subprocess
+import sys
 import tempfile
+from contextlib import nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -193,8 +196,9 @@ class TestGitClient:
 
         assert git.files() == {filename.decode(locale.getpreferredencoding())}
 
-    def test_files_on_non_git_repo(self, git):
+    def test_files_on_non_git_repo(self, git, capfd):
         assert git.files() == set()
+        assert "not a git repository" not in capfd.readouterr().err
 
     def test_includes_details_in_exceptions(self, git):
         with pytest.raises(Exception) as ex_info:
@@ -384,15 +388,24 @@ def test_abspath_from_egg_uses_the_imported_tree():
     assert utils.abspath_from_egg("dallinger", "dallinger/missing.txt") is None
 
 
-def test_build_and_place_copies_the_built_wheel(tmp_path, monkeypatch):
-    def fake_build(cmd, cwd):
-        outdir = Path(cmd[cmd.index("--outdir") + 1])
-        (outdir / "dallinger-1-py3-none-any.whl").write_bytes(b"wheel")
-        return b""
-
-    monkeypatch.setattr("dallinger.utils.check_output", fake_build)
-    name = utils.build_and_place(str(tmp_path), str(tmp_path))
-    assert (tmp_path / name).read_bytes() == b"wheel"
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_build_and_place_shows_build_output_only_on_failure(
+    tmp_path, monkeypatch, capfd, exit_code
+):
+    fake_python = tmp_path / "fake-python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        'echo "* Building wheel..." >&2\n'
+        'while [ "$1" != --outdir ]; do shift; done\n'
+        'echo wheel > "$2/dallinger-1-py3-none-any.whl"\n'
+        f"exit {exit_code}\n"
+    )
+    fake_python.chmod(0o755)
+    monkeypatch.setattr(sys, "executable", str(fake_python))
+    with pytest.raises(subprocess.CalledProcessError) if exit_code else nullcontext():
+        name = utils.build_and_place(str(tmp_path), str(tmp_path))
+        assert (tmp_path / name).read_text() == "wheel\n"
+    assert ("Building wheel" in capfd.readouterr().err) == bool(exit_code)
 
 
 def test_replace_dallinger_requirement_handles_git_and_equality_pins():

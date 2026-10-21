@@ -538,7 +538,11 @@ def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit
 
 @pytest.mark.parametrize(
     "requirements, tag, message",
-    [("dallinger==12.0.0\n", "12.0.0", ""), ("psynet\n", "latest", "Using latest")],
+    [
+        ("dallinger==12.0.0\n", "12.0.0", ""),
+        ("psynet\n", "latest", "Using latest"),
+        ("dallinger==12.5.0a1\n", "latest", "12.5.0a1 is a pre-release"),
+    ],
 )
 def test_generated_dockerfile_uses_the_pinned_base_image(
     tmp_path, capsys, requirements, tag, message

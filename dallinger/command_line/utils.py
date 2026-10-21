@@ -478,7 +478,8 @@ def run_pre_launch_checks(**kwargs):
 
     recruiter_name = kwargs["config"].get("recruiter", None)
     if recruiter_name is not None:
-        log(f"Validating config for {recruiter_name} recruitment...")
+        # Usually a command's first line, so no leading blank line.
+        click.echo(f"❯❯ Validating config for {recruiter_name} recruitment...")
         by_name(recruiter_name).validate_config(**kwargs)
 
 

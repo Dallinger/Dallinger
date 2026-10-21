@@ -240,7 +240,9 @@ class GitClient:
     def files(self):
         cmd = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
         try:
-            raw = check_output(cmd).decode(locale.getpreferredencoding())
+            raw = check_output(cmd, stderr=subprocess.DEVNULL).decode(
+                locale.getpreferredencoding()
+            )
         except Exception:
             return set()
 
@@ -742,14 +744,10 @@ def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files
                     )
                 else:
                     log(
-                        "Dallinger is installed as an editable package, "
-                        "and so will be copied and deployed in its current state, "
-                        "ignoring the dallinger version pinned in your experiment's "
-                        "constraints.txt file!\n"
-                        "If you don't need this you can speed up startup time by setting "
-                        "the environment variable DALLINGER_NO_EGG_BUILD:\n"
-                        "    export DALLINGER_NO_EGG_BUILD=1\n"
-                        "or you can install dallinger without the editable (-e) flag."
+                        "Dallinger is installed as an editable package, so its "
+                        "working tree is deployed instead of the version pinned in "
+                        "constraints.txt (set DALLINGER_NO_EGG_BUILD=1 to deploy "
+                        "the pin)."
                     )
                 egg_name = build_and_place(dallinger_path, dst)
                 # A custom Dockerfile (e.g. PsyNet's) installs requirements
@@ -1245,11 +1243,22 @@ def exclusion_policy():
 
 
 def build_and_place(source: str, destination: str) -> str:
-    """Build a wheel from ``source`` into ``destination`` and return its name."""
+    """Build a wheel from ``source`` into ``destination`` and return its name.
+
+    The build runs with the current interpreter. Its output is printed to
+    stderr only if the build fails.
+    """
     with tempfile.TemporaryDirectory() as outdir:
-        check_output(
-            ["python", "-m", "build", "--wheel", "--outdir", outdir], cwd=source
+        build = subprocess.run(
+            [sys.executable, "-m", "build", "--wheel", "--outdir", outdir],
+            cwd=source,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
         )
+        if build.returncode:
+            sys.stderr.write(build.stdout)
+            build.check_returncode()
         (wheel,) = Path(outdir).glob("*.whl")
         shutil.copy(wheel, destination)
         return wheel.name
