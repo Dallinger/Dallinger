@@ -404,6 +404,9 @@ class Bargaining(Experiment):
 class Bot(HighPerformanceBotBase):
     """Joins a pair without opening the game's page. The game type's ``bot``
     method makes its offers.
+
+    The bot signs off once it has joined. The experiment isn't complete while
+    any round is running, so its rounds are still played to the end.
     """
 
     def participate(self):
@@ -411,7 +414,3 @@ class Bot(HighPerformanceBotBase):
         result = requests.post(url)
         if not result.ok:
             self.log("Couldn't join a pair: {}".format(result.text))
-            return
-        # Lasts through every round, since each round is saved no later than
-        # the previous round's ending
-        self.wait_for_realtime_sessions(Bargain)

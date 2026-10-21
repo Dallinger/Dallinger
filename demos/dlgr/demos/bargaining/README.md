@@ -122,8 +122,9 @@ on a worker, which starts the next round if the pair has played fewer than
 Dallinger saves the next round no later than the end of the last one. So when
 a page learns that a round's result is saved, the next round is already
 there, and the page joins it, passing the round it just played as
-`afterSession` so that only a newer one counts. A bot's wait for its rounds
-lasts through all of them for the same reason.
+`afterSession` so that only a newer one counts. For the same reason, there's
+no moment between rounds with none running, so the experiment, which isn't
+complete while any session is running, stays open until the last round ends.
 
 A round can also end another way, for example if the game's code fails or the
 experimenter stops it. No next round starts then, and the page lets the
@@ -176,10 +177,9 @@ makes. With chat on, it answers every message, as described above. Bots
 answer each other at once, so two bots play a whole round the moment it
 starts.
 
-A bot waits up to ten minutes for its rounds to end, the default of
-`wait_for_realtime_sessions`, then signs off, even partway through a series.
-For more rounds than fit in ten minutes, pass a longer `timeout` to it in
-`Bot.participate`.
+A bot signs off as soon as it has joined its pair, and its rounds are still
+played to the end, since the experiment isn't complete while any of them is
+running.
 
 To watch bots play each other, run:
 

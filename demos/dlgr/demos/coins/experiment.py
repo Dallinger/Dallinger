@@ -547,6 +547,9 @@ class CoinCollection(Experiment):
 class Bot(HighPerformanceBotBase):
     """Joins a group without opening the game's page. The game type's ``bot``
     method makes its moves.
+
+    The bot signs off once it has joined. The experiment isn't complete while
+    the game is running, so it's still played to the end.
     """
 
     def participate(self):
@@ -554,5 +557,3 @@ class Bot(HighPerformanceBotBase):
         result = requests.post(url)
         if not result.ok:
             self.log("Couldn't join a group: {}".format(result.text))
-            return
-        self.wait_for_realtime_sessions(Coins)

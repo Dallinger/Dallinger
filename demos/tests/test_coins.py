@@ -431,13 +431,11 @@ def test_the_instructions_follow_the_settings():
 
 
 @mock.patch("dlgr.demos.coins.experiment.requests.post")
-def test_a_bot_joins_a_group_then_waits_for_its_game(post):
+def test_a_bot_joins_a_group(post):
     bot = Bot.__new__(Bot)
     bot.URL = "http://localhost:5000/ad?x=1"
     bot.participant_id = 7
-    bot.wait_for_realtime_sessions = mock.Mock()
 
     bot.participate()
 
     post.assert_called_once_with("http://localhost:5000/node/7")
-    bot.wait_for_realtime_sessions.assert_called_once_with(Coins)
