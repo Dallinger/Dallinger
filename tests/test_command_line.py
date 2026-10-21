@@ -581,6 +581,96 @@ class TestDevelopCommand:
         assert builder.call_count == 1
 
 
+def test_dev_server_failure_raises(tmp_path):
+    from dallinger.command_line.develop import _run_dev_server
+
+    with pytest.raises(click.ClickException, match="exited with status 2"):
+        _run_dev_server([sys.executable, "-c", "raise SystemExit(2)"], str(tmp_path))
+
+
+def test_cancel_pending_job_skips_expired_and_cancels_queued():
+    from rq import Queue
+    from rq.job import JobStatus
+
+    from dallinger.command_line.develop import _cancel_pending_job
+    from dallinger.db import redis_conn
+
+    queue = Queue("test_cancel_pending_job", connection=redis_conn)
+    try:
+        expired = queue.enqueue(print)
+        redis_conn.delete(expired.key)
+        _cancel_pending_job(expired)
+
+        queued = queue.enqueue(print)
+        _cancel_pending_job(queued)
+        assert queued.get_status() == JobStatus.CANCELED
+    finally:
+        queue.delete(delete_jobs=True)
+
+
+def test_dev_server_stops_quietly_on_ctrl_c(tmp_path):
+    import signal
+
+    pid_file = tmp_path / "grandchild.pid"
+    grandchild = (
+        "import os, signal, time\n"
+        "def report(signum, frame):\n"
+        "    print('got', signal.Signals(signum).name, flush=True)\n"
+        "signal.signal(signal.SIGINT, report)\n"
+        "signal.signal(signal.SIGTERM, report)\n"
+        f"open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
+        "time.sleep(60)\n"
+    )
+    server = [
+        sys.executable,
+        "-c",
+        f"import subprocess, sys; subprocess.run([sys.executable, '-c', {grandchild!r}])",
+    ]
+    parent = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            # Pytest may run with SIGINT ignored (e.g. under nohup), which children inherit.
+            "import signal\n"
+            "signal.signal(signal.SIGINT, signal.default_int_handler)\n"
+            "from dallinger.command_line.develop import _run_dev_server\n"
+            f"_run_dev_server({server!r}, {str(tmp_path)!r}, stop_timeout=0.5)",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        for _ in range(300):
+            if pid_file.exists() and pid_file.read_text():
+                break
+            sleep(0.1)
+        else:
+            pytest.fail("server did not start")
+        os.killpg(parent.pid, signal.SIGINT)
+        output = parent.communicate(timeout=30)[0]
+
+        assert parent.returncode == 0, output
+        assert "got SIGTERM" in output
+        for unwanted in ("Traceback", "Aborted!", "got SIGINT"):
+            assert unwanted not in output
+        with pytest.raises(ProcessLookupError):
+            os.kill(int(pid_file.read_text()), 0)
+    finally:
+        pgids = [parent.pid]
+        try:
+            pgids.append(os.getpgid(int(pid_file.read_text())))
+        except (OSError, ValueError):
+            pass
+        for pgid in pgids:
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+        parent.communicate(timeout=10)
+
+
 @pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
 class TestDebugCommand:
     @pytest.fixture
