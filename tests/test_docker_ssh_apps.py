@@ -20,10 +20,12 @@ def test_docker_host_uri_omits_at_sign_usernames(capsys, tmp_path, monkeypatch):
     # A stand-in for OpenSSH's `ssh -G`, which reports the user it would use.
     ssh = tmp_path / "ssh"
     ssh.write_text(
-        '#!/bin/sh\necho "hostname $3"\necho "user ${SSH_TEST_USER:-peter}"\n'
+        '#!/bin/sh\n[ "$1 $2 $3" = "-G -- rr-pc01.example" ] || exit 255\n'
+        'echo "hostname $3"\necho "user ${SSH_TEST_USER:-peter}"\n'
     )
     ssh.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.delenv("SSH_TEST_USER", raising=False)
     assert (
         docker_ssh_module.docker_host_uri("rr-pc01.example", user="pmch2@cam.ac.uk")
         == "ssh://rr-pc01.example"

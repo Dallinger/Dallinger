@@ -703,6 +703,7 @@ def _ssh_config_user(host):
     try:
         result = subprocess.run(
             ["ssh", "-G", "--", host],
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             timeout=10,
