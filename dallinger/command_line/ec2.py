@@ -9,6 +9,7 @@ from .lib.ec2 import (
     create_dns_records,
     get_instances,
     get_pem_path,
+    has_route_53_zone,
     increase_storage,
     list_instance_types,
     list_instances,
@@ -16,6 +17,7 @@ from .lib.ec2 import (
     provision,
     remove_dns_record,
     restart,
+    saved_server,
     start,
     stop,
     teardown,
@@ -211,18 +213,24 @@ def ec2__increase_storage(ctx, dns, name, region, storage):
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS).",
+    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS). Defaults to the DNS host saved when the instance was provisioned.",
     default=None,
 )
 @click.pass_context
 def ec2__stop(ctx, dns, name, region, dns_host):
     """Stop (pause) an existing EC2 instance"""
     _validate_instance_selector(name, dns)
-    instance_id = _get_instance_id_from(
+    instance_row = _get_instance_row_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
+    instance_id = instance_row["instance_id"]
+    target = None
+    if not dns_host:
+        # Only delete saved-host records that still point at this instance.
+        dns_host = saved_server(instance_id).get("dns_host")
+        target = instance_row["public_dns_name"]
     # Remove old DNS records, but keep the dallinger host
-    remove_dns_record(dns_host, remove_dallinger_host=False)
+    remove_dns_record(dns_host, remove_dallinger_host=False, target=target)
     stop(region, instance_id)
 
 
@@ -236,7 +244,7 @@ def ec2__stop(ctx, dns, name, region, dns_host):
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS).",
+    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS). Defaults to the DNS host saved when the instance was provisioned.",
     default=None,
 )
 @click.pass_context
@@ -263,7 +271,16 @@ def ec2__start(ctx, dns, name, region, dns_host):
     )
     start(region, instance_id)
 
-    old_dns_host = CONFIGURED_HOSTS.get(dns, {})
+    saved = saved_server(instance_id)
+    if not dns_host and saved.get("dns_host"):
+        if has_route_53_zone(saved["dns_host"]):
+            dns_host = saved["dns_host"]
+        else:
+            print(
+                f"Warning: No Route 53 hosted zone found for {saved['dns_host']}; "
+                "its DNS records were not updated."
+            )
+    old_dns_host = CONFIGURED_HOSTS.get(dns) or saved
     user = old_dns_host.get("user", "ubuntu")
 
     instance_row = wait_for_instance_state_change(region, name, "running")

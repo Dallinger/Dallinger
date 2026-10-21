@@ -175,6 +175,28 @@
 
 ### Changed
 
+- `dallinger ec2 provision --dns-host <name>` now registers the server once,
+  under its DNS name, instead of also registering the instance's public AWS
+  hostname. Deployments therefore no longer ask which of the two entries to
+  use, and infer the DNS host from the server. The entry records the
+  instance id, so `ec2 teardown` removes it and its Route 53 records without
+  `--dns-host`; it also still removes an AWS-hostname entry registered by
+  older versions. Teardown deletes only the Route 53 records that point at
+  the instance, warns about records that point elsewhere, and deletes them
+  before terminating the instance. If Route 53 cleanup fails (including a
+  missing hosted zone), it warns and still terminates the instance.
+  `ec2 stop` and `ec2 start` also use the saved DNS host when `--dns-host`
+  is omitted: `stop` deletes its records if they point at the instance, and
+  `start` points them at the instance's new AWS hostname.
+- `dallinger docker-ssh servers add` accepts `--dns-host` and saves it with
+  the server, so servers added by IP address don't need `--dns-host` on every
+  deployment. Re-adding a server keeps its saved DNS host (unless
+  `--dns-host` is given) and the instance id saved by `ec2 provision`, so
+  `ec2 teardown` still finds it. `docker-ssh deploy` and `sandbox` use an explicit `--dns-host`,
+  then the saved DNS host, then the server's own name. Servers added by an
+  IPv6 address without a saved DNS host now need `--dns-host` (previously the
+  address itself was used). Classic-ingress `destroy` restores the server's
+  Caddyfile under the host the app was deployed with.
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
   config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
   Cloudflare settings and API token, and whether the app name is already

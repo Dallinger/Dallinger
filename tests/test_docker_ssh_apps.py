@@ -741,13 +741,13 @@ def test_remove_unshared_skips_rmi_when_another_app_pins_the_image():
     assert not any(cmd.startswith("docker rmi") for cmd in commands)
 
 
-def _patch_destroy_executor(monkeypatch, run):
+def _patch_destroy_executor(monkeypatch, run, server_info=None):
     executor = mock.Mock()
     executor.run.side_effect = run
     monkeypatch.setattr(
         docker_ssh_module,
         "CONFIGURED_HOSTS",
-        {"test-server": {"host": "example.com", "user": "ubuntu"}},
+        {"test-server": server_info or {"host": "example.com", "user": "ubuntu"}},
     )
     monkeypatch.setattr(docker_ssh_module, "Executor", lambda *args, **kwargs: executor)
     return executor
@@ -792,6 +792,48 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
         "amir20/dozzle",
     ):
         assert not any(forbidden in cmd for cmd in rmi_commands)
+
+
+@pytest.mark.parametrize(
+    "site, server_info, expected",
+    [
+        ("1.2.3.4.nip.io", {"host": "1.2.3.4", "dns_host": "nip.io"}, "1.2.3.4.nip.io"),
+        ("deploy.org", {"host": "1.2.3.4", "dns_host": "lab.org"}, "deploy.org"),
+        ("[2001:db8::1]", {"host": "[2001:db8::1]"}, "[2001:db8::1]"),
+        (None, {"host": "1.2.3.4", "dns_host": "lab.org"}, "lab.org"),
+    ],
+)
+def test_destroy_restores_caddyfile_under_the_deployed_dns_host(
+    monkeypatch, site, server_info, expected
+):
+    if site:
+        caddyfile = docker_ssh_module.CADDYFILE_ROOT.format(
+            host=site, tls="tls internal", backend="myapp_web:5000"
+        )
+    else:
+        caddyfile = "reverse_proxy myapp_web:5000"
+    uploaded = []
+
+    def run(cmd, raise_=True):
+        if cmd.startswith("test -f") and "caddy.d" in cmd:
+            return "Yes"
+        if cmd == "cat ~/dallinger/Caddyfile":
+            return caddyfile
+        return ""
+
+    _patch_destroy_executor(monkeypatch, run, server_info)
+    sftp = mock.Mock()
+    sftp.putfo.side_effect = lambda buf, path: uploaded.append((buf.getvalue(), path))
+    monkeypatch.setattr(docker_ssh_module, "get_sftp", lambda *a, **k: sftp)
+    config = mock.Mock()
+    config.get.return_value = "ops@example.org"
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load=True: config)
+
+    docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+
+    [(restored, path)] = uploaded
+    assert path == "dallinger/Caddyfile"
+    assert f"\n{expected} {{" in restored.decode()
 
 
 class _LocalDockerExecutor:
