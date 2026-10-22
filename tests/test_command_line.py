@@ -478,6 +478,14 @@ class TestDevelopCommand:
         assert server.call_args.kwargs["env"]["FLASK_RUN_PORT"] == str(port)
         assert active_config.get("base_port") == port
 
+    def test_browser_defaults_to_base_port(self, active_config, develop):
+        active_config.extend({"base_port": 5123})
+        with mock.patch("dallinger.command_line.develop._browser") as browser:
+            result = CliRunner().invoke(develop, ["browser", "--route", "ad"])
+
+        assert result.exit_code == 0, result.output
+        browser.assert_called_once_with(route="ad", port=5123)
+
     @pytest.mark.parametrize(
         "name, problem",
         [("not-an-identifier", "letters, numbers"), ("file/sub", "Not a directory")],
