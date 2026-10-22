@@ -701,6 +701,18 @@ def _ssh_config_user(host):
     Docker's SSH transport runs ``ssh``, so ``ssh -G`` answers for exactly
     the configuration it uses (``Include``, ``Match`` and system files too).
     """
+    return (_ssh_config(host) or {}).get("user", [None])[0]
+
+
+def _ssh_config(host):
+    """Return the options ``ssh -G`` resolves for ``host``, or None if unknown.
+
+    Returns
+    -------
+    dict or None
+        Lower-case option names mapped to lists of values, such as
+        ``{"user": ["alice"], "identityfile": ["~/.ssh/id_rsa", ...]}``.
+    """
     try:
         result = subprocess.run(
             ["ssh", "-G", "--", host],
@@ -715,11 +727,11 @@ def _ssh_config_user(host):
         return None
     if result.returncode != 0:
         return None
+    options = {}
     for line in result.stdout.splitlines():
         key, _, value = line.partition(" ")
-        if key == "user":
-            return value
-    return None
+        options.setdefault(key, []).append(value)
+    return options
 
 
 def _resolve_server_info(server):
@@ -1088,29 +1100,17 @@ def _ssh_alias(ssh_host, ssh_port, ssh_user, key):
     identity files. Otherwise None.
     """
     alias = ssh_host.split(".")[0]
-    if alias == ssh_host or not alias or alias.startswith("-"):
+    if alias == ssh_host or not alias or _is_ip_address(ssh_host):
         return None
-    try:
-        result = subprocess.run(
-            ["ssh", "-G", alias],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
+    options = _ssh_config(alias)
+    if options is None:
         return None
-    options = {}
-    for line in result.stdout.splitlines():
-        name, _, value = line.partition(" ")
-        options.setdefault(name, []).append(value)
 
     def resolved(path):
         return os.path.realpath(os.path.expanduser(path))
 
     if (
-        result.returncode == 0
-        and options.get("hostname") == [ssh_host]
+        options.get("hostname") == [ssh_host]
         and options.get("port") == [str(ssh_port)]
         and options.get("user") == [ssh_user or getuser()]
         and resolved(key)
@@ -1120,10 +1120,10 @@ def _ssh_alias(ssh_host, ssh_port, ssh_user, key):
     return None
 
 
-def _log_command(ssh_host, ssh_port, ssh_user, app):
+def _log_command(ssh_prefix, app):
     """Return the ssh command that follows an app's Compose logs."""
     return ssh_command(
-        _ssh_prefix(ssh_host, ssh_port, ssh_user),
+        ssh_prefix,
         f"docker compose -f ~/dallinger/{app}/docker-compose.yml logs -f",
     )
 
@@ -2113,16 +2113,17 @@ def _deploy_in_mode(
     # Tell caddy we changed something in the configuration
     executor.reload_caddy()
 
+    ssh_prefix = _ssh_prefix(ssh_host, ssh_port, ssh_user)
     launch_target = LaunchTarget(
         app=experiment_id,
         server=server,
         public_origin=public_origin,
         ingress=INGRESS_CLASSIC,
-        ssh_prefix=_ssh_prefix(ssh_host, ssh_port, ssh_user),
+        ssh_prefix=ssh_prefix,
         verify=not is_loopback_host(ssh_host),
     )
     dashboard_link = _public_dashboard_url(experiment_hostname)
-    log_command = _log_command(ssh_host, ssh_port, ssh_user, experiment_id)
+    log_command = _log_command(ssh_prefix, experiment_id)
     deployment_infos = []
     if push_build:
         deployment_infos.append(f"Deployed Docker image name: {image_name}")
@@ -2326,15 +2327,16 @@ def _deploy_cloudflare_in_mode(
         restore=True,
     )
 
+    ssh_prefix = _ssh_prefix(ssh_host, ssh_port, ssh_user)
     launch_target = LaunchTarget(
         app=experiment_id,
         server=server,
         public_origin=public_origin,
         ingress=INGRESS_CLOUDFLARE,
-        ssh_prefix=_ssh_prefix(ssh_host, ssh_port, ssh_user),
+        ssh_prefix=ssh_prefix,
     )
     dashboard_link = _public_dashboard_url(hostname)
-    log_command = _log_command(ssh_host, ssh_port, ssh_user, experiment_id)
+    log_command = _log_command(ssh_prefix, experiment_id)
     deployment_infos = []
     if push_build:
         deployment_infos.append(f"Deployed Docker image name: {image_name}")

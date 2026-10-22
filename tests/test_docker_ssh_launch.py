@@ -216,7 +216,7 @@ def test_printed_ssh_commands_use_the_users_alias_for_the_server(tmp_path, monke
 
     def ssh_dash_g(args, **kwargs):
         # What `ssh -G lab` prints for "Host lab / HostName lab.example.org / ...".
-        assert args == ["ssh", "-G", "lab"]
+        assert args == ["ssh", "-G", "--", "lab"]
         output = (
             "hostname lab.example.org\nport 22\nuser me@example.org\n"
             f"identityfile ~/.ssh/id_rsa\nidentityfile {key}\n"
@@ -230,6 +230,7 @@ def test_printed_ssh_commands_use_the_users_alias_for_the_server(tmp_path, monke
     assert docker_ssh._ssh_prefix("lab.example.org", 22, "you@example.org") == (
         f"ssh -i {key} -l you@example.org lab.example.org"
     )
+    assert docker_ssh._ssh_prefix("10.0.0.1", 22, "me") == f"ssh -i {key} me@10.0.0.1"
 
 
 @pytest.fixture
