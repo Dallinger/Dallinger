@@ -230,6 +230,9 @@
   after these checks. Because ``-c`` values are applied before the build,
   ``-c docker_image_name`` now chooses the image to reuse.
   ([#9846](https://github.com/Dallinger/Dallinger/issues/9846))
+- Dependency lockfiles are compiled for the latest patch of the oldest
+  supported Python, currently 3.11.17. This refresh includes ``soupsieve`` 3.0.3
+  and bumps the ruff pre-commit hook to v0.17.1.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
