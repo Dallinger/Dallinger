@@ -1,5 +1,6 @@
 import contextlib
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -40,6 +41,8 @@ from dallinger.utils import (
 setup_warning_hooks()
 
 BASE_URL = "http://127.0.0.1:{}/"
+# In the launch message of the hotair and cli recruiters.
+_SINGLE_RECRUITMENT_LINK = re.compile(r"Single recruitment link: (\S+)")
 
 
 def ad_url(config, port):
@@ -82,7 +85,7 @@ def develop():
 @click.option(
     "--no-browsers",
     is_flag=True,
-    help="Skip opening browsers; print the recruitment message and dashboard login",
+    help="Skip opening the dashboard and participant pages in browsers",
 )
 @click.option(
     "--verbose",
@@ -233,49 +236,68 @@ def _bootstrap(exp_config=None, experiment_files=None):
 
 
 def launch_app_and_open_browser(port):
-    _launch_app(port)
-    echo_ready()
-    _async_browser("dashboard", port)
+    launch_app_without_browsers(port)
+    _async_browser("dashboard", port, quiet=True)
     time.sleep(0.1)  # A little delay to ensure they always open in the same order
-    _async_browser("ad", port)
+    _async_browser("ad", port, quiet=True)
 
 
 def launch_app_without_browsers(port):
-    """Launch the app and print what the browsers would otherwise show."""
+    """Launch the app and print the participant link and dashboard login."""
     launch_data = _launch_app(port)
     config = get_config(load=True)
-    lines = []
-    if launch_data.get("recruitment_msg"):
-        lines.append(launch_data["recruitment_msg"])
-    lines.append(
-        "Dashboard: {}dashboard/develop (user {}, password {})".format(
-            BASE_URL.format(port),
-            config.get("dashboard_user"),
-            config.get("dashboard_password"),
+    message = (launch_data.get("recruitment_msg") or "").strip()
+    link = _SINGLE_RECRUITMENT_LINK.search(message)
+    if link:
+        details = [("Participant link", link.group(1))]
+    else:
+        details = [("Recruitment", message)] if message else []
+    details.append(
+        (
+            "Dashboard",
+            "{}dashboard/develop (user {}, password {})".format(
+                BASE_URL.format(port),
+                config.get("dashboard_user"),
+                config.get("dashboard_password"),
+            ),
         )
     )
-    echo_ready(lines)
+    echo_ready(details)
 
 
-def echo_ready(lines=()):
+def echo_ready(details=()):
     """Print the block that ends the development server's start-up.
 
-    It starts with "Ready.", then ``lines``, the location of the full log
-    and how to stop the server.
+    After a blank line come "Ready.", ``details`` and the location of the
+    full log as aligned ``label: value`` lines, and how to stop the server::
+
+        Ready.
+          Participant link: http://127.0.0.1:5000/ad?recruiter=hotair&…
+          Dashboard:        http://127.0.0.1:5000/dashboard/develop (user …)
+          Full log:         /tmp/dallinger_develop/logs.jsonl
+        Press Ctrl+C to stop.
+
+    The block is printed in one write, so that server log lines don't
+    split it.
 
     Parameters
     ----------
-    lines : sequence of str
-        Details to show, such as the participant link and dashboard login.
+    details : sequence of (str, str)
+        Labels and values to show before the full log's location. Lines
+        after the first of a value are indented to line up with it.
     """
     colour = dev_logging.use_colour(sys.stdout)
     ready = click.style("Ready.", fg="green", bold=True) if colour else "Ready."
     log_path = os.path.join(develop_target_path(get_config(load=True)), JSON_LOGFILE)
-    click.echo(ready, color=colour)
-    for line in lines:
-        click.echo(line)
-    click.echo(f"Full log: {log_path}")
-    click.echo("Press Ctrl+C to stop.")
+    rows = [*details, ("Full log", log_path)]
+    width = max(len(label) for label, _ in rows) + 1
+    lines = ["", ready]
+    for label, value in rows:
+        first, *rest = str(value).splitlines() or [""]
+        lines.append(f"  {label + ':':<{width}} {first}")
+        lines.extend((" " * (width + 3) + line).rstrip() for line in rest)
+    lines.append("Press Ctrl+C to stop.")
+    click.echo("\n".join(lines), color=colour)
 
 
 def _launch_app(port):
@@ -301,13 +323,17 @@ def browser(route=None, port=None):
     _browser(route=route, port=port)
 
 
-def _browser(route=None, port=5000):
-    """Open one of the supported routes with appropriate path and URL parameters"""
+def _browser(route=None, port=5000, quiet=False):
+    """Open one of the supported routes with appropriate path and URL parameters.
+
+    Unless ``quiet``, the URL is printed first.
+    """
     config = get_config(load=True)
     url_factory = valid_routes.get(route)
     if url_factory is not None:
         url = url_factory(config, port)
-        log(f"Opening {route}: {url}")
+        if not quiet:
+            log(f"Opening {route}: {url}")
         open_browser(url)
     else:
         click.echo(
@@ -315,9 +341,11 @@ def _browser(route=None, port=5000):
         )
 
 
-def _async_browser(route=None, port=5000):
+def _async_browser(route=None, port=5000, quiet=False):
     # The _browser call is pretty slow, so we run it in a thread
     # to allow us to open multiple browsers at the same time
     threading.Thread(
-        target=_browser, name=f"Open {route}", kwargs={"route": route, "port": port}
+        target=_browser,
+        name=f"Open {route}",
+        kwargs={"route": route, "port": port, "quiet": quiet},
     ).start()

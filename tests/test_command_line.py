@@ -526,20 +526,27 @@ class TestDevelopCommand:
             mock.patch.object(
                 develop_module,
                 "handle_launch_data",
-                return_value={"recruitment_msg": "Recruitment is open"},
+                return_value={
+                    "recruitment_msg": "Initial recruitment list:\nhttp://x/ad?a=1\n"
+                    "Additional details:\nSingle recruitment link: http://x/ad?t=1"
+                },
             ),
             mock.patch.object(develop_module, "open_browser") as open_browser,
         ):
             job(port=5001)
         out = capsys.readouterr().out.splitlines()
         assert out[:3] == [
+            "",
             "Ready.",
-            "Recruitment is open",
-            "Dashboard: http://127.0.0.1:5001/dashboard/develop "
-            "(user admin, password pw)",
+            "  Participant link: http://x/ad?t=1",
         ]
-        assert out[3].startswith("Full log: ") and out[3].endswith("logs.jsonl")
-        assert out[4] == "Press Ctrl+C to stop."
+        assert out[3] == (
+            "  Dashboard:        http://127.0.0.1:5001/dashboard/develop "
+            "(user admin, password pw)"
+        )
+        assert out[4].startswith("  Full log:         ")
+        assert out[4].endswith("logs.jsonl")
+        assert out[5:] == ["Press Ctrl+C to stop."]
         open_browser.assert_not_called()
 
     def test_debug_verbose_shows_full_server_output(self, develop):

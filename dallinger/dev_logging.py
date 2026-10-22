@@ -18,11 +18,14 @@ The console hides routine records: werkzeug's start-up banner and access log
 (replaced by one announcement line and :class:`AccessLogMiddleware`, which
 only reports errors and slow requests), RQ and APScheduler messages below
 WARNING, the "New participant requested:" lines logged while the experiment
-launches (their links are in the launch response, which ``--no-browsers``
-prints), and most of APScheduler's warnings that a job run was skipped or
-missed because the previous run or the clock was late: none in the 30
-seconds from the first one (the clock warming up), then at most one a
-minute, with a count of those hidden.
+launches (the start-up block's participant link replaces them), and most of
+APScheduler's warnings that a job run was skipped or missed because the
+previous run or the clock was late: none in the 30 seconds from the first
+one (the clock warming up), then at most one a minute, with a count of those
+hidden. A record logged with a topic (``extra={TOPIC: "name"}``) is hidden if
+its message is the same as the last one shown for that topic, so that, for
+example, "Recruitment closed." is shown once rather than once for every
+participant who finishes.
 ``logs.jsonl`` in the develop directory still receives every record.
 
 If a code change stops the experiment importing, the develop directory's
@@ -59,6 +62,8 @@ LOG_MODE_ENV = "DALLINGER_DEV_LOG"
 ROLE_ENV = "DALLINGER_DEV_ROLE"
 SLOW_REQUEST_ENV = "DALLINGER_DEV_SLOW_REQUEST_SECONDS"
 PIN_ENV = "WERKZEUG_DEBUG_PIN"
+#: ``extra`` key that gives a record a topic; see :class:`ConsoleFilter`.
+TOPIC = "dallinger_console_topic"
 _PIN_ANNOUNCED_ENV = "DALLINGER_DEV_PIN_ANNOUNCED"
 
 _DEFAULT_SLOW_REQUEST_SECONDS = 1.0
@@ -156,7 +161,11 @@ class ConsoleFormatter(logging.Formatter):
 
 
 class ConsoleFilter(logging.Filter):
-    """Hide routine records from the console and shorten werkzeug's.
+    """Hide routine and repeated records from the console and shorten werkzeug's.
+
+    A record with a :data:`TOPIC` attribute is hidden if its message is the
+    same as that of the last record shown for the topic. Warnings and errors
+    are always shown.
 
     Records are never modified: a shortened werkzeug message is stored as
     ``record.dallinger_console_message``, which :class:`ConsoleFormatter`
@@ -176,6 +185,7 @@ class ConsoleFilter(logging.Filter):
         self._overlaps_started = None
         self._overlap_shown_at = None
         self._overlaps_hidden = 0
+        self._last_message_by_topic = {}
 
     def filter(self, record):
         if full_output_requested():
@@ -193,6 +203,12 @@ class ConsoleFilter(logging.Filter):
             return self._filter_werkzeug(record)
         if _is_launch_recruitment(record):
             return False
+        topic = getattr(record, TOPIC, None)
+        if topic is not None and record.levelno < logging.WARNING:
+            message = record.getMessage()
+            if self._last_message_by_topic.get(topic) == message:
+                return False
+            self._last_message_by_topic[topic] = message
         return True
 
     def _filter_scheduler_overlap(self, record):
@@ -256,8 +272,8 @@ class ConsoleFilter(logging.Filter):
 def _is_launch_recruitment(record):
     """Return True for a "New participant requested:" record logged by ``/launch``.
 
-    Their links are also in the launch response, which ``dallinger develop
-    debug --no-browsers`` prints, so the console shows only later requests.
+    ``dallinger develop debug`` prints the participant link when the launch
+    finishes, so the console shows only later requests.
     """
     from flask import has_request_context, request
 

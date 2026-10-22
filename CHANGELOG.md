@@ -88,9 +88,13 @@
   - RQ and APScheduler messages below WARNING, and the worker's "Warm shut
     down requested." messages when the server stops, are hidden.
   - The `New participant requested: <url>` lines logged while the
-    experiment launches are hidden, so the link isn't printed twice: it is
-    in the launch response, which `--no-browsers` prints. Later requests
-    for new participants are still shown.
+    experiment launches are hidden, since the `Ready.` block has the
+    participant link. Later requests for new participants are still shown.
+  - A message that would repeat itself is shown once: "Recruitment closed."
+    appears when recruitment closes, not again for every participant who
+    finishes, until a new participant is requested. Log records can opt in
+    with `extra={dallinger.dev_logging.TOPIC: "<name>"}`: such a record is
+    hidden if its message is the same as the last one shown for its topic.
   - APScheduler's warnings that a job run was skipped ("maximum number of
     running instances reached") or missed ("was missed by"), which come in
     bursts while the clock starts up or after the computer slept, are not
@@ -99,12 +103,24 @@
   - Errors keep their full tracebacks, and text that doesn't go through
     logging (such as the debugger's traceback for a failed request) is
     printed as before.
-  - `dallinger develop debug`'s start-up ends with a `Ready.` block that
-    shows the location of the full log and, with `--no-browsers`, the
-    recruitment message and dashboard login (previously printed as
-    `❯❯ Experiment dashboard: …` and `Dashboard user: … password: …`).
-    Tools that replace the launch job, such as PsyNet, can print the same
-    block with `dallinger.command_line.develop.echo_ready()`.
+  - `dallinger develop debug`'s start-up ends with a `Ready.` block of
+    aligned lines: the participant link (the recruiter's single recruitment
+    link), the dashboard URL and login, and the location of the full log.
+    It replaces the recruiter's "Initial recruitment list:" and "Additional
+    details:" text and the `Opening dashboard: …` and `Opening ad: …` lines
+    printed when browsers open:
+
+    ```
+    Ready.
+      Participant link: http://127.0.0.1:5000/ad?recruiter=hotair&generate_tokens=1&mode=debug
+      Dashboard:        http://127.0.0.1:5000/dashboard/develop (user admin, password …)
+      Full log:         /tmp/dallinger_develop/logs.jsonl
+    Press Ctrl+C to stop.
+    ```
+
+    Tools that replace the launch job can print the same block with
+    `dallinger.command_line.develop.echo_ready(details)`, where `details`
+    is a sequence of `(label, value)` pairs.
   - `dallinger develop debug --verbose`, or `DALLINGER_DEV_LOG=full`, shows
     everything again, including werkzeug's line for every request.
 
@@ -125,6 +141,8 @@
     that wait for `Close recruitment.`.
   - `dallinger debug --no-browsers` prints `New participant requested: <url>`
     with one colon instead of two, using the `--proxy` port if one is set.
+    The `recruitment_loop` test fixture matches this line where it starts a
+    line, instead of after `❯❯ `.
     Without `--no-browsers`, `new recruitment request!` becomes
     `Opening a browser for a new participant: <url>`.
 - A request, worker job or clock task that fails inside `db.sessions_scope()`
@@ -237,9 +255,9 @@
   first copy and dropped the jQuery plugins registered on it.
 - Added a Cursor `/release` command and release skill for cutting
   Dallinger releases to PyPI and ghcr.
-- Added `--no-browsers` to `dallinger develop debug`. Instead of opening the
-  dashboard and participant browsers, it prints the recruitment message, the
-  dashboard URL and the dashboard login when the server is ready.
+- Added `--no-browsers` to `dallinger develop debug`, which skips opening the
+  dashboard and participant pages in browsers. Their links are in the
+  `Ready.` block either way.
 - docker-ssh apps can hibernate automatically after a quiet period when
   ``docker_ssh_idle_hibernate`` is set (``docker_ssh_idle_hibernate_minutes``,
   default 60). ``/health`` probes do not count as traffic. With idle sleep

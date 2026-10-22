@@ -2257,8 +2257,9 @@ class TestDockerServer:
         )
         p.logfile = sys.stdout
         # --verbose also echoes the server's own "New participant requested: <url>"
-        # line, so match only the debugger's "❯❯" line to see each URL once.
-        new_recruit = r"❯❯ {} (http://\S+)".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+        # line after a prefix, so match only the debugger's line, which starts
+        # the line, to see each URL once.
+        new_recruit = r"(?m)^{} (http://\S+)".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
         try:
             p.expect_exact("Server is running", timeout=180)
             p.expect_exact("Initial recruitment list:", timeout=30)

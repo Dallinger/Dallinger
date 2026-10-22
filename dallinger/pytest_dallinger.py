@@ -509,8 +509,11 @@ def recruitment_loop(request, debug_experiment):
         while True:
             index = debug_experiment.expect(
                 [
-                    # The debugger's own line; --verbose also shows the server's.
-                    "❯❯ {} (.*&mode=debug)".format(re.escape(NEW_RECRUIT_LOG_PREFIX)),
+                    # The debugger's own line, which starts the line;
+                    # --verbose also shows the server's, after a prefix.
+                    r"(?m)^{} (.*&mode=debug)".format(
+                        re.escape(NEW_RECRUIT_LOG_PREFIX)
+                    ),
                     re.escape(CLOSE_RECRUITMENT_LOG_PREFIX),
                 ],
                 timeout=timeout,

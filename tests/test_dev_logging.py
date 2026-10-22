@@ -8,6 +8,7 @@ from werkzeug.serving import WSGIRequestHandler
 from werkzeug.test import Client
 
 from dallinger.dev_logging import (
+    TOPIC,
     AccessLogMiddleware,
     ConsoleFilter,
     ConsoleFormatter,
@@ -18,8 +19,12 @@ from dallinger.dev_logging import (
 )
 
 
-def record(name="dallinger", level=logging.INFO, msg="hello", args=(), exc=None):
-    return logging.LogRecord(name, level, __file__, 1, msg, args, exc)
+def record(
+    name="dallinger", level=logging.INFO, msg="hello", args=(), exc=None, extra=None
+):
+    result = logging.LogRecord(name, level, __file__, 1, msg, args, exc)
+    result.__dict__.update(extra or {})
+    return result
 
 
 def console_lines(records, server_details=None):
@@ -111,6 +116,26 @@ def test_launch_recruitment_links_are_hidden_but_later_ones_kept():
         assert console_lines([new_recruit]) == []
     with app.test_request_context("/worker_complete"):
         assert len(console_lines([new_recruit])) == 1
+
+
+def test_a_topic_hides_repeats_until_its_message_changes():
+    def on_topic(msg, level=logging.INFO):
+        return record("dallinger.recruiters", level=level, msg=msg, extra={TOPIC: "r"})
+
+    messages = [
+        "Recruitment closed.",
+        "Recruitment closed.",
+        "New participant requested: x",
+        "Recruitment closed.",
+    ]
+    lines = console_lines([on_topic(m) for m in messages])
+    assert [line.split(" ", 2)[2].strip() for line in lines] == [
+        "Recruitment closed.",
+        "New participant requested: x",
+        "Recruitment closed.",
+    ]
+    warnings = [on_topic("Careful", logging.WARNING) for _ in range(2)]
+    assert len(console_lines(warnings)) == 2
 
 
 def test_full_mode_keeps_everything(monkeypatch):
