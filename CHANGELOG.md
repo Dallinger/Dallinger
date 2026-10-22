@@ -232,9 +232,9 @@
   builds an image (including `dallinger docker build`, which still streams
   the BuildKit output) starts with one "Building image ..." or "Rebuilding
   image ..." line, which mentions the experiment's custom Dockerfile if it
-  has one. After "Starting experiment.", a deploy prints "Cleaning up the
-  database and its user...", "Creating database …..." and "Initializing
-  database...", reports the app's health check as "The experiment server is
+  has one. After "Starting experiment.", a deploy goes on to
+  "Initializing database..." (with classic ingress, after "Cleaning up the
+  database and its user..." and "Creating database …..."), reports the app's health check as "The experiment server is
   up.", and an `--update` ends with "Not launching
   again: this is an update of a running experiment." `docker-ssh export`
   and other callers of `awaken_app`, such as PsyNet before destroying an
