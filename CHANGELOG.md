@@ -248,6 +248,12 @@
   `constraints.txt`. For a server whose SSH user contains `@`, the hint to
   set `User …` in `~/.ssh/config` is only printed if `ssh` wouldn't already
   log in as that user (as reported by `ssh -G`).
+- The `ssh` commands that docker-ssh deploys print, such as the logs
+  command, use the server's alias from `~/.ssh/config` when it has one (for
+  example `ssh lab "docker compose … logs -f"` for `lab.example.org`): the
+  host name's first part, if `ssh -G` resolves it to the same host, port,
+  user and `server_pem` key. Otherwise, a user name containing `@` is passed
+  with `-l` rather than as `user@example.org@host`.
 - Debugging and deploying print less in other ways too. Building the
   editable Dallinger wheel uses the running Python interpreter, so it works
   without an activated virtualenv, and the build tool's output is printed

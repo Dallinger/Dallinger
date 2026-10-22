@@ -1061,13 +1061,63 @@ def _image_runs_as_ssh_user(executor, image_name):
 
 
 def _ssh_prefix(ssh_host, ssh_port, ssh_user):
-    """Return the ``ssh`` invocation an operator can use to reach the server."""
+    """Return the ``ssh`` invocation an operator can use to reach the server.
+
+    If the user's SSH config has a short alias for the server (see
+    :func:`_ssh_alias`), that is all the invocation needs. A user name with
+    an ``@``, such as an email address, is passed with ``-l``, which reads
+    better than ``user@example.org@host``.
+    """
+    key = str(get_server_pem_path())
+    alias = _ssh_alias(ssh_host, ssh_port, ssh_user, key)
+    if alias:
+        return f"ssh {alias}"
     ssh_port_part = f"-p {ssh_port} " if ssh_port != 22 else ""
-    destination = f"{ssh_user}@{ssh_host}" if ssh_user else ssh_host
-    return (
-        f"ssh {ssh_port_part}-i {quote(str(get_server_pem_path()))} "
-        f"{quote(destination)}"
-    )
+    if ssh_user and "@" in ssh_user:
+        destination = f"-l {quote(ssh_user)} {quote(ssh_host)}"
+    else:
+        destination = quote(f"{ssh_user}@{ssh_host}" if ssh_user else ssh_host)
+    return f"ssh {ssh_port_part}-i {quote(key)} {destination}"
+
+
+def _ssh_alias(ssh_host, ssh_port, ssh_user, key):
+    """Return the first label of ``ssh_host`` if it is an SSH alias for the server.
+
+    For example, ``rr-pc02`` for ``rr-pc02.example.org``, if ``ssh -G
+    rr-pc02`` gives the same host name, port and user, and ``key`` among its
+    identity files. Otherwise None.
+    """
+    alias = ssh_host.split(".")[0]
+    if alias == ssh_host or not alias or alias.startswith("-"):
+        return None
+    try:
+        result = subprocess.run(
+            ["ssh", "-G", alias],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    options = {}
+    for line in result.stdout.splitlines():
+        name, _, value = line.partition(" ")
+        options.setdefault(name, []).append(value)
+
+    def resolved(path):
+        return os.path.realpath(os.path.expanduser(path))
+
+    if (
+        result.returncode == 0
+        and options.get("hostname") == [ssh_host]
+        and options.get("port") == [str(ssh_port)]
+        and options.get("user") == [ssh_user or getuser()]
+        and resolved(key)
+        in {resolved(path) for path in options.get("identityfile", [])}
+    ):
+        return alias
+    return None
 
 
 def _log_command(ssh_host, ssh_port, ssh_user, app):

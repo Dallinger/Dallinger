@@ -211,6 +211,27 @@ def test_printed_ssh_commands_quote_the_key_path(pem, port, expected, monkeypatc
     assert docker_ssh._ssh_prefix("lab", port, "me") == expected
 
 
+def test_printed_ssh_commands_use_the_users_alias_for_the_server(tmp_path, monkeypatch):
+    key = tmp_path / "key.pem"
+
+    def ssh_dash_g(args, **kwargs):
+        # What `ssh -G lab` prints for "Host lab / HostName lab.example.org / ...".
+        assert args == ["ssh", "-G", "lab"]
+        output = (
+            "hostname lab.example.org\nport 22\nuser me@example.org\n"
+            f"identityfile ~/.ssh/id_rsa\nidentityfile {key}\n"
+        )
+        return subprocess.CompletedProcess(args, 0, output, "")
+
+    monkeypatch.setattr(docker_ssh.subprocess, "run", ssh_dash_g)
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: key)
+
+    assert docker_ssh._ssh_prefix("lab.example.org", 22, "me@example.org") == "ssh lab"
+    assert docker_ssh._ssh_prefix("lab.example.org", 22, "you@example.org") == (
+        f"ssh -i {key} -l you@example.org lab.example.org"
+    )
+
+
 @pytest.fixture
 def deploy_dir(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
