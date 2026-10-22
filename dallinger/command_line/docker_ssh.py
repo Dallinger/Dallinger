@@ -2041,20 +2041,20 @@ def _deploy_in_mode(
         f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
     )
     if not update:
-        print("Cleaning up db/user")
+        print("Cleaning up the database and its user...")
         executor.run(
             rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
         )
         executor.run(
             rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
         )
-        print(f"Creating database {experiment_id}")
+        print(f"Creating database {experiment_id}...")
         executor.run(
             rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
         )
 
         if archive_path is not None:
-            print(f"Loading database data from {archive_path}")
+            print(f"Loading database data from {archive_path}...")
             with remote_postgres(server_info, experiment_id) as db_uri:
                 engine = create_db_engine(db_uri)
                 bootstrap_db_from_zip(archive_path, engine)
@@ -2419,7 +2419,7 @@ def remove_experiment_image(executor, image_name: str | None) -> None:
     """
     if not image_name:
         return
-    print(f"Removing experiment image {image_name}")
+    print(f"Removing experiment image {image_name}.")
     executor.run(f"docker rmi {quote(image_name)}", raise_=False)
 
 
@@ -2871,7 +2871,7 @@ def destroy(server, app):
 
     remove_unshared_experiment_image(executor, experiment_image, except_app=app)
     executor.run(f"rm -rf ~/dallinger/{app}/")
-    print(f"App {app} removed")
+    print(f"App {app} removed.")
 
 
 def _stop_cloudflare_connector(executor, app):
@@ -3160,7 +3160,7 @@ def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
     )
 
     connecting_to = ssh_host if ssh_port == 22 else f"{ssh_host}:{ssh_port}"
-    print(f"Connecting to {connecting_to}", flush=True)
+    print(f"Connecting to {connecting_to}...", flush=True)
     with _spinner() as spinner:
         try:
             client.connect(**connect_kwargs)
@@ -3552,7 +3552,7 @@ def _bring_up_app_containers(
 
 def _restore_experiment_archive(server_info, experiment_id, archive_path):
     """Load an export into the app database before web starts."""
-    print(f"Loading database data from {archive_path}")
+    print(f"Loading database data from {archive_path}...")
     grant_roles_script = (
         f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
     )

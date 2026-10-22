@@ -490,23 +490,31 @@ The above command will output:
 
 .. code-block:: shell
 
-    Connecting to 0.0.0.0
+    Connecting to 0.0.0.0...
     Connected.
-    Launched http and postgresql servers. Starting experiment
-    Creating database dlgr-d5543ddd
+    Launching http, postgresql and dozzle servers.
+    Starting experiment.
+    To view the logs for this experiment go to https://logs.0.0.0.0.nip.io (user = dallinger, password = ...)
+    Creating database dlgr-d5543ddd...
     Initializing database...
     Database initialized.
+    To display the logs for this experiment you can run:
+    ssh -i ~/.ssh/server.pem debian@0.0.0.0 "docker compose -f ~/dallinger/dlgr-d5543ddd/docker-compose.yml logs -f"
+    Or you can head to https://logs.0.0.0.0.nip.io (user = dallinger)
+    You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard (user = admin)
+    Dashboard password: foobar
     The experiment server is up.
     Waiting for <public URL> to become reachable before launching (up to 7 min).
     <public URL> is reachable.
-    Launching experiment
+    Launching the experiment...
     Initial recruitment list:
     https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&assignmentId=F2Q19C&hitId=BE9BWB&workerId=YC30TJ&mode=debug
     Additional details:
-    Recruitment requests will open browser windows automatically.
-    To display the logs for this experiment you can run:
-    ssh debian@0.0.0.0 docker compose -f '~/dallinger/dlgr-d5543ddd/docker-compose.yml' logs -f
-    You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard as user admin using password foobar
+    Single recruitment link: https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&generate_tokens=1&mode=debug
+
+If your SSH config has a short alias for the server (``Host lab`` with
+``HostName lab.example.org``, the same user and the ``server_pem`` key), the
+logs command uses it, for example ``ssh lab "docker compose ... logs -f"``.
 
 This example deploys a prebuilt image. Without a ``docker_image_name`` that the
 registry has (set in config or with ``-c docker_image_name <image>``), the deploy

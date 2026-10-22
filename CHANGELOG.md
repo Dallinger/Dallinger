@@ -253,7 +253,9 @@
   example `ssh lab "docker compose … logs -f"` for `lab.example.org`): the
   host name's first part, if `ssh -G` resolves it to the same host, port,
   user and `server_pem` key. Otherwise, a user name containing `@` is passed
-  with `-l` rather than as `user@example.org@host`.
+  with `-l` rather than as `user@example.org@host`. Progress lines such as
+  "Connecting to …", "Creating database …" and "App … removed" end with
+  `...` or a full stop like the other deploy messages.
 - Debugging and deploying print less in other ways too. Building the
   editable Dallinger wheel uses the running Python interpreter, so it works
   without an activated virtualenv, and the build tool's output is printed

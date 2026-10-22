@@ -720,7 +720,7 @@ def test_get_connected_ssh_client_reuses_one_quiet_connection(
     assert isinstance(client, DummyClient)
     assert (tmp_path / ".ssh" / "known_hosts").exists()
     assert docker_ssh.get_connected_ssh_client("localhost:2222", user="root") is client
-    assert capsys.readouterr().out == "Connecting to localhost:2222\nConnected.\n"
+    assert capsys.readouterr().out == "Connecting to localhost:2222...\nConnected.\n"
 
     local = docker_ssh.get_connected_ssh_client("localhost")
     assert local is not client
