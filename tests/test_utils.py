@@ -160,8 +160,11 @@ def test_setup_warning_hooks_hides_resource_warnings_unless_opted_in(
 @pytest.mark.parametrize(
     "warnoptions, expected",
     [
-        ([], ["dallinger.models", "psynet.page"]),
-        (["default"], ["flask_login", "dallinger.models", "psynet.page"]),
+        ([], ["dallinger.models", "dallinger_experiment", "psynet.page"]),
+        (
+            ["default"],
+            ["flask_login", "dallinger.models", "dallinger_experiment", "psynet.page"],
+        ),
     ],
 )
 def test_setup_warning_hooks_shows_only_our_deprecation_warnings(
@@ -171,7 +174,12 @@ def test_setup_warning_hooks_shows_only_our_deprecation_warnings(
     with warnings.catch_warnings():
         utils.setup_warning_hooks()
         with warnings.catch_warnings(record=True) as caught:
-            for module in ("flask_login", "dallinger.models", "psynet.page"):
+            for module in (
+                "flask_login",
+                "dallinger.models",
+                "dallinger_experiment",
+                "psynet.page",
+            ):
                 warnings.warn_explicit(
                     f"old in {module}", DeprecationWarning, "f.py", 1, module=module
                 )

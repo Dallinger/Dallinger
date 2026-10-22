@@ -90,7 +90,7 @@ def setup_warning_hooks():
     warnings.showwarning = show_warnings_once
     warnings.simplefilter("default", Warning)
     if not sys.warnoptions:
-        # Interrupted startup emits many.
+        # Interrupted startup emits many ResourceWarnings.
         warnings.simplefilter("ignore", ResourceWarning)
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         warnings.filterwarnings(
