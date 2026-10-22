@@ -187,7 +187,7 @@ typing-extensions==4.16.0
     # via
     #   beautifulsoup4
     #   selenium
-tzlocal==5.4.4
+tzlocal==5.4.5
     # via
     #   apscheduler
     #   dallinger
