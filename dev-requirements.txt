@@ -394,7 +394,7 @@ ptyprocess==0.7.0
     #   terminado
 pure-eval==0.2.4
     # via stack-data
-pycparser==3.11
+pycparser==3.12
     # via cffi
 pyenchant==3.3.0
     # via sphinxcontrib-spelling
