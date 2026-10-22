@@ -79,13 +79,14 @@
     reloads automatically.`, and requests get a short 500 page saying so
     until the next change fixes it. Previously the traceback was printed
     again for every request, in werkzeug's own format with query strings.
-  - Werkzeug's line for every request is replaced by a line for each
-    request that fails (status 400 or above, or an exception) or takes at
-    least a second, with its duration, for example
-    `GET /does-not-exist 404 in 3 ms`. Successful WebSocket requests, which
-    last as long as their connection, aren't reported. Query strings are
-    left out. Set `DALLINGER_DEV_SLOW_REQUEST_SECONDS` to change the
-    threshold.
+  - Werkzeug's request lines are replaced by shorter ones with the status
+    and duration and without the query string, for example
+    `POST /participant 200 in 45 ms`. Successful requests for static files,
+    the dashboard and background polling are left out unless they take at
+    least a second; packages built on Dallinger can add their own routes
+    with `dallinger.dev_logging.hide_requests()`. Successful WebSocket
+    requests, which last as long as their connection, aren't reported. Set
+    `DALLINGER_DEV_SLOW_REQUEST_SECONDS` to change the threshold.
   - RQ and APScheduler messages below WARNING, and the worker's "Warm shut
     down requested." messages when the server stops, are hidden.
   - The `New participant requested: <url>` lines logged while the

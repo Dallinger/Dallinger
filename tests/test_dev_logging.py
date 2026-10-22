@@ -7,12 +7,14 @@ import pytest
 from werkzeug.serving import WSGIRequestHandler
 from werkzeug.test import Client
 
+from dallinger import dev_logging
 from dallinger.dev_logging import (
     TOPIC,
     AccessLogMiddleware,
     ConsoleFilter,
     ConsoleFormatter,
     configure_from_environment,
+    hide_requests,
     load_error_app,
     report_load_error,
     use_colour,
@@ -304,21 +306,28 @@ def wsgi_app(environ, start_response):
     return [b"body"]
 
 
-def test_access_log_reports_failed_and_slow_requests_only(caplog):
+def test_access_log_hides_routine_requests(caplog, monkeypatch):
     caplog.set_level(logging.INFO, logger="dallinger.access")
+    monkeypatch.setattr(
+        dev_logging, "_HIDDEN_PATH_PREFIXES", set(dev_logging._HIDDEN_PATH_PREFIXES)
+    )
+    hide_requests("/poll")
     client = Client(AccessLogMiddleware(wsgi_app, slow_seconds=60))
-    client.get("/fine", buffered=True)
-    client.get("/missing?assignmentId=abc", buffered=True)
+    client.get("/page?assignmentId=abc", buffered=True)
+    client.get("/static/style.css", buffered=True)
+    client.get("/poll/status", buffered=True)
+    client.get("/missing", buffered=True)
     with pytest.raises(ValueError):
         client.get("/boom")
     slow = Client(AccessLogMiddleware(wsgi_app, slow_seconds=0))
-    slow.get("/slow", buffered=True)
+    slow.get("/static/slow.js", buffered=True)
     slow.get("/chat", headers={"Upgrade": "websocket"}, buffered=True)
     slow.get("/missing", headers={"Upgrade": "websocket"}, buffered=True)
 
     messages = [r.getMessage() for r in caplog.records]
-    assert len(messages) == 4
-    assert re.fullmatch(r"GET /missing 404 in \d+ ms", messages[0])
-    assert re.fullmatch(r"GET /boom 500 in \d+ ms", messages[1])
-    assert re.fullmatch(r"GET /slow 200 in \d+ ms \(slow\)", messages[2])
-    assert messages[3].startswith("GET /missing 404")
+    assert len(messages) == 5
+    assert re.fullmatch(r"GET /page 200 in \d+ ms", messages[0])
+    assert re.fullmatch(r"GET /missing 404 in \d+ ms", messages[1])
+    assert re.fullmatch(r"GET /boom 500 in \d+ ms", messages[2])
+    assert re.fullmatch(r"GET /static/slow.js 200 in \d+ ms \(slow\)", messages[3])
+    assert messages[4].startswith("GET /missing 404")

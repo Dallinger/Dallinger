@@ -8,6 +8,7 @@ its own logging, so this module gives them one line format::
     13:35:51 web    Experiment launch complete!
     13:35:52 worker WARNING Something worth a look
     13:36:25 web    GET /does-not-exist 404 in 3 ms
+    13:36:31 web    POST /participant 200 in 45 ms
 
 The level is shown for warnings and errors only. Text that bypasses logging,
 such as the werkzeug debugger's tracebacks or ``print()`` output, is printed
@@ -16,7 +17,8 @@ a terminal gets colour.
 
 The console hides routine records: werkzeug's start-up banner and access log
 (replaced by one announcement line and :class:`AccessLogMiddleware`, which
-only reports errors and slow requests), RQ and APScheduler messages below
+leaves out successful requests for static files, the dashboard and polling;
+see :func:`hide_requests`), RQ and APScheduler messages below
 WARNING, the "New participant requested:" lines logged while the experiment
 launches (the start-up block's participant link replaces them), and most of
 APScheduler's warnings that a job run was skipped or missed because the
@@ -38,8 +40,9 @@ Environment variables:
 - ``DALLINGER_DEV_LOG=full`` turns the filtering off, restoring werkzeug's
   banner and its log line for every request (``dallinger develop debug
   --verbose`` sets it).
-- ``DALLINGER_DEV_SLOW_REQUEST_SECONDS`` sets how long a successful request
-  may take before it is reported (default 1).
+- ``DALLINGER_DEV_SLOW_REQUEST_SECONDS`` sets how long a hidden request may
+  take before it is reported, marked "(slow)" like any other slow request
+  (default 1).
 - ``NO_COLOR`` and ``FORCE_COLOR`` override the terminal check.
 
 Only the development server uses this module; deployed experiments (gunicorn,
@@ -384,21 +387,56 @@ def slow_request_seconds():
         return _DEFAULT_SLOW_REQUEST_SECONDS
 
 
-class AccessLogMiddleware:
-    """Log failed and slow requests, with their duration.
+def hide_requests(*prefixes):
+    """Hide successful requests for paths starting with any of ``prefixes``.
 
-    A request is logged (to the ``dallinger.access`` logger, at INFO) if its
-    status is 400 or above, if it raises, or if it takes at least
-    ``slow_seconds``; successful WebSocket requests, which last as long as
-    their connection, are not. The path is logged without its query string.
-    The duration runs until the response has been sent.
+    The development server's console shows one line per request, except for
+    static files, the dashboard and background polling, which would drown
+    out the pages participants take. Packages built on Dallinger call this
+    for their own asset and polling routes. Failed and slow requests are
+    still shown.
+
+    Parameters
+    ----------
+    *prefixes : str
+        Path prefixes, such as ``"/static/"`` or ``"/log/"``.
+    """
+    _HIDDEN_PATH_PREFIXES.update(prefixes)
+
+
+_HIDDEN_PATH_PREFIXES = {
+    "/static/",
+    "/favicon.ico",
+    "/robots.txt",
+    "/dashboard",
+    "/logs/",
+    "/launch",
+    "/health",
+    "/summary",
+    "/presence",
+    "/experiment/",
+    "/experiment_property/",
+    "/tracking_event/",
+}
+
+
+class AccessLogMiddleware:
+    """Log requests, with their status and duration.
+
+    Each request is logged to the ``dallinger.access`` logger, at INFO,
+    except successful requests for paths passed to :func:`hide_requests`
+    (static files, the dashboard and polling) that take less than
+    ``slow_seconds``, and successful WebSocket requests, which last as long
+    as their connection. The path is logged without its query string. The
+    duration runs until the response has been sent.
 
     Parameters
     ----------
     app : callable
         The WSGI application to wrap.
     slow_seconds : float, optional
-        Report successful requests that take at least this long. Defaults to
+        Report hidden requests that take at least this long, and mark any
+        request that does as slow. Defaults to
         :func:`slow_request_seconds`.
     """
 
@@ -433,14 +471,15 @@ class AccessLogMiddleware:
         if status < 400 and environ.get("HTTP_UPGRADE", "").lower() == "websocket":
             # A WebSocket request lasts as long as its connection.
             return
+        path = environ.get("PATH_INFO", "") or "/"
         slow = status < 400 and seconds >= self.slow_seconds
-        if status < 400 and not slow:
+        if status < 400 and not slow and path.startswith(tuple(_HIDDEN_PATH_PREFIXES)):
             return
         duration = f"{seconds:.1f} s" if seconds >= 1 else f"{seconds * 1000:.0f} ms"
         self.logger.info(
             "%s %s %s in %s%s",
             environ.get("REQUEST_METHOD", "-"),
-            environ.get("PATH_INFO", "") or "/",
+            path,
             status,
             duration,
             " (slow)" if slow else "",
@@ -453,7 +492,7 @@ def setup_dev_server(app):
 
     Called by the develop directory's ``app.py`` in both the reloader process
     and the process that serves requests. Configures the console format,
-    logs failed and slow requests, and replaces werkzeug's start-up banner
+    logs requests, and replaces werkzeug's start-up banner
     and debugger lines with one "Development server on <url>" line that
     includes the debugger PIN. Unless ``WERKZEUG_DEBUG_PIN`` is already set,
     the PIN is chosen at random once per session, so it stays the same
