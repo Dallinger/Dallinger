@@ -976,7 +976,7 @@ def _patch_destroy_executor(monkeypatch, run):
     return executor
 
 
-def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
+def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch, capsys):
     compose_yml = docker_ssh_module.get_docker_compose_yml(
         {},
         "myapp",
@@ -1005,6 +1005,9 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
     rmi = "docker rmi registry/exp:old-uid"
     rm_tree = "rm -rf ~/dallinger/myapp/"
     assert commands.index(down) < commands.index(rmi) < commands.index(rm_tree)
+    out = capsys.readouterr().out
+    assert "Removing experiment image registry/exp:old-uid.\n" in out
+    assert out.endswith("App myapp removed.\n")
     rmi_commands = [cmd for cmd in commands if cmd.startswith("docker rmi")]
     assert rmi_commands == [rmi]
     for forbidden in (

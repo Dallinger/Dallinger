@@ -232,9 +232,10 @@
   builds an image (including `dallinger docker build`, which still streams
   the BuildKit output) starts with one "Building image ..." or "Rebuilding
   image ..." line, which mentions the experiment's custom Dockerfile if it
-  has one. After "Starting experiment.", a deploy goes straight on to
-  "Initializing database...", reports the app's health check as "The
-  experiment server is up.", and an `--update` ends with "Not launching
+  has one. After "Starting experiment.", a deploy prints "Cleaning up the
+  database and its user...", "Creating database …..." and "Initializing
+  database...", reports the app's health check as "The experiment server is
+  up.", and an `--update` ends with "Not launching
   again: this is an update of a running experiment." `docker-ssh export`
   and other callers of `awaken_app`, such as PsyNet before destroying an
   app, no longer print "App <app> is awake" when the app wasn't
@@ -254,8 +255,10 @@
   host name's first part, if `ssh -G` resolves it to the same host, port,
   user and `server_pem` key. Otherwise, a user name containing `@` is passed
   with `-l` rather than as `user@example.org@host`. Progress lines such as
-  "Connecting to …", "Creating database …" and "App … removed" end with
-  `...` or a full stop like the other deploy messages.
+  "Connecting to …", "Cleaning up the database and its user" (previously
+  "Cleaning up db/user"), "Creating database …", "Loading database data
+  from …", "Removing experiment image …" and "App … removed" end with `...`
+  or a full stop like the other deploy messages.
 - Debugging and deploying print less in other ways too. Building the
   editable Dallinger wheel uses the running Python interpreter, so it works
   without an activated virtualenv, and the build tool's output is printed
