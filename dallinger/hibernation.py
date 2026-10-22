@@ -38,6 +38,10 @@ ACCESS_LOG_NAME = "access.log"
 STOPPABLE_SERVICES = frozenset({"web", "redis", "pgbouncer", "postgresql", "clock"})
 STOPPABLE_PREFIXES = ("worker_",)
 PROTECTED_SERVICES = frozenset({"frontdoor", "controller", "cloudflared"})
+# Postgres gets its Compose stop_grace_period. Containers stop one at a time
+# under the controller lock, so the others get less.
+POSTGRES_STOP_TIMEOUT = 60
+STOP_TIMEOUT = 30
 START_ORDER = {
     "postgresql": 0,
     "redis": 1,
@@ -124,6 +128,12 @@ def is_stoppable_service(name: str) -> bool:
     return name.startswith(STOPPABLE_PREFIXES)
 
 
+def stop_timeout(container: Mapping[str, Any]) -> int:
+    """Return how many seconds the container gets to stop before it is killed."""
+    service = (container.get("labels") or {}).get("com.docker.compose.service")
+    return POSTGRES_STOP_TIMEOUT if service == "postgresql" else STOP_TIMEOUT
+
+
 def start_priority(container: Mapping[str, Any]) -> int:
     """Return a start order that brings Postgres up before web."""
     service = str(
@@ -189,9 +199,10 @@ class DockerEngine:
             for item in self._request("GET", "/containers/json?all=true") or []
         ]
 
-    def stop(self, container_id: str) -> None:
-        # Matches Postgres's Compose stop_grace_period, instead of Docker's 10 s.
-        self._request("POST", f"/containers/{container_id}/stop?t=60", ignore_404=True)
+    def stop(self, container_id: str, timeout: int = STOP_TIMEOUT) -> None:
+        self._request(
+            "POST", f"/containers/{container_id}/stop?t={timeout}", ignore_404=True
+        )
 
     def start(self, container_id: str) -> None:
         self._request("POST", f"/containers/{container_id}/start", ignore_404=True)
@@ -292,7 +303,7 @@ class HibernationController:
             self._write_state(STATE_HIBERNATING)
             containers = sorted(self._project_containers(), key=start_priority)
             for container in reversed(containers):
-                self.docker.stop(container["id"])
+                self.docker.stop(container["id"], timeout=stop_timeout(container))
             return {"status": STATE_HIBERNATING}
 
     def awaken(self) -> dict[str, Any]:
