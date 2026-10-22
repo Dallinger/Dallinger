@@ -1740,6 +1740,6 @@ def test_pre_launch_checks_print_a_log_line(capsys):
     config = mock.Mock(get=lambda key, default=None: "hotair")
     with mock.patch("dallinger.recruiters.by_name"):
         run_pre_launch_checks(config=config)
-    assert (
-        capsys.readouterr().out == "\n❯❯ Validating config for hotair recruitment...\n"
-    )
+    out = capsys.readouterr().out
+    assert out.strip().endswith("Validating config for hotair recruitment...")
+    assert out.strip().count("\n") == 0

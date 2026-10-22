@@ -1120,7 +1120,7 @@ def _record_then_launch(
     try:
         check_internal_health(executor, target)
         wait_for_public_url(executor, target)
-        print("Launching experiment")
+        print("Launching the experiment...")
         launch_data = launch_from_server(executor, target)
     except BaseException:
         if not show_summary:

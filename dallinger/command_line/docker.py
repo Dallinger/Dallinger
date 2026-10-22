@@ -338,7 +338,7 @@ def deploy_image(image_name, mode, config_options):
         data=app._h._resource_serialize(payload),
     )
 
-    print("Launching experiment")
+    print("Launching the experiment...")
     app_url = f"https://{app_hostname}"
     launch_data = handle_launch_data(f"{app_url}/launch", print, context="heroku")
     print(launch_data.get("recruitment_msg"))
