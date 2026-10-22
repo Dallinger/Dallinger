@@ -1478,6 +1478,83 @@ def _build_and_push_image(
             os.environ["DOCKER_HOST"] = original_docker_host
 
 
+def _report_ssh_failures(f):
+    """Turn a failed SSH connection or login to the server into one ``Error:`` line.
+
+    Other errors, including SSH errors after connecting, are raised unchanged.
+    """
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception as exc:
+            message = _ssh_failure_message(exc, kwargs.get("server"))
+            if message is None:
+                raise
+            _stop_active_spinner()
+            raise click.ClickException(message) from exc
+
+    return wrapper
+
+
+def _ssh_failure_message(exc, server):
+    """Explain ``exc`` if it means the server couldn't be reached or logged in to.
+
+    Returns None for any other error.
+    """
+    import docker.errors
+
+    try:
+        server_info = CONFIGURED_HOSTS[resolve_server_name(server, CONFIGURED_HOSTS)]
+    except (KeyError, ValueError):
+        return None
+    host, port = split_ssh_host_port(server_info["host"])
+    user = server_info.get("user")
+    login = f"{user}@{host}" if user else host
+    ssh_command = f"ssh {login}" if port == 22 else f"ssh -p {port} {login}"
+    address = host if port == 22 else f"{host}:{port}"
+    check = (
+        f"Check that `{ssh_command}` works without asking for a password, "
+        "using a key in ~/.ssh, your SSH agent or the server_pem setting."
+    )
+    if isinstance(exc, paramiko.AuthenticationException):
+        return f"Couldn't log in to {address} over SSH as {user or getuser()}. {check}"
+    if isinstance(exc, docker.errors.DockerException) and str(exc).startswith(
+        "Error while fetching server API version"
+    ):
+        return (
+            f"Couldn't reach Docker on {address} over SSH (see any message "
+            f"from ssh above). {check}"
+        )
+    if not _raised_by_paramiko(exc):
+        return None
+    if isinstance(exc, socket.gaierror):
+        reason = f"can't find a host called {host}"
+    elif isinstance(exc, paramiko.ssh_exception.NoValidConnectionsError):
+        reason = f"nothing accepted the connection on port {port}"
+    elif isinstance(exc, TimeoutError):
+        reason = "the connection timed out"
+    elif isinstance(exc, paramiko.SSHException) and "protocol banner" in str(exc):
+        reason = f"port {port} doesn't answer like an SSH server"
+    else:
+        return None
+    return (
+        f"Couldn't connect to {address} over SSH: {reason}. Check the server's "
+        f"address and that it is running, then try `{ssh_command}`."
+    )
+
+
+def _raised_by_paramiko(exc):
+    """Return True if ``exc`` was raised inside Paramiko."""
+    tb = exc.__traceback__
+    while tb is not None:
+        if tb.tb_frame.f_globals.get("__name__", "").startswith("paramiko."):
+            return True
+        tb = tb.tb_next
+    return False
+
+
 def validate_update(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -1583,6 +1660,7 @@ def set_dozzle_password_cmd(server, password):
 @option_allow_private_ip
 @option_show_summary
 @validate_update
+@_report_ssh_failures
 def sandbox(**kwargs):  # pragma: no cover
     """Sandbox a dallinger experiment docker image to a server using ssh."""
     return _deploy_in_mode(mode="sandbox", **kwargs)
@@ -1601,6 +1679,7 @@ def sandbox(**kwargs):  # pragma: no cover
 @option_allow_private_ip
 @option_show_summary
 @validate_update
+@_report_ssh_failures
 def deploy(**kwargs):  # pragma: no cover
     """Deploy a dallinger experiment docker image to a server using ssh."""
     return _deploy_in_mode(mode="live", **kwargs)

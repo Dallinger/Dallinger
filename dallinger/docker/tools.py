@@ -532,7 +532,9 @@ def build_image(
     """
     tag = image_tag or get_experiment_image_tag(tmp_dir)
     image_name = f"{base_image_name}:{tag}"
-    client = docker.client.from_env()
+    # Over SSH, use the ssh command like `docker build` does, not Paramiko,
+    # which ignores parts of ~/.ssh/config and can fail to log in.
+    client = docker.client.from_env(use_ssh_client=True)
     try:
         client.api.inspect_image(image_name)
         if not force_build:

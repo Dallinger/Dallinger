@@ -856,6 +856,67 @@ def test_get_connected_ssh_client_rejects_dsa_key(tmp_path, monkeypatch, key_for
     )
 
 
+def _refused_connection(**kwargs):
+    import socket
+
+    import paramiko
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    paramiko.SSHClient().connect("127.0.0.1", port=port, timeout=5)
+
+
+@pytest.mark.parametrize(
+    "error, expected",
+    [
+        (
+            "auth",
+            "Error: Couldn't log in to host.example:2200 over SSH as alice. "
+            "Check that `ssh -p 2200 alice@host.example` works without asking",
+        ),
+        ("docker", "Error: Couldn't reach Docker on host.example:2200 over SSH"),
+        (
+            "refused",
+            "Error: Couldn't connect to host.example:2200 over SSH: nothing "
+            "accepted the connection on port 2200.",
+        ),
+        ("other", None),
+    ],
+)
+def test_deploy_reports_ssh_failures_in_one_line(monkeypatch, error, expected):
+    import docker.errors
+    import paramiko
+    from click.testing import CliRunner
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    failures = {
+        "auth": paramiko.AuthenticationException("Authentication failed."),
+        "docker": docker.errors.DockerException(
+            "Error while fetching server API version: Connection aborted"
+        ),
+        "refused": _refused_connection,
+        "other": paramiko.SSHException("Channel closed."),
+    }
+    server = {"host": "host.example:2200", "user": "alice"}
+    monkeypatch.setattr(docker_ssh, "CONFIGURED_HOSTS", {"host.example:2200": server})
+    monkeypatch.setattr(
+        docker_ssh, "get_configured_hosts", lambda: {"host.example:2200": server}
+    )
+    monkeypatch.setattr(
+        docker_ssh, "_deploy_in_mode", mock.Mock(side_effect=failures[error])
+    )
+
+    result = CliRunner().invoke(docker_ssh.deploy, ["--server", "host.example:2200"])
+
+    assert result.exit_code == 1
+    if expected is None:
+        assert result.exception is failures[error]
+    else:
+        assert expected in result.output
+        assert "Traceback" not in result.output
+
+
 def test_option_update_parses_as_boolean():
     import click
     from click.testing import CliRunner
@@ -1157,7 +1218,7 @@ def test_push_image_retries_connection_error_and_succeeds():
     ):
         result = push_image("registry/exp:tag")
 
-    from_env.assert_called_once_with(timeout=DOCKER_PUSH_TIMEOUT)
+    from_env.assert_called_once_with(timeout=DOCKER_PUSH_TIMEOUT, use_ssh_client=True)
     assert fake_client.images.push.call_count == 2
     assert result == f"registry/exp@{fake_digest}"
 
@@ -1194,7 +1255,7 @@ def test_push_image_retries_urllib3_read_timeout_and_succeeds():
     ):
         result = push_image("registry/exp:tag")
 
-    from_env.assert_called_once_with(timeout=DOCKER_PUSH_TIMEOUT)
+    from_env.assert_called_once_with(timeout=DOCKER_PUSH_TIMEOUT, use_ssh_client=True)
     assert fake_client.images.push.call_count == 2
     assert result == f"registry/exp@{fake_digest}"
 

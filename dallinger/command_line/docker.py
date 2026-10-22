@@ -181,7 +181,8 @@ def push_image(image_name_with_tag: str) -> str:
     """Push a local image to its registry and return the digest name."""
     from docker import client
 
-    docker_client = client.from_env(timeout=DOCKER_PUSH_TIMEOUT)
+    # Over SSH, use the ssh command rather than Paramiko, like build_image().
+    docker_client = client.from_env(timeout=DOCKER_PUSH_TIMEOUT, use_ssh_client=True)
     for attempt in tenacity.Retrying(
         retry=tenacity.retry_if_exception_type(
             (
