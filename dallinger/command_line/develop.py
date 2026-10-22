@@ -30,6 +30,7 @@ from dallinger.deployment import (
 )
 from dallinger.utils import (
     JSON_LOGFILE,
+    DevelopDirectoryError,
     develop_target_path,
     ignore_stop_signals,
     open_browser,
@@ -67,7 +68,12 @@ def develop():
 
 
 @develop.command()
-@click.option("--port", default=5000, help="The port Flask is running on")
+@click.option(
+    "--port",
+    type=int,
+    default=None,
+    help="The port Flask is running on (default: the base_port setting)",
+)
 @click.option(
     "--skip-flask",
     is_flag=True,
@@ -107,6 +113,8 @@ def debug(port, skip_flask, no_browsers=False, verbose=False):
         raise click.Abort
 
     _bootstrap(experiment_files=files)
+    if port is None:
+        port = get_config().get("base_port")
 
     q = Queue("default", connection=redis_conn)
     if no_browsers:
@@ -117,7 +125,9 @@ def debug(port, skip_flask, no_browsers=False, verbose=False):
     if not skip_flask:
         try:
             develop_dir = develop_target_path(get_config())
-            env = {**os.environ, dev_logging.LOG_MODE_ENV: "full"} if verbose else None
+            env = {**os.environ, "FLASK_RUN_PORT": str(port)}
+            if verbose:
+                env[dev_logging.LOG_MODE_ENV] = "full"
             _run_dev_server(["./run.sh"], develop_dir, env=env)
         finally:
             _cancel_pending_job(job)
@@ -214,7 +224,10 @@ def _bootstrap(exp_config=None, experiment_files=None):
         experiment_files=experiment_files,
     )
     log(header, chevrons=False)
-    bootstrapper.run()
+    try:
+        bootstrapper.run()
+    except DevelopDirectoryError as ex:
+        raise click.ClickException(str(ex))
 
 
 def launch_app_and_open_browser(port):
@@ -274,8 +287,15 @@ def _launch_app(port):
     default=None,
     help="Route name (valid routes are: {})".format(", ".join(valid_routes.keys())),
 )
-@click.option("--port", default=5000, help="The port Flask is running on")
-def browser(route=None, port=5000):
+@click.option(
+    "--port",
+    type=int,
+    default=None,
+    help="The port Flask is running on (default: the base_port setting)",
+)
+def browser(route=None, port=None):
+    if port is None:
+        port = get_config(load=True).get("base_port")
     _browser(route=route, port=port)
 
 
