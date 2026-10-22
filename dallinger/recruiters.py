@@ -1096,6 +1096,10 @@ class DevProlificRecruiter(DevRecruiter, ProlificRecruiter):
         super().__init__(*args, **kwargs)
         self.prolificservice = dev_prolific_service_from_config()
 
+    def close_recruitment(self):
+        """Log that recruitment closed; the simulated study needs no action."""
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
+
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a simulated Study, saying that nothing was created on Prolific."""
         response = super().open_recruitment(n)

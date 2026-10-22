@@ -52,10 +52,11 @@ def _describe_event(event_type, assignment_id, participant_id):
     """Return a log line such as "Participant 2 finished (…, assignment A1)."."""
     if participant_id is None:
         who = "The participant with assignment {}".format(assignment_id)
-        details = event_type
     else:
         who = "Participant {}".format(participant_id)
-        details = "{}, assignment {}".format(event_type, assignment_id)
+    details = event_type
+    if participant_id is not None and assignment_id is not None:
+        details += ", assignment {}".format(assignment_id)
     description = _EVENT_DESCRIPTIONS.get(event_type, "sent " + event_type)
     return "{} {} ({}).".format(who, description, details)
 

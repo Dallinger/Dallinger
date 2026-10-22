@@ -576,8 +576,10 @@ class HerokuLocalDeployment:
 
 class DebugDeployment(HerokuLocalDeployment):
     dispatch = {
-        r"[^\"]{} (.*)$".format(recruiters.NEW_RECRUIT_LOG_PREFIX): "new_recruit",
-        r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
+        r"[^\"]{} (.*)$".format(re.escape(recruiters.NEW_RECRUIT_LOG_PREFIX)): (
+            "new_recruit"
+        ),
+        re.escape(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
     }
     #: Seconds between checks of the ``/summary`` route once recruitment closes.
     status_poll_interval = 10

@@ -109,13 +109,15 @@
   - `Received an RecruiterSubmissionComplete notification for assignment A1,
     participant 2` becomes `Participant 2 finished
     (RecruiterSubmissionComplete, assignment A1).`, and the other logged
-    notifications are described the same way. Bot submissions no longer add
+    notifications are described the same way (without an assignment for
+    notifications that have none). Bot submissions no longer add
     `Received bot submission.` or `Received rejected bot submission.`.
   - `Close recruitment.` followed by the recruiter's nickname (for example
     `Close recruitment. cli`) becomes `Recruitment closed.`
-    (`recruiters.CLOSE_RECRUITMENT_LOG_PREFIX`). For Prolific and MTurk it
-    adds that the study or HIT stays open, since those recruiters don't
-    close it. Update scripts that wait for `Close recruitment.`.
+    (`recruiters.CLOSE_RECRUITMENT_LOG_PREFIX`). For Prolific (but not the
+    simulated `devprolific` recruiter) and MTurk it adds that the study or
+    HIT stays open, since those recruiters don't close it. Update scripts
+    that wait for `Close recruitment.`.
   - `dallinger debug --no-browsers` prints `New participant requested: <url>`
     with one colon instead of two, using the `--proxy` port if one is set.
     Without `--no-browsers`, `new recruitment request!` becomes

@@ -2109,12 +2109,23 @@ class TestDebugServer:
         )
 
         browser.assert_called_once_with("some-fake-url")
+        debugger_unpatched.out.log.assert_called_with(
+            "Opening a browser for a new participant: some-fake-url"
+        )
 
-    def test_new_recruit_no_browser(self, no_browser_debugger, browser):
+    def test_new_recruit_no_browser_prints_the_proxied_link(
+        self, active_config, no_browser_debugger, browser
+    ):
+        no_browser_debugger.proxy_port = "2222"
         no_browser_debugger.notify(
-            " {} some-fake-url".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+            " {} some-fake-url:{}".format(
+                recruiters.NEW_RECRUIT_LOG_PREFIX, active_config.get("base_port")
+            )
         )
         browser.assert_not_called()
+        no_browser_debugger.out.log.assert_called_with(
+            "New participant requested: some-fake-url:2222"
+        )
 
     def test_new_recruit_opens_browser_on_proxy_port(
         self, active_config, debugger_unpatched, browser

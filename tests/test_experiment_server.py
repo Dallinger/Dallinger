@@ -1876,11 +1876,21 @@ class TestWorkerFunctionIntegration:
         ):
             worker_func("RecruiterSubmissionComplete", "A1", 2)
             worker_func("NotificationMissing", "A2", None)
-        messages = [c.args[0] for c in mock_exp.log.call_args_list[:2]]
-        assert messages[0] == (
+            with pytest.raises(ValueError):  # There is no participant 3.
+                worker_func("AssignmentReassigned", None, 3)
+        messages = [c.args[0] for c in mock_exp.log.call_args_list]
+        assert (
             "Participant 2 finished (RecruiterSubmissionComplete, assignment A1)."
+            in messages
         )
-        assert messages[1].startswith("The participant with assignment A2 ran over")
+        assert (
+            "The participant with assignment A2 ran over time without the "
+            "recruiter reporting a submission (NotificationMissing)."
+        ) in messages
+        assert (
+            "Participant 3 was replaced by a new participant with the same "
+            "assignment (AssignmentReassigned)."
+        ) in messages
 
     def test_uses_assignment_id(self, a, worker_func):
         participant = a.participant()
