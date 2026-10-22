@@ -371,6 +371,12 @@
 - Pressing Ctrl+C while a Dallinger server starts no longer prints a flood of
   `ResourceWarning` messages; they stay hidden, as in Python's default
   warning filters.
+- Dallinger commands and servers no longer print other packages'
+  `DeprecationWarning`s (for example Flask-Login's `datetime.utcnow()`
+  warning, or Python's warning about `fork()` in a process with threads when
+  another package forks). Those triggered by code in Dallinger, PsyNet or the
+  experiment are still shown. Python's `-W` option or `PYTHONWARNINGS`
+  overrides this, as for `ResourceWarning`.
 - `dallinger debug` no longer prints "Error fetching experiment status" while
   the server shuts down or after a single failed request. Once recruitment
   closes, it reports an error only after three failed status checks in a row,
