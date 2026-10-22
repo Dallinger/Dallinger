@@ -1489,8 +1489,14 @@ def _report_ssh_failures(f):
         try:
             return f(*args, **kwargs)
         except Exception as exc:
-            message = _ssh_failure_message(exc, kwargs.get("server"))
-            if message is None:
+            server_info = _configured_server_info(kwargs.get("server"))
+            message = server_info and _ssh_failure_message(
+                exc,
+                server_info["host"],
+                server_info.get("user"),
+                docker_over_ssh=not kwargs.get("local_build"),
+            )
+            if not message:
                 raise
             _stop_active_spinner()
             raise click.ClickException(message) from exc
@@ -1498,24 +1504,44 @@ def _report_ssh_failures(f):
     return wrapper
 
 
-def _ssh_failure_message(exc, server):
+def _configured_server_info(server):
+    """Return the configured details of ``server``, or None if it isn't configured."""
+    try:
+        return CONFIGURED_HOSTS[resolve_server_name(server, CONFIGURED_HOSTS)]
+    except (KeyError, ValueError):
+        return None
+
+
+def _ssh_failure_message(exc, ssh_address, user, docker_over_ssh=False):
     """Explain ``exc`` if it means the server couldn't be reached or logged in to.
 
-    Returns None for any other error.
+    Parameters
+    ----------
+    exc : Exception
+        The error.
+    ssh_address : str
+        The server's ``host`` or ``host:port``.
+    user : str or None
+        The SSH user configured for the server.
+    docker_over_ssh : bool
+        Whether Docker was reaching the server over SSH, so that its failure to
+        connect is an SSH problem.
+
+    Returns
+    -------
+    str or None
+        The explanation, or None for any other error.
     """
     import docker.errors
 
-    try:
-        server_info = CONFIGURED_HOSTS[resolve_server_name(server, CONFIGURED_HOSTS)]
-    except (KeyError, ValueError):
-        return None
-    host, port = split_ssh_host_port(server_info["host"])
-    user = server_info.get("user")
+    host, port = split_ssh_host_port(ssh_address)
     address = host if port == 22 else f"{host}:{port}"
 
     def ssh_line(user):
-        login = f"{user}@{host}" if user else host
-        return f"ssh {login}" if port == 22 else f"ssh -p {port} {login}"
+        port_part = "" if port == 22 else f"-p {port} "
+        if user and "@" in user:
+            return f"ssh {port_part}-l {user} {host}"
+        return f"ssh {port_part}{user}@{host}" if user else f"ssh {port_part}{host}"
 
     def check(user):
         return (
@@ -1524,20 +1550,23 @@ def _ssh_failure_message(exc, server):
             "setting."
         )
 
+    prefix = "Error while fetching server API version: "
     if isinstance(exc, paramiko.AuthenticationException):
         return (
             f"Couldn't log in to {address} over SSH as {user or getuser()}. "
             f"{check(user)}"
         )
-    if isinstance(exc, docker.errors.DockerException) and str(exc).startswith(
-        "Error while fetching server API version"
+    if (
+        docker_over_ssh
+        and isinstance(exc, docker.errors.DockerException)
+        and str(exc).startswith(prefix)
     ):
         # Docker connects without a user name that contains "@" (see
         # docker_host_uri), so ssh picks the user as it would for this command.
         docker_user = None if user and "@" in user else user
         return (
-            f"Couldn't reach Docker on {address} over SSH (see any message "
-            f"from ssh above). {check(docker_user)}"
+            f"Couldn't reach Docker on {address} over SSH ({str(exc)[len(prefix) :]}; "
+            f"see any message from ssh above). {check(docker_user)}"
         )
     if not _raised_by_paramiko(exc):
         return None
@@ -3127,8 +3156,20 @@ def add_server_pem_to_ssh_agent():
 
 
 def ensure_remote_host_in_known_hosts(host, user=None):
-    """Make sure the SSH host key is trusted locally before other clients connect."""
-    get_connected_ssh_client(host, user)
+    """Make sure the SSH host key is trusted locally before other clients connect.
+
+    Raises
+    ------
+    click.ClickException
+        If the server can't be reached or logged in to.
+    """
+    try:
+        get_connected_ssh_client(host, user)
+    except Exception as exc:
+        message = _ssh_failure_message(exc, host, user)
+        if message is None:
+            raise
+        raise click.ClickException(message) from exc
 
 
 class Executor:

@@ -875,7 +875,12 @@ def _refused_connection(**kwargs):
             "Error: Couldn't log in to host.example:2200 over SSH as alice. "
             "Check that `ssh -p 2200 alice@host.example` works without asking",
         ),
-        ("docker", "Error: Couldn't reach Docker on host.example:2200 over SSH"),
+        (
+            "docker",
+            "Error: Couldn't reach Docker on host.example:2200 over SSH "
+            "(Connection aborted; see any message from ssh above).",
+        ),
+        ("local-docker", None),
         (
             "refused",
             "Error: Couldn't connect to host.example:2200 over SSH: nothing "
@@ -898,6 +903,8 @@ def test_deploy_reports_ssh_failures_in_one_line(monkeypatch, error, expected):
         "refused": _refused_connection,
         "other": paramiko.SSHException("Channel closed."),
     }
+    failures["local-docker"] = failures["docker"]
+    args = ["--local_build"] if error == "local-docker" else []
     server = {"host": "host.example:2200", "user": "alice"}
     monkeypatch.setattr(docker_ssh, "CONFIGURED_HOSTS", {"host.example:2200": server})
     monkeypatch.setattr(
@@ -907,7 +914,9 @@ def test_deploy_reports_ssh_failures_in_one_line(monkeypatch, error, expected):
         docker_ssh, "_deploy_in_mode", mock.Mock(side_effect=failures[error])
     )
 
-    result = CliRunner().invoke(docker_ssh.deploy, ["--server", "host.example:2200"])
+    result = CliRunner().invoke(
+        docker_ssh.deploy, ["--server", "host.example:2200", *args]
+    )
 
     assert result.exit_code == 1
     if expected is None:
@@ -915,6 +924,23 @@ def test_deploy_reports_ssh_failures_in_one_line(monkeypatch, error, expected):
     else:
         assert expected in result.output
         assert "Traceback" not in result.output
+
+
+def test_first_ssh_login_failure_is_one_error_line(monkeypatch):
+    import click
+    import paramiko
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    denied = mock.Mock(side_effect=paramiko.AuthenticationException("denied"))
+    monkeypatch.setattr(docker_ssh, "get_connected_ssh_client", denied)
+
+    with pytest.raises(click.ClickException) as error:
+        docker_ssh.ensure_remote_host_in_known_hosts("pc.example", "ab1@uni.example")
+
+    assert error.value.message.startswith(
+        "Couldn't log in to pc.example over SSH as ab1@uni.example. Check that "
+        "`ssh -l ab1@uni.example pc.example` works"
+    )
 
 
 def test_nip_io_dns_host_of_an_unknown_server_is_one_error_line():
