@@ -614,7 +614,7 @@ typing-extensions==4.16.0
     #   tox
 tzdata==2026.4
     # via arrow
-tzlocal==5.4.4
+tzlocal==5.4.5
     # via
     #   apscheduler
     #   dallinger
