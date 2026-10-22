@@ -2127,6 +2127,17 @@ class TestDebugServer:
             "New participant requested: some-fake-url:2222"
         )
 
+    def test_new_recruit_no_browser_prints_links_from_the_launch_message_too(
+        self, no_browser_debugger
+    ):
+        no_browser_debugger.recruitment_msg = "Initial recruitment list:\nhttp://x/ad"
+        no_browser_debugger.notify(
+            " {} http://x/ad".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+        )
+        no_browser_debugger.out.log.assert_called_with(
+            "New participant requested: http://x/ad"
+        )
+
     def test_new_recruit_opens_browser_on_proxy_port(
         self, active_config, debugger_unpatched, browser
     ):
