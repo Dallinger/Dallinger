@@ -879,9 +879,13 @@ def _docker_connection_error():
 
 
 def _unknown_host(**kwargs):
+    import socket
+
     import paramiko
 
-    paramiko.SSHClient().connect("no-such-server.invalid", timeout=5)
+    no_such_host = socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+    with mock.patch("socket.getaddrinfo", side_effect=no_such_host):
+        paramiko.SSHClient().connect("host.example", timeout=1)
 
 
 def _refused_connection(**kwargs):
