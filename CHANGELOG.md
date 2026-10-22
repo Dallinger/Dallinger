@@ -492,8 +492,8 @@
 - `dallinger develop debug` and `dallinger develop bootstrap` now stop with
   one `Error:` line naming the `dallinger_develop_directory` setting, its
   path and the problem when that folder can't be used (a folder name that
-  isn't a Python identifier, a path that isn't a folder, or one that can't
-  be created), instead of a traceback. `develop_target_path()` and
+  isn't a Python identifier, or one that can't be created, read or emptied,
+  such as a path that isn't a folder), instead of a traceback. `develop_target_path()` and
   `bootstrap_development_session()` raise the new `DevelopDirectoryError`,
   a `ValueError` subclass.
 - A docker-ssh Cloudflare deploy that can't find the Cloudflare API token now
