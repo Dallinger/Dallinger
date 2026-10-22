@@ -46,8 +46,8 @@
   - The development server no longer writes ANSI colour codes into its log
     lines when its stderr is not a terminal (for example when redirected to a
     file or pipe), or when `NO_COLOR` is set.
-  - The `❯❯ Experiment UID: …` line (also printed by
-    `dallinger develop bootstrap`) is no longer printed. The ID is still
+  - The Dallinger logo and the `❯❯ Experiment UID: …` line (also printed by
+    `dallinger develop bootstrap`) are no longer printed. The ID is still
     written to the develop directory's `config.txt` (`id`).
 - Command-line messages printed through `dallinger.command_line.utils.log()`
   and `error()` (by every Dallinger command, including Heroku and Docker

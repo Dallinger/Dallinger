@@ -461,6 +461,7 @@ class TestDevelopCommand:
         assert "Experiment files OK (" in result.output
         assert "is PRESENT" not in result.output
         assert "Experiment UID" not in result.output
+        assert "Laboratory automation" not in result.output
 
     @pytest.mark.parametrize("args, port", [([], 5123), (["--port", "5124"], 5124)])
     def test_debug_serves_and_launches_on_base_port(
