@@ -582,10 +582,11 @@ class TestDevelopCommand:
         assert launch_message_rows(message) == rows
 
     def test_echo_ready_shows_after_rows_below_the_full_log(
-        self, active_config, capsys
+        self, active_config, capsys, tmp_path
     ):
         from dallinger.command_line.develop import echo_ready
 
+        active_config.extend({"dallinger_develop_directory": str(tmp_path)})
         echo_ready([("Link", "http://x")], after=[("Other terminals", "export A=1")])
         labels = [
             line.split(":")[0].strip() for line in capsys.readouterr().out.splitlines()
