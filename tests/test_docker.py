@@ -917,6 +917,15 @@ def test_deploy_reports_ssh_failures_in_one_line(monkeypatch, error, expected):
         assert "Traceback" not in result.output
 
 
+def test_nip_io_dns_host_of_an_unknown_server_is_one_error_line():
+    import click
+
+    from dallinger.command_line.docker_ssh import get_dns_host
+
+    with pytest.raises(click.ClickException, match="Can't find the IP address"):
+        get_dns_host("no-such-server.invalid")
+
+
 def test_option_update_parses_as_boolean():
     import click
     from click.testing import CliRunner

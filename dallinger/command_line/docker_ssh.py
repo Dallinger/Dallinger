@@ -1511,21 +1511,33 @@ def _ssh_failure_message(exc, server):
         return None
     host, port = split_ssh_host_port(server_info["host"])
     user = server_info.get("user")
-    login = f"{user}@{host}" if user else host
-    ssh_command = f"ssh {login}" if port == 22 else f"ssh -p {port} {login}"
     address = host if port == 22 else f"{host}:{port}"
-    check = (
-        f"Check that `{ssh_command}` works without asking for a password, "
-        "using a key in ~/.ssh, your SSH agent or the server_pem setting."
-    )
+
+    def ssh_line(user):
+        login = f"{user}@{host}" if user else host
+        return f"ssh {login}" if port == 22 else f"ssh -p {port} {login}"
+
+    def check(user):
+        return (
+            f"Check that `{ssh_line(user)}` works without asking for a "
+            "password, using a key in ~/.ssh, your SSH agent or the server_pem "
+            "setting."
+        )
+
     if isinstance(exc, paramiko.AuthenticationException):
-        return f"Couldn't log in to {address} over SSH as {user or getuser()}. {check}"
+        return (
+            f"Couldn't log in to {address} over SSH as {user or getuser()}. "
+            f"{check(user)}"
+        )
     if isinstance(exc, docker.errors.DockerException) and str(exc).startswith(
         "Error while fetching server API version"
     ):
+        # Docker connects without a user name that contains "@" (see
+        # docker_host_uri), so ssh picks the user as it would for this command.
+        docker_user = None if user and "@" in user else user
         return (
             f"Couldn't reach Docker on {address} over SSH (see any message "
-            f"from ssh above). {check}"
+            f"from ssh above). {check(docker_user)}"
         )
     if not _raised_by_paramiko(exc):
         return None
@@ -1541,7 +1553,7 @@ def _ssh_failure_message(exc, server):
         return None
     return (
         f"Couldn't connect to {address} over SSH: {reason}. Check the server's "
-        f"address and that it is running, then try `{ssh_command}`."
+        f"address and that it is running, then try `{ssh_line(user)}`."
     )
 
 
@@ -3581,7 +3593,14 @@ def _check_experiment_hostname_dns(
 
 
 def get_dns_host(ssh_host):
-    ip_addr = gethostbyname_ex(ssh_host)[2][0]
+    """Return the nip.io name for ``ssh_host``'s IP address."""
+    try:
+        ip_addr = gethostbyname_ex(ssh_host)[2][0]
+    except OSError as exc:
+        raise click.ClickException(
+            f"Can't find the IP address of {ssh_host} for --dns-host nip.io "
+            f"({exc.strerror or exc}). Check the server's address."
+        ) from exc
     return f"{ip_addr}.nip.io"
 
 
