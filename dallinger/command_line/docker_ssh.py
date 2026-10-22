@@ -1588,10 +1588,25 @@ def _ssh_failure_message(exc, ssh_address, user, docker_over_ssh=False):
 
 
 def _root_cause(exc, prefix=""):
-    """Describe the innermost error behind ``exc``, such as "Broken pipe"."""
-    root = exc
-    while (root.__cause__ or root.__context__) is not None:
-        root = root.__cause__ or root.__context__
+    """Describe the innermost error behind ``exc``, such as "Broken pipe".
+
+    Follows ``__cause__`` and ``__context__``, then an exception held in the
+    arguments, as urllib3 does with ``ProtocolError("Connection aborted.",
+    BrokenPipeError(...))``.
+    """
+    root, seen = exc, set()
+    while id(root) not in seen:
+        seen.add(id(root))
+        nested = root.__cause__
+        if nested is None and not root.__suppress_context__:
+            nested = root.__context__
+        if nested is None:
+            nested = next(
+                (a for a in reversed(root.args) if isinstance(a, BaseException)), None
+            )
+        if nested is None:
+            break
+        root = nested
     if root is exc:
         return str(exc).removeprefix(prefix)
     return getattr(root, "strerror", None) or str(root)

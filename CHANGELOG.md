@@ -265,8 +265,8 @@
   or the server_pem setting." The same applies to an unknown host name
   (including with `--dns-host nip.io`), a refused or timed-out connection,
   a port that doesn't answer like an SSH server, and Docker being
-  unreachable over SSH during a remote build (the message includes Docker's
-  own error). Other errors, including those after the connection is made,
+  unreachable over SSH during a remote build (the message names the
+  underlying error, such as "Broken pipe"). Other errors, including those after the connection is made,
   are reported as before.
 - The image build and push of a docker-ssh deploy reach the server's Docker
   through the `ssh` command, like the rest of the deploy and `docker build`.

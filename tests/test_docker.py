@@ -856,6 +856,27 @@ def test_get_connected_ssh_client_rejects_dsa_key(tmp_path, monkeypatch, key_for
     )
 
 
+def _docker_connection_error():
+    """Return the error docker-py raises when its SSH connection breaks."""
+    import docker.errors
+    import requests
+    import urllib3.exceptions
+
+    try:
+        try:
+            raise requests.exceptions.ConnectionError(
+                urllib3.exceptions.ProtocolError(
+                    "Connection aborted.", BrokenPipeError(32, "Broken pipe")
+                )
+            )
+        except requests.exceptions.ConnectionError as exc:
+            raise docker.errors.DockerException(
+                f"Error while fetching server API version: {exc}"
+            ) from exc
+    except docker.errors.DockerException as exc:
+        return exc
+
+
 def _refused_connection(**kwargs):
     import socket
 
@@ -878,7 +899,7 @@ def _refused_connection(**kwargs):
         (
             "docker",
             "Error: Couldn't reach Docker on host.example:2200 over SSH "
-            "(Connection aborted; see any message from ssh above).",
+            "(Broken pipe; see any message from ssh above).",
         ),
         ("local-docker", None),
         (
@@ -890,16 +911,13 @@ def _refused_connection(**kwargs):
     ],
 )
 def test_deploy_reports_ssh_failures_in_one_line(monkeypatch, error, expected):
-    import docker.errors
     import paramiko
     from click.testing import CliRunner
 
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
     failures = {
         "auth": paramiko.AuthenticationException("Authentication failed."),
-        "docker": docker.errors.DockerException(
-            "Error while fetching server API version: Connection aborted"
-        ),
+        "docker": _docker_connection_error(),
         "refused": _refused_connection,
         "other": paramiko.SSHException("Channel closed."),
     }
