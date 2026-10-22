@@ -471,7 +471,10 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     addons_text = previous_addons_text = ""
     while not ready:
         addons_text = heroku_app._result(heroku_addons_cmd(heroku_app.name)).strip()
-        log("\033[F" * (len(previous_addons_text.split("\n")) + 2), chevrons=False)
+        # Move up over the previous addons list and total time, plus the line
+        # that this log() call's newline adds.
+        shown = len(previous_addons_text.split("\n")) + 1 if previous_addons_text else 0
+        log("\033[F" * (shown + 1), chevrons=False)
         log(addons_text, chevrons=False)
         log(
             f"Total time waiting for addons to be ready: {datetime.now().astimezone().replace(microsecond=0) - addons_t0}",
