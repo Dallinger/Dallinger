@@ -459,19 +459,24 @@ class TestDevelopCommand:
         assert "is PRESENT" not in result.output
         assert "Experiment UID" not in result.output
 
-    def test_debug_serves_and_launches_on_base_port(self, active_config, develop):
+    @pytest.mark.parametrize("args, port", [([], 5123), (["--port", "5124"], 5124)])
+    def test_debug_serves_and_launches_on_base_port(
+        self, active_config, develop, monkeypatch, args, port
+    ):
         active_config.extend({"base_port": 5123})
+        monkeypatch.setenv("FLASK_RUN_PORT", "5999")
         with (
             mock.patch("dallinger.command_line.develop.Queue") as queue,
             mock.patch("dallinger.command_line.develop._run_dev_server") as server,
         ):
-            result = CliRunner().invoke(develop, ["debug", "--no-browsers"])
+            result = CliRunner().invoke(develop, ["debug", "--no-browsers", *args])
 
         assert result.exit_code == 0, result.output
         assert queue.return_value.enqueue_call.call_args.kwargs["kwargs"] == {
-            "port": 5123
+            "port": port
         }
-        assert server.call_args.kwargs["env"]["FLASK_RUN_PORT"] == "5123"
+        assert server.call_args.kwargs["env"]["FLASK_RUN_PORT"] == str(port)
+        assert active_config.get("base_port") == port
 
     @pytest.mark.parametrize(
         "name, problem",
