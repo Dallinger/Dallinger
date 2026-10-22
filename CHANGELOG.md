@@ -228,15 +228,19 @@
   "Building image ... (set DALLINGER_VERBOSE_BUILD=1 to show docker's
   output)..." and "Built image: ..." instead of the BuildKit output; if it
   fails, the full build log is printed and kept in a file (set
-  `DALLINGER_VERBOSE_BUILD=1` to stream it instead). Every command that
+  `DALLINGER_VERBOSE_BUILD=1` to stream it instead), and the command ends
+  with "Error: The image build failed; …" rather than "Aborted!". Every command that
   builds an image (including `dallinger docker build`, which still streams
   the BuildKit output) starts with one "Building image ..." or "Rebuilding
   image ..." line, which mentions the experiment's custom Dockerfile if it
-  has one. After "Starting experiment.", a deploy goes on to
-  "Initializing database..." (with classic ingress, after "Cleaning up the
-  database and its user..." and "Creating database …..."), reports the app's health check as "The experiment server is
-  up.", and an `--update` ends with "Not launching
-  again: this is an update of a running experiment." `docker-ssh export`
+  has one. A deploy then prints "Starting the experiment server..." (with
+  classic ingress, followed by "Cleaning up the database and its user..."
+  and "Creating database …...") and "The experiment server is up." once the
+  health check passes, without the "Initializing database..." and "Database
+  initialized." lines; an `--update` prints "Restarting the experiment
+  server..." and ends with "Not launching again: this is an update of a
+  running experiment." The "Validating config for … recruitment..." line is
+  gone; a config problem is still reported as an error. `docker-ssh export`
   and other callers of `awaken_app`, such as PsyNet before destroying an
   app, no longer print "App <app> is awake" when the app wasn't
   hibernating; `dallinger docker-ssh awaken` still does. The
@@ -245,8 +249,9 @@
   debug-level logs, as is "Using custom Heroku ID root" in every command that
   prints it, and `/launch` omits empty "Initial recruitment list" and
   "Additional details" headings. The `DALLINGER_SOURCE` message and the
-  editable-install notice, now one line, point at the Dallinger pin in
-  `constraints.txt`. For a server whose SSH user contains `@`, the hint to
+  editable-install notice are now one short line each, such as "Using the
+  Dallinger checkout at … (DALLINGER_SOURCE) instead of the version pinned
+  in constraints.txt." For a server whose SSH user contains `@`, the hint to
   set `User …` in `~/.ssh/config` is only printed if `ssh` wouldn't already
   log in as that user (as reported by `ssh -G`).
 - The `ssh` commands that docker-ssh deploys print, such as the logs

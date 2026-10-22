@@ -1998,9 +1998,9 @@ def _deploy_in_mode(
     _start_server_services(executor)
 
     if not update:
-        print("Starting experiment.")
+        print("Starting the experiment server...")
     else:
-        print("Restarting experiment.")
+        print("Restarting the experiment server...")
 
     logs_url = (
         f"https://{dns_host}/logs" if not use_subdomain else f"https://logs.{dns_host}"
@@ -2303,9 +2303,9 @@ def _deploy_cloudflare_in_mode(
     )
 
     if not update:
-        print("Starting experiment.")
+        print("Starting the experiment server...")
     else:
-        print("Restarting experiment.")
+        print("Restarting the experiment server...")
 
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
@@ -3542,12 +3542,10 @@ def _bring_up_app_containers(
     if update and "was-hibernating" in (output or ""):
         print(f"App {experiment_id} was hibernating. The update woke it.")
     if archive_path is None and not update:
-        print("Initializing database...")
         executor.run(
             f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml "
             "exec -T web dallinger-housekeeper initdb"
         )
-        print("Database initialized.")
 
 
 def _restore_experiment_archive(server_info, experiment_id, archive_path):

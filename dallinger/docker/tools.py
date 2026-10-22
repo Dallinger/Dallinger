@@ -316,7 +316,7 @@ class DockerStartupError(click.Abort):
     """Some docker containers had problems starting"""
 
 
-class BuildError(click.Abort):
+class BuildError(click.ClickException):
     """There was a problem building the docker image"""
 
 
@@ -638,7 +638,7 @@ def build_image(
         try:
             check_output(docker_build_invocation, env=env)
         except CalledProcessError:
-            raise BuildError
+            raise BuildError("The image build failed; docker's output is above.")
     out.blather(f"Built image: {image_name}" + "\n")
     return image_name
 
@@ -654,6 +654,5 @@ def _build_with_log_file(docker_build_invocation, env, out):
         log_path.unlink()
         return
     out.blather(log_path.read_text(errors="replace"))
-    out.blather(f"\nImage build failed; the log above is saved in {log_path}\n")
     sys.stdout.flush()
-    raise BuildError
+    raise BuildError(f"The image build failed; the log above is saved in {log_path}.")

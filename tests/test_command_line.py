@@ -1732,14 +1732,3 @@ def test_get_editable_dallinger_path_pep660(tmp_path, monkeypatch):
     monkeypatch.setattr("dallinger.utils.get_distribution", lambda _: FakeDist())
 
     assert get_editable_dallinger_path() == str(source_root.resolve())
-
-
-def test_pre_launch_checks_print_a_log_line(capsys):
-    from dallinger.command_line.utils import run_pre_launch_checks
-
-    config = mock.Mock(get=lambda key, default=None: "hotair")
-    with mock.patch("dallinger.recruiters.by_name"):
-        run_pre_launch_checks(config=config)
-    out = capsys.readouterr().out
-    assert out.strip().endswith("Validating config for hotair recruitment...")
-    assert out.strip().count("\n") == 0

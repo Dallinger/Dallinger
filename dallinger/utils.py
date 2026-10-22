@@ -747,17 +747,15 @@ def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files
             if dallinger_path:
                 if source:
                     log(
-                        f"DALLINGER_SOURCE is set, so the Dallinger tree at {source} "
-                        "will be deployed in its current state, ignoring the "
-                        "dallinger version pinned in your experiment's "
-                        "constraints.txt file."
+                        f"Using the Dallinger checkout at {source} "
+                        "(DALLINGER_SOURCE) instead of the version pinned in "
+                        "constraints.txt."
                     )
                 else:
                     log(
-                        "Dallinger is installed as an editable package, so its "
-                        "working tree is deployed instead of the version pinned in "
-                        "constraints.txt (set DALLINGER_NO_EGG_BUILD=1 to deploy "
-                        "the pin)."
+                        f"Using the editable Dallinger checkout at {dallinger_path} "
+                        "instead of the version pinned in constraints.txt (set "
+                        "DALLINGER_NO_EGG_BUILD=1 to use the pin)."
                     )
                 egg_name = build_and_place(dallinger_path, dst)
                 # A custom Dockerfile (e.g. PsyNet's) installs requirements
