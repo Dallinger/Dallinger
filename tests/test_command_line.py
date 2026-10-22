@@ -550,6 +550,33 @@ class TestDevelopCommand:
         assert out[5:] == ["Press Ctrl+C to stop."]
         open_browser.assert_not_called()
 
+    @pytest.mark.parametrize(
+        "message, rows",
+        [
+            (
+                "Initial recruitment list:\nhttp://x/ad?p=1\n"
+                "Additional details:\nA simulated study.",
+                [
+                    ("Participant link", "http://x/ad?p=1"),
+                    ("Recruitment", "A simulated study."),
+                ],
+            ),
+            (
+                "Additional details:\nOpen the study.",
+                [("Recruitment", "Open the study.")],
+            ),
+            (
+                "Recruitment hasn't started.",
+                [("Recruitment", "Recruitment hasn't started.")],
+            ),
+            (None, []),
+        ],
+    )
+    def test_launch_message_rows_drop_the_headings(self, message, rows):
+        from dallinger.command_line.develop import launch_message_rows
+
+        assert launch_message_rows(message) == rows
+
     def test_debug_verbose_shows_full_server_output(self, develop):
         with (
             mock.patch("dallinger.command_line.develop.Queue"),

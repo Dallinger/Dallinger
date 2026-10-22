@@ -138,6 +138,30 @@ def test_a_topic_hides_repeats_until_its_message_changes():
     assert len(console_lines(warnings)) == 2
 
 
+def test_a_record_with_several_topics_ends_repeats_in_each():
+    def on(topics, msg):
+        return record(msg=msg, extra={TOPIC: topics})
+
+    shown = console_lines(
+        [
+            on("a", "Conclusion: done."),
+            on("b", "Recruitment closed."),
+            on("a", "Conclusion: done."),
+            on("b", "Recruitment closed."),
+            on(("a", "b"), "Conclusion: recruiting."),
+            on("a", "Conclusion: done."),
+            on("b", "Recruitment closed."),
+        ]
+    )
+    assert [line.split(" ", 2)[2].strip() for line in shown] == [
+        "Conclusion: done.",
+        "Recruitment closed.",
+        "Conclusion: recruiting.",
+        "Conclusion: done.",
+        "Recruitment closed.",
+    ]
+
+
 def test_full_mode_keeps_everything(monkeypatch):
     monkeypatch.setenv("DALLINGER_DEV_LOG", "full")
     assert len(console_lines(ROUTINE + KEPT)) == len(ROUTINE + KEPT)

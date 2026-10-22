@@ -244,12 +244,7 @@ def launch_app_without_browsers(port):
     """Launch the app and print the participant link and dashboard login."""
     launch_data = _launch_app(port)
     config = get_config(load=True)
-    message = (launch_data.get("recruitment_msg") or "").strip()
-    link = _SINGLE_RECRUITMENT_LINK.search(message)
-    if link:
-        details = [("Participant link", link.group(1))]
-    else:
-        details = [("Recruitment", message)] if message else []
+    details = launch_message_rows(launch_data.get("recruitment_msg"))
     details.append(
         (
             "Dashboard",
@@ -263,11 +258,47 @@ def launch_app_without_browsers(port):
     echo_ready(details)
 
 
-def echo_ready(details=()):
+def launch_message_rows(message):
+    """Return ``(label, value)`` rows for the start-up block from a launch message.
+
+    The recruiter's single recruitment link (hotair and cli recruiters), or
+    else the only link in the "Initial recruitment list:", becomes the
+    ``Participant link``; the rest of "Additional details:" (or a message
+    in another format) becomes ``Recruitment``. Neither heading is kept.
+
+    Parameters
+    ----------
+    message : str or None
+        The ``recruitment_msg`` that ``/launch`` returns.
+
+    Returns
+    -------
+    list of (str, str)
+    """
+    message = (message or "").strip()
+    link = _SINGLE_RECRUITMENT_LINK.search(message)
+    if link:
+        return [("Participant link", link.group(1))]
+    if not message.startswith(("Initial recruitment list:", "Additional details:")):
+        return [("Recruitment", message)] if message else []
+    items, _, details = message.partition("Additional details:")
+    items = items.replace("Initial recruitment list:", "", 1).split()
+    rows = []
+    if len(items) == 1:
+        rows.append(("Participant link", items[0]))
+    elif items:
+        rows.append(("Participant links", "\n".join(items)))
+    if details.strip():
+        rows.append(("Recruitment", details.strip()))
+    return rows
+
+
+def echo_ready(details=(), after=()):
     """Print the block that ends the development server's start-up.
 
-    After a blank line come "Ready.", ``details`` and the location of the
-    full log as aligned ``label: value`` lines, and how to stop the server::
+    After a blank line come "Ready.", ``details``, the location of the full
+    log and ``after`` as aligned ``label: value`` lines, and how to stop the
+    server::
 
         Ready.
           Participant link: http://127.0.0.1:5000/ad?recruiter=hotair&…
@@ -283,11 +314,14 @@ def echo_ready(details=()):
     details : sequence of (str, str)
         Labels and values to show before the full log's location. Lines
         after the first of a value are indented to line up with it.
+    after : sequence of (str, str)
+        Labels and values to show after it, such as PsyNet's
+        ``Other terminals`` line.
     """
     colour = dev_logging.use_colour(sys.stdout)
     ready = click.style("Ready.", fg="green", bold=True) if colour else "Ready."
     log_path = os.path.join(develop_target_path(get_config(load=True)), JSON_LOGFILE)
-    rows = [*details, ("Full log", log_path)]
+    rows = [*details, ("Full log", log_path), *after]
     width = max(len(label) for label, _ in rows) + 1
     lines = ["", ready]
     for label, value in rows:

@@ -92,9 +92,13 @@
     participant link. Later requests for new participants are still shown.
   - A message that would repeat itself is shown once: "Recruitment closed."
     appears when recruitment closes, not again for every participant who
-    finishes, until a new participant is requested. Log records can opt in
-    with `extra={dallinger.dev_logging.TOPIC: "<name>"}`: such a record is
-    hidden if its message is the same as the last one shown for its topic.
+    finishes, until another recruitment message, such as "New participant
+    requested: …", is shown. Log records can opt in with
+    `extra={dallinger.dev_logging.TOPIC: "<name>"}`: such a record is hidden
+    if its message is the same as the last one shown for its topic. A tuple
+    of topic names ends repeats in each of them. Each server process
+    remembers what it showed, so after an auto-reload a message can appear
+    once more.
   - APScheduler's warnings that a job run was skipped ("maximum number of
     running instances reached") or missed ("was missed by"), which come in
     bursts while the clock starts up or after the computer slept, are not
@@ -119,8 +123,13 @@
     ```
 
     Tools that replace the launch job can print the same block with
-    `dallinger.command_line.develop.echo_ready(details)`, where `details`
-    is a sequence of `(label, value)` pairs.
+    `dallinger.command_line.develop.echo_ready(details, after=())`, where
+    `details` (before the `Full log` line) and `after` are sequences of
+    `(label, value)` pairs; `launch_message_rows(recruitment_msg)` turns a
+    `/launch` recruitment message into such pairs. A recruiter without a
+    single recruitment link shows the only link of its initial recruitment
+    list as the participant link, and its additional details as
+    `Recruitment`, without either heading.
   - `dallinger develop debug --verbose`, or `DALLINGER_DEV_LOG=full`, shows
     everything again, including werkzeug's line for every request.
 

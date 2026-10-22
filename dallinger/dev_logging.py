@@ -164,8 +164,12 @@ class ConsoleFilter(logging.Filter):
     """Hide routine and repeated records from the console and shorten werkzeug's.
 
     A record with a :data:`TOPIC` attribute is hidden if its message is the
-    same as that of the last record shown for the topic. Warnings and errors
-    are always shown.
+    same as that of the last record shown for the topic. The attribute may
+    also be a tuple of topics: the record is then hidden only if its message
+    is the last shown for each of them, and is the last shown for all of
+    them once shown, so that it ends repeats in each. Warnings and errors
+    are always shown. Each server process keeps its own record, so a line
+    may be shown once more after an auto-reload.
 
     Records are never modified: a shortened werkzeug message is stored as
     ``record.dallinger_console_message``, which :class:`ConsoleFormatter`
@@ -203,12 +207,13 @@ class ConsoleFilter(logging.Filter):
             return self._filter_werkzeug(record)
         if _is_launch_recruitment(record):
             return False
-        topic = getattr(record, TOPIC, None)
-        if topic is not None and record.levelno < logging.WARNING:
+        topics = getattr(record, TOPIC, None)
+        if topics is not None and record.levelno < logging.WARNING:
+            topics = (topics,) if isinstance(topics, str) else tuple(topics)
             message = record.getMessage()
-            if self._last_message_by_topic.get(topic) == message:
+            if all(self._last_message_by_topic.get(t) == message for t in topics):
                 return False
-            self._last_message_by_topic[topic] = message
+            self._last_message_by_topic.update(dict.fromkeys(topics, message))
         return True
 
     def _filter_scheduler_overlap(self, record):
