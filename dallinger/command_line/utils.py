@@ -36,21 +36,31 @@ header = r"""
 
 
 def log(msg, chevrons=True, verbose=True, **kw):
-    """Log a message to stdout."""
+    """Print a message to stdout, as one plain line.
+
+    Parameters
+    ----------
+    msg : str
+        The message.
+    chevrons : bool
+        Ignored; kept so that existing callers keep working. Messages used
+        to start with a blank line and ``❯❯``.
+    verbose : bool
+        Print nothing if False.
+    **kw
+        Passed to :func:`click.echo`.
+    """
     if verbose:
-        if chevrons:
-            click.echo("\n❯❯ " + msg, **kw)
-        else:
-            click.echo(msg, **kw)
+        click.echo(msg, **kw)
 
 
 def error(msg, chevrons=True, verbose=True):
-    """Log a message to stdout."""
+    """Print a message to stderr in red, as one plain line.
+
+    ``chevrons`` is ignored, as for :func:`log`.
+    """
     if verbose:
-        if chevrons:
-            click.secho("\n❯❯ " + msg, err=True, fg="red")
-        else:
-            click.secho(msg, err=True, fg="red")
+        click.secho(msg, err=True, fg="red")
 
 
 class Output:
@@ -242,7 +252,7 @@ def verify_package(
         if ok and "✗" not in details:
             size_in_mb = round(file_source.size / (1000 * 1000))
             names = ", ".join(_REQUIRED_EXPERIMENT_FILES)
-            click.echo(f"✓ Experiment files OK ({names}; {size_in_mb} MB)")
+            click.echo(f"Experiment files OK ({names}; {size_in_mb} MB).")
         else:
             click.echo(details, nl=False)
         return ok

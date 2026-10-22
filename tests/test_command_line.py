@@ -220,7 +220,7 @@ class TestVerify:
     def test_summary_is_one_line_when_checks_pass(self, v_package, capsys):
         assert v_package(verify_experiment=False, summary=True) is True
         out = capsys.readouterr().out
-        assert out.startswith("✓ Experiment files OK (")
+        assert out.startswith("Experiment files OK (")
         assert out.count("\n") == 1
 
     def test_summary_shows_every_check_when_one_fails(
@@ -390,10 +390,13 @@ class TestOutput:
 
         return Output()
 
-    def test_outs(self, output):
+    def test_outs(self, output, capsys):
         output.log("logging")
         output.error("an error")
         output.blather("blah blah blah")
+        captured = capsys.readouterr()
+        assert captured.out == "logging\nblah blah blah"
+        assert captured.err == "an error\n"
 
 
 class TestHeader:
@@ -455,7 +458,7 @@ class TestDevelopCommand:
             result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
 
         assert result.exit_code == 0, result.output
-        assert "✓ Experiment files OK" in result.output
+        assert "Experiment files OK (" in result.output
         assert "is PRESENT" not in result.output
         assert "Experiment UID" not in result.output
 

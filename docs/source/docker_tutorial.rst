@@ -33,7 +33,7 @@ Now let's build a Docker image for one of the demo experiments:
 
     $ cd demos/dlgr/demos/bartlett1932
     $ dallinger docker build
-    ❯❯ Experiment UID: 3b72e1fb-9302-cc1a-ebae-f2cb8907dce0
+    Experiment UID: 3b72e1fb-9302-cc1a-ebae-f2cb8907dce0
     Deployment temp directory: /tmp/tmpt3cqkrss/3b72e1fb-9302-cc1a-ebae-f2cb8907dce0
     Image ghcr.io/dallinger/dallinger/bartlett1932:e3ca8804 not found - building
     ...
@@ -68,10 +68,10 @@ Now that the image has been generated we can run the experiment:
            the behavioral and social sciences.
     
     
-    ❯❯ Experiment UID: 1358650b-64fc-dbb1-c87b-22c40159118a
+    Experiment UID: 1358650b-64fc-dbb1-c87b-22c40159118a
     Deployment temp directory: /tmp/tmp49p0dgh3/1358650b-64fc-dbb1-c87b-22c40159118a
     ...
-    ❯❯ Monitoring the Docker server for recruitment or completion...
+    Monitoring the Docker server for recruitment or completion...
 
 Dallinger created a ``docker-compose.yml`` file to run the experiment and started all the necessary services,
 namely:
