@@ -430,7 +430,7 @@ pytest-rerunfailures==16.7
     # via dallinger
 pytest-timeout==2.4.0
     # via dallinger
-python-dateutil==2.9.0.post0
+python-dateutil==3.0.0
     # via
     #   arrow
     #   botocore
