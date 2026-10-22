@@ -384,14 +384,11 @@ class TestReportAfterIdleDecorator:
 
 @pytest.mark.slow
 class TestOutput:
-    @pytest.fixture
-    def output(self, capsys):
-        # Output() binds sys.stdout.write, so capsys must replace stdout first.
+    def test_outs(self, capsys):
         from dallinger.command_line import Output
 
-        return Output()
-
-    def test_outs(self, output, capsys):
+        # Output() binds sys.stdout.write, which capsys replaces during the test.
+        output = Output()
         output.log("logging")
         output.error("an error")
         output.blather("blah blah blah")
