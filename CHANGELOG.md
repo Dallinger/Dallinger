@@ -82,6 +82,10 @@
     threshold.
   - RQ and APScheduler messages below WARNING, and the worker's "Warm shut
     down requested." messages when the server stops, are hidden.
+  - The `New participant requested: <url>` lines logged while the
+    experiment launches are hidden, so the link isn't printed twice: it is
+    in the launch response, which `--no-browsers` prints. Later requests
+    for new participants are still shown.
   - APScheduler's warnings that a job run was skipped ("maximum number of
     running instances reached") or missed ("was missed by"), which come in
     bursts while the clock starts up or after the computer slept, are not
@@ -100,6 +104,22 @@
     everything again, including werkzeug's line for every request.
 
   Deployed experiments and `dallinger debug` are unchanged.
+- Plainer participant and recruitment messages, in the development console,
+  `dallinger debug` and deployed logs:
+  - `Received an RecruiterSubmissionComplete notification for assignment A1,
+    participant 2` becomes `Participant 2 finished
+    (RecruiterSubmissionComplete, assignment A1).`, and the other logged
+    notifications are described the same way. Bot submissions no longer add
+    `Received bot submission.` or `Received rejected bot submission.`.
+  - `Close recruitment.` followed by the recruiter's nickname (for example
+    `Close recruitment. cli`) becomes `Recruitment closed.`
+    (`recruiters.CLOSE_RECRUITMENT_LOG_PREFIX`). For Prolific and MTurk it
+    adds that the study or HIT stays open, since those recruiters don't
+    close it. Update scripts that wait for `Close recruitment.`.
+  - `dallinger debug --no-browsers` prints `New participant requested: <url>`
+    with one colon instead of two, using the `--proxy` port if one is set.
+    Without `--no-browsers`, `new recruitment request!` becomes
+    `Opening a browser for a new participant: <url>`.
 - A request, worker job or clock task that fails inside `db.sessions_scope()`
   (or `db.scoped_session_decorator`, or PsyNet's `with_transaction`) now
   prints its traceback once. `sessions_scope()` no longer logs "Exception

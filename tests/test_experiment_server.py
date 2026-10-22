@@ -1868,6 +1868,20 @@ class TestWorkerFunctionIntegration:
             mock.call("Event type IgnoreMe is not supported... ignoring.") in log_calls
         )
 
+    def test_logs_notifications_in_plain_words(self, worker_func):
+        mock_exp = mock.Mock()
+        with mock.patch(
+            "dallinger.experiment_server.worker_events._loaded_experiment",
+            return_value=mock_exp,
+        ):
+            worker_func("RecruiterSubmissionComplete", "A1", 2)
+            worker_func("NotificationMissing", "A2", None)
+        messages = [c.args[0] for c in mock_exp.log.call_args_list[:2]]
+        assert messages[0] == (
+            "Participant 2 finished (RecruiterSubmissionComplete, assignment A1)."
+        )
+        assert messages[1].startswith("The participant with assignment A2 ran over")
+
     def test_uses_assignment_id(self, a, worker_func):
         participant = a.participant()
 

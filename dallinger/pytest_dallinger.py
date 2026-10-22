@@ -509,7 +509,8 @@ def recruitment_loop(request, debug_experiment):
         while True:
             index = debug_experiment.expect(
                 [
-                    "{}: (.*&mode=debug)".format(NEW_RECRUIT_LOG_PREFIX),
+                    # The debugger's own line; --verbose also shows the server's.
+                    "❯❯ {} (.*&mode=debug)".format(NEW_RECRUIT_LOG_PREFIX),
                     "{}".format(CLOSE_RECRUITMENT_LOG_PREFIX),
                 ],
                 timeout=timeout,

@@ -669,12 +669,11 @@ class DebugDeployment(HerokuLocalDeployment):
         open a browser window for the a new participant (in this case the
         person doing local debugging).
         """
-        self.out.log("new recruitment request!")
-        if self.no_browsers:
-            self.out.log(recruiters.NEW_RECRUIT_LOG_PREFIX + ": " + match.group(1))
-            return
         url = self.with_proxy_port(match.group(1))
-
+        if self.no_browsers:
+            self.out.log(f"{recruiters.NEW_RECRUIT_LOG_PREFIX} {url}")
+            return
+        self.out.log(f"Opening a browser for a new participant: {url}")
         open_browser(url)
 
     def display_dashboard_access_details(self, url):

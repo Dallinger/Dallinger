@@ -17,7 +17,9 @@ a terminal gets colour.
 The console hides routine records: werkzeug's start-up banner and access log
 (replaced by one announcement line and :class:`AccessLogMiddleware`, which
 only reports errors and slow requests), RQ and APScheduler messages below
-WARNING, and most of APScheduler's warnings that a job run was skipped or
+WARNING, the "New participant requested:" lines logged while the experiment
+launches (their links are in the launch response, which ``--no-browsers``
+prints), and most of APScheduler's warnings that a job run was skipped or
 missed because the previous run or the clock was late: none in the 30
 seconds from the first one (the clock warming up), then at most one a
 minute, with a count of those hidden.
@@ -40,7 +42,7 @@ Environment variables:
 Only the development server uses this module; deployed experiments (gunicorn,
 Heroku, Docker) and legacy ``dallinger debug`` keep their logging. Messages
 that test harnesses wait for, such as "Experiment launch complete!", "New
-participant requested:" and "Close recruitment.", are left intact.
+participant requested:" and "Recruitment closed.", keep their wording.
 """
 
 import logging
@@ -189,6 +191,8 @@ class ConsoleFilter(logging.Filter):
             return self._filter_scheduler_overlap(record)
         if record.name == "werkzeug":
             return self._filter_werkzeug(record)
+        if _is_launch_recruitment(record):
+            return False
         return True
 
     def _filter_scheduler_overlap(self, record):
@@ -247,6 +251,24 @@ class ConsoleFilter(logging.Filter):
         ):
             return False
         return True
+
+
+def _is_launch_recruitment(record):
+    """Return True for a "New participant requested:" record logged by ``/launch``.
+
+    Their links are also in the launch response, which ``dallinger develop
+    debug --no-browsers`` prints, so the console shows only later requests.
+    """
+    from flask import has_request_context, request
+
+    from dallinger.recruiters import NEW_RECRUIT_LOG_PREFIX
+
+    return (
+        isinstance(record.msg, str)
+        and record.msg.startswith(NEW_RECRUIT_LOG_PREFIX)
+        and has_request_context()
+        and request.path == "/launch"
+    )
 
 
 def _display_path(path):

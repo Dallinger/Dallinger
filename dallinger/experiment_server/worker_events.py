@@ -35,6 +35,29 @@ LOG_EVENT_TYPES = frozenset(
         "NotificationMissing",
     )
 )
+# What each event in LOG_EVENT_TYPES says about its participant, for the log.
+_EVENT_DESCRIPTIONS = {
+    "AssignmentAccepted": "accepted the assignment",
+    "AssignmentAbandoned": "abandoned the experiment",
+    "AssignmentReassigned": "was replaced by a new participant with the same assignment",
+    "AssignmentReturned": "returned the experiment",
+    "RecruiterSubmissionComplete": "finished",
+    "BotRecruiterSubmissionComplete": "finished (bot)",
+    "BotAssignmentRejected": "was rejected (bot)",
+    "NotificationMissing": "ran over time without the recruiter reporting a submission",
+}
+
+
+def _describe_event(event_type, assignment_id, participant_id):
+    """Return a log line such as "Participant 2 finished (…, assignment A1)."."""
+    if participant_id is None:
+        who = "The participant with assignment {}".format(assignment_id)
+        details = event_type
+    else:
+        who = "Participant {}".format(participant_id)
+        details = "{}, assignment {}".format(event_type, assignment_id)
+    description = _EVENT_DESCRIPTIONS.get(event_type, "sent " + event_type)
+    return "{} {} ({}).".format(who, description, details)
 
 
 @db.scoped_session_decorator
@@ -68,12 +91,7 @@ def worker_function(
 
     # Logging every event is a bit verbose for experiment driven events
     if event_type in LOG_EVENT_TYPES:
-        exp.log(
-            "Received an {} notification for assignment {}, participant {}".format(
-                event_type, assignment_id, participant_id
-            ),
-            key,
-        )
+        exp.log(_describe_event(event_type, assignment_id, participant_id), key)
 
     receive_time = (
         datetime.fromtimestamp(receive_timestamp)
@@ -270,7 +288,6 @@ class RecruiterSubmissionComplete(WorkerEvent):
 
 class BotRecruiterSubmissionComplete(WorkerEvent):
     def __call__(self):
-        self.log("Received bot submission.")
         self.update_participant_end_time()
 
         # No checks for bot submission
@@ -283,7 +300,6 @@ class BotRecruiterSubmissionComplete(WorkerEvent):
 
 class BotAssignmentRejected(WorkerEvent):
     def __call__(self):
-        self.log("Received rejected bot submission.")
         self.update_participant_end_time()
         self.participant.status = "rejected"
         self.commit()

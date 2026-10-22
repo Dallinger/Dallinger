@@ -92,7 +92,7 @@ def handle_and_raise_recruitment_error(ex):
 # These are constants because other components may listen for these
 # messages in logs:
 NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
-CLOSE_RECRUITMENT_LOG_PREFIX = "Close recruitment."
+CLOSE_RECRUITMENT_LOG_PREFIX = "Recruitment closed."
 
 
 @scoped_session_decorator
@@ -787,7 +787,10 @@ class ProlificRecruiter(Recruiter):
         we do not automatically end a Prolific Study. This must be done by the
         researcher through the Prolific UI.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + self.nickname)
+        logger.info(
+            CLOSE_RECRUITMENT_LOG_PREFIX
+            + " The Prolific study stays open until you end it on Prolific."
+        )
 
     def external_submission_url(self, code_type: str) -> str:
         """On experiment completion, participants are returned to
@@ -1241,7 +1244,7 @@ class CLIRecruiter(Recruiter):
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " cli")
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
@@ -1875,7 +1878,9 @@ class MTurkRecruiter(Recruiter):
 
         - `Jesse Snyder <https://github.com/jessesnyder/>__` Feb 1 2022
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " mturk")
+        logger.info(
+            CLOSE_RECRUITMENT_LOG_PREFIX + " The MTurk HIT stays open until it expires."
+        )
 
     @property
     def is_sandbox(self):
@@ -2210,7 +2215,7 @@ class BotRecruiter(Recruiter):
 
         This does nothing at this time.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " bot")
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX)
 
     def notify_duration_exceeded(self, participants, reference_time):
         """The bot participant has been working longer than the time defined in

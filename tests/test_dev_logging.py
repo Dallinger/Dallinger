@@ -89,7 +89,7 @@ ROUTINE = [
 KEPT = [
     record("psynet", msg="Experiment launch complete!"),
     record("dallinger.recruiters", msg="New participant requested: http://x/ad"),
-    record("dallinger.recruiters", msg="Close recruitment."),
+    record("dallinger.recruiters", msg="Recruitment closed."),
     record("apscheduler.executors.default", level=logging.ERROR, msg="Job failed"),
     record("rq.worker", level=logging.WARNING, msg="Cold shut down."),
     record("werkzeug", level=logging.ERROR, msg="code 400, message Bad request"),
@@ -100,6 +100,17 @@ def test_routine_records_are_hidden_and_others_kept():
     lines = console_lines(ROUTINE + KEPT)
     assert len(lines) == len(KEPT)
     assert lines[0].endswith("Experiment launch complete!")
+
+
+def test_launch_recruitment_links_are_hidden_but_later_ones_kept():
+    import flask
+
+    new_recruit = record("dallinger.recruiters", msg="New participant requested: x")
+    app = flask.Flask(__name__)
+    with app.test_request_context("/launch"):
+        assert console_lines([new_recruit]) == []
+    with app.test_request_context("/worker_complete"):
+        assert len(console_lines([new_recruit])) == 1
 
 
 def test_full_mode_keeps_everything(monkeypatch):
