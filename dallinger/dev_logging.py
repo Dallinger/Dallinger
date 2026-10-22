@@ -22,10 +22,10 @@ launches (the start-up block's participant link replaces them), and most of
 APScheduler's warnings that a job run was skipped or missed because the
 previous run or the clock was late: none in the 30 seconds from the first
 one (the clock warming up), then at most one a minute, with a count of those
-hidden. A record logged with a topic (``extra={TOPIC: "name"}``) is hidden if
-its message is the same as the last one shown for that topic, so that, for
-example, "Recruitment closed." is shown once rather than once for every
-participant who finishes.
+hidden. A record logged with a topic (``extra={TOPIC: "name"}``, or a tuple
+of names) is hidden if its message is the same as the last one shown for
+that topic, so that, for example, "Recruitment closed." is shown once rather
+than once for every participant who finishes.
 ``logs.jsonl`` in the develop directory still receives every record.
 
 If a code change stops the experiment importing, the develop directory's
@@ -208,7 +208,7 @@ class ConsoleFilter(logging.Filter):
         if _is_launch_recruitment(record):
             return False
         topics = getattr(record, TOPIC, None)
-        if topics is not None and record.levelno < logging.WARNING:
+        if topics and record.levelno < logging.WARNING:
             topics = (topics,) if isinstance(topics, str) else tuple(topics)
             message = record.getMessage()
             if all(self._last_message_by_topic.get(t) == message for t in topics):
