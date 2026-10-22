@@ -18,7 +18,6 @@ from dallinger import dev_logging
 from dallinger.command_line.utils import (
     Output,
     get_experiment_files,
-    header,
     log,
     require_exp_directory,
 )
@@ -228,7 +227,6 @@ def _bootstrap(exp_config=None, experiment_files=None):
         exp_config,
         experiment_files=experiment_files,
     )
-    log(header, chevrons=False)
     try:
         bootstrapper.run()
     except DevelopDirectoryError as ex:
