@@ -569,6 +569,10 @@ class TestDevelopCommand:
                 "Recruitment hasn't started.",
                 [("Recruitment", "Recruitment hasn't started.")],
             ),
+            (
+                "Additional details:\nSingle recruitment link: http://x/ad?t=1",
+                [("Participant link", "http://x/ad?t=1")],
+            ),
             (None, []),
         ],
     )
@@ -576,6 +580,24 @@ class TestDevelopCommand:
         from dallinger.command_line.develop import launch_message_rows
 
         assert launch_message_rows(message) == rows
+
+    def test_echo_ready_shows_after_rows_below_the_full_log(
+        self, active_config, capsys
+    ):
+        from dallinger.command_line.develop import echo_ready
+
+        echo_ready([("Link", "http://x")], after=[("Other terminals", "export A=1")])
+        labels = [
+            line.split(":")[0].strip() for line in capsys.readouterr().out.splitlines()
+        ]
+        assert labels == [
+            "",
+            "Ready.",
+            "Link",
+            "Full log",
+            "Other terminals",
+            "Press Ctrl+C to stop.",
+        ]
 
     def test_debug_verbose_shows_full_server_output(self, develop):
         with (

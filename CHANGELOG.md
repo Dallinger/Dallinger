@@ -123,18 +123,13 @@
     Press Ctrl+C to stop.
     ```
 
-    Tools that replace the launch job can print the same block with
-    `dallinger.command_line.develop.echo_ready(details, after=())`, where
-    `details` (before the `Full log` line) and `after` are sequences of
-    `(label, value)` pairs; `launch_message_rows(recruitment_msg)` turns a
-    `/launch` recruitment message into such pairs. A recruiter without a
-    single recruitment link shows the only link of its initial recruitment
-    list as the participant link, and its additional details as
-    `Recruitment`, without either heading.
+    A recruiter without a single recruitment link shows the only link of its
+    initial recruitment list as the participant link, and its additional
+    details as `Recruitment`, without either heading.
   - `dallinger develop debug --verbose`, or `DALLINGER_DEV_LOG=full`, shows
     everything again, including werkzeug's line for every request.
 
-  Deployed experiments and `dallinger debug` are unchanged.
+  Deployed experiments and `dallinger debug` keep their own console output.
 - Plainer participant and recruitment messages, in the development console,
   `dallinger debug` and deployed logs:
   - `Received an RecruiterSubmissionComplete notification for assignment A1,
@@ -151,8 +146,6 @@
     that wait for `Close recruitment.`.
   - `dallinger debug --no-browsers` prints `New participant requested: <url>`
     with one colon instead of two, using the `--proxy` port if one is set.
-    The `recruitment_loop` test fixture matches this line where it starts a
-    line, instead of after `❯❯ `.
     Without `--no-browsers`, `new recruitment request!` becomes
     `Opening a browser for a new participant: <url>`.
 - A request, worker job or clock task that fails inside `db.sessions_scope()`
@@ -265,6 +258,12 @@
   first copy and dropped the jQuery plugins registered on it.
 - Added a Cursor `/release` command and release skill for cutting
   Dallinger releases to PyPI and ghcr.
+- Added `dallinger.command_line.develop.echo_ready(details, after=())` and
+  `launch_message_rows(recruitment_msg)`, so that tools that replace the
+  development server's launch job, such as PsyNet, can print the same
+  `Ready.` block: `details` (before the `Full log` line) and `after` are
+  sequences of `(label, value)` pairs, and `launch_message_rows()` turns a
+  `/launch` recruitment message into such pairs.
 - Added `--no-browsers` to `dallinger develop debug`, which skips opening the
   dashboard and participant pages in browsers. Their links are in the
   `Ready.` block either way.
