@@ -101,9 +101,11 @@ def debug(port, skip_flask, no_browsers=False):
         )
         raise click.Abort
 
-    _bootstrap(experiment_files=files)
-    if port is None:
-        port = get_config().get("base_port")
+    _bootstrap(
+        exp_config=None if port is None else {"base_port": port},
+        experiment_files=files,
+    )
+    port = get_config().get("base_port")
 
     q = Queue("default", connection=redis_conn)
     if no_browsers:

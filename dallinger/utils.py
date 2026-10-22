@@ -574,7 +574,7 @@ def bootstrap_development_session(
     except OSError as ex:
         raise DevelopDirectoryError(
             f'The dallinger_develop_directory setting "{destination_path}" '
-            f"can't be created or emptied: {ex.strerror or ex}."
+            f"can't be used: {ex.strerror or ex}."
         ) from ex
     collate_experiment_files(
         config,

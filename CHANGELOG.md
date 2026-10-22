@@ -409,15 +409,16 @@
 - `dallinger develop debug` now serves the experiment on the `base_port`
   setting and waits for that port when it launches the experiment. It used
   to run Flask on 5000 whatever `base_port` said and wait for 5000. `--port`
-  still overrides it and now also sets the Flask server's port
-  (`FLASK_RUN_PORT`). `dallinger develop browser` also defaults to
-  `base_port`.
+  still overrides it, and now also sets the Flask server's port
+  (`FLASK_RUN_PORT`) and the session's `base_port`. `dallinger develop
+  browser` also defaults to `base_port`.
 - `dallinger develop debug` and `dallinger develop bootstrap` now stop with
   one `Error:` line naming the `dallinger_develop_directory` setting, its
   path and the problem when that folder can't be used (a folder name that
-  isn't a Python identifier, or one that can't be created or emptied),
-  instead of a traceback. `develop_target_path()` raises the new
-  `DevelopDirectoryError`, a `ValueError` subclass.
+  isn't a Python identifier, a path that isn't a folder, or one that can't
+  be created), instead of a traceback. `develop_target_path()` and
+  `bootstrap_development_session()` raise the new `DevelopDirectoryError`,
+  a `ValueError` subclass.
 - A docker-ssh Cloudflare deploy that can't find the Cloudflare API token now
   stops before it connects to the server, builds the image there or removes
   the app's Redis and Postgres volumes. It fails with an `Error:` line that
