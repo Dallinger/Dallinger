@@ -459,6 +459,40 @@ class TestDevelopCommand:
         assert "is PRESENT" not in result.output
         assert "Experiment UID" not in result.output
 
+    def test_debug_serves_and_launches_on_base_port(self, active_config, develop):
+        active_config.extend({"base_port": 5123})
+        with (
+            mock.patch("dallinger.command_line.develop.Queue") as queue,
+            mock.patch("dallinger.command_line.develop._run_dev_server") as server,
+        ):
+            result = CliRunner().invoke(develop, ["debug", "--no-browsers"])
+
+        assert result.exit_code == 0, result.output
+        assert queue.return_value.enqueue_call.call_args.kwargs["kwargs"] == {
+            "port": 5123
+        }
+        assert server.call_args.kwargs["env"]["FLASK_RUN_PORT"] == "5123"
+
+    @pytest.mark.parametrize(
+        "name, problem",
+        [("not-an-identifier", "letters, numbers"), ("file/sub", "Not a directory")],
+    )
+    def test_debug_reports_unusable_develop_directory(
+        self, active_config, develop, tmp_path, name, problem
+    ):
+        (tmp_path / "file").touch()
+        directory = tmp_path / name
+        active_config.extend({"dallinger_develop_directory": str(directory)})
+
+        result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
+
+        assert result.exit_code == 1
+        assert f'Error: The dallinger_develop_directory setting "{directory}"' in (
+            result.output
+        )
+        assert problem in result.output
+        assert "Traceback" not in result.output
+
     def test_debug_no_browsers_logs_launch_details(self, active_config, develop):
         develop_module = sys.modules["dallinger.command_line.develop"]
         active_config.extend({"dashboard_user": "admin", "dashboard_password": "pw"})
