@@ -1565,8 +1565,9 @@ def _ssh_failure_message(exc, ssh_address, user, docker_over_ssh=False):
         # docker_host_uri), so ssh picks the user as it would for this command.
         docker_user = None if user and "@" in user else user
         return (
-            f"Couldn't reach Docker on {address} over SSH ({str(exc)[len(prefix) :]}; "
-            f"see any message from ssh above). {check(docker_user)}"
+            f"Couldn't reach Docker on {address} over SSH "
+            f"({_root_cause(exc, prefix)}; see any message from ssh above). "
+            f"{check(docker_user)}"
         )
     if not _raised_by_paramiko(exc):
         return None
@@ -1584,6 +1585,16 @@ def _ssh_failure_message(exc, ssh_address, user, docker_over_ssh=False):
         f"Couldn't connect to {address} over SSH: {reason}. Check the server's "
         f"address and that it is running, then try `{ssh_line(user)}`."
     )
+
+
+def _root_cause(exc, prefix=""):
+    """Describe the innermost error behind ``exc``, such as "Broken pipe"."""
+    root = exc
+    while (root.__cause__ or root.__context__) is not None:
+        root = root.__cause__ or root.__context__
+    if root is exc:
+        return str(exc).removeprefix(prefix)
+    return getattr(root, "strerror", None) or str(root)
 
 
 def _raised_by_paramiko(exc):
