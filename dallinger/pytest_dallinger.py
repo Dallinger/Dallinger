@@ -511,7 +511,7 @@ def recruitment_loop(request, debug_experiment):
                 [
                     # The debugger's own line; --verbose also shows the server's.
                     "❯❯ {} (.*&mode=debug)".format(NEW_RECRUIT_LOG_PREFIX),
-                    "{}".format(CLOSE_RECRUITMENT_LOG_PREFIX),
+                    re.escape(CLOSE_RECRUITMENT_LOG_PREFIX),
                 ],
                 timeout=timeout,
             )
