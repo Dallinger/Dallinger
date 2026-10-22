@@ -951,13 +951,15 @@ def test_first_ssh_login_failure_is_one_error_line(monkeypatch):
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
     denied = mock.Mock(side_effect=paramiko.AuthenticationException("denied"))
     monkeypatch.setattr(docker_ssh, "get_connected_ssh_client", denied)
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: "/keys/lab.pem")
 
     with pytest.raises(click.ClickException) as error:
         docker_ssh.ensure_remote_host_in_known_hosts("pc.example", "ab1@uni.example")
 
-    assert error.value.message.startswith(
+    assert error.value.message == (
         "Couldn't log in to pc.example over SSH as ab1@uni.example. Check that "
-        "`ssh -l ab1@uni.example pc.example` works"
+        "`ssh -i /keys/lab.pem -l ab1@uni.example pc.example` works without "
+        "asking for a password, with the key in the server_pem setting."
     )
 
 

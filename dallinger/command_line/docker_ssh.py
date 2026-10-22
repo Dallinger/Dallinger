@@ -1537,11 +1537,13 @@ def _ssh_failure_message(exc, ssh_address, user, docker_over_ssh=False):
     host, port = split_ssh_host_port(ssh_address)
     address = host if port == 22 else f"{host}:{port}"
 
-    def ssh_line(user):
-        port_part = "" if port == 22 else f"-p {port} "
+    def ssh_line(user, key=None):
+        options = (f"-i {quote(str(key))} " if key else "") + (
+            "" if port == 22 else f"-p {port} "
+        )
         if user and "@" in user:
-            return f"ssh {port_part}-l {user} {host}"
-        return f"ssh {port_part}{user}@{host}" if user else f"ssh {port_part}{host}"
+            return f"ssh {options}-l {user} {host}"
+        return f"ssh {options}{user}@{host}" if user else f"ssh {options}{host}"
 
     def check(user):
         return (
@@ -1552,9 +1554,15 @@ def _ssh_failure_message(exc, ssh_address, user, docker_over_ssh=False):
 
     prefix = "Error while fetching server API version: "
     if isinstance(exc, paramiko.AuthenticationException):
+        login = f"Couldn't log in to {address} over SSH as {user or getuser()}."
+        try:
+            key = get_server_pem_path()
+        except OSError:
+            return f"{login} {check(user)}"
+        # Dallinger's own SSH connections use only this key.
         return (
-            f"Couldn't log in to {address} over SSH as {user or getuser()}. "
-            f"{check(user)}"
+            f"{login} Check that `{ssh_line(user, key)}` works without asking for "
+            "a password, with the key in the server_pem setting."
         )
     if (
         docker_over_ssh
@@ -1609,7 +1617,9 @@ def _root_cause(exc, prefix=""):
         root = nested
     if root is exc:
         return str(exc).removeprefix(prefix)
-    return getattr(root, "strerror", None) or str(root)
+    if getattr(root, "strerror", None) and not getattr(root, "filename", None):
+        return root.strerror
+    return str(root)
 
 
 def _raised_by_paramiko(exc):

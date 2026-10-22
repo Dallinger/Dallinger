@@ -260,9 +260,9 @@
   `ensure_remote_host_in_known_hosts()` (which `psynet deploy ssh` calls
   first), stop with one `Error:` line instead of a traceback when they can't
   connect or log in to the server over SSH, for example "Error: Couldn't log
-  in to example.org over SSH as alice. Check that ``ssh alice@example.org``
-  works without asking for a password, using a key in ~/.ssh, your SSH agent
-  or the server_pem setting." The same applies to an unknown host name
+  in to example.org over SSH as alice. Check that ``ssh -i ~/.ssh/lab.pem
+  alice@example.org`` works without asking for a password, with the key in
+  the server_pem setting." The same applies to an unknown host name
   (including with `--dns-host nip.io`), a refused or timed-out connection,
   a port that doesn't answer like an SSH server, and Docker being
   unreachable over SSH during a remote build (the message names the
