@@ -256,23 +256,6 @@
   git's "fatal: not a git repository" error. Deploys no longer say that
   `constraints.txt` is up to date or was written manually;
   `dallinger constraints ensure` still does.
-- `dallinger docker-ssh deploy` and `sandbox`, and
-  `ensure_remote_host_in_known_hosts()` (which `psynet deploy ssh` calls
-  first), stop with one `Error:` line instead of a traceback when they can't
-  connect or log in to the server over SSH, for example "Error: Couldn't log
-  in to example.org over SSH as alice. Check that ``ssh -i ~/.ssh/lab.pem
-  alice@example.org`` works without asking for a password, with the key in
-  the server_pem setting." The same applies to an unknown host name
-  (including with `--dns-host nip.io`), a refused or timed-out connection,
-  a port that doesn't answer like an SSH server, and Docker being
-  unreachable over SSH during a remote build (the message names the
-  underlying error, such as "Broken pipe"). Other errors, including those after the connection is made,
-  are reported as before.
-- The image build and push of a docker-ssh deploy reach the server's Docker
-  through the `ssh` command, like the rest of the deploy and `docker build`.
-  They used Paramiko, which ignores parts of `~/.ssh/config` and could fail
-  to log in (`paramiko.ssh_exception.AuthenticationException:
-  Authentication failed.`) to a server that `ssh` reaches without problems.
 - docker-ssh deploys (classic and Cloudflare) also return the launch
   recruitment message as `recruitment_msg` in their result dict, or `None`
   if there isn't one (for example with `--update`), plus `image_name` and,
@@ -456,6 +439,23 @@
 
 ### Fixed
 
+- `dallinger docker-ssh deploy` and `sandbox`, and
+  `ensure_remote_host_in_known_hosts()` (which `psynet deploy ssh` calls
+  first), stop with one `Error:` line instead of a traceback when they can't
+  connect or log in to the server over SSH, for example "Error: Couldn't log
+  in to example.org over SSH as alice. Check that ``ssh -i ~/.ssh/lab.pem
+  alice@example.org`` works without asking for a password, with the key in
+  the server_pem setting." The same applies to an unknown host name
+  (including with `--dns-host nip.io`), a refused or timed-out connection,
+  a port that doesn't answer like an SSH server, and Docker being
+  unreachable over SSH during a remote build (the message names the
+  underlying error, such as "Broken pipe"). Other errors, including those
+  after the connection is made, are reported as before.
+- The image build and push of a docker-ssh deploy reach the server's Docker
+  through the `ssh` command, like the rest of the deploy and `docker build`.
+  They used Paramiko, which ignores parts of `~/.ssh/config` and could fail
+  to log in (`paramiko.ssh_exception.AuthenticationException:
+  Authentication failed.`) to a server that `ssh` reaches without problems.
 - A participant who signs up through `POST /participant`, as the page's
   `dallinger.createParticipant()` does, keeps the recruiter named in their
   ad URL. They had been given the configured recruiter, and with

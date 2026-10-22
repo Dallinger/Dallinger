@@ -485,10 +485,11 @@ def test_custom_dockerfile_reinstalls_a_staged_local_wheel_without_base_image(
     client = mock.Mock()
     client.api.inspect_image.side_effect = docker.errors.ImageNotFound("missing")
     with (
-        mock.patch("docker.client.from_env", return_value=client),
+        mock.patch("docker.client.from_env", return_value=client) as from_env,
         mock.patch.object(tools, "check_output") as check_output,
     ):
         tools.build_image(tmp_path, "exp", mock.Mock(), image_tag="t")
+    from_env.assert_called_once_with(use_ssh_client=True)
     assert "Could not determine Dallinger version" not in capsys.readouterr().out
     build_args = check_output.call_args.args[0]
     assert f"{tools.RUNS_AS_SSH_USER_LABEL}=1" in build_args
@@ -877,6 +878,12 @@ def _docker_connection_error():
         return exc
 
 
+def _unknown_host(**kwargs):
+    import paramiko
+
+    paramiko.SSHClient().connect("no-such-server.invalid", timeout=5)
+
+
 def _refused_connection(**kwargs):
     import socket
 
@@ -893,8 +900,14 @@ def _refused_connection(**kwargs):
     [
         (
             "auth",
-            "Error: Couldn't log in to host.example:2200 over SSH as alice. "
-            "Check that `ssh -p 2200 alice@host.example` works without asking",
+            "Error: Couldn't log in to host.example:2200 over SSH as alice. Check "
+            "that `ssh -i /keys/lab.pem -p 2200 alice@host.example` works without "
+            "asking for a password, with the key in the server_pem setting.",
+        ),
+        (
+            "unknown",
+            "Error: Couldn't connect to host.example:2200 over SSH: can't find a "
+            "host called host.example.",
         ),
         (
             "docker",
@@ -919,9 +932,11 @@ def test_deploy_reports_ssh_failures_in_one_line(monkeypatch, error, expected):
         "auth": paramiko.AuthenticationException("Authentication failed."),
         "docker": _docker_connection_error(),
         "refused": _refused_connection,
+        "unknown": _unknown_host,
         "other": paramiko.SSHException("Channel closed."),
     }
     failures["local-docker"] = failures["docker"]
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: "/keys/lab.pem")
     args = ["--local_build"] if error == "local-docker" else []
     server = {"host": "host.example:2200", "user": "alice"}
     monkeypatch.setattr(docker_ssh, "CONFIGURED_HOSTS", {"host.example:2200": server})
