@@ -119,7 +119,8 @@
     HIT stays open, since those recruiters don't close it. Update scripts
     that wait for `Close recruitment.`.
   - `dallinger debug --no-browsers` prints `New participant requested: <url>`
-    with one colon instead of two, using the `--proxy` port if one is set.
+    with one colon instead of two, using the `--proxy` port if one is set,
+    and no longer repeats the links of the "Initial recruitment list".
     Without `--no-browsers`, `new recruitment request!` becomes
     `Opening a browser for a new participant: <url>`.
 - A request, worker job or clock task that fails inside `db.sessions_scope()`

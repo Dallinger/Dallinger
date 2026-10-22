@@ -609,6 +609,7 @@ class DebugDeployment(HerokuLocalDeployment):
         self.status_thread = None
         self._stop_status_checks = threading.Event()
         self.no_browsers = no_browsers
+        self.recruitment_msg = ""
         self.experiment_files = experiment_files
         if os.environ.get("FLASK_SECRET_KEY"):
             self.out.log("Using FLASK_SECRET_KEY from the environment.")
@@ -642,7 +643,8 @@ class DebugDeployment(HerokuLocalDeployment):
             heroku.monitor(listener=self.notify)
         else:
             if result["status"] == "success":
-                self.out.log(result["recruitment_msg"])
+                self.recruitment_msg = result["recruitment_msg"]
+                self.out.log(self.recruitment_msg)
                 dashboard_url = self.with_proxy_port("{}/dashboard/".format(base_url))
                 self.display_dashboard_access_details(dashboard_url)
                 if not self.no_browsers:
@@ -673,7 +675,9 @@ class DebugDeployment(HerokuLocalDeployment):
         """
         url = self.with_proxy_port(match.group(1))
         if self.no_browsers:
-            self.out.log(f"{recruiters.NEW_RECRUIT_LOG_PREFIX} {url}")
+            # The launch message already listed the first participants' links.
+            if match.group(1) not in self.recruitment_msg:
+                self.out.log(f"{recruiters.NEW_RECRUIT_LOG_PREFIX} {url}")
             return
         self.out.log(f"Opening a browser for a new participant: {url}")
         open_browser(url)
