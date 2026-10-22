@@ -52,8 +52,9 @@
 - Command-line messages printed through `dallinger.command_line.utils.log()`
   and `error()` (by every Dallinger command, including Heroku and Docker
   deployments) are now plain lines: the blank line and `❯❯ ` that started
-  each message are gone. The `chevrons` argument is still accepted but has
-  no effect. Update any scripts that match `❯❯ ` in Dallinger's output.
+  each message printed with the default `chevrons=True` are gone. The
+  `chevrons` argument is still accepted but has no effect. Update any
+  scripts that match `❯❯ ` in Dallinger's output.
 - The worker's "Worker will exit if it hasn't registered with RQ within …"
   start-up notice is now logged at DEBUG instead of WARNING, so it only
   appears with `loglevel_worker = 0`. The message printed when the worker
