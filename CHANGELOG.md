@@ -40,7 +40,7 @@
   - The Procfile processes run with `PYTHONUNBUFFERED=1`.
 - Quieter `dallinger develop debug` (used by `psynet debug local`) output:
   - When every experiment file check passes, one line such as
-    `✓ Experiment files OK (config.txt, experiment.py; 0 MB)` replaces the
+    `Experiment files OK (config.txt, experiment.py; 0 MB).` replaces the
     four `✓` lines. If a check fails or warns, every check's line is printed
     as before. `verify_package()` has a new `summary` argument for this.
   - The development server no longer writes ANSI colour codes into its log
@@ -49,6 +49,11 @@
   - The `❯❯ Experiment UID: …` line (also printed by
     `dallinger develop bootstrap`) is no longer printed. The ID is still
     written to the develop directory's `config.txt` (`id`).
+- Command-line messages printed through `dallinger.command_line.utils.log()`
+  and `error()` (by every Dallinger command, including Heroku and Docker
+  deployments) are now plain lines: the blank line and `❯❯ ` that started
+  each message are gone. The `chevrons` argument is still accepted but has
+  no effect. Update any scripts that match `❯❯ ` in Dallinger's output.
 - The worker's "Worker will exit if it hasn't registered with RQ within …"
   start-up notice is now logged at DEBUG instead of WARNING, so it only
   appears with `loglevel_worker = 0`. The message printed when the worker
