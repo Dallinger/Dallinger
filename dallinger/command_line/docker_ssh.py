@@ -14,7 +14,7 @@ import sys
 import threading
 import warnings
 import zipfile
-from contextlib import contextmanager, redirect_stdout
+from contextlib import ExitStack, contextmanager, redirect_stdout
 from dataclasses import dataclass
 from functools import wraps
 from getpass import getuser
@@ -905,6 +905,20 @@ def _is_ip_address(host):
     return True
 
 
+def _short_name(host):
+    """Return the label before the first dot of ``host``, ignoring any port.
+
+    Returns None for IP addresses and malformed hosts.
+    """
+    if _is_ip_address(host):
+        return None
+    try:
+        hostname = split_ssh_host_port(host)[0]
+    except click.UsageError:
+        return None
+    return hostname.split(".", 1)[0]
+
+
 def resolve_server_name(name, hosts):
     """Return the configured server that ``name`` refers to.
 
@@ -912,7 +926,8 @@ def resolve_server_name(name, hosts):
     ----------
     name : str
         A full configured server name, or its short hostname (the part before
-        the first dot), e.g. ``rr-pc02`` for ``rr-pc02.example.ac.uk``.
+        the first dot, without any port), e.g. ``rr-pc02`` for
+        ``rr-pc02.example.ac.uk`` or ``pc04`` for ``pc04:2200``.
         Servers registered by IP address only match their full address.
     hosts : iterable of str
         Configured server names.
@@ -931,11 +946,7 @@ def resolve_server_name(name, hosts):
     hosts = tuple(hosts)
     if name in hosts:
         return name
-    matches = [
-        host
-        for host in hosts
-        if host.split(".", 1)[0] == name and not _is_ip_address(host)
-    ]
+    matches = [host for host in hosts if _short_name(host) == name]
     if len(matches) == 1:
         return matches[0]
     if matches:
@@ -1334,8 +1345,7 @@ def _check_classic_ingress_reachable(server, ingress=None):
         server_info.get("host", server), server_info.get("user")
     )
     if advice:
-        print(f"{RED}Error: {advice}{END}")
-        raise click.Abort()
+        raise click.ClickException(advice)
 
 
 def _classic_hostname(server_info, app_name, archive_path, dns_host):
@@ -1710,12 +1720,116 @@ def _install_tunnel_token(executor, sftp, app, connector_token, tunnel_id):
     executor.run(f"chmod 600 ~/dallinger/{app}/secrets/cloudflare-tunnel-token")
 
 
+_CLOUDFLARE_TOKEN_KEYS = ("cloudflare_api_token", "cloudflare_keychain_service")
+
+
 def _abort_cloudflare(exc):
-    print(f"{RED}Cloudflare error:{END} {exc}")
-    raise click.Abort()
+    raise click.ClickException(f"Cloudflare error: {exc}") from exc
+
+
+def check_deploy_credentials(server=None, ingress=None, config_options=None):
+    """Check that a docker-ssh deploy can load the credentials it needs.
+
+    ``docker-ssh deploy`` and ``sandbox`` load the token themselves before
+    they contact the server. Tools that wrap them can call this earlier,
+    before their own preparation, so a missing Cloudflare API token stops the
+    deploy before anything changes. The server and ingress are resolved as
+    the deploy resolves them, and the token is only loaded for Cloudflare
+    ingress.
+
+    Parameters
+    ----------
+    server : str, optional
+        Configured server name, or its short hostname, as for ``--server``.
+        If omitted and exactly one server is configured, that server is used.
+        If omitted and several are configured, the token is only checked for
+        an explicit Cloudflare ``ingress``, because the deploy has not chosen
+        a server whose default ingress applies yet.
+    ingress : str, optional
+        ``"classic"`` or ``"cloudflare"``, as for ``--ingress``. Defaults to
+        the server's ``default_ingress``.
+    config_options : mapping or iterable of (key, value) pairs, optional
+        The deploy's ``-c`` options. Only ``cloudflare_api_token`` and
+        ``cloudflare_keychain_service`` (and their synonyms) are applied, and
+        only while the token is loaded.
+
+    Returns
+    -------
+    str or None
+        The Cloudflare API token, or ``None`` if the deploy uses classic
+        ingress or its ingress is not known yet.
+
+    Raises
+    ------
+    click.UsageError
+        If ``server`` is not a configured server, no server is configured,
+        or ``ingress`` is unknown.
+    click.ClickException
+        If the deploy uses Cloudflare ingress and the token can't be loaded,
+        or a ``file:`` token option can't be read.
+    """
+    hosts = tuple(CONFIGURED_HOSTS)
+    if server is None and not hosts:
+        raise click.UsageError(
+            "No server configured. Use `dallinger docker-ssh servers add` to add one."
+        )
+    if server is None and len(hosts) > 1:
+        # Without a server, only an explicit --ingress tells which ingress is used.
+        server_info = {}
+        if not ingress:
+            return None
+    else:
+        try:
+            server_info = _resolve_server_info(hosts[0] if server is None else server)
+        except ValueError as exc:
+            raise click.UsageError(str(exc)) from exc
+    if _resolve_ingress(server_info, ingress) != INGRESS_CLOUDFLARE:
+        return None
+    config = get_config(load=True)
+    token_options = {}
+    for key, value in dict(config_options or ()).items():
+        # Not canonical_key(): it warns about deprecated names, and the deploy
+        # applies the same options again later.
+        key = config.synonyms.get(key, key)
+        if key in _CLOUDFLARE_TOKEN_KEYS:
+            token_options[key] = value
+    with ExitStack() as stack:
+        try:
+            stack.enter_context(config.override(token_options, cast_types=True))
+        except OSError as exc:
+            raise click.ClickException(
+                f"Could not read {exc.filename}: {exc.strerror}"
+            ) from exc
+        try:
+            return load_api_token(config)
+        except CloudflareError as exc:
+            _abort_cloudflare(exc)
+
+
+def _apply_config_options(config, config_options):
+    """Apply ``-c`` options to ``config``, expanding ``file:`` values.
+
+    Returns the options keyed by their canonical config names.
+    """
+    config_options = {
+        config.canonical_key(key): value
+        for key, value in dict(config_options or ()).items()
+    }
+    try:
+        config.extend(config_options, cast_types=True)
+    except OSError as exc:
+        raise click.ClickException(
+            f"Could not read {exc.filename}: {exc.strerror}"
+        ) from exc
+    return config_options
 
 
 def ensure_root_domain_ready(server, update):
+    """Make sure no other host-Caddy experiment holds the server's root domain.
+
+    In a terminal, offers to destroy the experiments that do. Without one,
+    refuses with the destroy commands to run first.
+    """
     if update:
         return True
 
@@ -1726,13 +1840,20 @@ def ensure_root_domain_ready(server, update):
         return True
 
     joined = ", ".join(conflicts)
-    print(
-        f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
-        f"{RED}Found deployed experiments:{END} {joined}"
-    )
     destroy_cmds = "\n".join(
         f"  dallinger docker-ssh destroy --app {name} --server {server}"
         for name in conflicts
+    )
+    if not sys.stdin.isatty():
+        raise click.ClickException(
+            f"Deploying to the root domain of {server} requires destroying its "
+            f"classic-ingress experiments first: {joined}. Without a terminal they "
+            "can't be destroyed automatically. Destroy them, then deploy again:\n"
+            f"{destroy_cmds}"
+        )
+    print(
+        f"{RED}Root domain deployments require terminating existing experiments.{END}\n"
+        f"{RED}Found deployed experiments:{END} {joined}"
     )
     print(
         f"{RED}Please destroy those experiments before deploying to the root domain.{END}\n"
@@ -1753,10 +1874,9 @@ def ensure_root_domain_ready(server, update):
     executor = _executor_for_server(server)
     remaining = _host_caddy_apps(executor)
     if remaining:
-        print(
-            f"{RED}Some experiments are still present: {', '.join(remaining)}. Aborting.{END}"
+        raise click.ClickException(
+            f"Some experiments are still present: {', '.join(remaining)}."
         )
-        raise click.Abort()
 
     return True
 
@@ -2149,10 +2269,7 @@ def _deploy_in_mode(
     if not allow_private_ip and not update:
         _check_classic_ingress_reachable(server, ingress)
     config = get_config(load=True)
-    config_options = {
-        config.canonical_key(key): value for key, value in dict(config_options).items()
-    }
-    config.extend(config_options, cast_types=True)
+    config_options = _apply_config_options(config, config_options)
 
     run_pre_launch_checks(**locals())
 

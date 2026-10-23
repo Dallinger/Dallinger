@@ -35,6 +35,28 @@ class TestReplayState:
         ) as scrubber:
             yield scrubber
 
+    def test_missing_export_releases_the_import_engine(self, experiment, db_session):
+        import dallinger.experiment
+
+        engines = []
+        create_db_engine = dallinger.experiment.create_db_engine
+
+        def create(*args, **kwargs):
+            engines.append(create_db_engine(*args, **kwargs))
+            return engines[-1]
+
+        with mock.patch.object(dallinger.experiment, "create_db_engine", create):
+            with mock.patch.object(
+                dallinger.experiment, "find_experiment_export", return_value=None
+            ):
+                with pytest.raises(IOError, match="could not be found"):
+                    with experiment.restore_state_from_replay(
+                        "missing-test", session=db_session
+                    ):
+                        pass
+        assert engines
+        assert all(engine.pool.checkedin() == 0 for engine in engines)
+
     def test_scrub_forwards(self, scrubber):
         target = datetime(2017, 6, 23, 12, 0, 29, 941148)
         with mock.patch(

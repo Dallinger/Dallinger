@@ -2082,55 +2082,65 @@ class Experiment:
         # into the main database
         specific_db_url = db_url + "-import-" + app_id
         import_engine = create_db_engine(specific_db_url)
+        self.import_session = None
         try:
-            # Clear the temporary storage and import it
-            init_db(drop_all=True, bind=import_engine)
-        except Exception:
-            import_engine.dispose()
-            admin_engine = create_db_engine(db_url)
             try:
-                conn = admin_engine.connect()
-                conn.execute("COMMIT;")
-                conn.execute(
-                    'CREATE DATABASE "{}"'.format(specific_db_url.rsplit("/", 1)[1])
-                )
-                conn.close()
-            finally:
-                admin_engine.dispose()
-            import_engine = create_db_engine(specific_db_url)
-            init_db(drop_all=True, bind=import_engine)
+                # Clear the temporary storage and import it
+                init_db(drop_all=True, bind=import_engine)
+            except Exception:
+                import_engine.dispose()
+                admin_engine = create_db_engine(db_url)
+                try:
+                    conn = admin_engine.connect()
+                    conn.execute("COMMIT;")
+                    conn.execute(
+                        'CREATE DATABASE "{}"'.format(specific_db_url.rsplit("/", 1)[1])
+                    )
+                    conn.close()
+                finally:
+                    admin_engine.dispose()
+                import_engine = create_db_engine(specific_db_url)
+                init_db(drop_all=True, bind=import_engine)
 
-        self.import_session = scoped_session(
-            sessionmaker(autocommit=False, autoflush=True, bind=import_engine)
-        )
-
-        # Find the real data for this experiment
-        if zip_path is None:
-            zip_path = find_experiment_export(app_id)
-        if zip_path is None:
-            msg = 'Dataset export for app id "{}" could not be found.'
-            raise IOError(msg.format(app_id))
-
-        print("Ingesting dataset from {}...".format(os.path.basename(zip_path)))
-        ingest_zip(zip_path, engine=import_engine)
-        self._replay_range = tuple(
-            self.import_session.query(
-                func.min(Info.creation_time), func.max(Info.creation_time)
+            self.import_session = scoped_session(
+                sessionmaker(autocommit=False, autoflush=True, bind=import_engine)
             )
-        )[0]
-        # We apply the configuration options we were given and yield
-        # the scrubber function into the context manager, so within the
-        # with experiment.restore_state_from_replay(...): block the configuration
-        # options are correctly set
-        with config.override(configuration_options, strict=True):
-            self.replay_start()
-            yield Scrubber(self, session=self.import_session)
-            self.replay_finish()
+
+            # Find the real data for this experiment
+            if zip_path is None:
+                zip_path = find_experiment_export(app_id)
+            if zip_path is None:
+                msg = 'Dataset export for app id "{}" could not be found.'
+                raise IOError(msg.format(app_id))
+
+            print("Ingesting dataset from {}...".format(os.path.basename(zip_path)))
+            ingest_zip(zip_path, engine=import_engine)
+            self._replay_range = tuple(
+                self.import_session.query(
+                    func.min(Info.creation_time), func.max(Info.creation_time)
+                )
+            )[0]
+            # We apply the configuration options we were given and yield
+            # the scrubber function into the context manager, so within the
+            # with experiment.restore_state_from_replay(...): block the configuration
+            # options are correctly set
+            with config.override(configuration_options, strict=True):
+                self.replay_start()
+                yield Scrubber(self, session=self.import_session)
+                self.replay_finish()
+        finally:
+            try:
+                if self.import_session is not None:
+                    self.import_session.rollback()
+                    self.import_session.close()
+            except Exception:
+                logger.warning(
+                    "Could not close the replay import session", exc_info=True
+                )
+            finally:
+                import_engine.dispose()
 
         # Clear up global state
-        self.import_session.rollback()
-        self.import_session.close()
-        import_engine.dispose()
         db.session.rollback()
         db.session.close()
         config._reset(register_defaults=True)
