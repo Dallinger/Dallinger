@@ -230,6 +230,15 @@
   after these checks. Because ``-c`` values are applied before the build,
   ``-c docker_image_name`` now chooses the image to reuse.
   ([#9846](https://github.com/Dallinger/Dallinger/issues/9846))
+- Dependency lockfiles are compiled for the latest patch of the oldest
+  supported Python, currently 3.11.17. This refresh includes ``soupsieve`` 3.0.3
+  and bumps the ruff pre-commit hook to v0.17.1.
+- The chatroom and chatroom_ws constraints lock NLTK 3.10.3 instead of 3.6.3.
+  Their requirements name ``nltk`` with no version.
+- ``scripts/update_experiments_constraints.py`` now refreshes dependencies that
+  are not pinned by Dallinger's dev requirements, such as NLTK in the chatroom
+  demos, to the newest version their requirements allow. Dallinger's own pins
+  stay in place.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
@@ -396,6 +405,12 @@
   experiment URL to become reachable" progress bar, which the local server's
   own log lines were written onto. They print that message as one plain line
   instead, and only if the first launch attempt fails. Deploys keep the bar.
+- A participant who signs up through `POST /participant`, as the page's
+  `dallinger.createParticipant()` does, keeps the recruiter named in their
+  ad URL. They had been given the configured recruiter, and with
+  `recruiter = multi` their questionnaire submission failed with
+  `NotImplementedError` from `MultiRecruiter.on_task_completion`.
+
 - A docker-ssh Cloudflare deploy that can't find the Cloudflare API token now
   stops before it connects to the server, builds the image there or removes
   the app's Redis and Postgres volumes. It fails with an `Error:` line that
