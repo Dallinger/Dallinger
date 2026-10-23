@@ -2386,6 +2386,11 @@ def load():
     except ImportError:
         logger.error("Could not import experiment.")
         raise
+    except SyntaxError as e:
+        # Develop directories symlink to the author's files; report the real path.
+        if e.filename and not e.filename.startswith("<"):
+            e.filename = os.path.realpath(e.filename)
+        raise
 
 
 def module_is_initialized(module):

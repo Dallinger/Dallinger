@@ -47,6 +47,21 @@ class TestModuleFunctions:
         r = mod.from_config(stub_config)
         assert isinstance(r, mod.HotAirRecruiter)
 
+    def test_class_from_config_returns_the_class_without_instantiating(
+        self, mod, stub_config
+    ):
+        stub_config.extend({"recruiter": "bots"})
+        assert mod.class_from_config(stub_config) is mod.BotRecruiter
+
+    def test_debug_mode_does_not_construct_the_replaced_recruiter(
+        self, mod, stub_config
+    ):
+        stub_config.extend({"recruiter": "mturk"})
+        with mock.patch.object(
+            mod.MTurkRecruiter, "__init__", side_effect=AssertionError("built")
+        ):
+            assert isinstance(mod.from_config(stub_config), mod.HotAirRecruiter)
+
     def test_recruiter_config_value_used_if_not_debug(self, mod, stub_config):
         stub_config.extend({"mode": "sandbox", "recruiter": "CLIRecruiter"})
         r = mod.from_config(stub_config)
@@ -178,6 +193,7 @@ class TestCLIRecruiter:
 
     def test_open_recruitment_describes_how_it_works(self, recruiter):
         result = recruiter.open_recruitment()
+        assert result["message"].startswith("Single recruitment link: http")
         assert 'Search for "New participant requested:"' in result["message"]
 
     def test_open_recruitment_multiple(self, recruiter):
@@ -242,9 +258,10 @@ class TestHotAirRecruiter:
         result = recruiter.open_recruitment()
         assert len(result["items"]) == 1
 
-    def test_open_recruitment_describes_how_it_works(self, recruiter):
-        result = recruiter.open_recruitment()
-        assert "requests will open browser windows" in result["message"]
+    def test_open_recruitment_gives_the_recruitment_link(self, recruiter):
+        message = recruiter.open_recruitment()["message"]
+        assert message.startswith("Single recruitment link: http")
+        assert message.endswith("/ad?recruiter=hotair&generate_tokens=1&mode=debug")
 
     def test_open_recruitment_multiple(self, recruiter):
         result = recruiter.open_recruitment(n=3)

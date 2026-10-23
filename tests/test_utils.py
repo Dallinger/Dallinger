@@ -3,6 +3,7 @@ import locale
 import os
 import socket
 import tempfile
+import warnings
 from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -137,6 +138,53 @@ class TestShowDeprecationWarningsOnce:
         utils.show_warnings_once(warning, category, filename, lineno)
         redis_conn.exists.assert_called_once_with(warning)
         redis_conn.set.assert_called_once_with(warning, "Logged")
+
+
+@pytest.mark.parametrize(
+    "warnoptions, expected",
+    [([], [UserWarning]), (["default"], [ResourceWarning, UserWarning])],
+)
+def test_setup_warning_hooks_hides_resource_warnings_unless_opted_in(
+    monkeypatch, warnoptions, expected
+):
+    monkeypatch.setattr("sys.warnoptions", warnoptions)
+    with warnings.catch_warnings():
+        utils.setup_warning_hooks()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.warn("unclosed socket", ResourceWarning)
+            warnings.warn("visible", UserWarning)
+
+    assert [w.category for w in caught] == expected
+
+
+@pytest.mark.parametrize(
+    "warnoptions, expected",
+    [
+        ([], ["dallinger.models", "dallinger_experiment", "psynet.page"]),
+        (
+            ["default"],
+            ["flask_login", "dallinger.models", "dallinger_experiment", "psynet.page"],
+        ),
+    ],
+)
+def test_setup_warning_hooks_shows_only_our_deprecation_warnings(
+    monkeypatch, warnoptions, expected
+):
+    monkeypatch.setattr("sys.warnoptions", warnoptions)
+    with warnings.catch_warnings():
+        utils.setup_warning_hooks()
+        with warnings.catch_warnings(record=True) as caught:
+            for module in (
+                "flask_login",
+                "dallinger.models",
+                "dallinger_experiment",
+                "psynet.page",
+            ):
+                warnings.warn_explicit(
+                    f"old in {module}", DeprecationWarning, "f.py", 1, module=module
+                )
+
+    assert [str(w.message) for w in caught] == [f"old in {m}" for m in expected]
 
 
 @pytest.mark.usefixtures("in_tempdir")

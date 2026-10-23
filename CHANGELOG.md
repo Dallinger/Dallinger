@@ -221,6 +221,23 @@
 
 ### Changed
 
+- The HotAir recruiter's launch message is now just the single recruitment
+  link, and the CLI and HotAir messages no longer start with a blank line.
+  `dallinger debug` says that new participants will open in browser windows
+  only when browsers are enabled and the recruiter opens them, rather than
+  claiming so with `--no-browsers`, `--bot`, other recruiters, or in
+  `dallinger develop debug`, which never opens them. Recruiters declare this
+  with the new `opens_participant_browsers` class attribute (True for the CLI
+  and HotAir recruiters), and `recruiters.config_opens_participant_browsers()`
+  applies it to the configured recruiter; a MultiRecruiter counts if any
+  recruiter in its spec does. The new `recruiters.class_from_config()`
+  returns the recruiter class that `from_config()` would build, without
+  constructing it. As a result, `from_config()` no longer constructs a
+  configured recruiter that debug mode replaces. For example, `recruiter =
+  mturk` in debug mode no longer builds an MTurk service or raises its
+  constructor errors, and `recruiter = prolific` builds only the debug
+  Prolific recruiter.
+
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
   config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
   Cloudflare settings and API token, and whether the app name is already
@@ -400,6 +417,17 @@
 
 ### Fixed
 
+- A syntax error in `experiment.py` now names the author's file instead of
+  its symlink in the temporary develop directory.
+- Pressing Ctrl+C while a Dallinger server starts no longer prints a flood of
+  `ResourceWarning` messages; they stay hidden, as in Python's default
+  warning filters.
+- Dallinger commands and servers no longer print other packages'
+  `DeprecationWarning`s (for example Flask-Login's `datetime.utcnow()`
+  warning, or Python's warning about `fork()` in a process with threads when
+  another package forks). Those triggered by code in Dallinger, PsyNet or the
+  experiment are still shown. Python's `-W` option or `PYTHONWARNINGS`
+  overrides this, as for `ResourceWarning`.
 - A participant who signs up through `POST /participant`, as the page's
   `dallinger.createParticipant()` does, keeps the recruiter named in their
   ad URL. They had been given the configured recruiter, and with

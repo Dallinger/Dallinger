@@ -75,9 +75,27 @@ def show_warnings_once(warning, category, filename, lineno, file=None, line=None
     print(formatwarning(warning, category, filename, lineno, line))
 
 
+# Other packages' deprecation warnings are for their maintainers.
+_DEPRECATION_WARNING_MODULES = r"(dallinger|dallinger_experiment|psynet)(\.|$)"
+
+
 def setup_warning_hooks():
+    """Show each warning once, leaving out those meant for other packages' maintainers.
+
+    Unless Python's ``-W`` option or ``PYTHONWARNINGS`` sets the warning
+    filters, ``ResourceWarning`` is hidden, as Python hides it by default,
+    and a ``DeprecationWarning`` is shown only if code in Dallinger, PsyNet
+    or the experiment triggered it.
+    """
     warnings.showwarning = show_warnings_once
     warnings.simplefilter("default", Warning)
+    if not sys.warnoptions:
+        # Interrupted startup emits many ResourceWarnings.
+        warnings.simplefilter("ignore", ResourceWarning)
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        warnings.filterwarnings(
+            "default", category=DeprecationWarning, module=_DEPRECATION_WARNING_MODULES
+        )
     warnings.simplefilter("ignore", category=sa_exc.SAWarning)
 
 

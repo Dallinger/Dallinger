@@ -1,4 +1,5 @@
 import json
+import os
 import warnings
 from datetime import datetime
 from unittest import mock
@@ -528,3 +529,22 @@ class TestRouteRegistration:
             "func_name": "fake_route",
             "name": "fake_route",
         }
+
+
+def test_load_reports_syntax_errors_at_the_real_experiment_path(tmp_path, monkeypatch):
+    from dallinger.experiment import load
+
+    author_dir = tmp_path / "author"
+    author_dir.mkdir()
+    (author_dir / "experiment.py").write_text("def broken(:\n")
+    # The TEST_EXPERIMENT_UID prefix lets reset_sys_modules unload this package.
+    develop_dir = tmp_path / "TEST_EXPERIMENT_UID_develop"
+    develop_dir.mkdir()
+    (develop_dir / "__init__.py").touch()
+    (develop_dir / "experiment.py").symlink_to(author_dir / "experiment.py")
+    monkeypatch.chdir(develop_dir)
+
+    with pytest.raises(SyntaxError) as excinfo:
+        load()
+
+    assert excinfo.value.filename == os.path.realpath(author_dir / "experiment.py")

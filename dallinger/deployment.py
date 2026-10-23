@@ -641,6 +641,14 @@ class DebugDeployment(HerokuLocalDeployment):
         else:
             if result["status"] == "success":
                 self.out.log(result["recruitment_msg"])
+                if (
+                    not self.no_browsers
+                    and recruiters.config_opens_participant_browsers(get_config())
+                ):
+                    self.out.log(
+                        "New participants requested by the experiment will open "
+                        "in browser windows automatically."
+                    )
                 dashboard_url = self.with_proxy_port("{}/dashboard/".format(base_url))
                 self.display_dashboard_access_details(dashboard_url)
                 if not self.no_browsers:

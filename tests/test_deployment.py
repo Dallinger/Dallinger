@@ -1,4 +1,5 @@
 import configparser
+import gc
 import os
 import re
 import shutil
@@ -2177,6 +2178,52 @@ class TestDebugServer:
                 mock.call("msg!"),
             ]
         )
+
+
+@pytest.fixture
+def quiet_cli_recruiter(active_config):
+    """Register a CLIRecruiter subclass that opens no browsers, for one test."""
+
+    class QuietCLIRecruiter(recruiters.CLIRecruiter):
+        nickname = "quietcli"
+        opens_participant_browsers = False
+
+        def recruit(self, n=1):
+            return []
+
+    assert isinstance(recruiters.by_name("quietcli"), QuietCLIRecruiter)
+    yield
+    del QuietCLIRecruiter
+    gc.collect()
+
+
+@pytest.mark.usefixtures("quiet_cli_recruiter")
+@pytest.mark.parametrize(
+    "recruiter_config, no_browsers, mentions_browsers",
+    [
+        ({"recruiter": "hotair"}, False, True),
+        ({"recruiter": "hotair"}, True, False),
+        ({"recruiter": "bots"}, False, False),
+        ({"debug_recruiter": "quietcli"}, False, False),
+        ({"recruiter": "multi", "recruiters": "bots: 1, hotair: 1"}, False, True),
+    ],
+)
+def test_debug_launch_mentions_browser_windows_only_if_they_will_open(
+    active_config, output, recruiter_config, no_browsers, mentions_browsers
+):
+    from dallinger.deployment import DebugDeployment
+
+    active_config.extend({"mode": "debug", **recruiter_config})
+    debugger = DebugDeployment(output, False, False, None, {}, no_browsers=no_browsers)
+    debugger.display_dashboard_access_details = mock.Mock()
+    debugger.async_open_dashboard = mock.Mock()
+    launch = {"status": "success", "recruitment_msg": "Recruitment is open"}
+    with mock.patch("dallinger.deployment.handle_launch_data", return_value=launch):
+        debugger.execute(mock.Mock())
+
+    logged = [c.args[0] for c in debugger.out.log.call_args_list]
+    assert "Recruitment is open" in logged
+    assert any("open in browser windows" in m for m in logged) == mentions_browsers
 
 
 if os.environ.get("CI"):
