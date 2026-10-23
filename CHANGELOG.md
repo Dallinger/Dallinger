@@ -4,6 +4,10 @@
 
 ### Changed
 
+- The bundled demos and the `tests/experiment` fixture now request Python
+  3.14 in `.python-version`, the version in Dallinger's Docker images, and
+  their `constraints.txt` files are compiled for it. The release process
+  now regenerates them with Python 3.14 instead of 3.13.
 - Local debugging (`dallinger debug`, `LoaderDeployment`, and the
   `pytest_dallinger` debug fixtures) now starts the Procfile processes with
   [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,
