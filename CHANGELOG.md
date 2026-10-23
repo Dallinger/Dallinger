@@ -7,7 +7,8 @@
 - `docker_image_base_name` is now optional for `dallinger docker-ssh deploy`
   and `sandbox` when the image is built on the server and not pushed (the
   default, without `--push-build` or `--local_build`). The image is then
-  named after the app, lowercased (e.g. `my-study:<launch id>`). Deploys
+  named after the app, lowercased, with runs of `.`/`_`/`-` that Docker
+  rejects replaced by `-` (e.g. `my-study:<launch id>`). Deploys
   that push the image still need the setting and now stop with an `Error:`
   line naming it before building or changing anything on the server.
   Previously every docker-ssh build stopped with a `KeyError` after

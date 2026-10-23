@@ -773,15 +773,14 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
     ]
 
 
-@pytest.mark.parametrize("build_option", ["push_build", "local_build"])
-def test_pushed_deploy_without_image_base_name_stops_before_side_effects(
-    monkeypatch, build_option
-):
+@pytest.mark.parametrize("build_option", ["push_build", "local_build", None])
+def test_only_pushed_deploys_need_image_base_name(monkeypatch, build_option):
+    """Pushed deploys stop before side effects; server-only ones reach the build."""
     config = Configuration()
     config._reset(register_defaults=True)
     config.ready = True
     root_domain = mock.Mock()
-    build = mock.Mock()
+    build = mock.Mock(side_effect=click.Abort)
     monkeypatch.setattr(
         docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example.org"}}
     )
@@ -791,12 +790,21 @@ def test_pushed_deploy_without_image_base_name_stops_before_side_effects(
     monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", mock.Mock())
     monkeypatch.setattr(docker_ssh_module, "ensure_root_domain_ready", root_domain)
     monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
+    for name in ("_classic_tls_and_dns_host", "_check_experiment_hostname_dns"):
+        monkeypatch.setattr(docker_ssh_module, name, mock.Mock(return_value=(1, 2)))
+    monkeypatch.setattr(docker_ssh_module, "_check_app_slot", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "Executor", mock.Mock())
+    kwargs = _deploy_kwargs(
+        server="lab", **({build_option: True} if build_option else {})
+    )
 
+    if build_option is None:
+        with pytest.raises(click.Abort):
+            docker_ssh_module._deploy_in_mode(**kwargs)
+        build.assert_called_once()
+        return
     with pytest.raises(click.ClickException, match="docker_image_base_name"):
-        docker_ssh_module._deploy_in_mode(
-            **_deploy_kwargs(server="lab", **{build_option: True})
-        )
-
+        docker_ssh_module._deploy_in_mode(**kwargs)
     root_domain.assert_not_called()
     build.assert_not_called()
 
