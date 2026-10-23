@@ -400,6 +400,11 @@
 
 ### Fixed
 
+- `dallinger docker-ssh deploy` and `dallinger docker-ssh sandbox` now reject
+  the app name `logs` (in any case) before doing anything, with `"logs" is
+  reserved for the server's log viewer; choose another app name.` On classic
+  ingress the server serves its Dozzle log viewer at `logs.<server host>`, so
+  an app of that name clashed with it.
 - A participant who signs up through `POST /participant`, as the page's
   `dallinger.createParticipant()` does, keeps the recruiter named in their
   ad URL. They had been given the configured recruiter, and with

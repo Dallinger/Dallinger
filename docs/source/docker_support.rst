@@ -228,6 +228,8 @@ tunnel already exists, unless it is the tunnel this server recorded for that app
 connector token from an earlier attempt). Destroy stops the connector, then deletes the DNS record and
 tunnel, but never a same-named tunnel with a different id. If that cleanup fails, destroy leaves the app's files in place so it
 can be run again.
+With either ingress, deploy also refuses the app name ``logs``, because the
+server serves its log viewer at ``logs.<server DNS name>``.
 
 Each app also gets an unprivileged Caddy front door (WebSockets, no Docker
 socket), which host Caddy or the tunnel now reach instead of web, and a

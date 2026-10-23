@@ -568,6 +568,20 @@ option_allow_private_ip = click.option(
 )
 
 
+# Subdomains of the server host that the server itself serves (see
+# CADDYFILE_SUBDOMAIN), mapped to what serves them.
+RESERVED_APP_NAMES = {"logs": "the server's log viewer"}
+
+
+def _check_app_name_not_reserved(app_name):
+    """Reject an app name that would clash with a subdomain the server uses."""
+    owner = RESERVED_APP_NAMES.get(app_name.lower())
+    if owner:
+        raise click.UsageError(
+            f'"{app_name}" is reserved for {owner}; choose another app name.'
+        )
+
+
 def should_use_subdomain(app_name, archive_path):
     if app_name:
         return True
@@ -1616,6 +1630,8 @@ def _deploy_in_mode(
     follows the other checks. Only the app-name check comes after it, since
     the cleanup can free that name.
     """
+    if app_name:
+        _check_app_name_not_reserved(app_name)
     experiment_files = get_experiment_files(os.getcwd())
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     # Existing apps already have their certificates, so updates skip the check.

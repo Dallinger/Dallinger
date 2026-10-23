@@ -134,6 +134,38 @@ def test_root_domain_conflicts_ignore_cloudflare_apps():
     assert docker_ssh_module._host_caddy_apps(Executor()) == ["classic"]
 
 
+@pytest.mark.parametrize("command", ["deploy", "sandbox"])
+def test_reserved_app_name_is_rejected_up_front(monkeypatch, command):
+    from click.testing import CliRunner
+
+    hosts = {"lab": {"host": "lab.example"}}
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", hosts)
+    monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: hosts)
+    get_experiment_files = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", get_experiment_files)
+
+    result = CliRunner().invoke(
+        getattr(docker_ssh_module, command), ["--app", "Logs", "--server", "lab"]
+    )
+
+    assert result.exit_code == 2
+    assert (
+        '"Logs" is reserved for the server\'s log viewer; choose another app name.'
+        in result.output
+    )
+    get_experiment_files.assert_not_called()
+
+
+def test_deploy_in_mode_rejects_reserved_app_name(monkeypatch):
+    get_experiment_files = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", get_experiment_files)
+
+    with pytest.raises(click.UsageError, match="reserved for the server's log viewer"):
+        docker_ssh_module._deploy_in_mode(**_deploy_kwargs(app_name="logs"))
+
+    get_experiment_files.assert_not_called()
+
+
 def test_cloudflare_error_prints_one_error_line(monkeypatch):
     from click.testing import CliRunner
 
