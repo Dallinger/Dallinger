@@ -11,7 +11,10 @@
   that push the image still need the setting and now stop with an `Error:`
   line naming it before building or changing anything on the server.
   Previously every docker-ssh build stopped with a `KeyError` after
-  assembling the experiment when the setting was unset.
+  assembling the experiment when the setting was unset. When such an image
+  (any name without a `/`) is already on the server, docker-ssh no longer
+  tries to pull it from Docker Hub first, so a slow or unreachable Docker
+  Hub no longer delays the deploy.
 - Local debugging (`dallinger debug`, `LoaderDeployment`, and the
   `pytest_dallinger` debug fixtures) now starts the Procfile processes with
   [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,

@@ -1003,8 +1003,11 @@ def _image_runs_as_ssh_user(executor, image_name):
     from dallinger.docker.tools import RUNS_AS_SSH_USER_LABEL
 
     image = quote(image_name)
+    pull = f"docker pull -q {image} >/dev/null 2>&1"
+    if not _may_be_registry_image(image_name):
+        pull = f"docker image inspect {image} >/dev/null 2>&1 || {pull}"
     label = executor.run(
-        f"docker pull -q {image} >/dev/null 2>&1; docker image inspect -f "
+        f"{pull}; docker image inspect -f "
         f"'{{{{index .Config.Labels \"{RUNS_AS_SSH_USER_LABEL}\"}}}}' {image}",
         raise_=False,
     )
@@ -1015,6 +1018,18 @@ def _image_runs_as_ssh_user(executor, image_name):
         "containers run as root. Rebuild the image to run as the SSH user."
     )
     return False
+
+
+def _may_be_registry_image(image_name):
+    """Return whether ``image_name`` could name an image that a registry updates.
+
+    A name without ``/`` (such as the default ``my-study:<launch id>``)
+    would resolve to an official Docker Hub image, which experiment images
+    never are, so a local copy is current and pulling only asks Docker Hub.
+    Any name with a ``/``, including Docker Hub ``user/repo`` names, may
+    have been pushed, so a local copy may be stale.
+    """
+    return "/" in image_name
 
 
 def _ssh_prefix(ssh_host, ssh_port, ssh_user):

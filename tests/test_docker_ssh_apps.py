@@ -1593,3 +1593,14 @@ def test_only_labelled_images_run_as_the_ssh_user(label, expected, capsys):
     executor = FakeExecutor({"image inspect": label})
     assert docker_ssh_module._image_runs_as_ssh_user(executor, "img:tag") is expected
     assert ("run as root" in capsys.readouterr().out) is not expected
+
+
+@pytest.mark.parametrize(
+    "image, pulled",
+    [("my-study:abc", False), ("user/exp:abc", True), ("ghcr.io/u/exp:abc", True)],
+)
+def test_only_registry_images_present_locally_are_pulled(tmp_path, image, pulled):
+    executor = LocalExecutor(tmp_path, _fake_bin(tmp_path))
+    docker_ssh_module._image_runs_as_ssh_user(executor, image)
+    log = (tmp_path / "docker.log").read_text()
+    assert (f"pull -q {image}" in log) is pulled
