@@ -498,20 +498,18 @@ def test_custom_dockerfile_reinstalls_a_staged_local_wheel_without_base_image(
     assert "--force-reinstall --no-deps" in tools.LOCAL_DALLINGER_WHEEL_SNIPPET
 
 
-@pytest.mark.parametrize("exit_code", [0, 1])
-def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit_code):
+def _quiet_build(tmp_path, monkeypatch, fake_docker_script, raises=nullcontext()):
+    """Run a quiet ``build_image`` with a fake ``docker``; return its messages."""
     import docker
 
     from dallinger.command_line.utils import Output
     from dallinger.docker import tools
 
     fake_docker = tmp_path / "docker"
-    fake_docker.write_text(f"#!/bin/sh\necho '#14 + ansi2html' >&2\nexit {exit_code}\n")
+    fake_docker.write_text("#!/bin/sh\n" + fake_docker_script)
     fake_docker.chmod(0o755)
     monkeypatch.setattr(tools, "which", lambda name: str(fake_docker))
-    log_dir = tmp_path / "logs"
-    log_dir.mkdir()
-    monkeypatch.setattr(tempfile, "tempdir", str(log_dir))
+    monkeypatch.setattr(tools, "_BUILD_POLL_SECONDS", 0.05)
     (tmp_path / "Dockerfile").write_text("FROM python:3.12\n")
     messages = []
     client = mock.Mock()
@@ -519,7 +517,7 @@ def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit
     with (
         mock.patch("docker.client.from_env", return_value=client),
         mock.patch.object(tools, "get_base_image", return_value="base"),
-        pytest.raises(tools.BuildError) if exit_code else nullcontext(),
+        raises,
     ):
         tools.build_image(
             tmp_path,
@@ -528,6 +526,22 @@ def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit
             image_tag="t",
             quiet=True,
         )
+    return messages
+
+
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit_code):
+    from dallinger.docker import tools
+
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(log_dir))
+    messages = _quiet_build(
+        tmp_path,
+        monkeypatch,
+        f"echo '#14 + ansi2html' >&2\nexit {exit_code}\n",
+        pytest.raises(tools.BuildError) if exit_code else nullcontext(),
+    )
     output = "".join(messages)
     assert messages[0] == (
         "Building image exp:t (custom Dockerfile; "
@@ -541,6 +555,27 @@ def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit
     kept_logs = list(log_dir.iterdir())
     assert len(kept_logs) == exit_code
     assert all("+ ansi2html" in log.read_text() for log in kept_logs)
+
+
+def test_quiet_build_reports_slow_steps_and_duration(tmp_path, monkeypatch):
+    from dallinger.docker import tools
+
+    monkeypatch.setattr(tools, "SLOW_BUILD_STEP_SECONDS", 0.2)
+    monkeypatch.setattr(tools, "SLOW_BUILD_STEP_REPEAT_SECONDS", 60)
+    messages = _quiet_build(
+        tmp_path,
+        monkeypatch,
+        "echo '#5 [2/3] COPY . /experiment'\necho '#5 DONE 0.1s'\n"
+        "echo '#6 [3/3] RUN pip install -r requirements.txt'\n"
+        "echo '#6 0.52 Collecting psynet'\nsleep 1\necho '#6 DONE 1.0s'\n",
+    )
+    output = "".join(messages)
+    assert output.count("Still on") == 1
+    assert (
+        "Still on step 3/3 after 1 s: RUN pip install -r requirements.txt\n" in output
+    )
+    assert messages[-1] == "Built image: exp:t (1 s).\n"
+    assert "\r" not in output
 
 
 def test_verbose_rebuild_streams_docker_output(tmp_path, monkeypatch):
@@ -558,7 +593,7 @@ def test_verbose_rebuild_streams_docker_output(tmp_path, monkeypatch):
             tmp_path, "exp", Output(blather=messages.append), image_tag="t", quiet=True
         )
     check_output.assert_called_once()
-    assert messages == ["Rebuilding image exp:t...\n", "Built image: exp:t\n"]
+    assert messages == ["Rebuilding image exp:t...\n", "Built image: exp:t (1 s).\n"]
 
 
 @pytest.mark.parametrize(

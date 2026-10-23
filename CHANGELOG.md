@@ -226,8 +226,11 @@
   SSH connection per server instead of reconnecting for every step, and
   reconnects if that connection drops. The image build prints just
   "Building image ... (set DALLINGER_VERBOSE_BUILD=1 to show docker's
-  output)..." and "Built image: ..." instead of the BuildKit output; if it
-  fails, the full build log is printed and kept in a file (set
+  output)..." and "Built image: ... (1 min 12 s)." instead of the BuildKit
+  output. In a terminal, one line in between shows the current build step and
+  the elapsed time. A step that takes 30 s or more prints "Still on step 4/9
+  after 30 s: RUN ...", repeated every minute, also when output is
+  redirected. If the build fails, the full build log is printed and kept in a file (set
   `DALLINGER_VERBOSE_BUILD=1` to stream it instead), and the command ends
   with "Error: The image build failed; …" rather than "Aborted!". Every command that
   builds an image (including `dallinger docker build`, which still streams

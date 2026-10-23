@@ -518,7 +518,10 @@ logs command uses it, for example ``ssh lab "docker compose ... logs -f"``.
 This example deploys a prebuilt image. Without a ``docker_image_name`` that the
 registry has (set in config or with ``-c docker_image_name <image>``), the deploy
 first builds one and prints a single ``Building image ...`` line, which mentions
-the experiment's own ``Dockerfile`` if it has one, followed by ``Built image: ...``.
+the experiment's own ``Dockerfile`` if it has one, followed by ``Built image: ...``
+with the build's duration. In a terminal, a line in between shows the current
+build step and the elapsed time. A step that takes 30 seconds or more is reported
+with a ``Still on step ...`` line, repeated every minute, also in redirected output.
 If the build fails, the full ``docker build`` log is printed with the path of its saved copy.
 Set ``DALLINGER_VERBOSE_BUILD=1`` to see the build output as it runs.
 Python callers that print their own summary, such as PsyNet, can invoke the command

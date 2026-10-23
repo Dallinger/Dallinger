@@ -1,4 +1,5 @@
 import codecs
+import logging
 import os
 import re
 import sys
@@ -7,8 +8,8 @@ import time
 import warnings
 from hashlib import sha256
 from pathlib import Path
-from shutil import which
-from subprocess import STDOUT, CalledProcessError, call, check_output, run
+from shutil import get_terminal_size, which
+from subprocess import STDOUT, CalledProcessError, Popen, call, check_output
 
 import click
 import docker
@@ -628,10 +629,14 @@ def build_image(
     quiet = quiet and not verbose
     if quiet:
         notes.append("set DALLINGER_VERBOSE_BUILD=1 to show docker's output")
+        # The progress display parses BuildKit's plain format; don't leave the
+        # format to docker's guess about where its output goes.
+        env["BUILDKIT_PROGRESS"] = "plain"
     details = f" ({'; '.join(notes)})" if notes else ""
     out.blather(f"{action} image {image_name}{details}...\n")
     # Our messages must reach the terminal before docker's own output does.
     sys.stdout.flush()
+    started = time.monotonic()
     if quiet:
         _build_with_log_file(docker_build_invocation, env, out)
     else:
@@ -639,18 +644,143 @@ def build_image(
             check_output(docker_build_invocation, env=env)
         except CalledProcessError:
             raise BuildError("The image build failed; docker's output is above.")
-    out.blather(f"Built image: {image_name}" + "\n")
+    duration = _format_duration(time.monotonic() - started)
+    out.blather(f"Built image: {image_name} ({duration}).\n")
     return image_name
 
 
+# A quiet build reports a step that has run this long, then repeats the report.
+SLOW_BUILD_STEP_SECONDS = 30
+SLOW_BUILD_STEP_REPEAT_SECONDS = 60
+_BUILD_POLL_SECONDS = 0.5
+# BuildKit plain progress: "#7 [4/9] RUN ...", "#7 [stage-1 4/9] ...",
+# "#2 [internal] load metadata ...", "#7 0.52 <RUN output>", "#7 DONE 41.2s".
+_BUILD_LINE_RE = re.compile(r"^#(\d+) (.*)$")
+_BUILD_STEP_NUMBER_RE = re.compile(r"^\[(?:\S+ )?(\d+/\d+)\] (.*)$")
+_BUILD_STEP_FINISHED_RE = re.compile(r"^(DONE|CACHED|ERROR|CANCELED)\b")
+
+
+def _format_duration(seconds):
+    """Format a duration such as ``12 s`` or ``1 min 12 s``."""
+    minutes, seconds = divmod(max(1, round(seconds)), 60)
+    if not minutes:
+        return f"{seconds} s"
+    return f"{minutes} min {seconds} s" if seconds else f"{minutes} min"
+
+
+class _BuildProgress:
+    """Follow a BuildKit plain-progress log and report the running step.
+
+    On a terminal one status line is redrawn in place. A step that runs for
+    ``SLOW_BUILD_STEP_SECONDS`` gets a permanent "Still on step" line, also
+    when output is redirected, so that logs record where a build was slow.
+    """
+
+    def __init__(self, out):
+        self.out = out
+        self.live = sys.stdout.isatty() and os.environ.get("TERM", "") != "dumb"
+        self.started = time.monotonic()
+        self.steps = {}  # BuildKit vertex number -> step details
+        self.running = []
+        self.latest = None
+        self.pending = ""
+        self.shown = ""
+
+    def feed(self, text):
+        """Parse newly written log text; an incomplete last line waits for more."""
+        *lines, self.pending = (self.pending + text).split("\n")
+        for line in lines:
+            match = _BUILD_LINE_RE.match(line.rstrip("\r"))
+            # "#0 building with ..." names the builder; it never finishes.
+            if not match or match[1] == "0":
+                continue
+            vertex, rest = match.groups()
+            if _BUILD_STEP_FINISHED_RE.match(rest):
+                if vertex in self.running:
+                    self.running.remove(vertex)
+            elif vertex not in self.steps:
+                numbered = _BUILD_STEP_NUMBER_RE.match(rest)
+                self.steps[vertex] = {
+                    "label": f"step {numbered[1]}" if numbered else "",
+                    "description": (
+                        numbered[2] if numbered else rest.removeprefix("[internal] ")
+                    ),
+                    "started": time.monotonic(),
+                    "notice_after": SLOW_BUILD_STEP_SECONDS,
+                }
+                self.running.append(vertex)
+                self.latest = vertex
+
+    def update(self):
+        """Report a slow current step and redraw the status line."""
+        vertex = self.running[-1] if self.running else self.latest
+        if vertex is None:
+            return
+        step = self.steps[vertex]
+        label, description = step["label"], step["description"]
+        now = time.monotonic()
+        if vertex in self.running and now - step["started"] >= step["notice_after"]:
+            elapsed = _format_duration(step["notice_after"])
+            step["notice_after"] += SLOW_BUILD_STEP_REPEAT_SECONDS
+            self.clear()
+            self.out.blather(
+                f"Still on {label or 'this step'} after {elapsed}: {description}\n"
+            )
+        if self.live:
+            minutes, seconds = divmod(int(now - self.started), 60)
+            clock = f" ({minutes}:{seconds:02})"
+            text = f"Building: {label + ': ' if label else ''}{description}"
+            text = _truncate(text, get_terminal_size().columns - 1 - len(clock))
+            self.out.blather("\r" + (text + clock).ljust(len(self.shown)))
+            self.shown = text + clock
+        sys.stdout.flush()
+
+    def clear(self):
+        """Erase the status line so that the next output starts on a clean line."""
+        if self.shown:
+            self.out.blather("\r" + " " * len(self.shown) + "\r")
+            self.shown = ""
+            sys.stdout.flush()
+
+
+def _truncate(text, width):
+    """Shorten ``text`` to ``width`` characters, ending with an ellipsis if cut."""
+    return text if len(text) <= width else text[: max(width - 1, 0)] + "…"
+
+
 def _build_with_log_file(docker_build_invocation, env, out):
-    """Run ``docker build`` into a log file, printing and keeping it only on failure."""
+    """Run ``docker build`` into a log file, showing progress from it.
+
+    The log is printed and kept only on failure.
+    """
     with tempfile.NamedTemporaryFile(
         "w", prefix="dallinger-docker-build-", suffix=".log", delete=False
     ) as log_file:
-        result = run(docker_build_invocation, env=env, stdout=log_file, stderr=STDOUT)
+        process = Popen(
+            docker_build_invocation, env=env, stdout=log_file, stderr=STDOUT
+        )
     log_path = Path(log_file.name)
-    if result.returncode == 0:
+    progress = _BuildProgress(out)
+    try:
+        with open(log_path, errors="replace") as log:
+            while process.poll() is None:
+                time.sleep(_BUILD_POLL_SECONDS)
+                if progress is not None:
+                    try:
+                        progress.feed(log.read())
+                        progress.update()
+                    except Exception:
+                        logging.getLogger(__name__).warning(
+                            "Stopped showing build progress", exc_info=True
+                        )
+                        progress.clear()
+                        progress = None
+    finally:
+        if progress is not None:
+            progress.clear()
+        if process.poll() is None:
+            process.wait()
+    if process.returncode == 0:
         log_path.unlink()
         return
     out.blather(log_path.read_text(errors="replace"))
