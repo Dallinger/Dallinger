@@ -521,7 +521,7 @@ first builds one and prints a single ``Building image ...`` line, which mentions
 the experiment's own ``Dockerfile`` if it has one, followed by ``Built image: ...``
 with the build's duration. In a terminal, a line in between shows the current
 build step and the elapsed time. A step that takes 30 seconds or more is reported
-with a ``Still on step ...`` line, repeated every minute, also in redirected output.
+with a ``Still on ...`` line, repeated every minute, also in redirected output.
 If the build fails, the full ``docker build`` log is printed with the path of its saved copy.
 Set ``DALLINGER_VERBOSE_BUILD=1`` to see the build output as it runs.
 Python callers that print their own summary, such as PsyNet, can invoke the command
@@ -549,6 +549,11 @@ the DNS label:
     CLOUDFLARE_API_TOKEN=... dallinger docker-ssh deploy \
         --app consonance --ingress cloudflare \
         --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5
+
+Once the image is ready, a Cloudflare deploy prints ``Setting up the Cloudflare
+tunnel...`` while it creates or reuses the app's tunnel and uploads its Compose
+stack, then ``Starting the experiment server...`` (``Restarting ...`` for
+``--update``).
 
 Launching an experiment opens recruitment, so a docker-ssh deploy first checks
 the app's ``/health`` from inside the server, then waits up to 7 minutes for

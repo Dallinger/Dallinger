@@ -9,7 +9,14 @@ import warnings
 from hashlib import sha256
 from pathlib import Path
 from shutil import get_terminal_size, which
-from subprocess import STDOUT, CalledProcessError, Popen, call, check_output
+from subprocess import (
+    STDOUT,
+    CalledProcessError,
+    Popen,
+    TimeoutExpired,
+    call,
+    check_output,
+)
 
 import click
 import docker
@@ -702,9 +709,8 @@ class _BuildProgress:
                 # The header can reach us late, e.g. while a parallel step prints.
                 if vertex in self.steps:
                     step = self.steps[vertex]
-                    step["started"] = min(
-                        step["started"], time.monotonic() - float(output[1])
-                    )
+                    since = time.monotonic() - float(output[1])
+                    step["started"] = max(self.started, min(step["started"], since))
             elif _BUILD_STEP_FINISHED_RE.match(rest):
                 if vertex in self.running:
                     self.running.remove(vertex)
@@ -728,10 +734,14 @@ class _BuildProgress:
         now = time.monotonic()
         for vertex in self.running:
             step = self.steps[vertex]
-            if now - step["started"] < step["notice_after"]:
+            running_for, due = now - step["started"], step["notice_after"]
+            if running_for < due:
                 continue
-            elapsed = _format_duration(step["notice_after"])
-            step["notice_after"] += SLOW_BUILD_STEP_REPEAT_SECONDS
+            # After a gap in polling, report only the latest notice that is due.
+            repeat = SLOW_BUILD_STEP_REPEAT_SECONDS
+            due += (running_for - due) // repeat * repeat
+            step["notice_after"] = due + repeat
+            elapsed = _format_duration(due)
             description = _truncate(step["description"], 100)
             self.clear()
             self.out.blather(
@@ -744,7 +754,12 @@ class _BuildProgress:
         width = get_terminal_size().columns - 1 - len(clock)
         # A line wider than the terminal wraps, and "\r" can't redraw it.
         if self.live and width >= 2:
-            vertex = self.running[-1] if self.running else self.latest
+            # A long RUN step stays on the line while short internal steps run.
+            numbered = [v for v in self.running if self.steps[v]["label"]]
+            if numbered:
+                vertex = min(numbered, key=lambda v: self.steps[v]["started"])
+            else:
+                vertex = self.running[-1] if self.running else self.latest
             # Docker over SSH can take several seconds to print its first line.
             step = self.steps.get(vertex, {"label": "", "description": "starting"})
             label = step["label"] + ": " if step["label"] else ""
@@ -789,7 +804,8 @@ def _build_with_log_file(docker_build_invocation, env, out):
                     time.sleep(_BUILD_POLL_SECONDS)
                 if progress is not None:
                     try:
-                        progress.feed(log.read())
+                        # Once docker has exited, its last line is complete.
+                        progress.feed(log.read() + ("\n" if finished else ""))
                         progress.update()
                     except Exception:
                         logging.getLogger(__name__).warning(
@@ -797,11 +813,20 @@ def _build_with_log_file(docker_build_invocation, env, out):
                         )
                         progress.clear()
                         progress = None
-    finally:
+    except BaseException:
+        # E.g. Ctrl+C: stop docker and leave no log behind; Click reports it.
         if progress is not None:
             progress.clear()
-        if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except TimeoutExpired:
+            process.kill()
             process.wait()
+        log_path.unlink(missing_ok=True)
+        raise
+    if progress is not None:
+        progress.clear()
     if process.returncode == 0:
         log_path.unlink()
         return

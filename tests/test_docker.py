@@ -499,7 +499,9 @@ def test_custom_dockerfile_reinstalls_a_staged_local_wheel_without_base_image(
     assert "--force-reinstall --no-deps" in tools.LOCAL_DALLINGER_WHEEL_SNIPPET
 
 
-def _quiet_build(tmp_path, monkeypatch, fake_docker_script, raises=nullcontext()):
+def _quiet_build(
+    tmp_path, monkeypatch, fake_docker_script, raises=nullcontext(), stdout=None
+):
     """Run a quiet ``build_image`` with a fake ``docker``; return its messages."""
     import docker
 
@@ -511,8 +513,8 @@ def _quiet_build(tmp_path, monkeypatch, fake_docker_script, raises=nullcontext()
     fake_docker.chmod(0o755)
     monkeypatch.setattr(tools, "which", lambda name: str(fake_docker))
     monkeypatch.setattr(tools, "_BUILD_POLL_SECONDS", 0.05)
-    # Redirected output, also under `pytest -s`.
-    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    # Redirected output unless a terminal is given, also under `pytest -s`.
+    monkeypatch.setattr(sys, "stdout", io.StringIO() if stdout is None else stdout)
     (tmp_path / "Dockerfile").write_text("FROM python:3.12\n")
     messages = []
     client = mock.Mock()
@@ -561,24 +563,58 @@ def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit
 
 
 def test_quiet_build_reports_slow_steps_and_duration(tmp_path, monkeypatch):
-    # BuildKit's output lines give the seconds since their step started, so a
-    # step whose output says 31.0 has been running for at least 30 s. The
-    # later internal step must not hide it, nor docker exiting right away.
+    from dallinger.docker import tools
+
+    monkeypatch.setattr(tools, "SLOW_BUILD_STEP_SECONDS", 0.3)
+    monkeypatch.setattr(tools, "SLOW_BUILD_STEP_REPEAT_SECONDS", 0.3)
+    # The headers arrive 0.5 s into the build, just before docker exits. The
+    # step's unterminated output line dates its start back to the build's
+    # start (not 31 s back), so it gets one notice despite the later step.
     messages = _quiet_build(
         tmp_path,
         monkeypatch,
-        "echo '#5 [2/3] COPY . /experiment'\necho '#5 DONE 0.1s'\n"
+        "sleep 0.5\necho '#5 [2/3] COPY . /experiment'\necho '#5 DONE 0.1s'\n"
         "echo '#6 [ 3/3] RUN pip install     -r requirements.txt'\n"
         "echo '#7 [internal] load build context'\n"
-        "echo '#6 31.0 Collecting psynet'\n",
+        "printf '#6 31.0 Collecting psynet'\n",
     )
     output = "".join(messages)
     assert output.count("Still on") == 1
     assert (
-        "Still on step 3/3 after 30 s: RUN pip install -r requirements.txt\n" in output
+        "Still on step 3/3 after 1 s: RUN pip install -r requirements.txt\n" in output
     )
     assert re.fullmatch(r"Built image: exp:t \([12] s\)\.\n", messages[-1])
     assert "\r" not in output
+
+
+def test_quiet_build_redraws_one_line_in_a_terminal(tmp_path, monkeypatch):
+    class Terminal(io.StringIO):
+        def isatty(self):
+            return True
+
+    monkeypatch.setenv("TERM", "xterm")
+    monkeypatch.setenv("COLUMNS", "40")
+    messages = _quiet_build(
+        tmp_path,
+        monkeypatch,
+        "echo '#5 [4/9] RUN uv pip install -r requirements.txt'\nsleep 0.3\n"
+        "echo '#5 DONE 0.3s'\necho '#6 [5/9] RUN ls'\nsleep 0.3\n",
+        stdout=Terminal(),
+    )
+    output = "".join(messages)
+    frames = [frame for line in output.split("\n") for frame in line.split("\r")]
+    assert "Building: step 4/9: RUN uv pip … (0:00)" in frames
+    assert any(
+        frame.startswith("Building: step 5/9: RUN ls (0:00)") for frame in frames
+    )
+    assert all(len(frame) <= 39 for frame in frames if "Building:" in frame)
+    screen = []
+    for line in output.split("\n"):
+        shown = ""
+        for frame in line.split("\r"):
+            shown = frame + shown[len(frame) :]
+        screen.append(shown.rstrip())
+    assert screen[1:] == [re.sub(r"\.\n$", ".", messages[-1]), ""]
 
 
 def test_verbose_rebuild_streams_docker_output(tmp_path, monkeypatch):

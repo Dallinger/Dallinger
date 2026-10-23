@@ -229,17 +229,19 @@
   output)..." and "Built image: ... (1 min 12 s)." instead of the BuildKit
   output. In a terminal, one line in between shows the current build step and
   the elapsed time. A step that takes 30 s or more prints "Still on step 4/9
-  after 30 s: RUN ...", repeated every minute, also when output is
+  after 30 s: RUN ..." (or, for BuildKit's internal steps, 'Still on "load
+  build context" after 30 s'), repeated every minute, also when output is
   redirected. If the build fails, the full build log is printed and kept in a file (set
   `DALLINGER_VERBOSE_BUILD=1` to stream it instead), and the command ends
   with "Error: The image build failed; …" rather than "Aborted!". Every command that
   builds an image (including `dallinger docker build`, which still streams
   the BuildKit output) starts with one "Building image ..." or "Rebuilding
   image ..." line, which mentions the experiment's custom Dockerfile if it
-  has one. A deploy then prints "Starting the experiment server..." (with
-  Cloudflare ingress, after "Setting up the Cloudflare tunnel..."; with
-  classic ingress, followed by "Cleaning up the database and its user..."
-  and "Creating database …...") and "The experiment server is up." once the
+  has one. With Cloudflare ingress, a deploy next prints "Setting up the
+  Cloudflare tunnel..." while it prepares the tunnel. Every deploy then
+  prints "Starting the experiment server..." (with classic ingress, followed by
+  "Cleaning up the database and its user..." and "Creating database
+  …...") and "The experiment server is up." once the
   health check passes, without the "Initializing database..." and "Database
   initialized." lines; an `--update` prints "Restarting the experiment
   server..." and ends with "Not launching again: this is an update of a
