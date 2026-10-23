@@ -2,6 +2,43 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Local debugging (`dallinger debug`, `LoaderDeployment`, and the
+  `pytest_dallinger` debug fixtures) now starts the Procfile processes with
+  [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,
+  so it no longer needs the Heroku CLI. `honcho` is a new Dallinger
+  dependency. honcho and the Procfile commands run from the current Python
+  environment, so this also works when the virtualenv is not activated. The
+  web process still runs gunicorn with the configured number of workers.
+- Stopping the local server now waits for the Procfile processes to exit and
+  kills any that remain. Previously `heroku local` exited straight away and
+  left gunicorn processes running. Pressing Ctrl+C during startup, or
+  sending SIGTERM or SIGHUP (e.g. `kill <pid>`, an IDE stop button, or
+  closing the terminal) to a local debug session, now also stops these
+  processes. Repeating Ctrl+C or one of these signals while the processes
+  are stopping no longer cuts the cleanup short.
+- `dallinger develop debug` (used by `psynet debug local`) now runs the
+  Flask server in its own process group and stops that whole group when
+  interrupted. Ctrl+C prints "Local server stopped." instead of several
+  tracebacks, and SIGTERM or SIGHUP also stops the server, worker and clock.
+  If the server exits with an error, for example because the port is in
+  use, the command now exits with a non-zero status instead of 0. A launch
+  job that hasn't run yet is cancelled when the server stops, so it no
+  longer runs in the next session.
+- Migration notes for code that builds on local debugging:
+  - The wrapper class is now `LocalProcfileWrapper`. `HerokuLocalWrapper`
+    remains as an alias.
+  - Its `shell_command` attribute is now a sequence of arguments
+    (`(sys.executable, "-m", "honcho")`) instead of a string.
+  - Log messages say "local server" instead of "local Heroku". For example,
+    "Local server processes terminated." replaces "Local Heroku process
+    terminated.", and "Starting up the local server..." replaces
+    "Starting up the Heroku Local server...". Docker debugging now says
+    "Starting up the Docker server..." and "Monitoring the Docker server...".
+    Update any scripts that wait for the old text.
+  - The Procfile processes run with `PYTHONUNBUFFERED=1`.
+
 ### Added
 
 - `dallinger docker-ssh destroy` now makes you choose what happens to the
@@ -233,6 +270,15 @@
   after these checks. Because ``-c`` values are applied before the build,
   ``-c docker_image_name`` now chooses the image to reuse.
   ([#9846](https://github.com/Dallinger/Dallinger/issues/9846))
+- Dependency lockfiles are compiled for the latest patch of the oldest
+  supported Python, currently 3.11.17. This refresh includes ``soupsieve`` 3.0.3
+  and bumps the ruff pre-commit hook to v0.17.1.
+- The chatroom and chatroom_ws constraints lock NLTK 3.10.3 instead of 3.6.3.
+  Their requirements name ``nltk`` with no version.
+- ``scripts/update_experiments_constraints.py`` now refreshes dependencies that
+  are not pinned by Dallinger's dev requirements, such as NLTK in the chatroom
+  demos, to the newest version their requirements allow. Dallinger's own pins
+  stay in place.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
@@ -405,6 +451,12 @@
   commands, so `--app '*'` could delete every app's folder on the server.
 - docker-ssh builds no longer advise setting `User` in `~/.ssh/config` for an
   SSH user containing `@` when `ssh -G` already resolves the host to that user.
+- A participant who signs up through `POST /participant`, as the page's
+  `dallinger.createParticipant()` does, keeps the recruiter named in their
+  ad URL. They had been given the configured recruiter, and with
+  `recruiter = multi` their questionnaire submission failed with
+  `NotImplementedError` from `MultiRecruiter.on_task_completion`.
+
 - A docker-ssh Cloudflare deploy that can't find the Cloudflare API token now
   stops before it connects to the server, builds the image there or removes
   the app's Redis and Postgres volumes. It fails with an `Error:` line that
