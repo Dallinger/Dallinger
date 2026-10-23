@@ -24,7 +24,7 @@ botocore==1.43.117
     #   s3transfer
 build==1.6.1
     # via dallinger
-certifi==2026.10.19
+certifi==2026.10.23
     # via
     #   requests
     #   selenium
