@@ -1362,11 +1362,20 @@ def test_cloudflare_restore_runs_before_compose_up(monkeypatch):
 
 
 def _fake_bin(tmp_path):
-    """Fake ``docker`` (logs its arguments) and ``stat`` (a docker.sock group)."""
+    """Fake ``docker`` (logs its arguments) and ``stat`` (a docker.sock group).
+
+    ``docker image inspect`` fails for images listed in ``$HOME/absent-images``.
+    """
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for name, body in (
-        ("docker", 'echo "$@" >> "$HOME/docker.log"'),
+        (
+            "docker",
+            'echo "$@" >> "$HOME/docker.log"\n'
+            '[ "$1 $2" = "image inspect" ] && '
+            'grep -qxF -- "${@: -1}" "$HOME/absent-images" 2>/dev/null && exit 1\n'
+            "exit 0",
+        ),
         ("stat", "echo 999"),
     ):
         (bin_dir / name).write_text(f"#!/bin/bash\n{body}\n")
@@ -1596,10 +1605,19 @@ def test_only_labelled_images_run_as_the_ssh_user(label, expected, capsys):
 
 
 @pytest.mark.parametrize(
-    "image, pulled",
-    [("my-study:abc", False), ("user/exp:abc", True), ("ghcr.io/u/exp:abc", True)],
+    "image, present, pulled",
+    [
+        ("my-study:abc", True, False),
+        ("my-study:abc", False, True),
+        ("user/exp:abc", True, True),
+        ("ghcr.io/u/exp:abc", True, True),
+    ],
 )
-def test_only_registry_images_present_locally_are_pulled(tmp_path, image, pulled):
+def test_only_registry_images_present_locally_are_pulled(
+    tmp_path, image, present, pulled
+):
+    if not present:
+        (tmp_path / "absent-images").write_text(f"{image}\n")
     executor = LocalExecutor(tmp_path, _fake_bin(tmp_path))
     docker_ssh_module._image_runs_as_ssh_user(executor, image)
     log = (tmp_path / "docker.log").read_text()
