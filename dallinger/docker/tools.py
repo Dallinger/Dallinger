@@ -653,10 +653,10 @@ def build_image(
 SLOW_BUILD_STEP_SECONDS = 30
 SLOW_BUILD_STEP_REPEAT_SECONDS = 60
 _BUILD_POLL_SECONDS = 0.5
-# BuildKit plain progress: "#7 [4/9] RUN ...", "#7 [stage-1 4/9] ...",
+# BuildKit plain progress: "#7 [ 4/19] RUN ...", "#7 [stage-1 4/9] ...",
 # "#2 [internal] load metadata ...", "#7 0.52 <RUN output>", "#7 DONE 41.2s".
 _BUILD_LINE_RE = re.compile(r"^#(\d+) (.*)$")
-_BUILD_STEP_NUMBER_RE = re.compile(r"^\[(?:\S+ )?(\d+/\d+)\] (.*)$")
+_BUILD_STEP_NUMBER_RE = re.compile(r"^\[(?:\S+ )?\s*(\d+/\d+)\] (.*)$")
 _BUILD_STEP_FINISHED_RE = re.compile(r"^(DONE|CACHED|ERROR|CANCELED)\b")
 
 
@@ -700,10 +700,12 @@ class _BuildProgress:
                     self.running.remove(vertex)
             elif vertex not in self.steps:
                 numbered = _BUILD_STEP_NUMBER_RE.match(rest)
+                description = numbered[2] if numbered else rest
                 self.steps[vertex] = {
                     "label": f"step {numbered[1]}" if numbered else "",
-                    "description": (
-                        numbered[2] if numbered else rest.removeprefix("[internal] ")
+                    # Multi-line RUN commands arrive with runs of spaces.
+                    "description": " ".join(
+                        description.removeprefix("[internal] ").split()
                     ),
                     "started": time.monotonic(),
                     "notice_after": SLOW_BUILD_STEP_SECONDS,
@@ -714,9 +716,8 @@ class _BuildProgress:
     def update(self):
         """Report a slow current step and redraw the status line."""
         vertex = self.running[-1] if self.running else self.latest
-        if vertex is None:
-            return
-        step = self.steps[vertex]
+        # Docker over SSH can take several seconds to print its first line.
+        step = self.steps.get(vertex, {"label": "", "description": "starting"})
         label, description = step["label"], step["description"]
         now = time.monotonic()
         if vertex in self.running and now - step["started"] >= step["notice_after"]:
@@ -724,7 +725,8 @@ class _BuildProgress:
             step["notice_after"] += SLOW_BUILD_STEP_REPEAT_SECONDS
             self.clear()
             self.out.blather(
-                f"Still on {label or 'this step'} after {elapsed}: {description}\n"
+                f"Still on {label or 'this step'} after {elapsed}: "
+                f"{_truncate(description, 100)}\n"
             )
         if self.live:
             minutes, seconds = divmod(int(now - self.started), 60)

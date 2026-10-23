@@ -566,7 +566,7 @@ def test_quiet_build_reports_slow_steps_and_duration(tmp_path, monkeypatch):
         tmp_path,
         monkeypatch,
         "echo '#5 [2/3] COPY . /experiment'\necho '#5 DONE 0.1s'\n"
-        "echo '#6 [3/3] RUN pip install -r requirements.txt'\n"
+        "echo '#6 [ 3/3] RUN pip install     -r requirements.txt'\n"
         "echo '#6 0.52 Collecting psynet'\nsleep 1\necho '#6 DONE 1.0s'\n",
     )
     output = "".join(messages)
