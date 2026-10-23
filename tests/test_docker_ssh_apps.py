@@ -156,6 +156,16 @@ def test_reserved_app_name_is_rejected_up_front(monkeypatch, command):
     get_experiment_files.assert_not_called()
 
 
+def test_deploy_in_mode_rejects_reserved_app_name(monkeypatch):
+    get_experiment_files = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", get_experiment_files)
+
+    with pytest.raises(click.UsageError, match="reserved for the server's log viewer"):
+        docker_ssh_module._deploy_in_mode(**_deploy_kwargs(app_name="logs"))
+
+    get_experiment_files.assert_not_called()
+
+
 def test_cloudflare_error_prints_one_error_line(monkeypatch):
     from click.testing import CliRunner
 
