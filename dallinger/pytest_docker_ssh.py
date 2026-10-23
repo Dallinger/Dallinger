@@ -234,7 +234,7 @@ class DockerSSHServer:
     def deploy_sandbox(self, app_id=None, *, docker_image_name=None):
         requested_app_id = app_id or f"dlgr-{uuid.uuid4().hex[:8]}"
         try:
-            result = self.run_dallinger(
+            self.run_dallinger(
                 self._sandbox_args(
                     requested_app_id,
                     update=False,
@@ -245,11 +245,6 @@ class DockerSSHServer:
         except RuntimeError as exc:
             diagnostics = self._collect_remote_diagnostics()
             raise RuntimeError(f"{exc}\n\nRemote diagnostics:\n{diagnostics}") from exc
-        output = f"{result.stdout}\n{result.stderr}"
-        match = re.search(r"Experiment (dlgr-[0-9a-f]{8}) started\.", output)
-        parsed_app_id = match.group(1) if match else None
-        if parsed_app_id:
-            return parsed_app_id
         return requested_app_id
 
     def update_sandbox(self, app_id, *, docker_image_name=None):

@@ -221,6 +221,76 @@
 
 ### Changed
 
+- docker-ssh commands print much less. Spinners only animate in a terminal,
+  and errors no longer interleave with spinner frames. Each command shares one
+  SSH connection per server instead of reconnecting for every step, and
+  reconnects if that connection drops. The image build prints just
+  "Building image ... (set DALLINGER_VERBOSE_BUILD=1 to show docker's
+  output)..." and "Built image: ... (1 min 12 s)." instead of the BuildKit
+  output. In a terminal, one line in between shows the current build step and
+  the elapsed time. A step that takes 30 s or more prints "Still on step 4/9
+  after 30 s: RUN ..." (or, for BuildKit's internal steps, 'Still on "load
+  build context" after 30 s'), repeated every minute, also when output is
+  redirected. If the build fails, the full build log is printed and kept in a file (set
+  `DALLINGER_VERBOSE_BUILD=1` to stream it instead), and the command ends
+  with "Error: The image build failed; …" rather than "Aborted!". Every command that
+  builds an image (including `dallinger docker build`, which still streams
+  the BuildKit output) starts with one "Building image ..." or "Rebuilding
+  image ..." line, which mentions the experiment's custom Dockerfile if it
+  has one. With Cloudflare ingress, a deploy next prints "Setting up the
+  Cloudflare tunnel..." while it prepares the tunnel. Every deploy then
+  prints "Starting the experiment server..." (with classic ingress, followed by
+  "Cleaning up the database and its user..." and "Creating database
+  <app>...") and "The experiment server is up." once the
+  health check passes, without the "Initializing database..." and "Database
+  initialized." lines; an `--update` prints "Restarting the experiment
+  server..." and ends with "Not launching again: this is an update of a
+  running experiment." The "Validating config for … recruitment..." line is
+  gone; a config problem is still reported as an error. `docker-ssh export`
+  and other callers of `awaken_app`, such as PsyNet before destroying an
+  app, no longer print "App <app> is awake" when the app wasn't
+  hibernating; `dallinger docker-ssh awaken` still does. The
+  `DOCKER_HOST`, experiment UID, deployment temp directory, "skipping push to
+  registry" and "Removing any pre-existing ... volumes" lines are now
+  debug-level logs, as is "Using custom Heroku ID root" in every command that
+  prints it, and `/launch` omits empty "Initial recruitment list" and
+  "Additional details" headings. The `DALLINGER_SOURCE` message and the
+  editable-install notice are now one short line each, such as "Using the
+  Dallinger checkout at … (DALLINGER_SOURCE) instead of the version pinned
+  in constraints.txt." For a server whose SSH user contains `@`, the hint to
+  set `User …` in `~/.ssh/config` is only printed if `ssh` wouldn't already
+  log in as that user (as reported by `ssh -G`).
+- The `ssh` commands that docker-ssh deploys print, such as the logs
+  command, use the server's alias from `~/.ssh/config` when it has one (for
+  example `ssh lab "docker compose … logs -f"` for `lab.example.org`): the
+  host name's first part, if `ssh -G` resolves it to the same host, port,
+  user and `server_pem` key. Otherwise, a user name containing `@` is passed
+  with `-l` rather than as `user@example.org@host`. Progress lines such as
+  "Connecting to …", "Cleaning up the database and its user" (previously
+  "Cleaning up db/user"), "Creating database …", "Loading database data
+  from …", "Removing experiment image …" and "App … removed" end with `...`
+  or a full stop like the other deploy messages.
+- Debugging and deploying print less in other ways too. Building the
+  editable Dallinger wheel uses the running Python interpreter, so it works
+  without an activated virtualenv, and the build tool's output is printed
+  only if the build fails. The pre-release base-image notice is one line.
+  An experiment directory that isn't a Git repository no longer prints
+  git's "fatal: not a git repository" error. Deploys no longer say that
+  `constraints.txt` is up to date or was written manually;
+  `dallinger constraints ensure` still does.
+- docker-ssh deploys (classic and Cloudflare) also return the launch
+  recruitment message as `recruitment_msg` in their result dict, or `None`
+  if there isn't one (for example with `--update`), plus `image_name` and,
+  for classic ingress, the Dozzle `logs_url` and `logs_password`.
+- `dallinger docker-ssh deploy` and `sandbox` accept a hidden
+  `--no-summary` option, for callers such as PsyNet that invoke them with
+  `show_summary=False` and print their own summary from the returned dict.
+  It skips the closing summary (logs command and URL, public origin,
+  dashboard link and password, recruitment message) and the classic-ingress
+  Dozzle line with its password. If the health check, public URL wait or
+  launch fails, the notes and dashboard password are printed before the
+  error. The deploy log file is still written. By default the summary is
+  printed as before.
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
   config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
   Cloudflare settings and API token, and whether the app name is already
@@ -400,6 +470,23 @@
 
 ### Fixed
 
+- `dallinger docker-ssh deploy` and `sandbox`, and
+  `ensure_remote_host_in_known_hosts()` (which `psynet deploy ssh` calls
+  first), stop with one `Error:` line instead of a traceback when they can't
+  connect or log in to the server over SSH, for example "Error: Couldn't log
+  in to example.org over SSH as alice. Check that ``ssh -i ~/.ssh/lab.pem
+  alice@example.org`` works without asking for a password, with the key in
+  the server_pem setting." The same applies to an unknown host name
+  (including with `--dns-host nip.io`), a refused or timed-out connection,
+  a port that doesn't answer like an SSH server, and Docker being
+  unreachable over SSH during a remote build (the message names the
+  underlying error, such as "Broken pipe"). Other errors, including those
+  after the connection is made, are reported as before.
+- The image build and push of a docker-ssh deploy reach the server's Docker
+  through the `ssh` command, like the rest of the deploy and `docker build`.
+  They used Paramiko, which ignores parts of `~/.ssh/config` and could fail
+  to log in (`paramiko.ssh_exception.AuthenticationException:
+  Authentication failed.`) to a server that `ssh` reaches without problems.
 - A participant who signs up through `POST /participant`, as the page's
   `dallinger.createParticipant()` does, keeps the recruiter named in their
   ad URL. They had been given the configured recruiter, and with

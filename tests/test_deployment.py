@@ -986,6 +986,16 @@ class TestSetupExperiment:
 
         assert exp_id == "my-custom-app-id"
 
+    @pytest.mark.parametrize("quiet", [False, True])
+    def test_quiet_keeps_the_uid_and_temp_dir_out_of_the_log(
+        self, setup_experiment, quiet
+    ):
+        log = mock.Mock()
+        setup_experiment(log=log, quiet=quiet)
+
+        assert ("Experiment UID" in str(log.call_args_list)) is not quiet
+        assert ("temp directory" in str(log.call_args_list)) is not quiet
+
     def test_saves_provided_app_uid_to_config(self, active_config, setup_experiment):
         exp_id, dst = setup_experiment(log=mock.Mock(), app="my-custom-app-id")
 
@@ -1390,7 +1400,9 @@ class TestSetupExperiment:
             log = mock.Mock()
             tmp_dir = assemble_experiment_temp_dir(log, active_config, for_remote=True)
 
-        assert "Dallinger is installed as an editable package" in log.call_args[0][0]
+        notice = log.call_args[0][0]
+        assert notice.startswith(f"Using the editable Dallinger checkout at {tmp_egg} ")
+        assert "DALLINGER_NO_EGG_BUILD=1" in notice and "\n" not in notice
         assert "dallinger==" not in (Path(tmp_dir) / "requirements.txt").read_text()
         shutil.rmtree(tmp_dir)
 

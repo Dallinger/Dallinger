@@ -35,9 +35,9 @@ Now let's build a Docker image for one of the demo experiments:
     $ dallinger docker build
     ❯❯ Experiment UID: 3b72e1fb-9302-cc1a-ebae-f2cb8907dce0
     Deployment temp directory: /tmp/tmpt3cqkrss/3b72e1fb-9302-cc1a-ebae-f2cb8907dce0
-    Image ghcr.io/dallinger/dallinger/bartlett1932:e3ca8804 not found - building
+    Building image ghcr.io/dallinger/dallinger/bartlett1932:e3ca8804...
     ...
-    Built image: ghcr.io/dallinger/dallinger/bartlett1932:e3ca8804
+    Built image: ghcr.io/dallinger/dallinger/bartlett1932:e3ca8804 (1 min 4 s).
 
 Dallinger invoked ``docker`` to build an image for the experiment. It used the dallinger
 image corresponding to the version specified in the experiment's ``constraints.txt``

@@ -16,7 +16,18 @@ from dallinger.docker.tools import docker_tag_from_experiment_id
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
 
 
-def test_docker_host_uri_omits_at_sign_usernames(capsys):
+def test_docker_host_uri_omits_at_sign_usernames(capsys, monkeypatch):
+    ssh_user = ["peter"]
+
+    def fake_ssh_g(args, **kwargs):
+        # OpenSSH's `ssh -G` reports the user it would log in as.
+        assert args[:3] == ["ssh", "-G", "--"] and kwargs["stdin"] is subprocess.DEVNULL
+        known = args[3] == "rr-pc01.example"
+        return subprocess.CompletedProcess(
+            args, 0 if known else 255, stdout=f"user {ssh_user[0]}\n" if known else ""
+        )
+
+    monkeypatch.setattr(docker_ssh_module.subprocess, "run", fake_ssh_g)
     assert (
         docker_ssh_module.docker_host_uri("rr-pc01.example", user="pmch2@cam.ac.uk")
         == "ssh://rr-pc01.example"
@@ -26,6 +37,12 @@ def test_docker_host_uri_omits_at_sign_usernames(capsys):
         docker_ssh_module.docker_host_uri("musix.example", user="pmch2", port=2222)
         == "ssh://pmch2@musix.example:2222"
     )
+
+    ssh_user[0] = "pmch2@cam.ac.uk"
+    docker_ssh_module.docker_host_uri("rr-pc01.example", user="pmch2@cam.ac.uk")
+    assert capsys.readouterr().out == "", "no hint once ssh would use that user"
+    docker_ssh_module.docker_host_uri("unknown.example", user="pmch2@cam.ac.uk")
+    assert "User pmch2@cam.ac.uk" in capsys.readouterr().out, "hint if ssh -G fails"
 
 
 class FakeExecutor:
@@ -263,7 +280,9 @@ def test_classic_deploy_without_contact_email_prints_an_error_line(monkeypatch):
         )
 
 
-def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch):
+def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(
+    monkeypatch, capsys
+):
     class Executor:
         def __init__(self, *args, **kwargs):
             pass
@@ -309,6 +328,7 @@ def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch)
             update=False,
         )
     assert deleted == ["new"]
+    assert capsys.readouterr().out.startswith("Setting up the Cloudflare tunnel...\n")
 
 
 def _cloudflare_destroy(monkeypatch, removed, cloudflare=None):
@@ -751,7 +771,8 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         ("_check_app_slot", "app-slot", None),
     ):
         monkeypatch.setattr(docker_ssh_module, name, step(event, result))
-    monkeypatch.setattr(docker_ssh_module, "Executor", mock.Mock())
+    executor = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "Executor", executor)
     monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
 
     with pytest.raises(click.Abort):
@@ -761,6 +782,9 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
                 config_options=(("docker_image_name", "registry.example/exp:1"),),
             )
         )
+
+    # Executors share one SSH connection, which the build reuses.
+    executor.return_value.client.close.assert_not_called()
 
     assert events == [
         "policy",
@@ -860,6 +884,8 @@ def test_docker_ssh_build_assembles_the_validated_source(tmp_path, monkeypatch):
     assert build_image.call_args.kwargs["image_tag"] == (
         "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     )
+    assert setup.call_args.kwargs["quiet"] is True
+    assert build_image.call_args.kwargs["quiet"] is True
 
 
 def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path):
@@ -953,7 +979,7 @@ def _patch_destroy_executor(monkeypatch, run):
     return executor
 
 
-def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
+def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch, capsys):
     compose_yml = docker_ssh_module.get_docker_compose_yml(
         {},
         "myapp",
@@ -982,6 +1008,9 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
     rmi = "docker rmi registry/exp:old-uid"
     rm_tree = "rm -rf ~/dallinger/myapp/"
     assert commands.index(down) < commands.index(rmi) < commands.index(rm_tree)
+    out = capsys.readouterr().out
+    assert "Removing experiment image registry/exp:old-uid.\n" in out
+    assert out.endswith("App myapp removed.\n")
     rmi_commands = [cmd for cmd in commands if cmd.startswith("docker rmi")]
     assert rmi_commands == [rmi]
     for forbidden in (
@@ -1242,7 +1271,7 @@ def test_remote_postgres_prefers_pinned_container_name(monkeypatch):
 
     open_channel = executor.client.get_transport.return_value.open_channel
     assert open_channel.call_args.args[:2] == ("direct-tcpip", ("10.0.0.8", 5432))
-    executor.client.close.assert_called_once()
+    executor.client.close.assert_not_called()
     remote.close()
 
 
@@ -1274,7 +1303,7 @@ def test_remote_postgres_does_not_fall_back_when_app_db_is_stopped(monkeypatch):
             {"host": "example.com", "user": "ubuntu"}, "myapp"
         ):
             pass
-    executor.client.close.assert_called_once()
+    executor.client.close.assert_not_called()
 
 
 def test_select_running_app_returns_lone_hibernating_app(monkeypatch):
@@ -1503,7 +1532,7 @@ def test_hibernate_explains_apps_without_a_front_door(monkeypatch, capsys):
     assert not any("exec" in cmd for cmd in executor.commands)
 
 
-def test_awaken_skips_an_app_that_is_already_awake(monkeypatch):
+def test_awaken_skips_an_app_that_is_already_awake(monkeypatch, capsys):
     executor = FakeExecutor({"test -f": "Yes"})
     monkeypatch.setattr(
         docker_ssh_module, "CONFIGURED_HOSTS", {"s": {"host": "example.com"}}
@@ -1511,6 +1540,9 @@ def test_awaken_skips_an_app_that_is_already_awake(monkeypatch):
     monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
     assert docker_ssh_module.awaken_app("s", "demo", required=False) is True
     assert not any("exec" in cmd for cmd in executor.commands)
+    assert capsys.readouterr().out == ""
+    docker_ssh_module.awaken.callback(server="s", app="demo")
+    assert capsys.readouterr().out == "App demo is awake\n"
 
 
 def test_get_apps_reports_hibernation_from_markers():

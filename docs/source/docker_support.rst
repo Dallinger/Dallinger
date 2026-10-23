@@ -490,20 +490,45 @@ The above command will output:
 
 .. code-block:: shell
 
-    Connecting to 0.0.0.0
+    Connecting to 0.0.0.0...
     Connected.
-    Launched http and postgresql servers. Starting experiment
-    Creating database dlgr-d5543ddd
-    Experiment dlgr-d5543ddd started. Initializing database
-    Database initialized
-    Launching experiment
+    Launching http, postgresql and dozzle servers.
+    Starting the experiment server...
+    To view the logs for this experiment go to https://logs.0.0.0.0.nip.io (user = dallinger, password = ...)
+    Cleaning up the database and its user...
+    Creating database dlgr-d5543ddd...
+    To display the logs for this experiment you can run:
+    ssh -i ~/.ssh/server.pem debian@0.0.0.0 "docker compose -f ~/dallinger/dlgr-d5543ddd/docker-compose.yml logs -f"
+    Or you can head to https://logs.0.0.0.0.nip.io (user = dallinger)
+    You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard (user = admin)
+    Dashboard password: foobar
+    The experiment server is up.
+    Waiting for <public URL> to become reachable before launching (up to 7 min).
+    <public URL> is reachable.
+    Launching the experiment...
     Initial recruitment list:
     https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&assignmentId=F2Q19C&hitId=BE9BWB&workerId=YC30TJ&mode=debug
     Additional details:
-    Recruitment requests will open browser windows automatically.
-    To display the logs for this experiment you can run:
-    ssh debian@0.0.0.0 docker compose -f '~/dallinger/dlgr-d5543ddd/docker-compose.yml' logs -f
-    You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard as user admin using password foobar
+    Single recruitment link: https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&generate_tokens=1&mode=debug
+
+If your SSH config has a short alias for the server (``Host lab`` with
+``HostName lab.example.org``, the same user and the ``server_pem`` key), the
+logs command uses it, for example ``ssh lab "docker compose ... logs -f"``.
+
+This example deploys a prebuilt image. Without a ``docker_image_name`` that the
+registry has (set in config or with ``-c docker_image_name <image>``), the deploy
+first builds one and prints a single ``Building image ...`` line, which mentions
+the experiment's own ``Dockerfile`` if it has one, followed by ``Built image: ...``
+with the build's duration. In a terminal, a line in between shows the current
+build step and the elapsed time. A step that takes 30 seconds or more is reported
+with a ``Still on ...`` line, repeated every minute, also in redirected output.
+If the build fails, the full ``docker build`` log is printed with the path of its saved copy.
+Set ``DALLINGER_VERBOSE_BUILD=1`` to see the build output as it runs.
+Python callers that print their own summary, such as PsyNet, can invoke the command
+with ``show_summary=False``. This leaves out the links, logs command, passwords and
+recruitment message, which are all in the returned dict. If the health check, the
+public URL wait or the launch fails, the notes and dashboard password are printed
+before the error, because there is no returned dict.
 
 Dallinger uses the free service [nip.io](https://nip.io/) to provide a URL for the experiment to get an SSL certificate from Let's Encrypt.
 The experiment URL is a combination of the app id and the server IP. In this case the id of the deployed experiment is ``dlgr-d5543ddd``.
@@ -524,6 +549,11 @@ the DNS label:
     CLOUDFLARE_API_TOKEN=... dallinger docker-ssh deploy \
         --app consonance --ingress cloudflare \
         --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5
+
+Once the image is ready, a Cloudflare deploy prints ``Setting up the Cloudflare
+tunnel...`` while it creates or reuses the app's tunnel and uploads its Compose
+stack, then ``Starting the experiment server...`` (``Restarting ...`` for
+``--update``).
 
 Launching an experiment opens recruitment, so a docker-ssh deploy first checks
 the app's ``/health`` from inside the server, then waits up to 7 minutes for

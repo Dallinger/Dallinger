@@ -181,7 +181,8 @@ def push_image(image_name_with_tag: str) -> str:
     """Push a local image to its registry and return the digest name."""
     from docker import client
 
-    docker_client = client.from_env(timeout=DOCKER_PUSH_TIMEOUT)
+    # Over SSH, use the ssh command rather than Paramiko, like build_image().
+    docker_client = client.from_env(timeout=DOCKER_PUSH_TIMEOUT, use_ssh_client=True)
     for attempt in tenacity.Retrying(
         retry=tenacity.retry_if_exception_type(
             (
@@ -337,7 +338,7 @@ def deploy_image(image_name, mode, config_options):
         data=app._h._resource_serialize(payload),
     )
 
-    print("Launching experiment")
+    print("Launching the experiment...")
     app_url = f"https://{app_hostname}"
     launch_data = handle_launch_data(f"{app_url}/launch", print, context="heroku")
     print(launch_data.get("recruitment_msg"))
