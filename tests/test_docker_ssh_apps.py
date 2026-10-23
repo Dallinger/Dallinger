@@ -603,7 +603,7 @@ def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatc
     monkeypatch.setattr(
         docker_ssh_module,
         "_classic_preflight",
-        lambda *args: "pc01.lab.example.org",
+        lambda *args, **kwargs: "pc01.lab.example.org",
     )
     monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
     monkeypatch.setattr(
