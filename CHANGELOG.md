@@ -241,7 +241,7 @@
   Cloudflare tunnel..." while it prepares the tunnel. Every deploy then
   prints "Starting the experiment server..." (with classic ingress, followed by
   "Cleaning up the database and its user..." and "Creating database
-  …...") and "The experiment server is up." once the
+  <app>...") and "The experiment server is up." once the
   health check passes, without the "Initializing database..." and "Database
   initialized." lines; an `--update` prints "Restarting the experiment
   server..." and ends with "Not launching again: this is an update of a

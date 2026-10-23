@@ -536,16 +536,20 @@ def _quiet_build(
 
 @pytest.mark.parametrize("exit_code", [0, 1])
 def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit_code):
-    from dallinger.docker import tools
+    import click
 
     log_dir = tmp_path / "logs"
     log_dir.mkdir()
     monkeypatch.setattr(tempfile, "tempdir", str(log_dir))
+    # A ClickException makes Click print "Error: …" rather than "Aborted!".
+    failure = pytest.raises(
+        click.ClickException, match="^The image build failed; the log above is saved"
+    )
     messages = _quiet_build(
         tmp_path,
         monkeypatch,
         f"echo '#14 + ansi2html' >&2\nexit {exit_code}\n",
-        pytest.raises(tools.BuildError) if exit_code else nullcontext(),
+        failure if exit_code else nullcontext(),
     )
     output = "".join(messages)
     assert messages[0] == (
@@ -635,6 +639,22 @@ def test_verbose_rebuild_streams_docker_output(tmp_path, monkeypatch):
     assert messages[0] == "Rebuilding image exp:t...\n"
     assert re.fullmatch(r"Built image: exp:t \([12] s\)\.\n", messages[1])
     assert len(messages) == 2
+
+
+def test_failed_verbose_build_is_an_error(tmp_path, monkeypatch):
+    import click
+
+    from dallinger.docker import tools
+
+    monkeypatch.setenv("DALLINGER_VERBOSE_BUILD", "1")
+    failed = tools.CalledProcessError(1, "docker build")
+    with (
+        mock.patch("docker.client.from_env"),
+        mock.patch.object(tools, "get_base_image", return_value="base"),
+        mock.patch.object(tools, "check_output", side_effect=failed),
+        pytest.raises(click.ClickException, match="^The image build failed; docker"),
+    ):
+        tools.build_image(tmp_path, "exp", mock.Mock(), image_tag="t", quiet=True)
 
 
 @pytest.mark.parametrize(
