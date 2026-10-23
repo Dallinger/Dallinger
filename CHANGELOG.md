@@ -400,6 +400,11 @@
 
 ### Fixed
 
+- Local launches (``dallinger develop debug``, and tools such as PsyNet that
+  launch a local server the same way) no longer draw the "Waiting for the
+  experiment URL to become reachable" progress bar, which the local server's
+  own log lines were written onto. They print that message as one plain line
+  instead, and only if the first launch attempt fails. Deploys keep the bar.
 - A participant who signs up through `POST /participant`, as the page's
   `dallinger.createParticipant()` does, keeps the recruiter named in their
   ad URL. They had been given the configured recruiter, and with
