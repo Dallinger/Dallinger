@@ -1,4 +1,5 @@
 import importlib
+import io
 import os
 import re
 import sys
@@ -510,6 +511,8 @@ def _quiet_build(tmp_path, monkeypatch, fake_docker_script, raises=nullcontext()
     fake_docker.chmod(0o755)
     monkeypatch.setattr(tools, "which", lambda name: str(fake_docker))
     monkeypatch.setattr(tools, "_BUILD_POLL_SECONDS", 0.05)
+    # Redirected output, also under `pytest -s`.
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
     (tmp_path / "Dockerfile").write_text("FROM python:3.12\n")
     messages = []
     client = mock.Mock()
@@ -558,23 +561,23 @@ def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit
 
 
 def test_quiet_build_reports_slow_steps_and_duration(tmp_path, monkeypatch):
-    from dallinger.docker import tools
-
-    monkeypatch.setattr(tools, "SLOW_BUILD_STEP_SECONDS", 0.2)
-    monkeypatch.setattr(tools, "SLOW_BUILD_STEP_REPEAT_SECONDS", 60)
+    # BuildKit's output lines give the seconds since their step started, so a
+    # step whose output says 31.0 has been running for at least 30 s. The
+    # later internal step must not hide it, nor docker exiting right away.
     messages = _quiet_build(
         tmp_path,
         monkeypatch,
         "echo '#5 [2/3] COPY . /experiment'\necho '#5 DONE 0.1s'\n"
         "echo '#6 [ 3/3] RUN pip install     -r requirements.txt'\n"
-        "echo '#6 0.52 Collecting psynet'\nsleep 1\necho '#6 DONE 1.0s'\n",
+        "echo '#7 [internal] load build context'\n"
+        "echo '#6 31.0 Collecting psynet'\n",
     )
     output = "".join(messages)
     assert output.count("Still on") == 1
     assert (
-        "Still on step 3/3 after 1 s: RUN pip install -r requirements.txt\n" in output
+        "Still on step 3/3 after 30 s: RUN pip install -r requirements.txt\n" in output
     )
-    assert messages[-1] == "Built image: exp:t (1 s).\n"
+    assert re.fullmatch(r"Built image: exp:t \([12] s\)\.\n", messages[-1])
     assert "\r" not in output
 
 
@@ -593,7 +596,9 @@ def test_verbose_rebuild_streams_docker_output(tmp_path, monkeypatch):
             tmp_path, "exp", Output(blather=messages.append), image_tag="t", quiet=True
         )
     check_output.assert_called_once()
-    assert messages == ["Rebuilding image exp:t...\n", "Built image: exp:t (1 s).\n"]
+    assert messages[0] == "Rebuilding image exp:t...\n"
+    assert re.fullmatch(r"Built image: exp:t \([12] s\)\.\n", messages[1])
+    assert len(messages) == 2
 
 
 @pytest.mark.parametrize(

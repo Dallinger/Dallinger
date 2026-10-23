@@ -2219,6 +2219,7 @@ def _deploy_cloudflare_in_mode(
     The caller has already checked that the app slot is free (or exists,
     for ``--update``) and loaded ``api_token``.
     """
+    print("Setting up the Cloudflare tunnel...")
     hostname = cloudflare_public_hostname(experiment_id, settings["dns_zone"])
     public_origin = public_origin_for_hostname(hostname)
     ssh_address = server_info["host"]

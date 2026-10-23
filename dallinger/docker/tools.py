@@ -658,6 +658,8 @@ _BUILD_POLL_SECONDS = 0.5
 _BUILD_LINE_RE = re.compile(r"^#(\d+) (.*)$")
 _BUILD_STEP_NUMBER_RE = re.compile(r"^\[(?:\S+ )?\s*(\d+/\d+)\] (.*)$")
 _BUILD_STEP_FINISHED_RE = re.compile(r"^(DONE|CACHED|ERROR|CANCELED)\b")
+# Output of a running step starts with the seconds since that step started.
+_BUILD_STEP_OUTPUT_RE = re.compile(r"^(\d+\.\d+) ")
 
 
 def _format_duration(seconds):
@@ -695,7 +697,15 @@ class _BuildProgress:
             if not match or match[1] == "0":
                 continue
             vertex, rest = match.groups()
-            if _BUILD_STEP_FINISHED_RE.match(rest):
+            output = _BUILD_STEP_OUTPUT_RE.match(rest)
+            if output:
+                # The header can reach us late, e.g. while a parallel step prints.
+                if vertex in self.steps:
+                    step = self.steps[vertex]
+                    step["started"] = min(
+                        step["started"], time.monotonic() - float(output[1])
+                    )
+            elif _BUILD_STEP_FINISHED_RE.match(rest):
                 if vertex in self.running:
                     self.running.remove(vertex)
             elif vertex not in self.steps:
@@ -714,27 +724,34 @@ class _BuildProgress:
                 self.latest = vertex
 
     def update(self):
-        """Report a slow current step and redraw the status line."""
-        vertex = self.running[-1] if self.running else self.latest
-        # Docker over SSH can take several seconds to print its first line.
-        step = self.steps.get(vertex, {"label": "", "description": "starting"})
-        label, description = step["label"], step["description"]
+        """Report slow running steps and redraw the status line."""
         now = time.monotonic()
-        if vertex in self.running and now - step["started"] >= step["notice_after"]:
+        for vertex in self.running:
+            step = self.steps[vertex]
+            if now - step["started"] < step["notice_after"]:
+                continue
             elapsed = _format_duration(step["notice_after"])
             step["notice_after"] += SLOW_BUILD_STEP_REPEAT_SECONDS
+            description = _truncate(step["description"], 100)
             self.clear()
             self.out.blather(
-                f"Still on {label or 'this step'} after {elapsed}: "
-                f"{_truncate(description, 100)}\n"
+                f"Still on {step['label']} after {elapsed}: {description}\n"
+                if step["label"]
+                else f'Still on "{description}" after {elapsed}\n'
             )
-        if self.live:
-            minutes, seconds = divmod(int(now - self.started), 60)
-            clock = f" ({minutes}:{seconds:02})"
-            text = f"Building: {label + ': ' if label else ''}{description}"
-            text = _truncate(text, get_terminal_size().columns - 1 - len(clock))
-            self.out.blather("\r" + (text + clock).ljust(len(self.shown)))
-            self.shown = text + clock
+        minutes, seconds = divmod(int(now - self.started), 60)
+        clock = f" ({minutes}:{seconds:02})"
+        width = get_terminal_size().columns - 1 - len(clock)
+        # A line wider than the terminal wraps, and "\r" can't redraw it.
+        if self.live and width >= 2:
+            vertex = self.running[-1] if self.running else self.latest
+            # Docker over SSH can take several seconds to print its first line.
+            step = self.steps.get(vertex, {"label": "", "description": "starting"})
+            label = step["label"] + ": " if step["label"] else ""
+            text = _truncate(f"Building: {label}{step['description']}", width)
+            line = (text + clock).ljust(len(self.shown))
+            self.out.blather("\r" + line)
+            self.shown = line
         sys.stdout.flush()
 
     def clear(self):
@@ -765,8 +782,11 @@ def _build_with_log_file(docker_build_invocation, env, out):
     progress = _BuildProgress(out)
     try:
         with open(log_path, errors="replace") as log:
-            while process.poll() is None:
-                time.sleep(_BUILD_POLL_SECONDS)
+            finished = False
+            while not finished:
+                finished = process.poll() is not None
+                if not finished:
+                    time.sleep(_BUILD_POLL_SECONDS)
                 if progress is not None:
                     try:
                         progress.feed(log.read())

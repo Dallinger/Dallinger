@@ -237,6 +237,7 @@
   the BuildKit output) starts with one "Building image ..." or "Rebuilding
   image ..." line, which mentions the experiment's custom Dockerfile if it
   has one. A deploy then prints "Starting the experiment server..." (with
+  Cloudflare ingress, after "Setting up the Cloudflare tunnel..."; with
   classic ingress, followed by "Cleaning up the database and its user..."
   and "Creating database …...") and "The experiment server is up." once the
   health check passes, without the "Initializing database..." and "Database

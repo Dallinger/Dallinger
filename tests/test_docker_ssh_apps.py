@@ -280,7 +280,9 @@ def test_classic_deploy_without_contact_email_prints_an_error_line(monkeypatch):
         )
 
 
-def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch):
+def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(
+    monkeypatch, capsys
+):
     class Executor:
         def __init__(self, *args, **kwargs):
             pass
@@ -326,6 +328,7 @@ def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch)
             update=False,
         )
     assert deleted == ["new"]
+    assert capsys.readouterr().out.startswith("Setting up the Cloudflare tunnel...\n")
 
 
 def _cloudflare_destroy(monkeypatch, removed, cloudflare=None):
