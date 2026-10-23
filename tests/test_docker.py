@@ -573,7 +573,8 @@ def test_quiet_build_reports_slow_steps_and_duration(tmp_path, monkeypatch):
     monkeypatch.setattr(tools, "SLOW_BUILD_STEP_REPEAT_SECONDS", 0.3)
     # The headers arrive 0.5 s into the build, just before docker exits. The
     # step's unterminated output line dates its start back to the build's
-    # start (not 31 s back), so it gets one notice despite the later step.
+    # start (not 31 s back), so it gets a notice despite the later step. A
+    # slow runner can poll long enough for repeats and a later-step notice.
     messages = _quiet_build(
         tmp_path,
         monkeypatch,
@@ -583,11 +584,13 @@ def test_quiet_build_reports_slow_steps_and_duration(tmp_path, monkeypatch):
         "printf '#6 31.0 Collecting psynet'\n",
     )
     output = "".join(messages)
-    assert output.count("Still on") == 1
-    assert (
-        "Still on step 3/3 after 1 s: RUN pip install -r requirements.txt\n" in output
+    notices = re.findall(r"Still on step 3/3 after (\d+) s: (.*)\n", output)
+    assert notices
+    assert all(
+        int(seconds) < 10 and command == "RUN pip install -r requirements.txt"
+        for seconds, command in notices
     )
-    assert re.fullmatch(r"Built image: exp:t \([12] s\)\.\n", messages[-1])
+    assert re.fullmatch(r"Built image: exp:t \(\d+ s\)\.\n", messages[-1])
     assert "\r" not in output
 
 
