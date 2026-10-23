@@ -23,7 +23,7 @@
     "js-yaml": "^3.15.2",
     "linkify-it": "^5.0.2",
     "lodash": "^4.17.21",
-    "follow-redirects": "^1.16.0",
+    "follow-redirects": "^1.16.1",
     "socket.io-adapter": "^2.5.8",
     "socket.io-parser": "^4.2.7",
     "ws": "^8.21.3",
