@@ -228,6 +228,8 @@ tunnel already exists, unless it is the tunnel this server recorded for that app
 connector token from an earlier attempt). Destroy stops the connector, then deletes the DNS record and
 tunnel, but never a same-named tunnel with a different id. If that cleanup fails, destroy leaves the app's files in place so it
 can be run again.
+With either ingress, deploy also refuses the app name ``logs``, because the
+server serves its log viewer at ``logs.<server DNS name>``.
 
 Each app also gets an unprivileged Caddy front door (WebSockets, no Docker
 socket), which host Caddy or the tunnel now reach instead of web, and a
@@ -507,7 +509,6 @@ The above command will output:
 
 Dallinger uses the free service [nip.io](https://nip.io/) to provide a URL for the experiment to get an SSL certificate from Let's Encrypt.
 The experiment URL is a combination of the app id and the server IP. In this case the id of the deployed experiment is ``dlgr-d5543ddd``.
-The app name ``logs`` is reserved because the server serves its log viewer at ``logs.<server DNS name>``.
 
 If you need to run an experiment on Amazon Mechanical Turk in sandbox mode you can set the mode to ``sandbox`` using the `-c` option like this:
 
