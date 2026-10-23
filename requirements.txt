@@ -167,7 +167,7 @@ sortedcontainers==2.4.0
     # via trio
 soupsieve==3.0.4
     # via beautifulsoup4
-sqlalchemy==1.4.54
+sqlalchemy==2.1.6
     # via dallinger
 tenacity==9.2.1
     # via dallinger

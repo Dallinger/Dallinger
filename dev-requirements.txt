@@ -546,7 +546,7 @@ sphinxcontrib-serializinghtml==2.0.0
     # via sphinx
 sphinxcontrib-spelling==8.0.2
     # via dallinger
-sqlalchemy==1.4.54
+sqlalchemy==2.1.6
     # via dallinger
 stack-data==0.6.3
     # via ipython
