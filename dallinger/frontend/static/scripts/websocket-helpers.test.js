@@ -166,6 +166,7 @@ describe("sending", () => {
     ["a name containing a colon", "a:b"],
     ["the control channel", "dallinger_control"],
     ["the direct channel", "dallinger_direct"],
+    ["the time channel", "dallinger_time"],
     ["a name that is not a string", ["moves"]],
   ])("refuses %s", (_, channel) => {
     const dallinger = load();

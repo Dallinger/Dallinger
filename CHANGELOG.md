@@ -219,6 +219,39 @@
   too; if only ``num_dynos_worker`` is set, they still use it, with a
   ``FutureWarning`` asking for ``worker_processes``.
 
+- A real-time engine for live multiplayer games (#9974). An experiment
+  subclasses `RealtimeGame` to write a game type, lists its game types in
+  `Experiment.realtime_games`, and starts a session with
+  `create_realtime_session`, then finds a player's sessions and their outcomes
+  with `realtime_sessions_for(participant, game_type)`, or reads one session's
+  outcome with `realtime_result(session_id)`. A session starts once the
+  transaction that created it commits. Runner processes play the sessions,
+  keeping the game state in Redis.
+  Each worker process of an experiment with game types
+  starts one with the new `dallinger_realtime` command, and starts another
+  whenever it exits. Each session's messages, clock measurements, effects,
+  checkpoints and ending are saved in the new `realtime_session` and
+  `realtime_event` tables, which exports include. Several runners can share
+  an experiment's sessions, and a session carries on from its last save if its
+  runner dies. A page joins a session by opening its websocket with the
+  session's id as a `session` query parameter, on `/chat` or
+  `/experiment-socket`, and sends its moves on the game type's channel, within
+  a per-socket rate limit the game type sets. `dallinger verify` and deploys
+  check an experiment's game types. Dallinger now needs Redis 7.0 or
+  later. `RealtimeGame`, `Reject` and the session functions import from
+  `dallinger.realtime`, and the new "Real-Time Games" docs page describes the
+  engine. The experiment isn't complete while any of its sessions is
+  running, so a `HighPerformanceBotBase` bot that a game type plays for can
+  sign off once it has joined.
+- `Experiment.accept_websocket_connection(participant_id, scope)` lets an
+  experiment refuse an `/experiment-socket` connection when it opens. A falsy
+  return closes the socket with code `1008`, and Dallinger's client helpers
+  stop reconnecting.
+- `db.run_after_commit` runs a function once the outermost transaction
+  commits, and never if the transaction, or the savepoint it was added in,
+  rolls back. Its optional `description` names the function in the warning
+  logged when the transaction ends without a commit.
+
 ### Changed
 
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
@@ -277,12 +310,15 @@
   of Dallinger's ``Dockerfile``, including new Python versions.
 - Clients may no longer subscribe to Dallinger's own channels. The `channel`
   argument may not name `dallinger_control`, which reports every connection's
-  worker and participant ids, nor the new `dallinger_direct`, which carries the
-  directed messages published to every participant on the deployment. A
-  connection naming either is logged and left unsubscribed rather than refused,
-  and may still send and receive otherwise. Client messages addressed to
-  `dallinger_control` were already discarded, and the same now applies to
-  `dallinger_direct`.
+  worker and participant ids, the new `dallinger_direct`, which carries the
+  directed messages published to every participant on the deployment, the new
+  `dallinger_realtime_session`, which carries real-time sessions' views to
+  their players' pages, or the new `dallinger_time`, on which real-time pages
+  send time requests and clock reports that the web process handles itself. A
+  connection naming one of them is logged and left unsubscribed rather than
+  refused, and may still send and receive otherwise. Client messages addressed
+  to `dallinger_control` were already discarded, and the same now applies to
+  `dallinger_direct` and `dallinger_realtime_session`.
 - The `/chat` WebSocket route no longer sleeps between reads. The client
   receive loop slept for 0.1s (or whatever `?tolerance=` asked for) before
   each `receive()`, and the redis relay greenlet slept 0.001s per message.
@@ -398,8 +434,26 @@
   ``prolific_maximum_allowed_minutes`` is now a ``FutureWarning`` too, and no
   longer changes the global warnings filter.
 
+- `db.queue_message` publishes only when the outermost transaction commits,
+  not also when a savepoint is released. An error in a function run after a
+  commit is logged rather than raised from `commit()`.
+- A web worker that gets `SIGTERM` closes its websockets with code `1001`, so
+  browsers reconnect to another web process straight away instead of being
+  dropped when the platform kills the process.
+- The RQ worker uses `psycogreen`, a new dependency, so a job waiting on the
+  database doesn't hold up the worker's other jobs. Connections set up this
+  way can't run `COPY`, so an experiment job that calls `export` on the worker
+  fails.
+- `init_db(drop_all=True)` also deletes every real-time session from Redis, so
+  it now needs Redis.
+
 ### Fixed
 
+- `HighPerformanceBotBase` bots can sign up again. `sign_up` subscribes the
+  bot to the `quorum` channel, which has raised `AttributeError` since the
+  control events added in v9.10.0 asked each subscriber for its
+  `client_info()`. The bot now has `client_info()`, and a `send()` that
+  receives channel messages and does nothing until a subclass overrides it.
 - A participant who signs up through `POST /participant`, as the page's
   `dallinger.createParticipant()` does, keeps the recruiter named in their
   ad URL. They had been given the configured recruiter, and with

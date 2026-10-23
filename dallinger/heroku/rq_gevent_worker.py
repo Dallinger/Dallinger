@@ -8,6 +8,10 @@ from gevent.hub import LoopExit
 
 monkey.patch_all()
 
+import psycogreen.gevent
+
+psycogreen.gevent.patch_psycopg()
+
 import logging
 import signal
 

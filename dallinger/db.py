@@ -1,5 +1,6 @@
 """Create a connection to the database."""
 
+import json
 import logging
 import math
 import os
@@ -7,8 +8,8 @@ import random
 import sys
 import time
 from contextlib import contextmanager
-from functools import wraps
-from typing import Union
+from functools import partial, wraps
+from typing import NamedTuple, Union
 
 import psycopg2
 from psycopg2.extensions import TransactionRollbackError
@@ -143,13 +144,46 @@ redis_conn = connect_to_redis()
 CONTROL_CHANNEL = "dallinger_control"
 
 #: Carries directed sends between processes, and prefixes the frame one arrives
-#: in at the browser. The two are different shapes: an envelope naming
-#: recipients over redis, and the payload alone on the wire to the browser.
+#: in at the browser. The two are different shapes: over redis, an envelope
+#: holding its publisher's ``origin`` and a list of ``items``, each naming its
+#: recipients, and on the wire to the browser, one item's payload alone.
 DIRECT_CHANNEL = "dallinger_direct"
 
-#: Channels Dallinger owns. A client may neither subscribe to one nor address
-#: a frame to it.
-RESERVED_CHANNELS = frozenset({CONTROL_CHANNEL, DIRECT_CHANNEL})
+#: Carries a real-time session's views and endings to its players' pages, in
+#: the same two shapes as :data:`DIRECT_CHANNEL`, and prefixes their frames.
+REALTIME_SESSION_CHANNEL = "dallinger_realtime_session"
+
+
+def direct_envelope(origin, sends):
+    """Return the JSON text of an envelope for :data:`DIRECT_CHANNEL` or
+    :data:`REALTIME_SESSION_CHANNEL`.
+
+    :param origin: names the publisher, a string. A web process ignores the
+        envelopes it published itself.
+    :param sends: dicts, each holding the ``participant_ids`` to send to, as
+        strings, the ``scope`` of the pages to send to, or ``None`` for every
+        page, and the ``payload`` text
+    """
+    return json.dumps({"origin": origin, "items": list(sends)})
+
+
+#: Carries a real-time page's time requests, which the web process answers on
+#: the same socket, and the clock measurements the page reports.
+TIME_CHANNEL = "dallinger_time"
+
+#: Channels Dallinger owns. A client may not subscribe to one, and may only
+#: send frames on :data:`TIME_CHANNEL`, which the web process handles itself.
+RESERVED_CHANNELS = frozenset(
+    {CONTROL_CHANNEL, DIRECT_CHANNEL, REALTIME_SESSION_CHANNEL, TIME_CHANNEL}
+)
+
+
+def channel_frame(channel, text):
+    """Return the websocket frame that carries ``text`` on ``channel``: the
+    channel's name, a colon, then the text.
+    """
+    return "{}:{}".format(channel, text)
+
 
 db_user_warning = """
 *********************************************************
@@ -249,7 +283,12 @@ def _compile_drop_table(element, compiler, **kwargs):
 
 
 def init_db(drop_all=False, bind=engine):
-    """Initialize the database, optionally dropping existing tables."""
+    """Initialize the database, optionally dropping existing tables.
+
+    Dropping the experiment's own tables also deletes its real-time sessions
+    from redis, as :func:`~dallinger.realtime.store.clear_realtime_sessions`
+    describes.
+    """
     # To create the db structure according to the experiment configuration
     # we need to import the experiment code, so that sqlalchemy has a chance
     # to update its metadata
@@ -262,6 +301,11 @@ def init_db(drop_all=False, bind=engine):
     try:
         if drop_all:
             Base.metadata.drop_all(bind=bind)
+            if bind is engine:
+                # Imported here because the store imports this module.
+                from dallinger.realtime.store import clear_realtime_sessions
+
+                clear_realtime_sessions()
         Base.metadata.create_all(bind=bind)
     except OperationalError as err:
         msg = 'password authentication failed for user "dallinger"'
@@ -411,28 +455,96 @@ def serialized(func):
     return wrapper
 
 
-# Reset outbox when session begins
-@event.listens_for(Session, "after_begin")
-def after_begin(session, transaction, connection):
-    session.info["outbox"] = []
+class _Waiting(NamedTuple):
+    transaction: object
+    callback: object
+    description: object
 
 
-# Reset outbox after rollback
-@event.listens_for(Session, "after_soft_rollback")
-def after_soft_rollback(session, previous_transaction):
-    session.info["outbox"] = []
+def run_after_commit(callback, description=None):
+    """Call ``callback`` with no arguments once the session's transaction
+    commits. It's never called if the transaction, or the savepoint it was
+    added in, rolls back. A callback that raises is logged, and the rest
+    still run.
+
+    A callback still waiting when its transaction ends without a commit, as
+    when the session is closed, is dropped and logged. Passing a
+    ``description`` names the callback in the log, which is then an error
+    rather than a warning, for a callback whose loss matters.
+    """
+    current = session()
+    # Begins the transaction if none has begun.
+    current.connection()
+    transaction = current.get_nested_transaction() or current.get_transaction()
+    session.info.setdefault("after_commit", []).append(
+        _Waiting(transaction, callback, description)
+    )
 
 
 def queue_message(channel, message):
+    """Publish ``message`` to the redis ``channel`` once the session's
+    transaction commits, as :func:`run_after_commit` does.
+    """
     logger.debug("Enqueueing message to {}: {}".format(channel, message))
-    if "outbox" not in session.info:
-        session.info["outbox"] = []
-    session.info["outbox"].append((channel, message))
+    run_after_commit(partial(_publish, channel, message))
 
 
-# Publish messages to redis after commit
+def _publish(channel, message):
+    logger.debug("Publishing message to {}: {}".format(channel, message))
+    redis_conn.publish(channel, message)
+
+
 @event.listens_for(Session, "after_commit")
 def after_commit(session):
-    for channel, message in session.info.get("outbox", ()):
-        logger.debug("Publishing message to {}: {}".format(channel, message))
-        redis_conn.publish(channel, message)
+    # after_commit also fires when a savepoint is released.
+    if session.in_nested_transaction():
+        return
+    for waiting in session.info.pop("after_commit", ()):
+        # An exception here would leave the session unusable, even by
+        # rollback, since SQLAlchemy closes the transaction only after this
+        # event.
+        try:
+            waiting.callback()
+        except Exception:
+            logger.exception("A callback run after a commit failed.")
+
+
+@event.listens_for(Session, "after_rollback")
+def after_rollback(session):
+    # A rollback of the outermost transaction fires this before
+    # after_transaction_end, and a savepoint's fires after_soft_rollback.
+    if not session.in_nested_transaction():
+        session.info["after_commit"] = []
+
+
+@event.listens_for(Session, "after_soft_rollback")
+def after_soft_rollback(session, previous_transaction):
+    session.info["after_commit"] = [
+        waiting
+        for waiting in session.info.get("after_commit", ())
+        if not _within(waiting.transaction, previous_transaction)
+    ]
+
+
+def _within(transaction, outer):
+    while transaction is not None:
+        if transaction is outer:
+            return True
+        transaction = transaction.parent
+    return False
+
+
+@event.listens_for(Session, "after_transaction_end")
+def after_transaction_end(session, transaction):
+    waiting = session.info.get("after_commit")
+    if transaction.parent is None and waiting:
+        described = [each.description for each in waiting if each.description]
+        message = (
+            "Dropped {} callbacks waiting for a commit, because their "
+            "transaction ended without one".format(len(waiting))
+        )
+        if described:
+            logger.error("%s: %s.", message, "; ".join(described))
+        else:
+            logger.warning("%s.", message)
+        session.info["after_commit"] = []

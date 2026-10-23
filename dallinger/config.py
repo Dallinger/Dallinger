@@ -42,6 +42,16 @@ marker = object()
 LOCAL_CONFIG = "config.txt"
 SENSITIVE_KEY_NAMES = ("access_id", "access_key", "password", "secret", "token")
 
+#: The logging level for each value, 0 to 4, of the ``loglevel`` and
+#: ``loglevel_worker`` settings.
+LOG_LEVELS = (
+    logging.DEBUG,
+    logging.INFO,
+    logging.WARNING,
+    logging.ERROR,
+    logging.CRITICAL,
+)
+
 
 def is_valid_json(value):
     json.loads(value)

@@ -1,0 +1,459 @@
+"""Game types for the real-time engine.
+
+A real-time game is written as a game type: a subclass of
+:class:`RealtimeGame` that holds the game's rules. Each game being played is a
+session, with its own state and its own players. A runner, a separate process,
+plays sessions. It calls the game type's methods with a session's state as
+messages arrive and as time passes, and sends each player's page a view of the
+state.
+
+A runner uses one instance of each game type for all of its sessions, so keep
+nothing on the instance. Everything a session needs goes in its state.
+
+The state, messages, views and outcomes are plain JSON values. The runner
+saves the state as JSON and loads it again, sometimes in another runner, so
+dict keys come back as strings and tuples as lists. Build them that way from
+the start.
+
+Players are identified by their participant ids, as strings, so the ids work
+as keys in the state's dicts. Times are seconds on the session's own clock,
+which starts at 0 and stops while no runner is playing the session.
+"""
+
+from abc import ABC, abstractmethod
+from contextvars import ContextVar
+from dataclasses import dataclass
+
+from dallinger.db import RESERVED_CHANNELS
+from dallinger.realtime.utils import copy_json, is_int, is_number
+
+#: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
+#: :meth:`~dallinger.realtime.RealtimeGame.is_over` returned true.
+FINISHED = "finished"
+
+#: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
+#: the session clock reached
+#: :attr:`~dallinger.realtime.RealtimeGame.max_duration`.
+MAX_DURATION = "max_duration"
+
+#: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
+#: no player other than a bot opened the game's page within
+#: :attr:`~dallinger.realtime.RealtimeGame.join_timeout`.
+NOT_JOINED = "not_joined"
+
+#: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
+#: the session failed.
+FAILED = "failed"
+
+#: The largest :attr:`~dallinger.realtime.RealtimeGame.time_limit` allowed,
+#: in seconds. Game code can run for up to twice its limit before the runner
+#: gives up on it, and that has to end before the runner's claims on its
+#: sessions expire.
+MAX_TIME_LIMIT = 1
+
+# The list effects are queued in while the session core calls game code.
+queued_effects = ContextVar("queued_effects")
+
+
+class Reject(Exception):
+    """Raise from :meth:`RealtimeGame.apply` to refuse a message.
+
+    A refused message still counts as processed. It's saved with ``reason``,
+    unless :meth:`RealtimeGame.save_message` leaves it out, and the sender's
+    page gets the message's number and ``reason`` with its next view. The
+    runner can't undo changes ``apply`` made before raising, so check
+    everything before changing the state.
+
+    :param reason: why the message was refused, as a JSON value
+    """
+
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
+
+@dataclass(frozen=True)
+class Sent:
+    """What a player's page said about a message it sent, passed to
+    :meth:`RealtimeGame.apply` as ``sent``. Most games don't need it.
+
+    - ``number``: the message's number, counting the messages the page has
+      sent
+    - ``browser_time``: the browser's clock when the page sent the message,
+      in seconds since 1970
+    - ``view_time``: the session time of the view the page was showing
+
+    Each is ``None`` if the page didn't send it, or sent an invalid value.
+    """
+
+    number: int | None = None
+    browser_time: float | None = None
+    view_time: float | None = None
+
+
+class RealtimeGame(ABC):
+    """Base class for real-time game types.
+
+    A game type sets :attr:`channel` and defines :meth:`initial_state`,
+    :meth:`apply` and :meth:`view`. The other methods are optional.
+
+    The methods are passed the session's ``state``, and most are passed
+    ``now``, the session time. :meth:`apply`, :meth:`tick`, :meth:`on_join`
+    and :meth:`on_leave` change the state in place. The other methods only
+    read it, and Dallinger may call them more than once for the same state.
+    No method may use the database: use :meth:`queue_effect` for anything
+    that needs it.
+
+    A session fails if a method raises an error or calls ``sys.exit()``,
+    other than :meth:`apply` raising :class:`Reject`, returns a value that
+    isn't JSON, or runs past :attr:`time_limit`. The session then ends with
+    the reason :data:`~dallinger.realtime.game.FAILED`, and the experiment's
+    other sessions carry on. Dallinger applies messages and ticks a few at a
+    time, saving the state after each group. A failure puts the session back
+    to its state from the last save, which :meth:`outcome` is passed, and
+    drops the effects queued since then. The messages since then are saved
+    in the record, marked as failed.
+
+    Each session's record in Postgres holds, in the order things happened:
+
+    - its messages, each with its sender, the message, and whether it was
+      accepted, rejected with a reason, or failed
+    - its effects, each with its name and payload
+    - copies of the state, at most every :attr:`checkpoint_interval` seconds
+      of session time
+    - the ending, with its reason, the :meth:`outcome` and the final state
+
+    :meth:`save_message` can leave accepted and rejected messages out of the
+    record. Effects, failed messages and the ending are always saved. Views
+    aren't saved.
+    """
+
+    #: The websocket channel the game's pages send messages on. It can't
+    #: contain a colon, or be one of Dallinger's reserved channels, the
+    #: experiment's ``channel``, or another game type's channel.
+    channel = None
+
+    #: How many times a second :meth:`tick` runs. At 0, it runs only at the
+    #: times :meth:`next_deadline` returns.
+    tick_rate = 0
+
+    #: Seconds on the session clock after which the session ends, whatever
+    #: :meth:`is_over` says. ``None`` means no limit.
+    max_duration = None
+
+    #: Seconds on the session clock within which a player who isn't a bot
+    #: must open the game's page, or the session ends, so a session whose
+    #: players never load the page doesn't run forever. A session whose
+    #: players are all bots never ends this way. ``None`` means no limit.
+    join_timeout = 60
+
+    #: Whether a player's page gets a view as soon as the player's message is
+    #: applied, rather than with the next tick. A game with a
+    #: :attr:`tick_rate` of 0 always sends the sender a view, and sends every
+    #: player one when the state changes.
+    send_views_on_messages = True
+
+    #: How many messages a second each connection from a page may send, on
+    #: average, counting the clock measurements the page reports.
+    #: The web process drops messages over the limit, before they reach the
+    #: session, and logs a warning.
+    max_messages_per_second = 120
+
+    #: How many messages a connection may send at once before
+    #: :attr:`max_messages_per_second` applies. A connection that has sent
+    #: nothing for a while can send this many in a burst. Messages that wait
+    #: while the web process is busy reach it together, so a burst well above
+    #: a page's steady rate keeps them from being dropped.
+    message_burst = 120
+
+    #: Seconds the game type's methods may run for in total each time
+    #: Dallinger plays a session, before the session fails. It stops game
+    #: code that never finishes. Game code should take far less, since
+    #: Dallinger plays sessions in turn and a slow one holds up the others.
+    #: A failed session's :meth:`outcome` and final views share the time
+    #: that's left, and any not finished when it runs out are ``None``. At
+    #: most :data:`~dallinger.realtime.game.MAX_TIME_LIMIT`.
+    #:
+    #: Code that catches every error, with a bare ``except:``, can't be
+    #: stopped this way. If it runs for twice the limit, Dallinger restarts
+    #: the process playing the session, and a session that keeps doing this
+    #: fails, so game code should catch only the errors it expects.
+    time_limit = 1
+
+    #: The least time, in seconds on the session clock, between checkpoints of
+    #: the state in the session's record. A checkpoint is taken the first time
+    #: the runner plays the session after that. ``None`` saves no
+    #: checkpoints, leaving the state saved only when the session ends.
+    checkpoint_interval = 5
+
+    @abstractmethod
+    def initial_state(self, players):
+        """Return the state a new session starts from.
+
+        :param players: the player ids of the session's members, bots
+            included
+        """
+
+    @abstractmethod
+    def apply(self, state, player_id, message, now, sent):
+        """Check a player's message and apply it to ``state``.
+
+        Raise :class:`Reject` to refuse the message.
+
+        :param player_id: the sender's player id
+        :param message: the message, as a JSON value, or the text the page
+            sent if it isn't JSON
+        :param now: the session time the message arrived
+        :param sent: what the page said about the message
+        """
+
+    def tick(self, state, now):
+        """Advance ``state`` to ``now``: movement, timers and deadlines.
+
+        Runs :attr:`tick_rate` times a second, and at the times
+        :meth:`next_deadline` returns. A runner that falls behind runs each
+        missed tick in turn, each with its own ``now``.
+        """
+
+    def next_deadline(self, state):
+        """Return the session time at which :meth:`tick` should next run, or
+        ``None`` if there's nothing to wait for.
+
+        Needed only when a deadline, such as the end of a turn, can fall
+        between ticks, as in a game with a :attr:`tick_rate` of 0. A deadline
+        that has passed runs ``tick`` at once, unless ``tick`` has already
+        run at or after it. So this can keep returning a deadline ``tick``
+        has handled, and it doesn't run again.
+        """
+        return None
+
+    @abstractmethod
+    def view(self, state, player_id):
+        """Return what ``player_id`` may see of ``state``.
+
+        The view is sent to the player's browser, where they can read all of
+        it, so leave out anything they shouldn't know, such as other players'
+        cards. A game with nothing to hide can return ``state``. A smaller
+        view is also quicker to send.
+        """
+
+    def is_over(self, state):
+        """Return whether the game has finished. Checked after every change
+        to the state.
+        """
+        return False
+
+    def outcome(self, state, reason):
+        """Return the session's result, saved in Postgres when the session
+        ends.
+
+        :param reason: why the session ended:
+            :data:`~dallinger.realtime.game.FINISHED`,
+            :data:`~dallinger.realtime.game.MAX_DURATION`,
+            :data:`~dallinger.realtime.game.NOT_JOINED`,
+            :data:`~dallinger.realtime.game.FAILED`, or the reason the
+            experiment gave when it ended the session. A session that failed
+            passes the state from before the failure.
+        """
+        return None
+
+    def on_join(self, state, player_id, now):
+        """Respond to a player arriving: opening a page while none of theirs
+        is open, or for a bot, which has no page, the session starting.
+
+        A player who reloads their page leaves and then joins again. A bot
+        joins once and never leaves.
+        """
+
+    def on_leave(self, state, player_id, now):
+        """Respond to a player's last open page closing.
+
+        By default the game carries on without them.
+        """
+
+    def save_message(self, state, player_id, message, rejection):
+        """Return ``True`` to save a message in the session's record, or
+        ``False`` to leave it out. Any other value fails the session.
+
+        Called after :meth:`apply` accepts or rejects each message, a bot's
+        included, with the state ``apply`` left. Leaving out messages a game
+        gets many of, like moves into a wall, keeps the record small. Leaving
+        out accepted messages means the record can't replay the game between
+        checkpoints. An accepted message's effects are saved whatever this
+        returns, so the record can hold effects without the message that
+        queued them.
+
+        :param message: the message as the player's page or bot sent it, a
+            copy that ``apply`` hasn't changed
+        :param rejection: the :class:`Reject` that ``apply`` raised, or
+            ``None`` if it accepted the message
+        """
+        return True
+
+    def bot(self, view, player_id, now):
+        """Return a bot's next message, or ``None`` to send nothing.
+
+        Bots are players the runner plays for, and their messages go through
+        :meth:`apply` like any other player's. In a game with ticks, each bot
+        is asked once per tick. In a game without ticks, bots are asked when
+        the session starts and after every message, join, leave and tick,
+        including each other's messages, until a round passes in which no
+        bot's message is accepted. A bot in a game without ticks must
+        therefore return ``None`` once it has nothing to do.
+
+        :param view: a copy of the bot's view, from :meth:`view`
+        :param player_id: the bot's player id
+        """
+        return None
+
+    def queue_effect(self, name, payload):
+        """Queue an effect: work the game needs done outside the runner, such
+        as writing to the database.
+
+        Effects are saved with the session's records, whatever
+        :meth:`save_message` returns, and handled later by
+        :meth:`handle_effect`, in a job that can use the database. Only
+        :meth:`apply`, :meth:`tick`, :meth:`on_join` and :meth:`on_leave` can
+        queue effects, because the runner calls the other methods as often as
+        it needs to. The effects of a call that raises, such as an ``apply``
+        that raises :class:`Reject`, are dropped.
+
+        :param name: a string naming the effect
+        :param payload: a JSON value, copied when it's queued
+        """
+        effects = queued_effects.get(None)
+        if effects is None:
+            raise RuntimeError(
+                "queue_effect only works in apply, tick, on_join and on_leave, "
+                "called by a runner."
+            )
+        effects.append((name, copy_json(payload, "queue_effect's payload")))
+
+    def handle_effect(self, name, payload, session_row):
+        """Do the work of an effect from :meth:`queue_effect`.
+
+        Runs on one of the experiment's worker processes, a few seconds after
+        the effect was queued, and can use the database. Each effect is
+        handled once, in the order the session queued them. Dallinger saves
+        the changes this makes together with the session's record, so it
+        doesn't call ``db.session.commit()``, ``rollback()`` or ``close()``,
+        any of which fails the session. Code that should run only once the
+        changes are saved, such as sending a message to a page, can use
+        :func:`dallinger.db.run_after_commit`.
+
+        Dallinger handles a session's effects in batches. If this raises an
+        error, nothing from the batch is saved, neither the other effects'
+        changes nor the record written with them, and the session fails: its
+        record stops before the batch. A game type that queues effects has to
+        define this method.
+
+        :param name: the effect's name
+        :param payload: the effect's payload
+        :param session_row: the session's
+            :class:`~dallinger.models.RealtimeSession`
+        """
+        raise NotImplementedError(
+            "{} queued the effect {!r} but doesn't define handle_effect.".format(
+                type(self).__name__, name
+            )
+        )
+
+
+def _and(names):
+    if len(names) == 1:
+        return names[0]
+    return "{} and {}".format(", ".join(names[:-1]), names[-1])
+
+
+def _check_game(name, game):
+    channel = game.channel
+    if not isinstance(channel, str) or not channel:
+        raise ValueError("{}'s channel must be a non-empty string.".format(name))
+    # Frames on the socket are "channel:data", split at the first colon.
+    if ":" in channel:
+        raise ValueError(
+            "{}'s channel {!r} may not contain a colon.".format(name, channel)
+        )
+    if channel in RESERVED_CHANNELS:
+        raise ValueError(
+            "{}'s channel {} is reserved for Dallinger's own use.".format(name, channel)
+        )
+    if not is_number(game.tick_rate) or game.tick_rate < 0:
+        raise ValueError("{}'s tick_rate must be a number, 0 or more.".format(name))
+    if game.max_duration is not None and (
+        not is_number(game.max_duration) or game.max_duration <= 0
+    ):
+        raise ValueError(
+            "{}'s max_duration must be None or a positive number.".format(name)
+        )
+    if game.join_timeout is not None and (
+        not is_number(game.join_timeout) or game.join_timeout <= 0
+    ):
+        raise ValueError(
+            "{}'s join_timeout must be None or a positive number.".format(name)
+        )
+    if not is_number(game.max_messages_per_second) or (
+        game.max_messages_per_second <= 0
+    ):
+        raise ValueError(
+            "{}'s max_messages_per_second must be a positive number.".format(name)
+        )
+    if not is_int(game.message_burst) or game.message_burst < 1:
+        raise ValueError(
+            "{}'s message_burst must be a whole number, 1 or more.".format(name)
+        )
+    if game.checkpoint_interval is not None and (
+        not is_number(game.checkpoint_interval) or game.checkpoint_interval <= 0
+    ):
+        raise ValueError(
+            "{}'s checkpoint_interval must be None or a positive number.".format(name)
+        )
+    if not is_number(game.time_limit) or not 0 < game.time_limit <= MAX_TIME_LIMIT:
+        raise ValueError(
+            "{}'s time_limit must be a positive number, at most {}.".format(
+                name, MAX_TIME_LIMIT
+            )
+        )
+
+
+def validate_game_types(game_types, experiment_channel=None):
+    """Check an experiment's game types and return an instance of each.
+
+    Each game type is instantiated with no arguments, so a subclass can read
+    its settings from the experiment's config in ``__init__``.
+
+    :param game_types: :class:`RealtimeGame` subclasses
+    :param experiment_channel: the experiment's own ``channel``, if it has one
+    :returns: a dict mapping each channel to its game type's instance
+    :raises ValueError: if a game type isn't a :class:`RealtimeGame`
+        subclass, doesn't define ``initial_state``, ``apply`` and ``view``, or has an
+        invalid setting, or if two game types, or a game type and the
+        experiment, share a channel
+    """
+    games = {}
+    for game_type in game_types:
+        if not (isinstance(game_type, type) and issubclass(game_type, RealtimeGame)):
+            raise ValueError("{!r} is not a RealtimeGame subclass.".format(game_type))
+        name = game_type.__name__
+        missing = sorted(game_type.__abstractmethods__)
+        if missing:
+            error = "{} must define {}.".format(name, _and(missing))
+            if "view" in missing:
+                error += " A game with nothing to hide can return state from view."
+            raise ValueError(error)
+        game = game_type()
+        _check_game(name, game)
+        if experiment_channel is not None and game.channel == experiment_channel:
+            raise ValueError(
+                "{}'s channel {} is the experiment's channel.".format(
+                    name, game.channel
+                )
+            )
+        if game.channel in games:
+            raise ValueError(
+                "{} and {} both use the channel {}.".format(
+                    type(games[game.channel]).__name__, name, game.channel
+                )
+            )
+        games[game.channel] = game
+    return games
