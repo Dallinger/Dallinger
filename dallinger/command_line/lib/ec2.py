@@ -40,12 +40,8 @@ DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
 
 
 def _resolve_default_region_name():
-    """Resolve default region for user-facing messages."""
-    from dallinger.config import get_config
-
-    config = get_config(load=True)
-
-    return config.get("aws_region", DEFAULT_AWS_REGION)
+    """Resolve the region boto uses when no region is given, for user-facing messages."""
+    return get_ec2_client().meta.region_name or DEFAULT_AWS_REGION
 
 
 def get_keys(region_name=None):
@@ -88,6 +84,8 @@ _AUTH_FAILURE_MSG = (
 )
 
 _AUTH_FAILURE_CODES = {"AuthFailure", "InvalidClientTokenId", "RequestExpired"}
+
+_REGION_UNAVAILABLE_CODES = {"AuthFailure", "OptInRequired", "UnauthorizedOperation"}
 
 
 class _BotoClientProxy:
@@ -237,15 +235,40 @@ def get_all_instances(region_name=None):
             task = progress.add_task(
                 "Retrieving instances in all regions...", total=len(all_regions)
             )
+            skipped = {}
             for region in all_regions:
                 progress.update(
                     task,
                     description=f"Retrieving instances in {region['RegionName']}...",
                 )
-                instance_dfs.append(
-                    get_instances(region["RegionName"], show_spinner=False)
-                )
+                try:
+                    instance_dfs.append(
+                        get_instances(region["RegionName"], show_spinner=False)
+                    )
+                except (ClientError, click.ClickException) as e:
+                    # _BotoClientProxy turns AuthFailure into a ClickException.
+                    error = e if isinstance(e, ClientError) else e.__cause__
+                    if not isinstance(error, ClientError):
+                        raise
+                    code = error.response.get("Error", {}).get("Code")
+                    if code not in _REGION_UNAVAILABLE_CODES:
+                        raise
+                    skipped[region["RegionName"]] = code
                 progress.advance(task)
+        for region_name, code in skipped.items():
+            click.echo(
+                click.style(
+                    f"Warning: skipped region {region_name} ({code}); "
+                    "its instances are not listed or checked.",
+                    fg="yellow",
+                ),
+                err=True,
+            )
+        if not instance_dfs:
+            raise click.ClickException(
+                "Could not list instances in every region: "
+                + ", ".join(f"{r} ({c})" for r, c in skipped.items())
+            )
         click.echo(
             click.style("✔ Finished retrieving instances in all regions.", fg="green")
         )

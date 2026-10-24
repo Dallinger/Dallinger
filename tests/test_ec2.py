@@ -48,9 +48,40 @@ def _deleted_names(route_53):
 def test_region_applies_without_dallinger_aws_keys(active_config, monkeypatch):
     """--region applies when boto finds credentials in ~/.aws, SSO or a role"""
     active_config.extend({"aws_access_key_id": ""})
+    monkeypatch.delenv("AWS_REGION", raising=False)
     monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
 
     assert get_ec2_client("eu-west-2").meta.region_name == "eu-west-2"
+
+
+def test_all_regions_skips_regions_the_account_cannot_use(active_config, capsys):
+    active_config.extend({"aws_access_key_id": ""})
+    denied = set()
+
+    def boto_client(service, region_name=None, **kwargs):
+        client = mock.Mock()
+        client.describe_regions.return_value = {
+            "Regions": [{"RegionName": "us-east-1"}, {"RegionName": "me-south-1"}]
+        }
+        if region_name in denied:
+            client.describe_instances.side_effect = ClientError(
+                {"Error": {"Code": "AuthFailure"}}, "DescribeInstances"
+            )
+        else:
+            client.describe_instances.return_value = {"Reservations": []}
+        return client
+
+    with mock.patch(
+        "dallinger.command_line.lib.ec2.boto3.client", side_effect=boto_client
+    ):
+        denied.add("me-south-1")
+        assert len(get_all_instances()) == 0
+        warning = capsys.readouterr().err
+        assert "me-south-1" in warning and "AuthFailure" in warning
+
+        denied.add("us-east-1")
+        with pytest.raises(click.ClickException, match="every region"):
+            get_all_instances()
 
 
 class TestRemoveDnsRecords:
@@ -324,13 +355,16 @@ class TestGetInstanceRowFrom:
         assert "us-east-1" in str(excinfo.value)
         assert "name 'missing'" in str(excinfo.value)
 
-    def test_no_instances_without_region_mentions_region_hint(self, monkeypatch):
-        """Test that missing region in lookup is explicitly called out."""
-        mock_ec2 = mock.Mock()
-        mock_ec2.describe_instances.return_value = {"Reservations": []}
+    def test_no_instances_without_region_mentions_region_hint(
+        self, active_config, monkeypatch
+    ):
+        """Test that missing region names the region boto actually uses."""
+        active_config.extend({"aws_access_key_id": ""})
+        monkeypatch.delenv("AWS_REGION", raising=False)
+        monkeypatch.setenv("AWS_DEFAULT_REGION", "eu-west-2")
         monkeypatch.setattr(
-            "dallinger.command_line.lib.ec2.get_ec2_client",
-            lambda *args, **kwargs: mock_ec2,
+            "dallinger.command_line.lib.ec2.get_instances",
+            lambda *args, **kwargs: pd.DataFrame(columns=["name", "state"]),
         )
 
         with pytest.raises(click.ClickException) as excinfo:
@@ -338,7 +372,7 @@ class TestGetInstanceRowFrom:
 
         message = str(excinfo.value)
         assert "No EC2 instance found" in message
-        assert "default AWS region" in message
+        assert "default AWS region 'eu-west-2'" in message
         assert "no `--region` was provided" in message
 
 

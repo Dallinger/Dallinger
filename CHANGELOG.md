@@ -404,7 +404,10 @@
   from `~/.aws`, SSO or an instance role rather than Dallinger's
   `aws_access_key_id`. They used boto's default region instead, so
   `dallinger ec2 list instances` without `--region` queried the default region
-  once per region rather than every region.
+  once per region rather than every region. Scanning every region now skips,
+  with a warning, regions the account can't use (`AuthFailure`,
+  `UnauthorizedOperation`, `OptInRequired`), and messages about the default
+  region name the region boto actually uses.
 
 - A participant who signs up through `POST /participant`, as the page's
   `dallinger.createParticipant()` does, keeps the recruiter named in their
