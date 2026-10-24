@@ -21,8 +21,10 @@
   Docker rejects also replaced by `-` (e.g. `My Study` becomes `my-study`),
   and `dallinger docker push` stops with the same `Error:` line before
   assembling the experiment; both previously failed with a `KeyError`.
-  Heroku Docker deploys (`dallinger docker deploy` and `sandbox`) now stop
-  the same way instead of pushing an image named after the bare directory.
+  Heroku Docker deploys (`dallinger docker deploy`/`sandbox`) now stop the
+  same way before any other checks; previously an unset setting failed with
+  a `KeyError` after assembling (and, for live deploys, registering) the
+  experiment, and an empty one tried to push the bare directory name.
 - Local debugging (`dallinger debug`, `LoaderDeployment`, and the
   `pytest_dallinger` debug fixtures) now starts the Procfile processes with
   [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,

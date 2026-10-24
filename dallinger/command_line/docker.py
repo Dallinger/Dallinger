@@ -144,13 +144,13 @@ def build():
     from dallinger.docker.tools import build_image, image_base_name
 
     config = get_config(load=True)
+    base_name = image_base_name(config, Path(os.getcwd()).name)
     _, tmp = setup_experiment(
         log=log,
         debug=True,
         local_checks=False,
         experiment_files=get_experiment_files(),
     )
-    base_name = image_base_name(config, Path(os.getcwd()).name)
     build_image(tmp, base_name, Output(), force_build=True)
 
 
@@ -357,23 +357,30 @@ def _deploy_in_mode(mode, verbose, app=None):
 
     config = get_config(load=True)
     config.extend({"mode": mode, "logfile": "-"})
+    base_name = _heroku_image_base_name(config)
 
     run_pre_launch_checks(**locals())
 
-    return deploy_heroku_docker(log=log, verbose=verbose, app=app)
+    return deploy_heroku_docker(log=log, verbose=verbose, app=app, base_name=base_name)
 
 
-def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
-    from dallinger.docker.tools import (
-        build_image,
-        docker_tag_from_experiment_id,
-        image_base_name,
-    )
+def _heroku_image_base_name(config):
+    """Return ``docker_image_base_name``, which Heroku Docker deploys require."""
+    from dallinger.docker.tools import image_base_name
+
+    return image_base_name(config, None, pushed_by="dallinger docker deploy/sandbox")
+
+
+def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None, base_name=None):
+    """Deploy the experiment to Heroku as a Docker image pushed to a registry.
+
+    ``base_name`` is the image repository name; it defaults to the required
+    ``docker_image_base_name``.
+    """
+    from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
     config = get_config(load=True)
-    base_name = image_base_name(
-        config, None, pushed_by="dallinger docker deploy or sandbox"
-    )
+    base_name = base_name or _heroku_image_base_name(config)
     heroku_app_id, tmp = setup_experiment(
         log,
         debug=False,

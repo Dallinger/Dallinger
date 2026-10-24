@@ -257,6 +257,20 @@ def test_docker_build_names_image_after_directory_without_base_name(
     assert tools.build_image.call_args.args[1] == "my-study"
 
 
+def test_docker_build_rejects_unusable_directory_name(
+    docker_cli_without_base_name, tmp_path, monkeypatch
+):
+    from click.testing import CliRunner
+
+    (tmp_path / "---").mkdir()
+    monkeypatch.chdir(tmp_path / "---")
+
+    result = CliRunner().invoke(docker_cli_without_base_name.docker, ["build"])
+
+    assert "Can't make a Docker image name" in result.output
+    docker_cli_without_base_name.setup_experiment.assert_not_called()
+
+
 def test_docker_push_needs_base_name(docker_cli_without_base_name):
     from click.testing import CliRunner
 
@@ -278,12 +292,14 @@ def test_heroku_docker_deploy_needs_base_name(
 
     from dallinger.docker import tools
 
-    monkeypatch.setattr(docker_cli_without_base_name, "push_image", mock.Mock())
+    for name in ("push_image", "run_pre_launch_checks"):
+        monkeypatch.setattr(docker_cli_without_base_name, name, mock.Mock())
 
     result = CliRunner().invoke(docker_cli_without_base_name.docker, ["sandbox"])
 
     assert result.exit_code == 1
-    assert "(dallinger docker deploy or sandbox)" in result.output
+    assert "(dallinger docker deploy/sandbox)" in result.output
+    docker_cli_without_base_name.run_pre_launch_checks.assert_not_called()
     docker_cli_without_base_name.setup_experiment.assert_not_called()
     tools.build_image.assert_not_called()
 
