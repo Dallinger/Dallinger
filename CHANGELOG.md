@@ -4,6 +4,13 @@
 
 ### Changed
 
+- The pull request template is shorter and asks for a description that a
+  reviewer can follow without the diff. It adds an **LLM use** section (which
+  models wrote the code and description, and how a human was involved) and a
+  **Known limitations** section. It drops the Changelog and Screenshots
+  sections and asks for a short review summary. **Testing** and `AGENTS.md`
+  now expect every change to be dogfooded, i.e. used the way a user would use
+  it, not just covered by automated tests.
 - Local debugging (`dallinger debug`, `LoaderDeployment`, and the
   `pytest_dallinger` debug fixtures) now starts the Procfile processes with
   [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,

@@ -85,3 +85,10 @@ For the full matrix used in CI, run:
 ```bash
 tox
 ```
+
+Automated tests aren't enough on their own. Before finalizing a change,
+dogfood it: use it the way a user would (run the command, deploy a demo, open
+the page) and check the result. Record who did this, what was run and what
+was seen in the pull request's **Testing** section. If dogfooding isn't
+possible, for example because it needs credentials you don't have, say so
+there.
