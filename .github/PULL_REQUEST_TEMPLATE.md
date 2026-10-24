@@ -18,15 +18,16 @@ code review.
 
 ## Motivation
 
-<!-- A few sentences: the problem, who hits it, and how it was found. Link the issue, CI job or discussion. -->
+<!-- A few sentences: the problem, who hits it, and how it was found, with the key evidence (e.g. the error or observed behaviour). Link the issue, CI job or discussion. -->
 
 ## Summary of changes
 
 <!--
 One bullet per change, each starting with a short bold label, e.g.
 "- **Fix: `base_port` was ignored.** ...". For each change, say what it does
-and where it lives, and mention any non-obvious design choice. Put fixes for
-bugs found along the way in their own bullets.
+and where it lives, and mention any non-obvious design choice and any change
+to APIs, the data model or architecture. Put fixes for bugs found along the
+way in their own bullets.
 -->
 
 ## Behavior changes
@@ -35,7 +36,7 @@ bugs found along the way in their own bullets.
 What users, experiment authors or server operators will notice: new options,
 changed defaults or output, compatibility and migration steps. For output
 changes, show a short before/after `diff` block; for UI changes, include
-screenshots or a short clip. Otherwise write "None".
+screenshots or a short clip. Write "None" if users will notice nothing.
 -->
 
 ## Known limitations
@@ -50,7 +51,8 @@ commit. Then dogfood: someone (human or agent) used the change the way a user
 would, e.g. ran the command, deployed a demo or opened the page, and checked
 the result. Say who did it, what they ran and what they saw. Passing
 automated tests isn't enough on its own. If the change has nothing a user
-could run (e.g. CI or a private helper), say so instead. Say what wasn't
+could run (e.g. CI or a private helper), or dogfooding isn't possible (e.g.
+it needs credentials you don't have), say so instead. Say what wasn't
 tested and why. You don't need to list test names or pass counts.
 -->
 

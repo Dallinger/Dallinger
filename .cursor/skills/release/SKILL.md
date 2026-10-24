@@ -266,7 +266,8 @@ gh pr create --base master --head release-X.Y.Z \
     --body "$(cat <<'EOF'
 ## LLM use
 
-<model that prepared the release branch and this description, or None>
+<which models prepared the release branch and this description, and how a
+human was involved, or None>
 
 ## Motivation
 
@@ -288,6 +289,10 @@ See the [vX.Y.Z CHANGELOG](https://github.com/Dallinger/Dallinger/blob/release-X
 - [ ] CI green on `release-X.Y.Z`
 - [ ] Demo and `tests/experiment` constraints pin `dallinger==X.Y.Z`
 
+## Known limitations
+
+None.
+
 ## Automatic code review
 
 Skipped `/branch-review`. Release PRs are version/CHANGELOG/constraints
@@ -297,8 +302,7 @@ EOF
 )"
 ```
 
-This body follows [`.github/PULL_REQUEST_TEMPLATE.md`](../../../.github/PULL_REQUEST_TEMPLATE.md),
-leaving out Known limitations.
+This body follows [`.github/PULL_REQUEST_TEMPLATE.md`](../../../.github/PULL_REQUEST_TEMPLATE.md).
 Do **not** prompt for `/branch-review` on a release PR. Run the
 [Release PR checks](#release-pr-checks) instead.
 
