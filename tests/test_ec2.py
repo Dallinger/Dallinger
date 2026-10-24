@@ -742,3 +742,10 @@ def test_provision_setup_failure_also_names_teardown(monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "Provisioning exp on eu-west-3..." in output
     assert "`dallinger ec2 teardown --name exp --region eu-west-3`" in output
+
+
+def test_region_reaches_boto_without_aws_keys_in_config(monkeypatch):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    monkeypatch.setattr("dallinger.config.get_config", lambda load=False: {})
+
+    assert lib.get_ec2_client("us-west-2").meta.region_name == "us-west-2"

@@ -62,6 +62,8 @@ def get_keys(region_name=None):
             "aws_secret_access_key": config.get("aws_secret_access_key"),
             "region_name": region_name or config.get("aws_region", DEFAULT_AWS_REGION),
         }
+    if region_name:
+        keys["region_name"] = region_name
     return keys
 
 
@@ -989,7 +991,7 @@ def prepare_instance(
 
     start = time.time()
     ec2 = get_ec2_client(region_name)
-    # get_keys passes --region to boto only with credentials from the config.
+    # Without --region, boto chooses the region.
     region_name = ec2.meta.region_name
     security_group_id = get_security_group_id(security_group_name, region_name)
     print(f"Provisioning {instance_name} on {region_name}...")

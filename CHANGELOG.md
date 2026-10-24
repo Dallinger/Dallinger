@@ -237,7 +237,9 @@
   if `dashboard_password` (or `dashboard_user`) is not set, or if
   `server_pem` is not the unencrypted private key in the local
   `ec2_default_pem` key file (a mismatch used to fail after boot with
-  `SSHException: Invalid key`). It, and `ec2 start --dns-host`, no longer connect through the new
+  `SSHException: Invalid key`). These errors say the setting can be in
+  `~/.dallingerconfig` or the environment, and name where a placeholder email
+  came from. It, and `ec2 start --dns-host`, no longer connect through the new
   `--dns-host` name, so a resolver that still caches a negative answer for
   it can't stop them; if Route 53 can't create the DNS records, provision
   warns and sets the server up anyway. If anything fails once the instance
@@ -248,6 +250,10 @@
   It explains a key that the instance rejected. It prints its total time in whole seconds.
   Without `--region`, it names the region it uses rather than `None`; it and
   `ec2 list instances` no longer show a pandas 3.1 deprecation warning.
+  `ec2` commands now honour `--region` when the AWS credentials come from
+  `~/.aws` or the environment rather than Dallinger's config; before, they
+  used boto's default region, so `ec2 list instances` queried it once per
+  region.
   The new `dallinger docker-ssh servers upgrade --host <server>` command sets
   them up or rewrites them. It lists the files it replaces and the routes it
   adds, asks first unless given `--yes`, keeps a `.bak` copy of each replaced
