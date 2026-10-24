@@ -16,6 +16,7 @@ import flask
 import requests
 from sqlalchemy import func
 
+from dallinger import dev_logging
 from dallinger.command_line.utils import Output, render_rich_table
 from dallinger.config import get_config
 from dallinger.db import get_queue, redis_conn, scoped_session_decorator, session
@@ -92,7 +93,10 @@ def handle_and_raise_recruitment_error(ex):
 # These are constants because other components may listen for these
 # messages in logs:
 NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
-CLOSE_RECRUITMENT_LOG_PREFIX = "Close recruitment."
+CLOSE_RECRUITMENT_LOG_PREFIX = "Recruitment closed."
+# The development server's console shows "Recruitment closed." once until
+# recruitment reopens, rather than once for every participant who finishes.
+_RECRUITMENT_TOPIC = {dev_logging.TOPIC: "recruitment"}
 
 
 @scoped_session_decorator
@@ -787,7 +791,11 @@ class ProlificRecruiter(Recruiter):
         we do not automatically end a Prolific Study. This must be done by the
         researcher through the Prolific UI.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + self.nickname)
+        logger.info(
+            CLOSE_RECRUITMENT_LOG_PREFIX
+            + " The Prolific study stays open until you end it on Prolific.",
+            extra=_RECRUITMENT_TOPIC,
+        )
 
     def external_submission_url(self, code_type: str) -> str:
         """On experiment completion, participants are returned to
@@ -1093,6 +1101,10 @@ class DevProlificRecruiter(DevRecruiter, ProlificRecruiter):
         super().__init__(*args, **kwargs)
         self.prolificservice = dev_prolific_service_from_config()
 
+    def close_recruitment(self):
+        """Log that recruitment closed; the simulated study needs no action."""
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX, extra=_RECRUITMENT_TOPIC)
+
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a simulated Study, saying that nothing was created on Prolific."""
         response = super().open_recruitment(n)
@@ -1234,14 +1246,16 @@ class CLIRecruiter(Recruiter):
                 generate_random_id(),
                 self._get_mode(),
             )
-            logger.info("{} {}".format(NEW_RECRUIT_LOG_PREFIX, ad_url))
+            logger.info(
+                "{} {}".format(NEW_RECRUIT_LOG_PREFIX, ad_url), extra=_RECRUITMENT_TOPIC
+            )
             urls.append(ad_url)
 
         return urls
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " cli")
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX, extra=_RECRUITMENT_TOPIC)
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
@@ -1875,7 +1889,11 @@ class MTurkRecruiter(Recruiter):
 
         - `Jesse Snyder <https://github.com/jessesnyder/>__` Feb 1 2022
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " mturk")
+        logger.info(
+            CLOSE_RECRUITMENT_LOG_PREFIX
+            + " The MTurk HIT stays open until it expires.",
+            extra=_RECRUITMENT_TOPIC,
+        )
 
     @property
     def is_sandbox(self):
@@ -2210,7 +2228,7 @@ class BotRecruiter(Recruiter):
 
         This does nothing at this time.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " bot")
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX, extra=_RECRUITMENT_TOPIC)
 
     def notify_duration_exceeded(self, participants, reference_time):
         """The bot participant has been working longer than the time defined in

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime
 from unittest import mock
@@ -192,8 +193,10 @@ class TestCLIRecruiter:
         result = recruiter.open_recruitment(n=0)
         assert result["items"] == []
 
-    def test_close_recruitment(self, recruiter):
-        recruiter.close_recruitment()
+    def test_close_recruitment(self, recruiter, caplog):
+        with caplog.at_level(logging.INFO, logger="dallinger.recruiters"):
+            recruiter.close_recruitment()
+        assert caplog.messages == ["Recruitment closed."]
 
     def test_approve_hit(self, recruiter):
         assert recruiter.approve_hit("any assignment id")

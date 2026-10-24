@@ -59,6 +59,106 @@
   start-up notice is now logged at DEBUG instead of WARNING, so it only
   appears with `loglevel_worker = 0`. The message printed when the worker
   does exit for this reason is unchanged.
+- `dallinger develop debug` (used by `psynet debug local`) prints its server
+  output in one format for the web, worker and clock processes, for example
+  `13:35:51 web    Experiment launch complete!`. The level is only shown
+  for warnings and errors. Output redirected to a file or pipe has the same
+  text without colour. Routine lines are hidden from the console; the web
+  process's routine lines, such as werkzeug's, are still recorded in
+  `logs.jsonl` in the develop directory:
+  - Werkzeug's start-up banner and debugger lines become one line, such as
+    `Development server on http://127.0.0.1:5000 (auto-reload on, debugger
+    PIN 123-456-789)`, and Flask's "Serving Flask app" and "Debug mode"
+    lines are no longer printed. Unless `WERKZEUG_DEBUG_PIN` is set, the
+    PIN is chosen at random for each session, so it no longer changes when
+    the server reloads. A code change prints `Reloading: experiment.py
+    changed`, naming the file as it appears in the experiment directory.
+  - If a code change stops the experiment loading (for example a syntax
+    error), the error and its traceback are printed once, as
+    `ERROR The experiment failed to load. Fix the error and save: the server
+    reloads automatically.`, and requests get a short 500 page saying so
+    until the next change fixes it. Previously the traceback was printed
+    again for every request, in werkzeug's own format with query strings.
+  - Werkzeug's request lines are replaced by shorter ones with the status
+    and duration and without the query string, for example
+    `POST /participant 200 in 45 ms`. Successful requests for the startup
+    `/launch` call, static files, the dashboard and polling are left out
+    unless they take at least a second; packages built on Dallinger can add
+    their own routes by calling `dallinger.dev_logging.hide_requests()` in
+    the web server process, for example when the experiment module is
+    imported. Successful WebSocket
+    requests, which last as long as their connection, aren't reported. Set
+    `DALLINGER_DEV_SLOW_REQUEST_SECONDS` to change the threshold.
+  - RQ and APScheduler messages below WARNING, and the worker's "Warm shut
+    down requested." messages when the server stops, are hidden.
+  - The `New participant requested: <url>` lines logged while the
+    experiment launches are hidden, since the `Ready.` block has the
+    participant link. Later requests for new participants are still shown.
+  - A message that would repeat itself is shown once: "Recruitment closed."
+    appears when recruitment closes, not again for every participant who
+    finishes, until another recruitment message, such as "New participant
+    requested: …", is shown. Log records can opt in with
+    `extra={dallinger.dev_logging.TOPIC: "<name>"}`: such a record is hidden
+    if its message is the same as the last one shown for its topic. A tuple
+    of topic names ends repeats in each of them. Each server process
+    remembers what it showed, so after an auto-reload a message can appear
+    once more.
+  - APScheduler's warnings that a job run was skipped ("maximum number of
+    running instances reached") or missed ("was missed by"), which come in
+    bursts while the clock starts up or after the computer slept, are not
+    shown for 30 seconds from the first one, and after that at most once a
+    minute, with the number of similar warnings not shown.
+  - Errors keep their full tracebacks, and text that doesn't go through
+    logging (such as the debugger's traceback for a failed request) is
+    printed as before.
+  - `dallinger develop debug`'s start-up ends with a `Ready.` block of
+    aligned lines: the participant link (the recruiter's single recruitment
+    link), the dashboard URL and login, and the location of the full log.
+    It replaces the recruiter's "Initial recruitment list:" and "Additional
+    details:" text and the `Opening dashboard: …` and `Opening ad: …` lines
+    printed when browsers open:
+
+    ```
+    Ready.
+      Participant link: http://127.0.0.1:5000/ad?recruiter=hotair&generate_tokens=1&mode=debug
+      Dashboard:        http://127.0.0.1:5000/dashboard/develop (user admin, password …)
+      Full log:         /tmp/dallinger_develop/logs.jsonl
+    Press Ctrl+C to stop.
+    ```
+
+    A recruiter without a single recruitment link shows the only link of its
+    initial recruitment list as the participant link, and its additional
+    details as `Recruitment`, without either heading.
+  - `dallinger develop debug --verbose`, or `DALLINGER_DEV_LOG=full`, shows
+    everything again, including werkzeug's line for every request.
+
+  Deployed experiments and `dallinger debug` keep their own console output.
+- Plainer participant and recruitment messages, in the development console,
+  `dallinger debug` and deployed logs:
+  - `Received an RecruiterSubmissionComplete notification for assignment A1,
+    participant 2` becomes `Participant 2 finished
+    (RecruiterSubmissionComplete, assignment A1).`, and the other logged
+    notifications are described the same way (without an assignment for
+    notifications that have none). Bot submissions no longer add
+    `Received bot submission.` or `Received rejected bot submission.`.
+  - `Close recruitment.` followed by the recruiter's nickname (for example
+    `Close recruitment. cli`) becomes `Recruitment closed.`
+    (`recruiters.CLOSE_RECRUITMENT_LOG_PREFIX`). For Prolific (but not the
+    simulated `devprolific` recruiter) and MTurk it adds that the study or
+    HIT stays open, since those recruiters don't close it. Update scripts
+    that wait for `Close recruitment.`.
+  - `dallinger debug --no-browsers` prints `New participant requested: <url>`
+    with one colon instead of two, using the `--proxy` port if one is set.
+    Without `--no-browsers`, `new recruitment request!` becomes
+    `Opening a browser for a new participant: <url>`.
+- A request, worker job or clock task that fails inside `db.sessions_scope()`
+  (or `db.scoped_session_decorator`, or PsyNet's `with_transaction`) now
+  prints its traceback once. `sessions_scope()` no longer logs "Exception
+  during scoped worker transaction, rolling back." with a copy of the
+  traceback at ERROR; it notes the rollback at DEBUG and re-raises as before,
+  so Flask (deployed), werkzeug's debugger (`dallinger develop debug`), RQ or
+  APScheduler reports the error with its traceback. This applies to deployed
+  experiments too.
 
 ### Added
 
@@ -161,9 +261,15 @@
   first copy and dropped the jQuery plugins registered on it.
 - Added a Cursor `/release` command and release skill for cutting
   Dallinger releases to PyPI and ghcr.
-- Added `--no-browsers` to `dallinger develop debug`. Instead of opening the
-  dashboard and participant browsers, it logs the recruitment message, the
-  dashboard URL and the dashboard login, like `dallinger debug --no-browsers`.
+- Added `dallinger.command_line.develop.echo_ready(details, after=())` and
+  `launch_message_rows(recruitment_msg)`, so that tools that replace the
+  development server's launch job, such as PsyNet, can print the same
+  `Ready.` block: `details` (before the `Full log` line) and `after` are
+  sequences of `(label, value)` pairs, and `launch_message_rows()` turns a
+  `/launch` recruitment message into such pairs.
+- Added `--no-browsers` to `dallinger develop debug`, which skips opening the
+  dashboard and participant pages in browsers. Their links are in the
+  `Ready.` block either way.
 - docker-ssh apps can hibernate automatically after a quiet period when
   ``docker_ssh_idle_hibernate`` is set (``docker_ssh_idle_hibernate_minutes``,
   default 60). ``/health`` probes do not count as traffic. With idle sleep
