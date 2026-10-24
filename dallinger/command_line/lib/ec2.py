@@ -255,6 +255,13 @@ def get_all_instances(region_name=None):
                         raise
                     skipped[region["RegionName"]] = code
                 progress.advance(task)
+        if not instance_dfs:
+            message = "Could not list instances in any region: " + ", ".join(
+                f"{r} ({c})" for r, c in skipped.items()
+            )
+            if skipped and set(skipped.values()) <= _AUTH_FAILURE_CODES:
+                message += f". {_AUTH_FAILURE_MSG}"
+            raise click.ClickException(message)
         for skipped_region, code in skipped.items():
             click.echo(
                 click.style(
@@ -264,14 +271,11 @@ def get_all_instances(region_name=None):
                 ),
                 err=True,
             )
-        if not instance_dfs:
-            message = "Could not list instances in every region: " + ", ".join(
-                f"{r} ({c})" for r, c in skipped.items()
-            )
-            if skipped and set(skipped.values()) <= _AUTH_FAILURE_CODES:
-                message += f". {_AUTH_FAILURE_MSG}"
-            raise click.ClickException(message)
-        scanned = f"all regions but {len(skipped)}" if skipped else "all regions"
+        scanned = (
+            f"{len(instance_dfs)} of {len(all_regions)} regions"
+            if skipped
+            else "all regions"
+        )
         click.echo(
             click.style(f"✔ Finished retrieving instances in {scanned}.", fg="green")
         )

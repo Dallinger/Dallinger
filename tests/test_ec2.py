@@ -57,7 +57,12 @@ def test_region_applies_without_dallinger_aws_keys(active_config, monkeypatch):
 
 @pytest.mark.parametrize(
     "code, skipped",
-    [("AuthFailure", True), ("UnauthorizedOperation", True), ("RequestExpired", False)],
+    [
+        ("AuthFailure", True),
+        ("UnauthorizedOperation", True),
+        ("OptInRequired", True),
+        ("RequestExpired", False),
+    ],
 )
 def test_all_regions_skips_regions_the_account_cannot_use(
     active_config, capsys, code, skipped
@@ -106,11 +111,12 @@ def test_all_regions_skips_regions_the_account_cannot_use(
                 get_all_instances()
             return
         assert list(get_all_instances()["name"]) == ["kept"]
-        warning = capsys.readouterr().err
-        assert "me-south-1" in warning and code in warning
+        output = capsys.readouterr()
+        assert "me-south-1" in output.err and code in output.err
+        assert "1 of 2 regions" in output.out
 
         denied.add("us-east-1")
-        with pytest.raises(click.ClickException, match="every region") as excinfo:
+        with pytest.raises(click.ClickException, match="any region") as excinfo:
             get_all_instances()
         auth_hint = "authentication failed" in str(excinfo.value)
         assert auth_hint == (code == "AuthFailure")
