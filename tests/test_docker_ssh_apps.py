@@ -787,7 +787,8 @@ def test_only_pushed_deploys_need_image_base_name(monkeypatch, build_option):
     monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
     monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
     monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: None)
-    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", mock.Mock())
+    pre_launch_checks = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", pre_launch_checks)
     monkeypatch.setattr(docker_ssh_module, "ensure_root_domain_ready", root_domain)
     monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
     for name in ("_classic_tls_and_dns_host", "_check_experiment_hostname_dns"):
@@ -805,6 +806,7 @@ def test_only_pushed_deploys_need_image_base_name(monkeypatch, build_option):
         return
     with pytest.raises(click.ClickException, match="docker_image_base_name"):
         docker_ssh_module._deploy_in_mode(**kwargs)
+    pre_launch_checks.assert_not_called()
     root_domain.assert_not_called()
     build.assert_not_called()
 

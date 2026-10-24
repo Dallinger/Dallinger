@@ -267,15 +267,19 @@ def test_docker_build_rejects_unusable_directory_name(
 
     result = CliRunner().invoke(docker_cli_without_base_name.docker, ["build"])
 
+    assert result.exit_code == 1
     assert "Can't make a Docker image name" in result.output
     docker_cli_without_base_name.setup_experiment.assert_not_called()
 
 
-def test_docker_push_needs_base_name(docker_cli_without_base_name):
+@pytest.mark.parametrize("empty", [False, True])
+def test_docker_push_needs_base_name(docker_cli_without_base_name, empty):
     from click.testing import CliRunner
 
     from dallinger.docker import tools
 
+    if empty:
+        docker_cli_without_base_name.get_config().extend({"docker_image_base_name": ""})
     result = CliRunner().invoke(docker_cli_without_base_name.docker, ["push"])
 
     assert result.exit_code == 1

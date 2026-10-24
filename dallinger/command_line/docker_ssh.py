@@ -1653,6 +1653,8 @@ def _deploy_in_mode(
         _check_classic_ingress_reachable(server, ingress)
     config = get_config(load=True)
     config_options = _apply_config_options(config, config_options)
+    if (push_build or local_build) and not config.get("docker_image_name", None):
+        _image_base_name(config, None, push=True)
 
     run_pre_launch_checks(**locals())
 
@@ -1672,7 +1674,8 @@ def _deploy_in_mode(
     if not APP_NAME_PATTERN.fullmatch(experiment_id):
         raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
     if not config.get("docker_image_name", None):
-        # Fail before the root-domain cleanup, which can destroy apps.
+        # Check a server-only name before the root-domain cleanup, which can
+        # destroy apps.
         _image_base_name(config, experiment_id, push_build or local_build)
 
     resolved_ingress = _resolve_ingress(server_info, ingress)

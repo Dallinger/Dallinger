@@ -22,7 +22,7 @@
   and `dallinger docker push` stops with the same `Error:` line before
   assembling the experiment; both previously failed with a `KeyError`.
   Heroku Docker deploys (`dallinger docker deploy`/`sandbox`) now stop the
-  same way before any other checks; previously an unset setting failed with
+  same way before the recruiter pre-launch checks; previously an unset setting failed with
   a `KeyError` after assembling (and, for live deploys, registering) the
   experiment, and an empty one tried to push the bare directory name.
 - Local debugging (`dallinger debug`, `LoaderDeployment`, and the
