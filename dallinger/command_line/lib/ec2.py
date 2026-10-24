@@ -989,7 +989,8 @@ def prepare_instance(
 
     start = time.time()
     ec2 = get_ec2_client(region_name)
-    region_name = region_name or ec2.meta.region_name
+    # get_keys passes --region to boto only with credentials from the config.
+    region_name = ec2.meta.region_name
     security_group_id = get_security_group_id(security_group_name, region_name)
     print(f"Provisioning {instance_name} on {region_name}...")
     image_id = get_image_id(ec2, image_name)

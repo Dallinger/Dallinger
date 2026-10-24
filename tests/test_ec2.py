@@ -664,7 +664,12 @@ def test_provision_failure_before_setup_names_teardown(
 ):
     lib = importlib.import_module("dallinger.command_line.lib.ec2")
     monkeypatch.setattr(lib, "get_all_instances", lambda region: [])
-    for name in ("get_ec2_client", "get_security_group_id", "get_image_id"):
+    monkeypatch.setattr(
+        lib,
+        "get_ec2_client",
+        lambda region: mock.Mock(meta=mock.Mock(region_name=region)),
+    )
+    for name in ("get_security_group_id", "get_image_id"):
         monkeypatch.setattr(lib, name, mock.Mock())
     monkeypatch.setattr(lib, "setup_ssh_keys", mock.Mock())
     monkeypatch.setattr(lib, "boot_instance", mock.Mock(return_value="i-123"))
