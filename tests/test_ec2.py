@@ -54,7 +54,13 @@ def test_region_applies_without_dallinger_aws_keys(active_config, monkeypatch):
     assert get_ec2_client("eu-west-2").meta.region_name == "eu-west-2"
 
 
-def test_all_regions_skips_regions_the_account_cannot_use(active_config, capsys):
+@pytest.mark.parametrize(
+    "code, skipped",
+    [("AuthFailure", True), ("UnauthorizedOperation", True), ("RequestExpired", False)],
+)
+def test_all_regions_skips_regions_the_account_cannot_use(
+    active_config, capsys, code, skipped
+):
     active_config.extend({"aws_access_key_id": ""})
     denied = set()
 
@@ -65,7 +71,7 @@ def test_all_regions_skips_regions_the_account_cannot_use(active_config, capsys)
         }
         if region_name in denied:
             client.describe_instances.side_effect = ClientError(
-                {"Error": {"Code": "AuthFailure"}}, "DescribeInstances"
+                {"Error": {"Code": code}}, "DescribeInstances"
             )
         else:
             client.describe_instances.return_value = {"Reservations": []}
@@ -75,13 +81,19 @@ def test_all_regions_skips_regions_the_account_cannot_use(active_config, capsys)
         "dallinger.command_line.lib.ec2.boto3.client", side_effect=boto_client
     ):
         denied.add("me-south-1")
+        if not skipped:
+            with pytest.raises(click.ClickException, match="authentication failed"):
+                get_all_instances()
+            return
         assert len(get_all_instances()) == 0
         warning = capsys.readouterr().err
-        assert "me-south-1" in warning and "AuthFailure" in warning
+        assert "me-south-1" in warning and code in warning
 
         denied.add("us-east-1")
-        with pytest.raises(click.ClickException, match="every region"):
+        with pytest.raises(click.ClickException, match="every region") as excinfo:
             get_all_instances()
+        auth_hint = "authentication failed" in str(excinfo.value)
+        assert auth_hint == (code == "AuthFailure")
 
 
 class TestRemoveDnsRecords:
@@ -355,20 +367,17 @@ class TestGetInstanceRowFrom:
         assert "us-east-1" in str(excinfo.value)
         assert "name 'missing'" in str(excinfo.value)
 
-    def test_no_instances_without_region_mentions_region_hint(
-        self, active_config, monkeypatch
-    ):
+    def test_no_instances_without_region_mentions_region_hint(self, monkeypatch):
         """Test that missing region names the region boto actually uses."""
-        active_config.extend({"aws_access_key_id": ""})
-        monkeypatch.delenv("AWS_REGION", raising=False)
-        monkeypatch.setenv("AWS_DEFAULT_REGION", "eu-west-2")
         monkeypatch.setattr(
             "dallinger.command_line.lib.ec2.get_instances",
             lambda *args, **kwargs: pd.DataFrame(columns=["name", "state"]),
         )
 
-        with pytest.raises(click.ClickException) as excinfo:
-            _get_instance_row_from(region_name=None, instance_name="missing")
+        with mock.patch("dallinger.command_line.lib.ec2.boto3.Session") as session:
+            session.return_value.region_name = "eu-west-2"
+            with pytest.raises(click.ClickException) as excinfo:
+                _get_instance_row_from(region_name=None, instance_name="missing")
 
         message = str(excinfo.value)
         assert "No EC2 instance found" in message

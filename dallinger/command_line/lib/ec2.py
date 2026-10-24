@@ -41,7 +41,7 @@ DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
 
 def _resolve_default_region_name():
     """Resolve the region boto uses when no region is given, for user-facing messages."""
-    return get_ec2_client().meta.region_name or DEFAULT_AWS_REGION
+    return boto3.Session(**get_keys()).region_name or DEFAULT_AWS_REGION
 
 
 def get_keys(region_name=None):
@@ -255,20 +255,22 @@ def get_all_instances(region_name=None):
                         raise
                     skipped[region["RegionName"]] = code
                 progress.advance(task)
-        for region_name, code in skipped.items():
+        for skipped_region, code in skipped.items():
             click.echo(
                 click.style(
-                    f"Warning: skipped region {region_name} ({code}); "
+                    f"Warning: skipped region {skipped_region} ({code}); "
                     "its instances are not listed or checked.",
                     fg="yellow",
                 ),
                 err=True,
             )
         if not instance_dfs:
-            raise click.ClickException(
-                "Could not list instances in every region: "
-                + ", ".join(f"{r} ({c})" for r, c in skipped.items())
+            message = "Could not list instances in every region: " + ", ".join(
+                f"{r} ({c})" for r, c in skipped.items()
             )
+            if set(skipped.values()) <= _AUTH_FAILURE_CODES:
+                message += f". {_AUTH_FAILURE_MSG}"
+            raise click.ClickException(message)
         click.echo(
             click.style("✔ Finished retrieving instances in all regions.", fg="green")
         )
