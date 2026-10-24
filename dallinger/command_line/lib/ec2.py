@@ -268,7 +268,7 @@ def get_all_instances(region_name=None):
             message = "Could not list instances in every region: " + ", ".join(
                 f"{r} ({c})" for r, c in skipped.items()
             )
-            if set(skipped.values()) <= _AUTH_FAILURE_CODES:
+            if skipped and set(skipped.values()) <= _AUTH_FAILURE_CODES:
                 message += f". {_AUTH_FAILURE_MSG}"
             raise click.ClickException(message)
         click.echo(
