@@ -97,6 +97,10 @@ class TestImageBaseName:
             "ghcr.io/org/exp"
         )
 
-    def test_pushed_image_needs_the_setting(self):
-        with pytest.raises(click.ClickException, match="docker_image_base_name = "):
-            docker_ssh_module._image_base_name({}, "app", push=True)
+    @pytest.mark.parametrize(
+        "app, push",
+        [("app", True), ("---", False), ("日本語", False), ("a" * 256, False)],
+    )
+    def test_image_needs_the_setting(self, app, push):
+        with pytest.raises(click.ClickException, match="docker_image_base_name"):
+            docker_ssh_module._image_base_name({}, app, push=push)

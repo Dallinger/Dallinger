@@ -538,8 +538,9 @@ def image_base_name(config, name, pushed_by=None):
     Raises
     ------
     click.ClickException
-        If the image is pushed and ``docker_image_base_name`` is unset,
-        since only the user knows which registry to push to.
+        If ``docker_image_base_name`` is unset and the image is pushed, since
+        only the user knows which registry to push to, or ``name`` gives an
+        empty or overlong (over 255 characters) repository name.
     """
     base_name = config.get("docker_image_base_name", None)
     if base_name:
@@ -556,7 +557,13 @@ def image_base_name(config, name, pushed_by=None):
         run = match.group()
         return run if run in (".", "_", "__") or set(run) == {"-"} else "-"
 
-    return _IMAGE_NAME_SEPARATORS.sub(separator, name.lower()).strip("._-")
+    base_name = _IMAGE_NAME_SEPARATORS.sub(separator, name.lower()).strip("._-")
+    if not base_name or len(base_name) > 255:
+        raise click.ClickException(
+            f"Can't make a Docker image name from {name!r}. "
+            "Please set docker_image_base_name in config.txt."
+        )
+    return base_name
 
 
 def build_image(
