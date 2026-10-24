@@ -217,6 +217,35 @@ class TestVerify:
         active_config.extend({"base_payment": -1.99})
         assert v_package() is False
 
+    def test_summary_is_one_line_when_checks_pass(self, v_package, capsys):
+        assert v_package(verify_experiment=False, summary=True) is True
+        out = capsys.readouterr().out
+        assert out.startswith("Experiment files OK (")
+        assert out.count("\n") == 1
+
+    def test_summary_shows_every_check_when_one_fails(
+        self, active_config, v_package, capsys
+    ):
+        active_config.extend({"base_payment": -1.99})
+        assert v_package(verify_experiment=False, summary=True) is False
+        out = capsys.readouterr().out
+        assert "✓ config.txt is PRESENT" in out
+        assert "✗ base_payment must be greater than or equal to zero" in out
+        assert "Experiment files OK" not in out
+
+    def test_summary_shows_every_check_when_one_warns(
+        self, v_package, capsys, tmp_path, monkeypatch
+    ):
+        shutil.copytree(Path.cwd(), tmp_path / "exp")
+        monkeypatch.chdir(tmp_path / "exp")
+        Path("templates").mkdir(exist_ok=True)
+        Path("templates", "launch.html").write_text("")
+        assert v_package(verify_experiment=False, summary=True) is True
+        out = capsys.readouterr().out
+        assert "launch.html OVERWRITES shared frontend files" in out
+        assert "✓ config.txt is PRESENT" in out
+        assert "Experiment files OK" not in out
+
     def test_verify_package_imports_experiment_by_default(self, v_package):
         assert v_package() is True
         assert "dallinger_experiment" in sys.modules
@@ -355,16 +384,17 @@ class TestReportAfterIdleDecorator:
 
 @pytest.mark.slow
 class TestOutput:
-    @pytest.fixture
-    def output(self):
+    def test_outs(self, capsys):
         from dallinger.command_line import Output
 
-        return Output()
-
-    def test_outs(self, output):
+        # Output() binds sys.stdout.write, which capsys replaces during the test.
+        output = Output()
         output.log("logging")
         output.error("an error")
         output.blather("blah blah blah")
+        captured = capsys.readouterr()
+        assert captured.out == "logging\nblah blah blah"
+        assert captured.err == "an error\n"
 
 
 class TestHeader:
@@ -426,6 +456,57 @@ class TestDevelopCommand:
             result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
 
         assert result.exit_code == 0, result.output
+        assert "Experiment files OK (" in result.output
+        assert "is PRESENT" not in result.output
+        assert "Experiment UID" not in result.output
+        assert "Laboratory automation" not in result.output
+
+    @pytest.mark.parametrize("args, port", [([], 5123), (["--port", "5124"], 5124)])
+    def test_debug_serves_and_launches_on_base_port(
+        self, active_config, develop, monkeypatch, args, port
+    ):
+        active_config.extend({"base_port": 5123})
+        monkeypatch.setenv("FLASK_RUN_PORT", "5999")
+        with (
+            mock.patch("dallinger.command_line.develop.Queue") as queue,
+            mock.patch("dallinger.command_line.develop._run_dev_server") as server,
+        ):
+            result = CliRunner().invoke(develop, ["debug", "--no-browsers", *args])
+
+        assert result.exit_code == 0, result.output
+        assert queue.return_value.enqueue_call.call_args.kwargs["kwargs"] == {
+            "port": port
+        }
+        assert server.call_args.kwargs["env"]["FLASK_RUN_PORT"] == str(port)
+        assert active_config.get("base_port") == port
+
+    def test_browser_defaults_to_base_port(self, active_config, develop):
+        active_config.extend({"base_port": 5123})
+        with mock.patch("dallinger.command_line.develop._browser") as browser:
+            result = CliRunner().invoke(develop, ["browser", "--route", "ad"])
+
+        assert result.exit_code == 0, result.output
+        browser.assert_called_once_with(route="ad", port=5123)
+
+    @pytest.mark.parametrize(
+        "name, problem",
+        [("not-an-identifier", "letters, numbers"), ("file/sub", "Not a directory")],
+    )
+    def test_debug_reports_unusable_develop_directory(
+        self, active_config, develop, tmp_path, name, problem
+    ):
+        (tmp_path / "file").touch()
+        directory = tmp_path / name
+        active_config.extend({"dallinger_develop_directory": str(directory)})
+
+        result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
+
+        assert result.exit_code == 1
+        assert f'Error: The dallinger_develop_directory setting "{directory}"' in (
+            result.output
+        )
+        assert problem in result.output
+        assert "Traceback" not in result.output
 
     def test_debug_no_browsers_logs_launch_details(self, active_config, develop):
         develop_module = sys.modules["dallinger.command_line.develop"]

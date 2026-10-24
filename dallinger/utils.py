@@ -507,27 +507,32 @@ def check_experiment_dependencies(requirements_file):
                 )
 
 
+class DevelopDirectoryError(ValueError):
+    """The ``dallinger_develop_directory`` setting can't be used."""
+
+
 def develop_target_path(config):
     """Extract the target `dallinger develop` working directory from
     configuration, and return it as a Path.
+
+    Raises
+    ------
+    DevelopDirectoryError
+        If the setting isn't a path or its last part isn't a Python identifier.
     """
     develop_path_string = config.get("dallinger_develop_directory", None)
     try:
         develop_path = Path(develop_path_string).expanduser()
     except TypeError:
-        raise ValueError(
-            'The Dallinger configuration value "dallinger_develop_directory" '
-            'must be a file path, like "~/dallinger_develop".\n'
-            'Your value is "{}" which cannot be translated '
-            "to a file path.".format(develop_path_string)
+        raise DevelopDirectoryError(
+            f'The dallinger_develop_directory setting "{develop_path_string}" '
+            'is not a file path; use one like "~/dallinger_develop".'
         )
     if not develop_path.name.isidentifier():
-        raise ValueError(
-            'The directory in the Dallinger configuration value "dallinger_develop_directory" '
-            "must be a valid python identifier: only letters, numbers and underscores are allowed.\n"
-            'The directory name "{}" is not a valid identifier.'.format(
-                develop_path.name
-            )
+        raise DevelopDirectoryError(
+            f'The dallinger_develop_directory setting "{develop_path}" can\'t be '
+            f'used: the folder name "{develop_path.name}" may only contain '
+            "letters, numbers and underscores, and can't start with a number."
         )
 
     return develop_path
@@ -546,7 +551,7 @@ def bootstrap_development_session(
     from dallinger.experiment import Experiment
 
     experiment_uid = Experiment.make_uuid()
-    log("Experiment UID: {}".format(experiment_uid))
+    logging.getLogger(__name__).debug("Experiment UID: %s", experiment_uid)
 
     # Load and update the config
     config = get_config(load=True)
@@ -563,8 +568,14 @@ def bootstrap_development_session(
     source_path = Path(dallinger_package_path()) / "dev_server"
     destination_path = develop_target_path(config)
 
-    ensure_directory(destination_path)
-    expunge_directory(destination_path)
+    try:
+        ensure_directory(destination_path)
+        expunge_directory(destination_path)
+    except OSError as ex:
+        raise DevelopDirectoryError(
+            f'The dallinger_develop_directory setting "{destination_path}" '
+            f"can't be used: {ex.strerror or ex}."
+        ) from ex
     collate_experiment_files(
         config,
         experiment_path=experiment_path,
