@@ -731,7 +731,7 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
 
         return run
 
-    def build(config, experiment_files, *args):
+    def build(config, experiment_files, *args, **kwargs):
         events.append("build")
         assert experiment_files is source
         assert config.get("docker_image_name") == "registry.example/exp:1"
@@ -771,6 +771,60 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         "app-slot",
         "build",
     ]
+
+
+@pytest.mark.parametrize(
+    "build_option, image_name",
+    [
+        ("push_build", None),
+        ("local_build", None),
+        (None, None),
+        ("push_build", "registry.example/exp:1"),
+    ],
+)
+def test_only_pushed_deploys_need_image_base_name(
+    monkeypatch, build_option, image_name
+):
+    """Pushed deploys stop before side effects; others reach the build.
+
+    A configured ``docker_image_name`` is reused, so it needs no base name.
+    """
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.ready = True
+    root_domain = mock.Mock()
+    build = mock.Mock(side_effect=click.Abort)
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example.org"}}
+    )
+    monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: None)
+    pre_launch_checks = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", pre_launch_checks)
+    monkeypatch.setattr(docker_ssh_module, "ensure_root_domain_ready", root_domain)
+    monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
+    for name in ("_classic_tls_and_dns_host", "_check_experiment_hostname_dns"):
+        monkeypatch.setattr(docker_ssh_module, name, mock.Mock(return_value=(1, 2)))
+    monkeypatch.setattr(docker_ssh_module, "_check_app_slot", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "Executor", mock.Mock())
+    kwargs = _deploy_kwargs(
+        server="lab",
+        config_options=(("docker_image_name", image_name),) if image_name else (),
+        **({build_option: True} if build_option else {}),
+    )
+
+    if build_option is None or image_name:
+        with pytest.raises(click.Abort):
+            docker_ssh_module._deploy_in_mode(**kwargs)
+        pre_launch_checks.assert_called_once()
+        build.assert_called_once()
+        return
+    with pytest.raises(click.ClickException, match="docker_image_base_name"):
+        docker_ssh_module._deploy_in_mode(**kwargs)
+    pre_launch_checks.assert_not_called()
+    root_domain.assert_not_called()
+    build.assert_not_called()
 
 
 def test_cloudflare_deploy_without_api_token_stops_before_the_build(monkeypatch):
@@ -827,13 +881,23 @@ def test_deploy_reports_a_missing_config_option_file(monkeypatch, tmp_path):
         )
 
 
-def test_docker_ssh_build_assembles_the_validated_source(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "configured, app, base_name",
+    [
+        ("base-image", "My_Study", "base-image"),
+        (None, "My_Study", "my_study"),
+        (None, None, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+    ],
+)
+def test_docker_ssh_build_assembles_the_validated_source(
+    tmp_path, monkeypatch, configured, app, base_name
+):
     pytest.importorskip("docker")
     source = mock.Mock(deployment_plan=object())
     config = mock.Mock()
     config.get.side_effect = lambda key, default=None: {
         "docker_image_name": None,
-        "docker_image_base_name": "base-image",
+        "docker_image_base_name": configured,
         "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     }.get(key, default)
     config.as_dict.return_value = {"example": "value"}
@@ -852,11 +916,18 @@ def test_docker_ssh_build_assembles_the_validated_source(tmp_path, monkeypatch):
         ) as build_image,
     ):
         image_name = docker_ssh_module._build_and_push_image(
-            config, source, None, "test-server", local_build=False, push_build=False
+            config,
+            source,
+            None,
+            "test-server",
+            local_build=False,
+            push_build=False,
+            app=app,
         )
 
     assert image_name == "built:image"
     assert setup.call_args.kwargs["experiment_files"] is source
+    assert build_image.call_args.args[1] == base_name
     assert build_image.call_args.kwargs["image_tag"] == (
         "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     )
@@ -1317,11 +1388,20 @@ def test_cloudflare_restore_runs_before_compose_up(monkeypatch):
 
 
 def _fake_bin(tmp_path):
-    """Fake ``docker`` (logs its arguments) and ``stat`` (a docker.sock group)."""
+    """Fake ``docker`` (logs its arguments) and ``stat`` (a docker.sock group).
+
+    ``docker image inspect`` fails for images listed in ``$HOME/absent-images``.
+    """
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for name, body in (
-        ("docker", 'echo "$@" >> "$HOME/docker.log"'),
+        (
+            "docker",
+            'echo "$@" >> "$HOME/docker.log"\n'
+            '[ "$1 $2" = "image inspect" ] && '
+            'grep -qxF -- "${@: -1}" "$HOME/absent-images" 2>/dev/null && exit 1\n'
+            "exit 0",
+        ),
         ("stat", "echo 999"),
     ):
         (bin_dir / name).write_text(f"#!/bin/bash\n{body}\n")
@@ -1548,3 +1628,23 @@ def test_only_labelled_images_run_as_the_ssh_user(label, expected, capsys):
     executor = FakeExecutor({"image inspect": label})
     assert docker_ssh_module._image_runs_as_ssh_user(executor, "img:tag") is expected
     assert ("run as root" in capsys.readouterr().out) is not expected
+
+
+@pytest.mark.parametrize(
+    "image, present, pulled",
+    [
+        ("my-study:abc", True, False),
+        ("my-study:abc", False, True),
+        ("user/exp:abc", True, True),
+        ("ghcr.io/u/exp:abc", True, True),
+    ],
+)
+def test_only_registry_images_present_locally_are_pulled(
+    tmp_path, image, present, pulled
+):
+    if not present:
+        (tmp_path / "absent-images").write_text(f"{image}\n")
+    executor = LocalExecutor(tmp_path, _fake_bin(tmp_path))
+    docker_ssh_module._image_runs_as_ssh_user(executor, image)
+    log = (tmp_path / "docker.log").read_text()
+    assert (f"pull -q {image}" in log) is pulled

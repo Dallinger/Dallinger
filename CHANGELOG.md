@@ -4,6 +4,27 @@
 
 ### Changed
 
+- `docker_image_base_name` is now optional for `dallinger docker-ssh deploy`
+  and `sandbox` when the image is built on the server and not pushed (the
+  default, without `--push-build` or `--local_build`). The image is then
+  named after the app, lowercased, with separators that Docker rejects
+  (such as `..` or `._`) replaced by `-` (e.g. `my-study:<launch id>`). Deploys
+  that push the image still need the setting and now stop with an `Error:`
+  line naming it before building or changing anything on the server.
+  Previously every docker-ssh build stopped with a `KeyError` after
+  assembling the experiment when the setting was unset. When such an image
+  (any name without a `/`) is already on the server, docker-ssh no longer
+  tries to pull it from Docker Hub first, so a slow or unreachable Docker
+  Hub no longer delays the deploy. Likewise, with the setting unset,
+  `dallinger docker build` now names the image after the experiment
+  directory, made valid the same way, with spaces and other characters
+  Docker rejects also replaced by `-` (e.g. `My Study` becomes `my-study`),
+  and `dallinger docker push` stops with the same `Error:` line before
+  assembling the experiment; both previously failed with a `KeyError`.
+  Heroku Docker deploys (`dallinger docker deploy`/`sandbox`) now stop the
+  same way before the recruiter pre-launch checks; previously an unset setting failed with
+  a `KeyError` after assembling (and, for live deploys, registering) the
+  experiment, and an empty one tried to push the bare directory name.
 - Local debugging (`dallinger debug`, `LoaderDeployment`, and the
   `pytest_dallinger` debug fixtures) now starts the Procfile processes with
   [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,

@@ -1003,8 +1003,11 @@ def _image_runs_as_ssh_user(executor, image_name):
     from dallinger.docker.tools import RUNS_AS_SSH_USER_LABEL
 
     image = quote(image_name)
+    pull = f"docker pull -q {image} >/dev/null 2>&1"
+    if not _may_be_registry_image(image_name):
+        pull = f"docker image inspect {image} >/dev/null 2>&1 || {pull}"
     label = executor.run(
-        f"docker pull -q {image} >/dev/null 2>&1; docker image inspect -f "
+        f"{pull}; docker image inspect -f "
         f"'{{{{index .Config.Labels \"{RUNS_AS_SSH_USER_LABEL}\"}}}}' {image}",
         raise_=False,
     )
@@ -1015,6 +1018,18 @@ def _image_runs_as_ssh_user(executor, image_name):
         "containers run as root. Rebuild the image to run as the SSH user."
     )
     return False
+
+
+def _may_be_registry_image(image_name):
+    """Return whether ``image_name`` could name an image that a registry updates.
+
+    A name without ``/`` (such as the default ``my-study:<launch id>``)
+    would resolve to an official Docker Hub image, which experiment images
+    never are, so a local copy is current and pulling only asks Docker Hub.
+    Any name with a ``/``, including Docker Hub ``user/repo`` names, may
+    have been pushed, so a local copy may be stale.
+    """
+    return "/" in image_name
 
 
 def _ssh_prefix(ssh_host, ssh_port, ssh_user):
@@ -1324,15 +1339,30 @@ def _image_usable_from_registry(docker_client, image_name):
     return True
 
 
+def _image_base_name(config, app, push):
+    """Return the repository name for the image a deploy of ``app`` builds.
+
+    See :func:`dallinger.docker.tools.image_base_name`; ``push`` says
+    whether the image will be pushed to a registry.
+    """
+    from dallinger.docker.tools import image_base_name
+
+    return image_base_name(
+        config, app, "--push-build or --local_build" if push else None
+    )
+
+
 def _build_and_push_image(
-    config, experiment_files, app_name, server, local_build, push_build
+    config, experiment_files, app_name, server, local_build, push_build, app=None
 ):
     """Return the experiment image to deploy, building and pushing it if needed.
 
     Reuses ``docker_image_name`` when the registry has it. Otherwise
     assembles the experiment and builds the image, on the server unless
     ``local_build`` is set, and pushes it for a local build or with
-    ``push_build``.
+    ``push_build``. ``app`` is the deployed app name, which names the image
+    when ``docker_image_base_name`` is unset; it defaults to ``app_name``,
+    then to the launch id.
     """
     import docker
 
@@ -1382,7 +1412,7 @@ def _build_and_push_image(
         )
         image_name = build_image(
             tmp_dir,
-            config.get("docker_image_base_name"),
+            _image_base_name(config, app or app_name or config.get("id"), push_build),
             out=Output(),
             image_tag=docker_tag_from_experiment_id(config.get("id")),
         )
@@ -1623,6 +1653,8 @@ def _deploy_in_mode(
         _check_classic_ingress_reachable(server, ingress)
     config = get_config(load=True)
     config_options = _apply_config_options(config, config_options)
+    if (push_build or local_build) and not config.get("docker_image_name", None):
+        _image_base_name(config, None, push=True)
 
     run_pre_launch_checks(**locals())
 
@@ -1641,6 +1673,10 @@ def _deploy_in_mode(
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
     if not APP_NAME_PATTERN.fullmatch(experiment_id):
         raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
+    if not config.get("docker_image_name", None):
+        # Check a server-only name before the root-domain cleanup, which can
+        # destroy apps.
+        _image_base_name(config, experiment_id, push_build or local_build)
 
     resolved_ingress = _resolve_ingress(server_info, ingress)
     if resolved_ingress == INGRESS_CLOUDFLARE:
@@ -1671,7 +1707,13 @@ def _deploy_in_mode(
         slot_executor.client.close()
 
     image_name = _build_and_push_image(
-        config, experiment_files, app_name, server, local_build, push_build
+        config,
+        experiment_files,
+        app_name,
+        server,
+        local_build,
+        push_build,
+        app=experiment_id,
     )
     # Read after the build, which sets a dashboard password if config has none.
     dashboard_user = config.get("dashboard_user", "admin")

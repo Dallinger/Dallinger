@@ -510,6 +510,62 @@ def ensure_experiment_workdir_writable(dockerfile_text):
     return dockerfile_text.rstrip() + "\n\n" + _EXPERIMENT_WORKDIR_WRITABLE
 
 
+_IMAGE_NAME_SEPARATORS = re.compile(r"[^a-z0-9]+")
+
+
+def image_base_name(config, name, pushed_by=None):
+    """Return the repository name for an experiment image.
+
+    Parameters
+    ----------
+    config : Configuration or dict
+        Experiment config, read for ``docker_image_base_name``.
+    name : str
+        Fallback for an image that is not pushed, such as the app or
+        experiment directory name.
+    pushed_by : str, optional
+        The command or options that push the image to a registry, quoted in
+        the error; ``None`` if the image is not pushed.
+
+    Returns
+    -------
+    str
+        ``docker_image_base_name`` if set. Otherwise ``name`` made into a
+        valid Docker repository name: lowercase, with runs of characters
+        that Docker rejects (including separators such as ``..``) replaced
+        by ``-``.
+
+    Raises
+    ------
+    click.ClickException
+        If ``docker_image_base_name`` is unset and the image is pushed, since
+        only the user knows which registry to push to, or ``name`` gives an
+        empty or overlong (over 255 characters) repository name.
+    """
+    base_name = config.get("docker_image_base_name", None)
+    if base_name:
+        return base_name
+    if pushed_by:
+        raise click.ClickException(
+            "docker_image_base_name is not set. Pushing the image to a registry "
+            f"({pushed_by}) needs it to name the registry and repository, for "
+            "example in config.txt:\n"
+            "    docker_image_base_name = ghcr.io/<github-user>/<experiment>"
+        )
+
+    def separator(match):
+        run = match.group()
+        return run if run in (".", "_", "__") or set(run) == {"-"} else "-"
+
+    base_name = _IMAGE_NAME_SEPARATORS.sub(separator, name.lower()).strip("._-")
+    if not base_name or len(base_name) > 255:
+        raise click.ClickException(
+            f"Can't make a Docker image name from {name!r}. "
+            "Please set docker_image_base_name in config.txt."
+        )
+    return base_name
+
+
 def build_image(
     tmp_dir,
     base_image_name,

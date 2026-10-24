@@ -141,25 +141,27 @@ def deploy(**kwargs):
 @require_exp_directory
 def build():
     """Build a docker image for this experiment."""
-    from dallinger.docker.tools import build_image
+    from dallinger.docker.tools import build_image, image_base_name
 
     config = get_config(load=True)
+    base_name = image_base_name(config, Path(os.getcwd()).name)
     _, tmp = setup_experiment(
         log=log,
         debug=True,
         local_checks=False,
         experiment_files=get_experiment_files(),
     )
-    build_image(tmp, config.get("docker_image_base_name"), Output(), force_build=True)
+    build_image(tmp, base_name, Output(), force_build=True)
 
 
 @docker.command()
 @click.option("--use-existing", is_flag=True, default=False)
 def push(use_existing: bool, **kwargs) -> str:
     """Build and push the docker image for this experiment."""
-    from dallinger.docker.tools import build_image
+    from dallinger.docker.tools import build_image, image_base_name
 
     config = get_config(load=True)
+    base_name = image_base_name(config, None, pushed_by="dallinger docker push")
     app_name = kwargs.get("app_name", None)
     _, tmp = setup_experiment(
         log=log,
@@ -170,7 +172,7 @@ def push(use_existing: bool, **kwargs) -> str:
     )
     image_name_with_tag = build_image(
         tmp,
-        config.get("docker_image_base_name"),
+        base_name,
         Output(),
         force_build=not use_existing,
     )
@@ -355,16 +357,30 @@ def _deploy_in_mode(mode, verbose, app=None):
 
     config = get_config(load=True)
     config.extend({"mode": mode, "logfile": "-"})
+    base_name = _heroku_image_base_name(config)
 
     run_pre_launch_checks(**locals())
 
-    return deploy_heroku_docker(log=log, verbose=verbose, app=app)
+    return deploy_heroku_docker(log=log, verbose=verbose, app=app, base_name=base_name)
 
 
-def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
+def _heroku_image_base_name(config):
+    """Return ``docker_image_base_name``, which Heroku Docker deploys require."""
+    from dallinger.docker.tools import image_base_name
+
+    return image_base_name(config, None, pushed_by="dallinger docker deploy/sandbox")
+
+
+def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None, base_name=None):
+    """Deploy the experiment to Heroku as a Docker image pushed to a registry.
+
+    ``base_name`` is the image repository name; it defaults to the required
+    ``docker_image_base_name``.
+    """
     from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
     config = get_config(load=True)
+    base_name = base_name or _heroku_image_base_name(config)
     heroku_app_id, tmp = setup_experiment(
         log,
         debug=False,
@@ -382,7 +398,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     # cannot share or overwrite one image (the experiment is COPYd in, not mounted).
     image_name = build_image(
         tmp,
-        config.get("docker_image_base_name") or Path(os.getcwd()).name,
+        base_name,
         Output(),
         force_build=True,
         image_tag=docker_tag_from_experiment_id(config.get("id")),
