@@ -248,16 +248,12 @@
   or the EC2 console while it is still starting). If the setup had started,
   it also prints the `servers add` commands that would finish it instead.
   It explains a key that the instance rejected. It prints its total time in whole seconds.
-  Without `--region`, it names the region it uses rather than `None`; it and
-  `ec2 list instances` no longer show a pandas 3.1 deprecation warning.
-  `ec2` commands now honour `--region` when the AWS credentials come from
-  `~/.aws` or the environment rather than Dallinger's config; before, they
-  used boto's default region, so `ec2 list instances` queried it once per
-  region.
   It names the region boto actually uses (rather than `None` without
-  `--region`), and its pre-boot errors say that a setting can be in
-  `~/.dallingerconfig` or the environment; it and `ec2 list instances` no
-  longer show a pandas 3.1 deprecation warning.
+  `--region`); it and `ec2 list instances` no longer show a pandas 3.1
+  deprecation warning. `ec2` commands now honour `--region` when the AWS
+  credentials come from `~/.aws` or the environment rather than Dallinger's
+  config; before, they used boto's default region, so `ec2 list instances`
+  queried it once per region.
   The new `dallinger docker-ssh servers upgrade --host <server>` command sets
   them up or rewrites them. It lists the files it replaces and the routes it
   adds, asks first unless given `--yes`, keeps a `.bak` copy of each replaced
