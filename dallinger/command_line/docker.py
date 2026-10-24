@@ -364,9 +364,16 @@ def _deploy_in_mode(mode, verbose, app=None):
 
 
 def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
-    from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
+    from dallinger.docker.tools import (
+        build_image,
+        docker_tag_from_experiment_id,
+        image_base_name,
+    )
 
     config = get_config(load=True)
+    base_name = image_base_name(
+        config, None, pushed_by="dallinger docker deploy or sandbox"
+    )
     heroku_app_id, tmp = setup_experiment(
         log,
         debug=False,
@@ -384,7 +391,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     # cannot share or overwrite one image (the experiment is COPYd in, not mounted).
     image_name = build_image(
         tmp,
-        config.get("docker_image_base_name") or Path(os.getcwd()).name,
+        base_name,
         Output(),
         force_build=True,
         image_tag=docker_tag_from_experiment_id(config.get("id")),

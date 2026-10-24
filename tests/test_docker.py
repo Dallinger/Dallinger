@@ -174,6 +174,8 @@ def test_add_image_name(tempdir):
 
 
 def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
+    from dallinger.docker.tools import image_base_name
+
     docker_cli = importlib.import_module("dallinger.command_line.docker")
 
     class StopAfterPush(Exception):
@@ -186,7 +188,7 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
         "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     }.get(key, default)
 
-    fake_tools = mock.Mock()
+    fake_tools = mock.Mock(image_base_name=image_base_name)
     fake_tools.build_image.return_value = "registry/exp:tag"
     fake_tools.docker_tag_from_experiment_id.side_effect = lambda experiment_id: (
         experiment_id
@@ -265,6 +267,23 @@ def test_docker_push_needs_base_name(docker_cli_without_base_name):
     assert result.exit_code == 1
     assert "(dallinger docker push)" in result.output
     assert "docker_image_base_name = " in result.output
+    docker_cli_without_base_name.setup_experiment.assert_not_called()
+    tools.build_image.assert_not_called()
+
+
+def test_heroku_docker_deploy_needs_base_name(
+    docker_cli_without_base_name, monkeypatch
+):
+    from click.testing import CliRunner
+
+    from dallinger.docker import tools
+
+    monkeypatch.setattr(docker_cli_without_base_name, "push_image", mock.Mock())
+
+    result = CliRunner().invoke(docker_cli_without_base_name.docker, ["sandbox"])
+
+    assert result.exit_code == 1
+    assert "(dallinger docker deploy or sandbox)" in result.output
     docker_cli_without_base_name.setup_experiment.assert_not_called()
     tools.build_image.assert_not_called()
 

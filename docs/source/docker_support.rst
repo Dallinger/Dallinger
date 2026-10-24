@@ -56,7 +56,8 @@ Examples:
 Image creation
 **************
 
-To push images to a registry (``dallinger docker push``), make sure your experiment specifies a
+To push images to a registry (``dallinger docker push``, or a Heroku Docker deploy with
+``dallinger docker deploy`` or ``sandbox``), make sure your experiment specifies a
 ``docker_image_base_name`` for your image in its ``config.txt``. A ``dallinger docker-ssh deploy``
 or ``sandbox`` that builds the image on the server without ``--push-build`` or ``--local_build``
 doesn't need it: the image is then named after the app, lowercased, with separators that Docker
