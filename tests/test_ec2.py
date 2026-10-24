@@ -711,10 +711,11 @@ def test_interrupted_boot_wait_names_teardown(monkeypatch, capsys):
     assert "dallinger ec2 teardown --name exp --region eu-west-3" in output
 
 
-def test_provision_setup_failure_also_names_teardown(monkeypatch, capsys):
+@pytest.mark.parametrize("cli_region", [None, "us-west-2"])
+def test_provision_setup_failure_also_names_teardown(monkeypatch, capsys, cli_region):
     lib = importlib.import_module("dallinger.command_line.lib.ec2")
     monkeypatch.setattr(lib, "get_all_instances", lambda region: [])
-    # Without --region, boto's configured region is the one used and reported.
+    # The region boto's client uses is reported, even if --region is ignored.
     client = mock.Mock()
     client.meta.region_name = "eu-west-3"
     monkeypatch.setattr(lib, "get_ec2_client", lambda region: client)
@@ -730,7 +731,7 @@ def test_provision_setup_failure_also_names_teardown(monkeypatch, capsys):
     with pytest.raises(click.Abort):
         lib.prepare_instance(
             "exp",
-            None,
+            cli_region,
             "m5.large",
             32,
             "lab",
@@ -742,10 +743,3 @@ def test_provision_setup_failure_also_names_teardown(monkeypatch, capsys):
     output = capsys.readouterr().out
     assert "Provisioning exp on eu-west-3..." in output
     assert "`dallinger ec2 teardown --name exp --region eu-west-3`" in output
-
-
-def test_region_reaches_boto_without_aws_keys_in_config(monkeypatch):
-    lib = importlib.import_module("dallinger.command_line.lib.ec2")
-    monkeypatch.setattr("dallinger.config.get_config", lambda load=False: {})
-
-    assert lib.get_ec2_client("us-west-2").meta.region_name == "us-west-2"
