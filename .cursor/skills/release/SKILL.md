@@ -284,14 +284,15 @@ See the [vX.Y.Z CHANGELOG](https://github.com/Dallinger/Dallinger/blob/release-X
 
 <user-facing highlights from the CHANGELOG section>
 
+## Known limitations
+
+None.
+
 ## Testing
 
 - [ ] CI green on `release-X.Y.Z`
 - [ ] Demo and `tests/experiment` constraints pin `dallinger==X.Y.Z`
-
-## Known limitations
-
-None.
+- Nothing to dogfood here; the user-facing changes were dogfooded in their own PRs.
 
 ## Automatic code review
 
