@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from unittest import mock
 
 import click
@@ -92,7 +91,7 @@ def test_all_regions_skips_regions_the_account_cannot_use(
                 "State": {"Name": "running"},
                 "PublicDnsName": "",
                 "KeyName": "",
-                "LaunchTime": datetime.now(timezone.utc),
+                "LaunchTime": pd.Timestamp.now(tz="UTC"),
             }
         ]
     }
@@ -120,6 +119,7 @@ def test_all_regions_skips_regions_the_account_cannot_use(
             get_all_instances()
         auth_hint = "authentication failed" in str(excinfo.value)
         assert auth_hint == (code == "AuthFailure")
+        assert "Warning: skipped" not in capsys.readouterr().err
 
 
 class TestRemoveDnsRecords:

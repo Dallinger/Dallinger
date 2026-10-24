@@ -406,8 +406,9 @@
   `dallinger ec2 list instances` without `--region` queried the default region
   once per region rather than every region. Scanning every region now skips,
   with a warning, regions the account can't use (`AuthFailure`,
-  `UnauthorizedOperation`, `OptInRequired`). Messages about the default region
-  now name the region boto actually uses.
+  `UnauthorizedOperation`, `OptInRequired`), or fails listing them if no
+  region can be used. Messages about the default region now name the region
+  boto actually uses.
 
 - A participant who signs up through `POST /participant`, as the page's
   `dallinger.createParticipant()` does, keeps the recruiter named in their
