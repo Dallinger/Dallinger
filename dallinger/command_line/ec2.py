@@ -167,17 +167,21 @@ def ec2__provision(
         and dallinger_config.get("dashboard_password", None)
     ):
         raise click.UsageError(
-            "Set dashboard_user and dashboard_password in ~/.dallingerconfig."
+            "Set dashboard_user and dashboard_password in ~/.dallingerconfig or "
+            "the environment."
         )
 
     from .docker_ssh import _config_contact_email, _is_email
 
     # The shared services set up at the end need an email for Let's Encrypt.
-    if not _is_email(_config_contact_email()[0]):
+    email, source = _config_contact_email()
+    if not _is_email(email):
+        current = f"; it is {email!r} from {source}" if source else ""
         raise click.UsageError(
-            "Set contact_email_on_error in ~/.dallingerconfig to a bare email "
-            "address (not a placeholder such as XXX@gmail.com) for Let's Encrypt "
-            "certificates. `dallinger email-test` sends a test email to it."
+            "Set contact_email_on_error in ~/.dallingerconfig or the environment "
+            "to a bare email address for Let's Encrypt certificates (not a "
+            f"placeholder such as XXX@gmail.com{current}). `dallinger email-test` "
+            "sends a test email to it."
         )
 
     if not security_group_name:
