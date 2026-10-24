@@ -257,7 +257,7 @@ def test_classic_deploy_without_contact_email_prints_an_error_line(monkeypatch):
         docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example"}}
     )
     monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", mock.Mock())
-    with pytest.raises(click.ClickException, match="Email address absent or invalid"):
+    with pytest.raises(click.ClickException, match="No Let's Encrypt contact email"):
         docker_ssh_module._deploy_in_mode(
             **_deploy_kwargs(app_name="myapp", server="lab")
         )
@@ -589,7 +589,12 @@ def test_root_domain_auto_destroy_uses_full_server_name(monkeypatch):
 def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatch):
     from click.testing import CliRunner
 
-    hosts = {"pc01.lab.example.org": {"host": "pc01.lab.example.org"}}
+    hosts = {
+        "pc01.lab.example.org": {
+            "host": "pc01.lab.example.org",
+            "contact_email": "lab@example.org",
+        }
+    }
     monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", hosts)
     monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: hosts)
     monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
@@ -597,11 +602,8 @@ def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatc
     monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", mock.Mock())
     monkeypatch.setattr(
         docker_ssh_module,
-        "_classic_tls_and_dns_host",
-        lambda config, ssh_host, dns_host: ("tls internal", ssh_host),
-    )
-    monkeypatch.setattr(
-        docker_ssh_module, "_check_experiment_hostname_dns", mock.Mock()
+        "_classic_preflight",
+        lambda *args, **kwargs: "pc01.lab.example.org",
     )
     monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
     monkeypatch.setattr(
@@ -731,7 +733,7 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
 
         return run
 
-    def build(config, experiment_files, *args):
+    def build(config, experiment_files, *args, **kwargs):
         events.append("build")
         assert experiment_files is source
         assert config.get("docker_image_name") == "registry.example/exp:1"
@@ -745,14 +747,14 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
     for name, event, result in (
         ("get_experiment_files", "policy", source),
         ("run_pre_launch_checks", "recruiter", None),
-        ("_classic_tls_and_dns_host", "tls", ("tls internal", "lab.example.org")),
-        ("_check_experiment_hostname_dns", "dns", None),
+        ("_server_tls", "tls", "tls internal"),
+        ("_classic_preflight", "dns-and-server-check", "lab.example.org"),
         ("ensure_root_domain_ready", "root-domain", True),
         ("_check_app_slot", "app-slot", None),
     ):
         monkeypatch.setattr(docker_ssh_module, name, step(event, result))
     monkeypatch.setattr(docker_ssh_module, "Executor", mock.Mock())
-    monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
+    monkeypatch.setattr(docker_ssh_module, "_built_image", build)
 
     with pytest.raises(click.Abort):
         docker_ssh_module._deploy_in_mode(
@@ -766,7 +768,7 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         "policy",
         "recruiter",
         "tls",
-        "dns",
+        "dns-and-server-check",
         "root-domain",
         "app-slot",
         "build",
@@ -798,7 +800,7 @@ def test_cloudflare_deploy_without_api_token_stops_before_the_build(monkeypatch)
         "load_api_token",
         mock.Mock(side_effect=docker_ssh_module.CloudflareError("no token")),
     )
-    monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
+    monkeypatch.setattr(docker_ssh_module, "_built_image", build)
 
     with pytest.raises(click.ClickException, match="no token"):
         docker_ssh_module._deploy_in_mode(**_deploy_kwargs(server="lab"))

@@ -92,6 +92,10 @@ The ``server_pem`` value specifies the local private key file that will
 be used for SSH authentication when connecting to the instance. It's recommended to
 store this in ``~/.ssh/`` following standard SSH key management practices.
 Note that this variable should be specified as a full path (e.g. ``~/.ssh/my-ec2-key.pem``).
+A new instance accepts only the ``ec2_default_pem`` key pair, and Dallinger
+logs in to every server with ``server_pem``, so ``server_pem`` must be that
+key pair's private key, without a passphrase; ``provision`` checks this
+before booting an instance.
 
 **Both configuration values are required** for EC2-based deployments. If either is missing
 or if the PEM file doesn't exist at the specified path, the deployment will fail with an error message.
@@ -160,6 +164,28 @@ You can configure different amounts of storage or different instance types::
 
     dallinger ec2 provision --name <server_name> --region <region> --storage 100 --type m5.2xlarge
 
+Like ``dallinger docker-ssh servers add``, ``provision`` then starts the
+server's shared Caddy, Postgres and Dozzle services and prints the log viewer
+login once. It saves the server under its AWS hostname and, with
+``--dns-host``, under that name too. You can deploy straight away with
+``--server <AWS hostname>``, and with ``--server <dns-host>`` once your
+computer resolves the new DNS record (up to about five minutes; up to 15 if
+you looked the name up before it existed). The setup connects over the AWS
+hostname: it waits for Route 53 to sync the records (up to two minutes each),
+but not for your computer to resolve the new name. Caddy gives Let's
+Encrypt the ``contact_email_on_error`` address from ``~/.dallingerconfig``
+(or the environment, but not an experiment's ``config.txt`` or experiment
+class), so ``provision`` stops before booting an instance if that is not an
+email address, or if ``dashboard_password`` (or ``dashboard_user``, which
+defaults to ``admin``) is not set. Without ``--dns-host``, the server is
+saved with ``--dns-host <public ip>.nip.io``, because Let's Encrypt does not
+issue certificates for AWS hostnames. If Route 53 can't create the DNS
+records, ``provision`` warns, says which records to create by hand, and sets
+the server up anyway. If a later step fails, the instance keeps running.
+``provision`` then prints the ``ec2 teardown`` command that removes it (with
+its ``--region`` and ``--dns-host``) and, if the setup had started, the
+``servers add`` commands that finish the setup instead. Fix the problem and
+run one or the other.
 
 Increasing Storage on An Instance
 ---------------------------------

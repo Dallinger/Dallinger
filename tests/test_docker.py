@@ -240,7 +240,7 @@ def test_postgres_services_disable_jit(tmp_path, stub_config):
         wrapper.copy_docker_compose_files()
     composes = [
         get_yaml({}, ingress="cloudflare"),
-        yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base="")),
+        yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render()),
         yaml.safe_load((tmp_path / "docker-compose.yml").read_text()),
     ]
     for compose in composes:

@@ -29,6 +29,8 @@ from ..config import remove_host as dallinger_remove_host
 from ..config import store_host as dallinger_store_host
 from ..docker_ssh import Executor
 from ..docker_ssh import prepare_server as dallinger_prepare_server
+from ..docker_ssh import register_server as dallinger_register_server
+from ..utils import get_server_pem_path
 
 logger = logging.getLogger(__name__)
 
@@ -282,7 +284,7 @@ def get_all_instances(region_name=None):
                 instance_df["Cost"] = (
                     instance_df["Cost"] * instance_df["uptime"] / (60**2)
                 )
-                instance_df.sort_values("Cost", inplace=True)
+                instance_df = instance_df.sort_values("Cost")
                 instance_df["Cost"] = instance_df["Cost"].apply(
                     lambda x: f"${int(x)}" if pd.notna(x) else "N/A"
                 )
@@ -525,6 +527,37 @@ def wait_for_instance(host, user="ubuntu", n_tries=10):
     return _wait_for_instance()
 
 
+def check_server_pem_matches_key_pair(key_name):
+    """Raise a ``UsageError`` unless ``server_pem`` is the private key of EC2 key pair ``key_name``.
+
+    New instances accept only the key pair they boot with, and docker-ssh
+    logs in to every server with ``server_pem``, which can't have a passphrase.
+    """
+    pair_path, server_pem = get_pem_path(key_name), get_server_pem_path()
+    same_file = pair_path.resolve() == server_pem.resolve()
+    keys = []
+    for path in [server_pem] if same_file else [server_pem, pair_path]:
+        try:
+            keys.append(paramiko.PKey.from_path(path))
+        except Exception as exc:
+            raise click.UsageError(
+                f"Could not read the SSH key {path}: {exc}. server_pem and the "
+                "ec2_default_pem key file must be unencrypted RSA, ECDSA or "
+                "Ed25519 private keys (to replace a DSA key, see "
+                "https://dallinger.readthedocs.io/en/latest/docker_support.html"
+                "#replacing-a-dsa-key)."
+            ) from exc
+    if not same_file and keys[0].get_base64() != keys[1].get_base64():
+        raise click.UsageError(
+            f"server_pem ({server_pem}) is not the private key of the EC2 key pair "
+            f"ec2_default_pem = {key_name} ({pair_path}). New instances accept only "
+            "that key pair, and Dallinger logs in to every server with server_pem. "
+            f"Set server_pem = {pair_path} in ~/.dallingerconfig or the "
+            "environment, or set "
+            "ec2_default_pem to the key pair whose private key server_pem is."
+        )
+
+
 def _get_latest_ubuntu_image_id(ec2):
     """Fallback: find the latest Ubuntu 24.04 AMI via ec2.describe_images."""
     response = ec2.describe_images(
@@ -632,13 +665,40 @@ def boot_instance(ec2, image_id, instance_type, key_name, instance_name, region_
     instance = response["Instances"][0]
     instance_id = instance["InstanceId"]
 
-    with yaspin(
-        text=f"Waiting for {instance_name} to be ready...", color="green"
-    ) as sp:
-        waiter = get_ec2_client(region_name).get_waiter("instance_running")
-        waiter.wait(InstanceIds=[instance_id])
-        sp.ok("✔")
+    try:
+        with yaspin(
+            text=f"Waiting for {instance_name} to be ready...", color="green"
+        ) as sp:
+            waiter = get_ec2_client(region_name).get_waiter("instance_running")
+            waiter.wait(InstanceIds=[instance_id])
+            sp.ok("✔")
+    except BaseException:
+        _print_teardown_hint(instance_name, instance_id, region_name, starting=True)
+        raise
     return instance_id
+
+
+def _print_teardown_hint(instance_name, instance_id, region_name, starting=False):
+    """Say how to remove an instance that booted but was not set up.
+
+    ``ec2 teardown --name`` finds only running instances, so an instance that
+    may still be ``pending`` gets that caveat.
+    """
+    region = f" --region {region_name}" if region_name else ""
+    teardown = f"`dallinger ec2 teardown --name {instance_name}{region}`"
+    if starting:
+        print(
+            f"{instance_name} ({instance_id}) was launched but may still be "
+            f"starting. Terminate {instance_id} in the EC2 console now, or run "
+            f"{teardown} once `dallinger ec2 list instances --running{region}` "
+            "shows it; then provision it again."
+        )
+    else:
+        print(
+            f"{instance_name} ({instance_id}) is running but was not set up. Fix "
+            f"the problem above, then remove it with {teardown} and provision it "
+            "again."
+        )
 
 
 def set_security_group(
@@ -837,6 +897,11 @@ def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False):
 
 
 def create_dns_record(dns_host, user, host, route_53=None):
+    """Point ``dns_host`` at ``host`` with a Route 53 CNAME and wait until it is in sync.
+
+    Nothing connects through the new name, as the local resolver may still
+    cache an older answer (or a negative one) for it.
+    """
     if route_53 is None:
         route_53 = get_53_client()
 
@@ -863,29 +928,18 @@ def create_dns_record(dns_host, user, host, route_53=None):
         response["ResponseMetadata"]["HTTPStatusCode"] == 200
     ), "Failed to set up DNS record"
 
-    with yaspin(
-        text=f"Waiting for DNS record for {dns_host} (can take up to two minutes)...",
-        color="green",
-    ) as sp:
-        change_id = response["ChangeInfo"]["Id"]
-        n_tries = 24
-        wait = 5
-        timeout = n_tries * wait
-        for _ in range(n_tries):
-            response = route_53.get_change(Id=change_id)
-            if response["ChangeInfo"]["Status"] == "INSYNC":
-                break
-            time.sleep(wait)
-        else:
-            raise Exception(f"DNS record setup timed out after {timeout} seconds.")
-        sp.ok("✔")
-
-    is_wild_card = dns_host.startswith("*.")
-    full_domain = dns_host.replace("*.", "")
-    test_host = f"test.{full_domain}" if is_wild_card else dns_host
-
-    dns_executor = Executor(test_host, user)
-    return dns_executor
+    print(f"Waiting for the DNS record {dns_host} (can take up to two minutes)...")
+    change_id = response["ChangeInfo"]["Id"]
+    n_tries, wait = 24, 5
+    for _ in range(n_tries):
+        if route_53.get_change(Id=change_id)["ChangeInfo"]["Status"] == "INSYNC":
+            print(f"DNS record {dns_host} is in sync.")
+            return
+        time.sleep(wait)
+    print(
+        f"Route 53 had not synced the DNS record {dns_host} after {n_tries * wait} "
+        "seconds; it usually finishes within a few more minutes."
+    )
 
 
 def prepare_instance(
@@ -935,6 +989,8 @@ def prepare_instance(
 
     start = time.time()
     ec2 = get_ec2_client(region_name)
+    # get_keys passes --region to boto only with credentials from the config.
+    region_name = ec2.meta.region_name
     security_group_id = get_security_group_id(security_group_name, region_name)
     print(f"Provisioning {instance_name} on {region_name}...")
     image_id = get_image_id(ec2, image_name)
@@ -944,19 +1000,45 @@ def prepare_instance(
         ec2, image_id, instance_type, key_name, instance_name, region_name
     )
 
-    set_security_group(
-        ec2, instance_id, instance_name, security_group_id, security_group_name
-    )
-
-    host, user, ip_address, executor = increase_storage(
-        instance_id, instance_name, storage_in_gb, ec2
-    )
+    try:
+        set_security_group(
+            ec2, instance_id, instance_name, security_group_id, security_group_name
+        )
+        host, user, ip_address, executor = increase_storage(
+            instance_id, instance_name, storage_in_gb, ec2
+        )
+    except BaseException as exc:
+        # With a key that loads, paramiko reports a rejection as "Invalid key"
+        # after also trying the file as other key types.
+        if isinstance(exc, pse.AuthenticationException) or (
+            isinstance(exc, pse.SSHException) and "Invalid key" in str(exc)
+        ):
+            print(
+                f"The instance rejected server_pem. It accepts only the EC2 key pair "
+                f"{key_name} it booted with. If that key pair in AWS was imported "
+                f"from a different key than your local {key_name}.pem, delete it in "
+                "the EC2 console so that provisioning imports the local key."
+            )
+        _print_teardown_hint(instance_name, instance_id, region_name)
+        raise
     if callback is not None:
-        callback(host, user, ip_address, executor, dns_host, instance_name)
+        try:
+            callback(host, user, ip_address, executor, dns_host, instance_name)
+        except BaseException:
+            region = f" --region {region_name}" if region_name else ""
+            dns = f" --dns-host {dns_host}" if dns_host else ""
+            print(
+                "To remove the instance and its DNS records instead, run "
+                f"`dallinger ec2 teardown --name {instance_name}{region}{dns}`."
+                if dns_host
+                else "To remove the instance instead, run "
+                f"`dallinger ec2 teardown --name {instance_name}{region}`."
+            )
+            raise
 
-    duration = time.time() - start
+    duration = round(time.time() - start)
     print(
-        f"Provisioning complete! Time taken: {duration}. {instance_name} is ready at {host}"
+        f"Provisioning complete in {duration} seconds. {instance_name} is ready at {host}"
     )
 
 
@@ -978,24 +1060,52 @@ def remove_dns_record(dns_host, remove_dallinger_host=True):
 def prepare_docker_experiment_setup(
     host, user, ip_address, executor, dns_host=None, instance_name=None
 ):
-    from dallinger.config import get_config
+    """Install Docker on a new instance, create its DNS records and register it.
 
-    with yaspin(text="Loading Dallinger configuration...", color="green") as sp:
-        config = get_config(load=True)
-        assert config.get("dashboard_user") and config.get(
-            "dashboard_password"
-        ), "dashboard_user and dashboard_password must be set in ~/.dallingerconfig"
-        sp.ok("✔")
-
-    dallinger_prepare_server(host, user)
-
-    create_dns_records(dns_host, user, host)
-
-    with yaspin(text="Registering host in Dallinger...", color="green") as sp:
-        dallinger_store_host(dict(host=host, user=user))
+    Everything connects over the AWS hostname ``host``: a resolver may still
+    cache an old or negative answer for the new DNS host. Without a DNS host,
+    a nip.io name for the public IP gives the server's sites a name that
+    Let's Encrypt certifies, unlike the AWS hostname, which can resolve to a
+    private IP inside AWS. A server record is saved under the AWS hostname
+    and, with a DNS host, under that name too. A failure prints the commands
+    that finish the setup (``prepare_instance`` adds the teardown command).
+    """
+    server_dns_host = dns_host or f"{ip_address}.nip.io"
+    try:
         if dns_host:
-            dallinger_store_host(dict(host=dns_host, user=user))
-        sp.ok("✔")
+            try:
+                create_dns_records(dns_host, user, host)
+            except Exception as exc:
+                print(
+                    f"Warning: Could not create the DNS records {dns_host} and "
+                    f"*.{dns_host} ({exc}). Create them in Route 53 as CNAME "
+                    f"records pointing to {host}."
+                )
+        dallinger_prepare_server(host, user)
+        print("Registering the server and starting its shared services.")
+        server_info = dallinger_register_server(
+            host, user, dns_host=server_dns_host, network_advice=False
+        )
+        if dns_host:
+            dallinger_store_host({**server_info, "host": dns_host})
+    except BaseException:
+        commands = [
+            f"dallinger docker-ssh servers add --host {host} --user {user} "
+            f"--dns-host {server_dns_host}"
+        ]
+        if dns_host:
+            commands.append(
+                f"dallinger docker-ssh servers add --host {dns_host} --user {user} "
+                f"--dns-host {dns_host}"
+            )
+        print(
+            f"{host} is running but is not set up. Fix the problem above, then run:\n"
+            + "".join(f"  {command}\n" for command in commands)
+            + (f"Run the second command once {dns_host} resolves. " if dns_host else "")
+            + "If `servers add` says the shared files were left unchanged, also "
+            f"run `dallinger docker-ssh servers upgrade --host {host} --yes`."
+        )
+        raise
 
 
 def provision(

@@ -1,3 +1,5 @@
+import importlib
+import socket
 from unittest import mock
 
 import click
@@ -17,6 +19,7 @@ from dallinger.command_line.lib.ec2 import (
     register_key_pair,
     remove_dns_records,
 )
+from dallinger.config import ConfigSource, Configuration
 
 
 def _route_53_client(*pages):
@@ -197,6 +200,7 @@ class TestGetAllInstances:
             )
             yield
 
+    @pytest.mark.filterwarnings("error::DeprecationWarning")
     def test_success_includes_ec2_shop_details(self):
         """Test that ec2.shop details are included when available"""
         with mock.patch("dallinger.command_line.lib.ec2.requests.get") as mock_get:
@@ -498,3 +502,244 @@ class TestRegisterKeyPair:
             register_key_pair(mock_ec2, "test-key")
 
         assert "Unable to load key" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "settings, error",
+    [
+        (
+            {"contact_email_on_error": "???"},
+            "'???' from the contact_email_on_error environment variable",
+        ),
+        ({"dashboard_password": ""}, "dashboard_password in ~/.dallingerconfig or"),
+    ],
+)
+def test_provision_checks_settings_before_booting(monkeypatch, settings, error):
+    from click.testing import CliRunner
+
+    ec2 = importlib.import_module("dallinger.command_line.ec2")
+    values = {
+        "dashboard_user": "admin",
+        "dashboard_password": "pw",
+        "contact_email_on_error": "me@example.org",
+    }
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.extend({k: v for k, v in values.items() if k not in settings})
+    config.extend(settings, source=ConfigSource.ENVIRONMENT)
+    config.ready = True
+    monkeypatch.setattr(ec2, "get_config", lambda strict=True: config)
+    monkeypatch.setattr(
+        importlib.import_module("dallinger.command_line.docker_ssh"),
+        "get_config",
+        lambda load=False: config,
+    )
+    monkeypatch.setattr(ec2, "get_instance_config", lambda: {"pem": "key"})
+    monkeypatch.setattr(ec2, "check_server_pem_matches_key_pair", mock.Mock())
+    monkeypatch.setattr(ec2, "provision", mock.Mock())
+
+    result = CliRunner().invoke(ec2.ec2__provision, ["--name", "exp"])
+
+    assert result.exit_code == 2
+    assert error in result.output
+    ec2.provision.assert_not_called()
+
+
+def test_server_pem_must_be_the_key_pairs_private_key(tmp_path, monkeypatch):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    pair, other = tmp_path / "pair.pem", tmp_path / "other.pem"
+    for path in (pair, other):
+        paramiko.RSAKey.generate(1024).write_private_key_file(str(path))
+    monkeypatch.setattr(lib, "get_pem_path", lambda key_name: pair)
+
+    monkeypatch.setattr(lib, "get_server_pem_path", lambda: pair)
+    lib.check_server_pem_matches_key_pair("pair")
+
+    # Dallinger can't use a key with a passphrase, even as the key pair's file.
+    encrypted = tmp_path / "encrypted.pem"
+    paramiko.RSAKey.generate(1024).write_private_key_file(str(encrypted), "pw")
+    for name in ("get_pem_path", "get_server_pem_path"):
+        monkeypatch.setattr(lib, name, lambda *a: encrypted)
+    with pytest.raises(click.UsageError, match="must be unencrypted"):
+        lib.check_server_pem_matches_key_pair("encrypted")
+    encrypted.write_text("not a key")
+    with pytest.raises(click.UsageError, match="must be unencrypted"):
+        lib.check_server_pem_matches_key_pair("garbage")
+    monkeypatch.setattr(lib, "get_pem_path", lambda key_name: pair)
+
+    monkeypatch.setattr(lib, "get_server_pem_path", lambda: other)
+    with pytest.raises(click.UsageError) as error:
+        lib.check_server_pem_matches_key_pair("pair")
+    assert "ec2_default_pem = pair" in str(error.value)
+    assert f"Set server_pem = {pair}" in str(error.value)
+
+
+def test_dns_records_are_created_without_connecting_through_them(monkeypatch, capsys):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    route_53 = mock.Mock()
+    route_53.change_resource_record_sets.return_value = {
+        "ResponseMetadata": {"HTTPStatusCode": 200},
+        "ChangeInfo": {"Id": "change"},
+    }
+    route_53.get_change.return_value = {"ChangeInfo": {"Status": "INSYNC"}}
+    monkeypatch.setattr(lib, "get_53_client", lambda: route_53)
+    monkeypatch.setattr(lib, "filter_zone_ids", lambda *a: ["zone"])
+    # A fresh name may not resolve locally yet, so nothing may connect to it.
+    monkeypatch.setattr(lib, "Executor", mock.Mock(side_effect=AssertionError))
+
+    lib.create_dns_records("exp.example.org", "ubuntu", "ec2-host")
+
+    names = [
+        call.kwargs["ChangeBatch"]["Changes"][0]["ResourceRecordSet"]["Name"]
+        for call in route_53.change_resource_record_sets.call_args_list
+    ]
+    assert names == ["exp.example.org", "*.exp.example.org"]
+
+    # A slow sync is only reported.
+    route_53.get_change.return_value = {"ChangeInfo": {"Status": "PENDING"}}
+    monkeypatch.setattr(lib.time, "sleep", lambda seconds: None)
+    lib.create_dns_record("exp.example.org", "ubuntu", "ec2-host")
+    assert "had not synced the DNS record" in capsys.readouterr().out
+
+
+def test_interrupted_dns_wait_names_the_repair_commands(monkeypatch, capsys):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    monkeypatch.setattr(
+        lib, "create_dns_records", mock.Mock(side_effect=KeyboardInterrupt)
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        lib.prepare_docker_experiment_setup(
+            "ec2-host", "ubuntu", "1.2.3.4", None, dns_host="exp.example.org"
+        )
+    assert "servers add --host ec2-host --user ubuntu" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("dns_host", [None, "exp.example.org"])
+def test_provision_setup_failure_names_the_repair_commands(
+    dns_host, monkeypatch, capsys
+):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    monkeypatch.setattr(lib, "dallinger_prepare_server", mock.Mock())
+    # A DNS failure only warns; the setup still runs over the AWS hostname.
+    monkeypatch.setattr(
+        lib, "create_dns_records", mock.Mock(side_effect=socket.gaierror("NXDOMAIN"))
+    )
+    register = mock.Mock(side_effect=click.Abort)
+    monkeypatch.setattr(lib, "dallinger_register_server", register)
+
+    with pytest.raises(click.Abort):
+        lib.prepare_docker_experiment_setup(
+            "ec2-host",
+            "ubuntu",
+            "1.2.3.4",
+            None,
+            dns_host=dns_host,
+        )
+    output = capsys.readouterr().out
+    assert register.call_args.kwargs["dns_host"] == (dns_host or "1.2.3.4.nip.io")
+    assert ("Could not create the DNS records" in output) == bool(dns_host)
+    server_dns_host = dns_host or "1.2.3.4.nip.io"
+    assert (
+        f"servers add --host ec2-host --user ubuntu --dns-host {server_dns_host}"
+        in output
+    )
+    alias = (
+        "servers add --host exp.example.org --user ubuntu --dns-host exp.example.org\n"
+    )
+    assert (alias in output) == bool(dns_host)
+
+
+@pytest.mark.parametrize(
+    "error, rejected",
+    [
+        (paramiko.SSHException("Invalid key"), True),
+        (paramiko.AuthenticationException("Authentication failed."), True),
+        (paramiko.SSHException("Error reading SSH protocol banner"), False),
+        (KeyboardInterrupt(), False),
+    ],
+)
+def test_provision_failure_before_setup_names_teardown(
+    monkeypatch, capsys, error, rejected
+):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    monkeypatch.setattr(lib, "get_all_instances", lambda region: [])
+    monkeypatch.setattr(
+        lib,
+        "get_ec2_client",
+        lambda region: mock.Mock(meta=mock.Mock(region_name=region)),
+    )
+    for name in ("get_security_group_id", "get_image_id"):
+        monkeypatch.setattr(lib, name, mock.Mock())
+    monkeypatch.setattr(lib, "setup_ssh_keys", mock.Mock())
+    monkeypatch.setattr(lib, "boot_instance", mock.Mock(return_value="i-123"))
+    monkeypatch.setattr(lib, "set_security_group", mock.Mock())
+    monkeypatch.setattr(
+        lib,
+        "increase_storage",
+        mock.Mock(side_effect=error),
+    )
+    callback = mock.Mock()
+
+    with pytest.raises(type(error)):
+        lib.prepare_instance(
+            "exp", "eu-west-3", "m5.large", 32, "lab", "ami-1", "sg", callback=callback
+        )
+
+    output = capsys.readouterr().out
+    callback.assert_not_called()
+    assert ("rejected server_pem" in output) is rejected
+    assert "is running but was not set up" in output
+    assert "dallinger ec2 teardown --name exp --region eu-west-3" in output
+
+
+def test_interrupted_boot_wait_names_teardown(monkeypatch, capsys):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    ec2 = mock.Mock()
+    ec2.run_instances.return_value = {"Instances": [{"InstanceId": "i-9"}]}
+    waiting_client = mock.Mock()
+    waiting_client.get_waiter.return_value.wait.side_effect = KeyboardInterrupt
+    monkeypatch.setattr(lib, "get_ec2_client", lambda region: waiting_client)
+
+    with pytest.raises(KeyboardInterrupt):
+        lib.boot_instance(ec2, "ami-1", "m5.large", "lab", "exp", "eu-west-3")
+
+    output = capsys.readouterr().out
+    assert "exp (i-9) was launched but may still be starting" in output
+    assert "Terminate i-9 in the EC2 console now" in output
+    assert "`dallinger ec2 list instances --running --region eu-west-3`" in output
+    assert "dallinger ec2 teardown --name exp --region eu-west-3" in output
+
+
+@pytest.mark.parametrize("cli_region", [None, "us-west-2"])
+def test_provision_setup_failure_also_names_teardown(monkeypatch, capsys, cli_region):
+    lib = importlib.import_module("dallinger.command_line.lib.ec2")
+    monkeypatch.setattr(lib, "get_all_instances", lambda region: [])
+    # The region boto's client uses is reported, even if --region is ignored.
+    client = mock.Mock()
+    client.meta.region_name = "eu-west-3"
+    monkeypatch.setattr(lib, "get_ec2_client", lambda region: client)
+    for name in ("get_security_group_id", "get_image_id"):
+        monkeypatch.setattr(lib, name, mock.Mock())
+    for name in ("setup_ssh_keys", "set_security_group"):
+        monkeypatch.setattr(lib, name, mock.Mock())
+    monkeypatch.setattr(lib, "boot_instance", mock.Mock(return_value="i-123"))
+    monkeypatch.setattr(
+        lib, "increase_storage", mock.Mock(return_value=("h", "u", "1.2.3.4", None))
+    )
+
+    with pytest.raises(click.Abort):
+        lib.prepare_instance(
+            "exp",
+            cli_region,
+            "m5.large",
+            32,
+            "lab",
+            "ami-1",
+            "sg",
+            callback=mock.Mock(side_effect=click.Abort),
+        )
+
+    output = capsys.readouterr().out
+    assert "Provisioning exp on eu-west-3..." in output
+    assert "`dallinger ec2 teardown --name exp --region eu-west-3`" in output

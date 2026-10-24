@@ -16,7 +16,6 @@ import warnings
 import zipfile
 from contextlib import ExitStack, contextmanager, redirect_stdout
 from dataclasses import dataclass
-from email.utils import parseaddr
 from functools import wraps
 from getpass import getuser
 from io import BytesIO
@@ -44,7 +43,7 @@ from dallinger.command_line.utils import (
     render_rich_table,
     run_pre_launch_checks,
 )
-from dallinger.config import get_config
+from dallinger.config import ConfigSource, get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import setup_experiment
@@ -171,7 +170,7 @@ CONTROLLER_IMAGE = _read_controller_image(
 )
 
 
-CADDYFILE_SUBDOMAIN = """
+CADDYFILE_SERVER = """
 # This is a configuration file for the Caddy http Server
 # Documentation can be found at https://caddyserver.com/docs
 {{
@@ -182,6 +181,7 @@ CADDYFILE_SUBDOMAIN = """
 {host} {{
     respond /health-check 200
     {tls}
+    import root.d/*
 }}
 
 logs.{host} {{
@@ -190,29 +190,6 @@ logs.{host} {{
 }}
 
 import caddy.d/*
-"""
-
-
-CADDYFILE_ROOT = """
-# This is a configuration file for the Caddy http Server
-# Documentation can be found at https://caddyserver.com/docs
-{{
-    grace_period 30s
-}}
-
-
-{host} {{
-    {tls}
-    handle /health-check {{
-        respond 200
-    }}
-    handle /logs* {{
-        reverse_proxy dozzle:8080
-    }}
-    handle {{
-        reverse_proxy {backend}
-    }}
-}}
 """
 
 
@@ -235,25 +212,72 @@ def list_servers():
         print(", ".join(f"{key}: {value}" for key, value in host.items()))
 
 
+def _is_email(value):
+    """Return whether ``value`` looks like an email address.
+
+    The whole value must be a bare address without spaces, quotes, braces,
+    angle brackets, ``#`` or ``;``, as it goes into Caddy's ``tls`` line.
+    Placeholders such as ``XXX@gmail.com`` from experiment templates don't
+    count.
+    """
+    match = re.fullmatch(r"([^\s\"`<>{}#;@]+)@[^\s\"`<>{}#;@]+", value or "")
+    return bool(match) and not re.fullmatch(r"[x?]+", match[1], re.IGNORECASE)
+
+
+def _validate_contact_email(ctx, param, value):
+    """Reject a ``--contact-email`` that is not an email address."""
+    if value is not None and not _is_email(value):
+        raise click.BadParameter(
+            f"{value!r} is not a bare email address such as me@example.org "
+            "(placeholders such as XXX@gmail.com don't count)."
+        )
+    return value
+
+
+_CONTACT_EMAIL_OPTION = click.option(
+    "--contact-email",
+    callback=_validate_contact_email,
+    help="Email address that Caddy gives Let's Encrypt for classic-ingress "
+    "certificates, saved with the server. Defaults to a valid saved email, then "
+    "to contact_email_on_error from ~/.dallingerconfig or the environment if "
+    "that is an email address.",
+)
+
+
 @servers.command()
 @click.option(
     "--host", required=True, help="IP address or dns name of the remote server"
 )
-@click.option("--user", help="User to use when connecting to remote host")
+@click.option(
+    "--user",
+    help="User to use when connecting to remote host. Defaults to the saved user, "
+    "then the local user name.",
+)
 @click.option(
     "--default-ingress",
     type=click.Choice([INGRESS_CLASSIC, INGRESS_CLOUDFLARE]),
-    default=INGRESS_CLASSIC,
-    show_default=True,
-    help="Default participant ingress for deploys that omit --ingress",
+    help="Default participant ingress for deploys that omit --ingress. Defaults "
+    f"to the saved value, then {INGRESS_CLASSIC}.",
 )
-def add(host, user, default_ingress):
+@click.option(
+    "--dns-host",
+    help="DNS name that experiments on this server are served under. "
+    "Saved with the server so deployments don't need --dns-host; "
+    "needed when --host is an IP address.",
+)
+@_CONTACT_EMAIL_OPTION
+def add(host, user, default_ingress, dns_host, contact_email):
     """Add a server to deploy experiments through ssh using docker.
     The server needs `docker` and `docker compose` usable by the current user.
     Classic Caddy ingress needs free ports 80 and 443. Cloudflare tunnel apps
     do not publish those ports.
     In case `docker` and/or `docker compose` are missing, dallinger will try to
     install them using `sudo`. The given user must have passwordless sudo rights.
+
+    With classic default ingress, a server without ~/dallinger/docker-compose.yml
+    gets the shared Caddy, Postgres and Dozzle services. A server that already
+    has that file keeps its files; use `dallinger docker-ssh servers upgrade`
+    to rewrite them.
 
     You can configure SSH authentication using a PEM file by setting the `server_pem`
     configuration variable in your config.txt or ~/.dallingerconfig:
@@ -263,12 +287,503 @@ def add(host, user, default_ingress):
 
     Cloudflare tunnel apps also need ``cloudflare_account_id``,
     ``cloudflare_zone_id``, and ``cloudflare_dns_zone`` in Dallinger config.
+
+    Re-adding a server keeps its saved fields (user, default ingress, DNS host,
+    a valid contact email, and any others) unless an option replaces them.
     """
+    user = user or get_configured_hosts().get(host, {}).get("user")
     prepare_server(host, user)
-    store_host({"host": host, "user": user, "default_ingress": default_ingress})
-    advice = default_ingress == INGRESS_CLASSIC and _private_network_advice(host, user)
+    register_server(host, user, default_ingress, dns_host, contact_email)
+
+
+def register_server(
+    host,
+    user,
+    default_ingress=None,
+    dns_host=None,
+    contact_email=None,
+    *,
+    network_advice=True,
+):
+    """Save a prepared server and, for classic ingress, set up its shared services.
+
+    This is ``servers add`` after it has installed Docker; ``dallinger ec2
+    provision`` uses it too. The saved record's fields, other than an invalid
+    contact email, are kept unless given, and a server that already has a
+    server compose file keeps its files.
+
+    Parameters
+    ----------
+    host : str
+        SSH host of the server, also the name it is saved under.
+    user : str or None
+        SSH user; defaults to the saved one.
+    default_ingress : str, optional
+        Ingress for deploys that omit ``--ingress``; defaults to the saved
+        one, then classic.
+    dns_host : str, optional
+        DNS name that experiments on the server are served under.
+    contact_email : str, optional
+        Email that Caddy gives Let's Encrypt; defaults to
+        ``contact_email_on_error`` from the user's config for classic ingress.
+    network_advice : bool
+        Warn if ``host`` resolves only to private addresses.
+
+    Returns
+    -------
+    dict
+        The saved server record.
+    """
+    existing = get_configured_hosts().get(host, {})
+    user = user or existing.get("user")
+    default_ingress = default_ingress or existing.get(
+        "default_ingress", INGRESS_CLASSIC
+    )
+    server_info = {**existing, "host": host, "user": user}
+    server_info["default_ingress"] = default_ingress
+    server_info.pop("contact_email", None)
+    if dns_host:
+        server_info["dns_host"] = dns_host
+    classic = default_ingress == INGRESS_CLASSIC
+    contact_email, source = _contact_email(existing, contact_email, config=classic)
+    # Only a valid email is saved, so fixing contact_email_on_error later works.
+    if _is_email(contact_email):
+        server_info["contact_email"] = contact_email
+    store_host(server_info)
+    advice = classic and network_advice and _private_network_advice(host, user)
     if advice:
         print(f"{RED}Warning: {advice}{END}")
+    if classic:
+        written = _write_server_files(host, server_info, replace=False)
+        if _is_email(contact_email):
+            unchanged = contact_email == existing.get("contact_email")
+            _print_contact_email(server_info, source, written=written or unchanged)
+    return server_info
+
+
+@servers.command()
+@click.option(
+    "--host",
+    required=False,
+    default=None,
+    callback=lambda ctx, param, value: resolve_server_option(ctx, param, value),
+    type=str,
+    help="IP address or dns name of the remote server",
+)
+@_CONTACT_EMAIL_OPTION
+@click.option("--yes", is_flag=True, help="Don't ask for confirmation.")
+def upgrade(host, contact_email, yes):
+    """Set up or rewrite a server's shared classic-ingress files.
+
+    Writes the server's Caddyfile and docker-compose.yml from its saved host
+    and contact email (``--contact-email`` saves a new one, and a server saved
+    without one gets contact_email_on_error from ~/.dallingerconfig or the
+    environment). It keeps
+    a ``.bak`` copy of each file it replaces, adds a Dozzle login if there is
+    none, and starts the shared Caddy, Postgres and Dozzle services. Services
+    whose configuration changed are recreated, which briefly interrupts every
+    classic app on the server.
+    Deploys never write these files. They are left read-only, so that an
+    older Dallinger's deploy fails instead of rewriting them; if one did
+    rewrite them, deploys stop until this command restores them.
+    """
+    saved = get_configured_hosts()[host]
+    email, source = _contact_email(saved, contact_email)
+    server_info = {**saved, "contact_email": email} if _is_email(email) else saved
+    _write_server_files(host, server_info, replace=True, yes=yes)
+    if server_info != saved:
+        store_host(server_info)
+    if _is_email(email):
+        _print_contact_email(server_info, source)
+
+
+def _old_root_routes(executor, caddyfile, host, tls):
+    """Return route files that keep old root-domain apps at their address.
+
+    Root-domain deploys by older Dallinger versions routed their host to the
+    app inside the server's Caddyfile. An app on the server's own host moves
+    to ``root.d``; one deployed under another ``--dns-host`` gets a
+    ``caddy.d`` site for that host.
+    """
+    sites = [
+        names for names in map(_site_names, (caddyfile or "").splitlines()) if names
+    ]
+    old_names = sites[0] if sites else [host]
+    old_host = host if host in old_names else old_names[0]
+    routes = {}
+    for app in re.findall(
+        r"handle \{\s*reverse_proxy ([A-Za-z0-9._-]+)_web:5000", caddyfile or ""
+    ):
+        if not executor.run(
+            f"test -f ~/dallinger/{app}/docker-compose.yml && echo yes", raise_=False
+        ):
+            continue
+        route = f"reverse_proxy {app}_web:5000"
+        if old_host == host:
+            routes[f"dallinger/root.d/{app}"] = f"{route}\n"
+        else:
+            routes[f"dallinger/caddy.d/{app}"] = (
+                f"{old_host} {{\n    {tls}\n    {route}\n}}"
+            )
+    return routes
+
+
+def _site_names(line):
+    """Return the host names a Caddyfile site line such as ``a, https://b {`` serves.
+
+    Site lines are unindented; other lines, including comments, snippets and
+    directives inside a site, give an empty list.
+    """
+    match = re.match(r"([^#\s{(@][^{#]*?)\s*\{", line)
+    if not match:
+        return []
+    return [
+        re.sub(r"^https?://|:443$", "", name)
+        for name in re.split(r"[\s,]+", match.group(1))
+        if name
+    ]
+
+
+_CONFIG_SOURCE_NAMES = {
+    ConfigSource.RUNTIME: "config set at runtime",
+    ConfigSource.ENVIRONMENT: "the contact_email_on_error environment variable",
+    ConfigSource.USER_CONFIG: "~/.dallingerconfig",
+    ConfigSource.EXPERIMENT_CONFIG: "the experiment's config.txt",
+    ConfigSource.EXPERIMENT_SETTINGS: "the experiment's config settings",
+    ConfigSource.EXPERIMENT_DEFAULTS: "the experiment's config defaults",
+    ConfigSource.PACKAGE_DEFAULTS: "Dallinger's defaults",
+}
+_USER_CONFIG_SOURCES = (
+    ConfigSource.RUNTIME,
+    ConfigSource.ENVIRONMENT,
+    ConfigSource.USER_CONFIG,
+)
+
+
+def _config_contact_email(experiment=False):
+    """Return ``contact_email_on_error`` and where it was set, or ``(None, None)``.
+
+    The highest-priority valid email wins, so a placeholder doesn't hide a
+    real address from a lower-priority source. Server setup isn't specific to
+    an experiment, so by default only the user's config and environment
+    count, not an experiment's config.txt or the package default (``???``).
+    With ``experiment``, as in a deploy, every source counts.
+    """
+    found = []
+    for layer in get_config(load=True)._layers_by_priority():
+        if "contact_email_on_error" in layer and (
+            experiment or layer.source in _USER_CONFIG_SOURCES
+        ):
+            value = str(layer["contact_email_on_error"]).strip()
+            if _is_email(value):
+                return value, _CONFIG_SOURCE_NAMES[layer.source]
+            found.append((value, _CONFIG_SOURCE_NAMES[layer.source]))
+    # Without a valid email, report the highest-priority value.
+    return found[0] if found else (None, None)
+
+
+def _contact_email(server_info, contact_email=None, *, config=True, experiment=False):
+    """Return a server's Let's Encrypt email and where it came from.
+
+    In order: ``contact_email``, a valid email saved with the server, then
+    (with ``config``) ``contact_email_on_error`` from the user's config, or
+    with ``experiment`` from any config source (see ``_config_contact_email``).
+    """
+    if contact_email:
+        return contact_email, "--contact-email"
+    if _is_email(server_info.get("contact_email")):
+        return server_info["contact_email"], "the saved server record"
+    return _config_contact_email(experiment) if config else (None, None)
+
+
+def _print_contact_email(server_info, source, *, written=True):
+    """Say which Let's Encrypt email a server uses, unless it uses internal TLS.
+
+    Without ``written``, a new email was only saved with the server, and its
+    Caddyfile was left as it was.
+    """
+    if is_loopback_host(split_ssh_host_port(server_info["host"])[0]):
+        return
+    message = (
+        f"Let's Encrypt contact email: {server_info['contact_email']} (from {source})"
+    )
+    if not written:
+        message += (
+            ", saved with the server; `dallinger docker-ssh servers upgrade "
+            f"--host {quote(server_info['host'])}` writes it to the server's Caddyfile"
+        )
+    print(f"{message}.")
+
+
+def _server_tls(server_info, *, experiment=False, command=None):
+    """Return the Caddy ``tls`` directive for sites on a classic-ingress server.
+
+    The email comes from the server record, or from ``contact_email_on_error``
+    for servers registered without a valid one. Only a deploy (``experiment``)
+    reads it from the experiment's config. Without an email, the error names
+    ``command`` (default: ``servers add``) with ``--contact-email``.
+    """
+    if is_loopback_host(split_ssh_host_port(server_info["host"])[0]):
+        return "tls internal"
+    email, source = _contact_email(server_info, experiment=experiment)
+    if not _is_email(email):
+        where = (
+            "the experiment's config.txt or ~/.dallingerconfig"
+            if experiment
+            else "~/.dallingerconfig"
+        )
+        reason = (
+            f"contact_email_on_error from {source} is {email!r}, not an email address"
+            if email
+            else f"contact_email_on_error is not set in {where}"
+        )
+        command = command or _servers_add_command(server_info)
+        raise click.ClickException(
+            f"No Let's Encrypt contact email for {server_info['host']}: none is "
+            f"saved with the server, and {reason}. Run "
+            f"`{command} --contact-email <email>`, or set contact_email_on_error "
+            f"in {where}."
+        )
+    return f"tls {email}"
+
+
+def _server_host(server_info, dns_host=None, *, deploy=False):
+    """Return the DNS name of a classic-ingress server's own sites.
+
+    The server's Caddyfile serves this name and ``logs.<name>`` (Dozzle). It
+    is the DNS host saved with the server, or the server's hostname. For a
+    server registered by IP address without a saved DNS host, a deploy's
+    ``dns_host`` is used, as older Dallinger versions wrote it into the
+    server's Caddyfile; without one this aborts.
+    """
+    host = resolve_dns_host(server_info) or dns_host
+    if host == "nip.io":
+        return get_dns_host(split_ssh_host_port(server_info["host"])[0])
+    if host:
+        return host
+    print(
+        f"{RED}Error: {server_info['host']} is an IP address, so classic ingress "
+        f"needs a DNS name for the server.{END} Save one with "
+        f"`{_servers_add_command(server_info, dns_host='<name>')}`"
+        + (", or pass --dns-host <name> to the deploy" if deploy else "")
+        + " (`--dns-host nip.io` uses <ip>.nip.io)."
+    )
+    raise click.Abort()
+
+
+def _logs_url(server_info, dns_host=None):
+    """Return the Dozzle log viewer URL of a classic-ingress server."""
+    return f"https://logs.{_server_host(server_info, dns_host)}"
+
+
+SHARED_SERVER_FILES = (
+    "Caddyfile",
+    "docker-compose.yml",
+    "dozzle-users.yml",
+    ".env.json",
+)
+
+
+@contextmanager
+def _unlocked_server_files(executor, files=SHARED_SERVER_FILES, *, lock=False):
+    """Let the block rewrite the shared server files in ``~/dallinger``.
+
+    ``servers add`` and ``servers upgrade`` leave these files read-only
+    (mode 0444). Older Dallinger versions rewrite them on every classic
+    deploy with SFTP, which then fails before it changes anything shared.
+    Of ``files``, those that were read-only are made read-only again
+    afterwards; with ``lock``, every existing one is.
+    """
+    names = " ".join(files)
+    locked = (
+        executor.run(
+            f"cd ~/dallinger 2>/dev/null && for f in {names}; do "
+            '[ ! -f "$f" ] || [ -w "$f" ] || echo "$f"; done; true',
+            raise_=False,
+        )
+        or ""
+    ).split()
+    try:
+        if locked:
+            executor.run(f"cd ~/dallinger && chmod u+w {' '.join(locked)}")
+        yield
+    finally:
+        relock = files if lock else locked
+        status, _, error = (
+            executor.run_with_status(
+                f"cd ~/dallinger || exit 1; s=0; for f in {' '.join(relock)}; do "
+                '[ ! -f "$f" ] || chmod 444 "$f" || s=1; done; exit $s'
+            )
+            if relock
+            else (0, "", "")
+        )
+        if status:
+            print(
+                f"{RED}Warning: could not make the shared files in ~/dallinger "
+                f"read-only again: {error.strip()}{END} Older Dallinger versions "
+                "can then rewrite them. On the server, run "
+                f"`cd ~/dallinger && chmod 444 {' '.join(relock)}`."
+            )
+
+
+def _server_state(executor):
+    """Read the server's shared Caddyfile, compose file and running services.
+
+    Returns a dict with the ``Caddyfile`` and ``docker-compose.yml``
+    contents, the running shared ``services``, and a ``root.d`` key if
+    ``~/dallinger/root.d`` exists. Uses one SSH command.
+    """
+    output = executor.run(
+        'for f in Caddyfile docker-compose.yml; do echo "#== $f"; '
+        "cat ~/dallinger/$f 2>/dev/null; echo; done; "
+        "[ ! -d ~/dallinger/root.d ] || echo '#== root.d'; echo '#== services'; "
+        f"{SERVER_COMPOSE} ps --services --status running 2>/dev/null; true",
+        raise_=False,
+    )
+    return dict(
+        part.split("\n", 1) for part in (output or "").split("#== ")[1:] if "\n" in part
+    )
+
+
+def _rewritten_by_older_dallinger(state):
+    """Return whether an older Dallinger rewrote a set-up server's shared files.
+
+    ``servers add`` and ``servers upgrade`` create ``~/dallinger/root.d``,
+    which deploys only create on such servers and older Dallinger versions
+    never touch. Those versions' deploys rewrite the Caddyfile and compose
+    file without the ``root.d`` import, its mount and the ``caddy_data``
+    volume, and their root-domain destroys rewrite the Caddyfile. A server
+    that was never set up this way has no ``root.d`` and is not reported.
+    """
+    caddyfile = state.get("Caddyfile", "")
+    compose = state.get("docker-compose.yml", "")
+    return (
+        "root.d" in state
+        and bool(compose.strip())
+        and not (
+            "import root.d/*" in caddyfile
+            and "/etc/caddy/root.d" in compose
+            and "caddy_data:/data" in compose
+        )
+    )
+
+
+def _older_dallinger_message(server, state):
+    """Explain that an older Dallinger rewrote ``server``'s shared files."""
+    certificates = ""
+    if "caddy_data:/data" not in state.get("docker-compose.yml", ""):
+        certificates = (
+            ", and Caddy may request new certificates for every site (Let's "
+            "Encrypt allows 5 duplicate certificates per week)"
+        )
+    return (
+        f"{RED}An older Dallinger version has rewritten the shared files on {server} "
+        "(~/dallinger/Caddyfile and docker-compose.yml) that `servers add` or "
+        f"`servers upgrade` set up.{END} Until they are restored, apps on the "
+        f"server's own host may be offline{certificates}. Restore them with "
+        f"`dallinger docker-ssh servers upgrade --host {server}`, and deploy to "
+        "this server only with this Dallinger version or newer."
+    )
+
+
+def _write_server_files(server, server_info, *, replace, yes=True):
+    """Write the shared classic-ingress files and start the shared services.
+
+    Without ``replace``, a server that already has a server compose file is
+    left alone. With it, changed files are listed and, unless ``yes``,
+    confirmed before they are replaced. The shared files are left read-only.
+    Returns whether the files were written.
+    """
+    executor = _build_executor(server_info)
+    if not replace and executor.run(
+        "test -f ~/dallinger/docker-compose.yml && echo yes", raise_=False
+    ):
+        print(
+            f"{server} already has a server compose file "
+            "(~/dallinger/docker-compose.yml), so the shared classic-ingress files "
+            "were left unchanged. To rewrite them and start the services, run "
+            f"`dallinger docker-ssh servers upgrade --host {server}`."
+        )
+        return False
+    upgrade_command = f"dallinger docker-ssh servers upgrade --host {quote(server)}"
+    host = _server_host(server_info)
+    tls = _server_tls(server_info, command=upgrade_command if replace else None)
+    # The Caddyfile goes last, just before root.d, which it imports.
+    files = {
+        "dallinger/docker-compose.yml": DOCKER_COMPOSE_SERVER_TPL.render(),
+        "dallinger/Caddyfile": CADDYFILE_SERVER.format(host=host, tls=tls),
+    }
+    current = {path: executor.run(f"cat ~/{path}", raise_=False) for path in files}
+    changed = [path for path, content in files.items() if current[path] != content]
+    routes = _old_root_routes(executor, current["dallinger/Caddyfile"], host, tls)
+    if replace and not changed and not routes:
+        print(f"The shared classic-ingress files on {server} are up to date.")
+    if changed and replace:
+        state = {"Caddyfile": current["dallinger/Caddyfile"] or ""}
+        state["docker-compose.yml"] = current["dallinger/docker-compose.yml"] or ""
+        if executor.run("test -d ~/dallinger/root.d && echo yes", raise_=False):
+            state["root.d"] = ""
+        if _rewritten_by_older_dallinger(state):
+            print(
+                "An older Dallinger version has rewritten these files since they "
+                "were set up; replacing them restores the server."
+            )
+        print(f"These files on {server} will be replaced (keeping a .bak copy):")
+        for path in changed:
+            print(f"  ~/{path}")
+        if routes:
+            print(
+                "These route files will be added, keeping a root-domain app at its address:"
+            )
+            for path in routes:
+                print(f"  ~/{path}")
+        if "DOZZLE_BASE" in current["dallinger/docker-compose.yml"]:
+            print(
+                f"The log viewer moves from the /logs path to "
+                f"{_logs_url(server_info)}, so logs.{host} must resolve to the server."
+            )
+        if "dallinger/docker-compose.yml" in changed:
+            print(
+                "Shared services whose configuration changed are recreated, which "
+                "briefly interrupts every classic app on the server."
+            )
+        if not yes and not click.confirm("Continue?", default=False):
+            raise click.Abort()
+    stamp = "$(date +%Y%m%dT%H%M%S)"
+    executor.run(
+        "mkdir -p ~/dallinger/caddy.d"
+        + "".join(f"; [ ! -f ~/{p} ] || cp ~/{p} ~/{p}.{stamp}.bak" for p in changed)
+    )
+    sftp = get_sftp(server_info["host"], user=server_info.get("user"))
+    with _unlocked_server_files(executor, lock=True):
+        for path in changed:
+            sftp.putfo(BytesIO(files[path].encode()), path)
+        # root.d marks the server as set up (see _rewritten_by_older_dallinger).
+        executor.run("mkdir -p ~/dallinger/root.d")
+        for path, content in routes.items():
+            sftp.putfo(BytesIO(content.encode()), path)
+        if not executor.run(
+            "test -f ~/dallinger/dozzle-users.yml && echo yes", raise_=False
+        ):
+            dozzle_password = get_dotenv_values(executor).get("DOZZLE_PASSWORD")
+            if not dozzle_password:
+                dozzle_password = secrets.token_urlsafe(12)
+                print(
+                    f"Log viewer: {_logs_url(server_info)} (user = dallinger, "
+                    f"password = {dozzle_password}). Change the password with "
+                    "`dallinger docker-ssh set-dozzle-password`."
+                )
+            set_dozzle_password(executor, sftp, dozzle_password)
+    print("Starting the shared Caddy, Postgres and Dozzle services.")
+    _start_server_services(executor)
+    # A just-recreated Caddy may not answer its admin API yet.
+    print("Reloading Caddy config file")
+    executor.run(
+        "for i in $(seq 10); do "
+        f"{SERVER_COMPOSE} exec -T httpserver caddy reload "
+        "--config /etc/caddy/Caddyfile && exit 0; sleep 2; done; exit 1"
+    )
+    return True
 
 
 @servers.command()
@@ -512,9 +1027,13 @@ option_archive = click.option(
 option_config = click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 option_dns_host = click.option(
     "--dns-host",
-    help="Classic Caddy DNS name. Must resolve all its subdomains to the IP address "
-    "specified as ssh host. Not used for Cloudflare apps. You can use 'nip.io' to "
-    "automatically generate a nip.io domain from the server's IP address.",
+    help="Classic Caddy DNS name for this app's site (<app>.<dns-host> with --app). "
+    "Must resolve all its subdomains to the IP address specified as ssh host. "
+    "Defaults to the server's DNS host. The server's own sites, including the "
+    "log viewer, use its saved DNS host, or this one on a server registered by "
+    "IP address without a saved DNS host. Not used for Cloudflare apps. "
+    "You can use 'nip.io' to automatically generate a nip.io domain from the "
+    "server's IP address.",
 )
 option_server = click.option(
     "--server",
@@ -699,6 +1218,7 @@ def _discover_server_apps(executor):
 
     listing = executor.run(
         "ls -1 ~/dallinger/caddy.d 2>/dev/null || true; "
+        "ls -1 ~/dallinger/root.d 2>/dev/null || true; "
         "ls -1 ~/dallinger/*/docker-compose.yml 2>/dev/null || true",
         raise_=False,
     )
@@ -828,6 +1348,114 @@ def _check_classic_ingress_reachable(server, ingress=None):
         raise click.ClickException(advice)
 
 
+def _classic_hostname(server_info, app_name, archive_path, dns_host):
+    """Return the public hostname of a classic-ingress app.
+
+    ``dns_host`` (``--dns-host``) only names the app's own site. The server's
+    sites keep the host saved with the server.
+    """
+    ssh_host = split_ssh_host_port(server_info["host"])[0]
+    dns_host = dns_host or _server_host(server_info, deploy=True)
+    if dns_host == "nip.io":
+        dns_host = get_dns_host(ssh_host)
+        print(f"""{RED}Using {dns_host} as hostname. This might cause problems:{END}
+Some browsers might tell users this name is suspicious
+You can override this by creating a DNS A record pointing to
+{GREEN}{ssh_host}{END} and using option --dns-host to deploy the experiment.
+{BLUE}For instance to use the name experiment1.my-custom-domain.example.com
+you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}""")
+    if should_use_subdomain(app_name, archive_path):
+        return f"{app_name}.{dns_host}"
+    return dns_host
+
+
+def _classic_preflight(server, app_name, archive_path, dns_host, allow_private_ip):
+    """Check TLS email, DNS and the server's shared services for a classic deploy.
+
+    Runs before the image build. Returns the app's public hostname.
+    """
+    server = resolve_server_name(server, CONFIGURED_HOSTS)
+    server_info = CONFIGURED_HOSTS[server]
+    _server_tls(server_info, experiment=True)
+    hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
+    _check_experiment_hostname_dns(
+        split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
+    )
+    _check_server_setup(
+        _build_executor(server_info), server, server_info, hostname, dns_host
+    )
+    return hostname
+
+
+def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
+    """Abort unless the server's shared services can serve a classic app.
+
+    A deploy only adds the app's own Caddy file and reloads Caddy, so the
+    server must have been set up by ``servers add``, ``servers upgrade`` or
+    ``dallinger ec2 provision``.
+    A set-up server whose shared files an older Dallinger has since rewritten
+    is refused with advice to upgrade it again.
+
+    Parameters
+    ----------
+    executor : Executor
+        Connection to the server.
+    server : str
+        Configured server name, for the suggested command.
+    server_info : dict
+        Configured server entry.
+    hostname : str
+        Public hostname of the app. An app on the server's own host needs the
+        server's ``root.d`` import.
+    dns_host : str, optional
+        The deploy's ``--dns-host``, the server's host if none is saved.
+    """
+    host = _server_host(server_info, dns_host)
+    parts = _server_state(executor)
+    if _rewritten_by_older_dallinger(parts):
+        print(_older_dallinger_message(server, parts))
+        raise click.Abort()
+    caddyfile = parts.get("Caddyfile", "")
+    compose = parts.get("docker-compose.yml", "")
+    problems = []
+    serves_host = any(host in _site_names(line) for line in caddyfile.splitlines())
+    if not compose.strip():
+        problems.append("it has no ~/dallinger/docker-compose.yml")
+    else:
+        if not serves_host:
+            problems.append(f"its Caddyfile does not serve {host}")
+        if "import caddy.d/*" not in caddyfile:
+            problems.append("its Caddyfile does not import caddy.d")
+        if hostname == host and not (
+            "import root.d/*" in caddyfile and "/etc/caddy/root.d" in compose
+        ):
+            problems.append(f"it cannot route {host} to an app")
+        if "DOZZLE_BASE" in compose:
+            problems.append("its log viewer uses an older layout")
+        missing = {"httpserver", "postgresql"} - set(parts.get("services", "").split())
+        if missing:
+            problems.append(f"{' and '.join(sorted(missing))} is not running")
+    if problems:
+        upgrade = (
+            f"`dallinger docker-ssh servers upgrade --host {server}` to set them "
+            "up (this restarts the shared services)"
+        )
+        if serves_host or not compose.strip():
+            advice = f"Run {upgrade}, then deploy again."
+        else:
+            advice = (
+                "If the server already serves another DNS name, save that name with "
+                f"`{_servers_add_command(server_info, dns_host='<name>')}` and deploy "
+                f"again. Otherwise run {upgrade}, then deploy again."
+            )
+        print(
+            f"{RED}{server} is not set up for this classic-ingress deploy: "
+            f"{'; '.join(problems)}.{END}\n"
+            f"Deploys don't change the server's shared files or services. {advice}"
+        )
+        raise click.Abort()
+
+
 def _cloudflare_settings(config, dns_zone=None):
     """Read non-secret Cloudflare account/zone settings from Dallinger config.
 
@@ -933,7 +1561,11 @@ def _check_app_slot(executor, app, update, ingress):
         return
     found = [
         path
-        for path in (compose_path, f"~/dallinger/caddy.d/{app}")
+        for path in (
+            compose_path,
+            f"~/dallinger/caddy.d/{app}",
+            f"~/dallinger/root.d/{app}",
+        )
         if executor.run(f"ls {path}", raise_=False)
     ]
     if found:
@@ -1327,12 +1959,32 @@ def _image_usable_from_registry(docker_client, image_name):
 def _build_and_push_image(
     config, experiment_files, app_name, server, local_build, push_build
 ):
-    """Return the experiment image to deploy, building and pushing it if needed.
+    """Return the experiment image to deploy, building and pushing it if needed."""
+    with _built_image(
+        config, experiment_files, app_name, server, local_build, push_build
+    ) as image_name:
+        return image_name
+
+
+@contextmanager
+def _built_image(
+    config,
+    experiment_files,
+    app_name,
+    server,
+    local_build,
+    push_build,
+    *,
+    remove_for_app=None,
+):
+    """Yield the experiment image to deploy, building and pushing it if needed.
 
     Reuses ``docker_image_name`` when the registry has it. Otherwise
     assembles the experiment and builds the image, on the server unless
     ``local_build`` is set, and pushes it for a local build or with
-    ``push_build``.
+    ``push_build``. With ``remove_for_app``, the id of the new app the image
+    is for, an image built here is removed again if the block raises (see
+    ``_remove_aborted_build``).
     """
     import docker
 
@@ -1371,7 +2023,8 @@ def _build_and_push_image(
         docker_client = docker.from_env(use_ssh_client=True)
 
         if image_name and _image_usable_from_registry(docker_client, image_name):
-            return image_name
+            yield image_name
+            return
 
         _, tmp_dir = setup_experiment(
             Output().log,
@@ -1386,18 +2039,27 @@ def _build_and_push_image(
             out=Output(),
             image_tag=docker_tag_from_experiment_id(config.get("id")),
         )
+        built_image = image_name
 
-        remote_build = not local_build
-        if remote_build and not push_build:
-            # If built remotely and not pushing, the image is only on the remote daemon.
-            # We need to get its full name (repo:tag) for deployment.
-            # The build_image function already returns the image name, so we use that.
-            print(
-                f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
-            )
-            return image_name
-        # If it's a local build, or if it's a remote build and push_build, then push.
-        return push_image(image_name)
+        try:
+            remote_build = not local_build
+            if remote_build and not push_build:
+                # If built remotely and not pushing, the image is only on the remote daemon.
+                # We need to get its full name (repo:tag) for deployment.
+                # The build_image function already returns the image name, so we use that.
+                print(
+                    f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
+                )
+            else:
+                # If it's a local build, or if it's a remote build and push_build, then push.
+                image_name = push_image(image_name)
+            yield image_name
+        except BaseException:
+            if remove_for_app:
+                _remove_aborted_build(
+                    docker_client, built_image, server, local_build, remove_for_app
+                )
+            raise
     finally:
         # Close client first so the SSH connection tears down cleanly
         if docker_client is not None:
@@ -1411,6 +2073,42 @@ def _build_and_push_image(
             os.environ.pop("DOCKER_HOST", None)
         else:
             os.environ["DOCKER_HOST"] = original_docker_host
+
+
+def _remove_aborted_build(docker_client, image_name, server, local_build, app):
+    """Remove the image built for a new deploy of ``app`` that then failed.
+
+    The image is kept if a container uses it, or if another app's compose file
+    on the server pins it. Errors here only warn, so the deploy error stays
+    visible.
+    """
+    try:
+        if not local_build and image_pinned_by_other_apps(
+            _executor_for_server(server), image_name, except_app=app
+        ):
+            print(
+                f"Kept the image {image_name} built for this deploy, because "
+                "another app on the server uses it."
+            )
+            return
+        docker_client.images.remove(image_name)
+    except Exception as exc:
+        if getattr(exc, "status_code", None) == 409 and "container" in str(exc):
+            print(
+                f"Kept the image {image_name} built for this deploy, because a "
+                "container still uses it."
+                + (
+                    " `dallinger docker-ssh destroy "
+                    f"--server {server} --app {app}` removes the partly deployed "
+                    "app and its image."
+                    if app and not local_build
+                    else ""
+                )
+            )
+        else:
+            print(f"Kept the image {image_name} built for this deploy: {exc}")
+    else:
+        print(f"Removed the image {image_name} built for this deploy.")
 
 
 def validate_update(f):
@@ -1434,7 +2132,10 @@ def get_dotenv_values(executor):
         "test -f ~/dallinger/.env.json && cat ~/dallinger/.env.json", raise_=False
     )
     if dotenv_content:
-        return json.loads(dotenv_content)
+        try:
+            return json.loads(dotenv_content)
+        except ValueError:
+            print("Warning: ~/dallinger/.env.json on the server is not valid JSON.")
     return {}
 
 
@@ -1443,7 +2144,6 @@ def set_dozzle_password(executor, sftp, new_password):
 
     dotenv_values = get_dotenv_values(executor)
     dotenv_values["DOZZLE_PASSWORD"] = new_password
-    sftp.putfo(BytesIO(json.dumps(dotenv_values).encode()), "dallinger/.env.json")
     hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode(
         "utf-8"
     )
@@ -1456,7 +2156,11 @@ def set_dozzle_password(executor, sftp, new_password):
             }
         }
     }
-    sftp.putfo(BytesIO(json.dumps(dozzle_users).encode()), "dallinger/dozzle-users.yml")
+    with _unlocked_server_files(executor, (".env.json", "dozzle-users.yml")):
+        sftp.putfo(BytesIO(json.dumps(dotenv_values).encode()), "dallinger/.env.json")
+        sftp.putfo(
+            BytesIO(json.dumps(dozzle_users).encode()), "dallinger/dozzle-users.yml"
+        )
     dozzle_running = executor.run(
         "docker ps --filter name=^dozzle$ --format '{{.ID}}'",
         raise_=False,
@@ -1539,63 +2243,6 @@ def deploy(**kwargs):  # pragma: no cover
     return _deploy_in_mode(mode="live", **kwargs)
 
 
-def _classic_tls_and_dns_host(config, ssh_host, dns_host):
-    """Return the Caddy ``tls`` directive and the DNS host of a classic deploy.
-
-    Raises ``click.ClickException`` if a server that needs a Let's Encrypt
-    certificate has no valid ``contact_email_on_error``, and aborts if a
-    server given as an IP address has no ``--dns-host``.
-    """
-    has_tls = not is_loopback_host(ssh_host)
-    # We abuse the mturk contact_email_on_error to provide an email for let's encrypt certificate
-    email_addr = config.get("contact_email_on_error")
-    if has_tls:
-        if "@" not in parseaddr(email_addr)[1]:
-            raise click.ClickException(
-                f"Email address absent or invalid. Value {email_addr} found. "
-                "Run `dallinger email-test` to verify your configuration."
-            )
-    tls = "tls internal" if not has_tls else f"tls {email_addr}"
-
-    # Check if server is an IP address
-    try:
-        socket.inet_aton(ssh_host)
-        is_ip = True
-    except socket.error:
-        is_ip = False
-
-    if not dns_host:
-        if is_ip:
-            print(
-                f"""{RED}Error: When using an IP address as server ({ssh_host}), you must specify a DNS host.{END}
-You have two options:
-1. Use nip.io:
-   --dns-host nip.io
-   {RED}Using nip.io as part of the hostname might cause problems:{END}
-   Some browsers might tell users this name is suspicious
-2. Use a custom domain (recommended):
-   Create a DNS A record pointing to {GREEN}{ssh_host}{END}
-   and use option --dns-host to deploy the experiment.
-   {BLUE}For instance to use the name experiment1.my-custom-domain.example.com
-   you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}"""
-            )
-            raise click.Abort()
-        else:
-            # Not an IP address, use the server value as DNS host
-            dns_host = ssh_host
-
-    # Check if we're using nip.io (either provided or generated)
-    if dns_host == "nip.io":
-        dns_host = get_dns_host(ssh_host)
-        print(f"""{RED}Using {dns_host} as hostname. This might cause problems:{END}
-Some browsers might tell users this name is suspicious
-You can override this by creating a DNS A record pointing to
-{GREEN}{ssh_host}{END} and using option --dns-host to deploy the experiment.
-{BLUE}For instance to use the name experiment1.my-custom-domain.example.com
-you can pass options --app experiment1 --dns-host my-custom-domain.example.com{END}""")
-    return tls, dns_host
-
-
 def _deploy_in_mode(
     app_name,
     archive_path,
@@ -1632,7 +2279,6 @@ def _deploy_in_mode(
     ssh_user = server_info.get("user")
 
     experiment_uuid = str(uuid4())
-    use_subdomain = should_use_subdomain(app_name, archive_path)
     if app_name:
         experiment_id = app_name
     elif archive_path:
@@ -1655,14 +2301,14 @@ def _deploy_in_mode(
             _abort_cloudflare(exc)
     else:
         cloudflare_settings = None
-        tls, dns_host = _classic_tls_and_dns_host(config, ssh_host, dns_host)
-        experiment_hostname = (
-            f"{experiment_id}.{dns_host}" if use_subdomain else dns_host
+        tls = _server_tls(server_info, experiment=True)
+        experiment_hostname = _classic_preflight(
+            server, app_name, archive_path, dns_host, allow_private_ip
         )
-        _check_experiment_hostname_dns(ssh_host, experiment_hostname, allow_private_ip)
-
-    if _root_domain_preflight_required(server, app_name, archive_path, ingress):
-        ensure_root_domain_ready(server=server, update=update)
+        if _root_domain_preflight_required(
+            server, app_name, archive_path, ingress
+        ) and experiment_hostname == _server_host(server_info, dns_host):
+            ensure_root_domain_ready(server=server, update=update)
 
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
     try:
@@ -1670,209 +2316,221 @@ def _deploy_in_mode(
     finally:
         slot_executor.client.close()
 
-    image_name = _build_and_push_image(
-        config, experiment_files, app_name, server, local_build, push_build
-    )
-    # Read after the build, which sets a dashboard password if config has none.
-    dashboard_user = config.get("dashboard_user", "admin")
-    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
-
-    if cloudflare_settings is not None:
-        return _deploy_cloudflare_in_mode(
-            api_token=api_token,
-            archive_path=archive_path,
-            config=config,
-            config_options=config_options,
-            dashboard_password=dashboard_password,
-            dashboard_user=dashboard_user,
-            experiment_id=experiment_id,
-            experiment_uuid=experiment_uuid,
-            image_name=image_name,
-            mode=mode,
-            push_build=push_build,
-            server=server,
-            server_info=server_info,
-            settings=cloudflare_settings,
-            update=update,
-        )
-
-    app_identifier = app_name or experiment_id
-    executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
-    executor.run("mkdir -p ~/dallinger/caddy.d")
-
-    if not update:
-        print("Removing any pre-existing Redis volumes.")
-        remove_redis_volumes(app_identifier, executor)
-
-    sftp = get_sftp(ssh_address, user=ssh_user)
-    dozzle_base = "/logs" if not use_subdomain else ""
-    rendered_compose = DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base=dozzle_base)
-    sftp.putfo(BytesIO(rendered_compose.encode()), "dallinger/docker-compose.yml")
-    caddy_template = CADDYFILE_SUBDOMAIN if use_subdomain else CADDYFILE_ROOT
-    caddy_kwargs = {"host": dns_host, "tls": tls}
-    if not use_subdomain:
-        caddy_kwargs["backend"] = f"{app_identifier}_web:5000"
-    sftp.putfo(
-        BytesIO(caddy_template.format(**caddy_kwargs).encode()),
-        "dallinger/Caddyfile",
-    )
-
-    dozzle_password = get_dotenv_values(executor).get(
-        "DOZZLE_PASSWORD", dashboard_password
-    )
-    set_dozzle_password(executor, sftp, dozzle_password)
-
-    print("Launching http, postgresql and dozzle servers.")
-    _start_server_services(executor)
-
-    if not update:
-        print("Starting experiment.")
-    else:
-        print("Restarting experiment.")
-
-    logs_url = (
-        f"https://{dns_host}/logs" if not use_subdomain else f"https://logs.{dns_host}"
-    )
-    print_bold(
-        f"To view the logs for this experiment go to {logs_url} (user = dallinger, password = {dozzle_password})"
-    )
-    app_secrets = _app_secrets(executor, experiment_id, update)
-    postgresql_password = app_secrets["POSTGRES_PASSWORD"]
-    cfg = _compose_environment(
+    # A new deploy that fails after the build removes the image it built.
+    with _built_image(
         config,
-        config_options,
-        mode,
-        experiment_uuid,
-        image_name,
-        app_secrets["FLASK_SECRET_KEY"],
-    )
-    public_origin = public_origin_for_hostname(experiment_hostname)
-    _upload_app_stack(
-        sftp,
-        executor,
-        cfg,
-        app=experiment_id,
-        server=server,
-        public_origin=public_origin,
-        image_name=image_name,
-        ingress=INGRESS_CLASSIC,
-        secrets=app_secrets,
-    )
-    # Running "ls" in the `web` container blocks until `web`'s own dependencies
-    # (redis and pgbouncer) are healthy. The shared Postgres belongs to another
-    # compose project; the `up --wait` above already waited for it.
-    executor.run(
-        f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
-    )
-    grant_roles_script = (
-        f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
-    )
-    if not update:
-        print("Cleaning up db/user")
-        executor.run(
-            rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+        experiment_files,
+        app_name,
+        server,
+        local_build,
+        push_build,
+        remove_for_app=None if update else experiment_id,
+    ) as image_name:
+        # Read after the build, which sets a dashboard password if config has none.
+        dashboard_user = config.get("dashboard_user", "admin")
+        dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
+
+        if cloudflare_settings is not None:
+            return _deploy_cloudflare_in_mode(
+                api_token=api_token,
+                archive_path=archive_path,
+                config=config,
+                config_options=config_options,
+                dashboard_password=dashboard_password,
+                dashboard_user=dashboard_user,
+                experiment_id=experiment_id,
+                experiment_uuid=experiment_uuid,
+                image_name=image_name,
+                mode=mode,
+                push_build=push_build,
+                server=server,
+                server_info=server_info,
+                settings=cloudflare_settings,
+                update=update,
+            )
+
+        app_identifier = app_name or experiment_id
+        executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
+        takes_server_root = experiment_hostname == _server_host(server_info, dns_host)
+        if update and executor.run(
+            f"test -f ~/dallinger/root.d/{quote(app_identifier)} && echo yes",
+            raise_=False,
+        ):
+            # --update needs --app, but this app was deployed on the server's root.
+            experiment_hostname = _server_host(server_info, dns_host)
+            takes_server_root = True
+        if not update:
+            print("Removing any pre-existing Redis volumes.")
+            remove_redis_volumes(app_identifier, executor)
+
+        sftp = get_sftp(ssh_address, user=ssh_user)
+
+        if not update:
+            print("Starting experiment.")
+        else:
+            print("Restarting experiment.")
+
+        logs_url = _logs_url(server_info, dns_host)
+        dozzle_password = get_dotenv_values(executor).get("DOZZLE_PASSWORD")
+        dozzle_login = "user = dallinger" + (
+            f", password = {dozzle_password}" if dozzle_password else ""
         )
-        executor.run(
-            rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+        print_bold(
+            f"To view the logs for this experiment go to {logs_url} ({dozzle_login})"
         )
-        print(f"Creating database {experiment_id}")
+        app_secrets = _app_secrets(executor, experiment_id, update)
+        postgresql_password = app_secrets["POSTGRES_PASSWORD"]
+        cfg = _compose_environment(
+            config,
+            config_options,
+            mode,
+            experiment_uuid,
+            image_name,
+            app_secrets["FLASK_SECRET_KEY"],
+        )
+        public_origin = public_origin_for_hostname(experiment_hostname)
+        _upload_app_stack(
+            sftp,
+            executor,
+            cfg,
+            app=experiment_id,
+            server=server,
+            public_origin=public_origin,
+            image_name=image_name,
+            ingress=INGRESS_CLASSIC,
+            secrets=app_secrets,
+        )
+        # Running "ls" in the `web` container blocks until `web`'s own dependencies
+        # (redis and pgbouncer) are healthy. The shared Postgres belongs to another
+        # compose project; the pre-build server check found it running.
         executor.run(
-            rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
+            f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
+        )
+        grant_roles_script = (
+            f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
+        )
+        if not update:
+            print("Cleaning up db/user")
+            executor.run(
+                rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
+            )
+            executor.run(
+                rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
+            )
+            print(f"Creating database {experiment_id}")
+            executor.run(
+                rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
+            )
+
+            if archive_path is not None:
+                print(f"Loading database data from {archive_path}")
+                with remote_postgres(server_info, experiment_id) as db_uri:
+                    engine = create_db_engine(db_uri)
+                    bootstrap_db_from_zip(archive_path, engine)
+                    with engine.connect() as conn:
+                        conn.execute(grant_roles_script)
+                        conn.execute(
+                            f'GRANT USAGE ON SCHEMA public TO "{experiment_id}"'
+                        )
+                        conn.execute(
+                            f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA PUBLIC TO "{experiment_id}"'
+                        )
+
+        test_user_script = (
+            rf"""SELECT FROM pg_catalog.pg_roles WHERE rolname = '{experiment_id}'"""
+        )
+        query_user_result = executor.run(
+            f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
+            raise_=False,
+        )
+        if "0 rows" in query_user_result:
+            # Create the user: it doesn't exist yet
+            create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
+            executor.run(
+                f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
+            )
+        else:
+            # Change the password of the existing user
+            change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{postgresql_password}'"""
+            executor.run(
+                f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
+            )
+
+        executor.run(
+            f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
+        )
+        ensure_postgres_schema_permissions(executor, experiment_id)
+
+        # Classic already restored any archive above. ``restore=False`` keeps
+        # that work from running a second time.
+        _bring_up_app_containers(
+            executor,
+            server_info,
+            experiment_id,
+            archive_path,
+            update,
+            restore=False,
         )
 
-        if archive_path is not None:
-            print(f"Loading database data from {archive_path}")
-            with remote_postgres(server_info, experiment_id) as db_uri:
-                engine = create_db_engine(db_uri)
-                bootstrap_db_from_zip(archive_path, engine)
-                with engine.connect() as conn:
-                    conn.execute(grant_roles_script)
-                    conn.execute(f'GRANT USAGE ON SCHEMA public TO "{experiment_id}"')
-                    conn.execute(
-                        f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA PUBLIC TO "{experiment_id}"'
-                    )
-
-    test_user_script = (
-        rf"""SELECT FROM pg_catalog.pg_roles WHERE rolname = '{experiment_id}'"""
-    )
-    query_user_result = executor.run(
-        f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(test_user_script)}",
-        raise_=False,
-    )
-    if "0 rows" in query_user_result:
-        # Create the user: it doesn't exist yet
-        create_user_script = f"""CREATE USER "{experiment_id}" with encrypted password '{postgresql_password}'"""
-        executor.run(
-            f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(create_user_script)}"
-        )
-    else:
-        # Change the password of the existing user
-        change_password_script = f"""ALTER USER "{experiment_id}" WITH ENCRYPTED PASSWORD '{postgresql_password}'"""
-        executor.run(
-            f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(change_password_script)}"
-        )
-
-    executor.run(
-        f"{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c {quote(grant_roles_script)}"
-    )
-    ensure_postgres_schema_permissions(executor, experiment_id)
-
-    # Classic already restored any archive above. ``restore=False`` keeps
-    # that work from running a second time.
-    _bring_up_app_containers(
-        executor,
-        server_info,
-        experiment_id,
-        archive_path,
-        update,
-        restore=False,
-    )
-
-    if use_subdomain:
         # We give caddy the alias for the service. If we scale up the service container caddy will
         # send requests to all of them in a round robin fashion.
-        caddy_conf = f"{experiment_hostname} {{\n    {tls}\n    reverse_proxy {experiment_id}_web:5000\n}}"
-        sftp.putfo(
-            BytesIO(caddy_conf.encode()),
-            f"dallinger/caddy.d/{experiment_id}",
+        route = f"reverse_proxy {experiment_id}_web:5000"
+        route_dir, other_route = ("caddy.d", "root.d")
+        if takes_server_root:
+            route_dir, other_route = other_route, route_dir
+        # Creating root.d here would mark a never-upgraded server as set up.
+        executor.run(
+            f"mkdir -p ~/dallinger/{route_dir} && "
+            f"rm -f ~/dallinger/{other_route}/{quote(experiment_id)}"
         )
+        if takes_server_root:
+            # The server's own site imports root.d, so the app takes over its root.
+            sftp.putfo(
+                BytesIO(f"{route}\n".encode()), f"dallinger/root.d/{experiment_id}"
+            )
+        else:
+            caddy_conf = f"{experiment_hostname} {{\n    {tls}\n    {route}\n}}"
+            sftp.putfo(
+                BytesIO(caddy_conf.encode()),
+                f"dallinger/caddy.d/{experiment_id}",
+            )
 
-    # Tell caddy we changed something in the configuration
-    executor.reload_caddy()
+        # Tell caddy we changed something in the configuration
+        executor.reload_caddy()
 
-    launch_target = LaunchTarget(
-        app=experiment_id,
-        server=server,
-        public_origin=public_origin,
-        ingress=INGRESS_CLASSIC,
-        ssh_prefix=_ssh_prefix(ssh_host, ssh_port, ssh_user),
-        verify=not is_loopback_host(ssh_host),
-    )
-    dashboard_link = _public_dashboard_url(experiment_hostname)
-    log_command = _log_command(ssh_host, ssh_port, ssh_user, experiment_id)
-    deployment_infos = []
-    if push_build:
-        deployment_infos.append(f"Deployed Docker image name: {image_name}")
+        launch_target = LaunchTarget(
+            app=experiment_id,
+            server=server,
+            public_origin=public_origin,
+            ingress=INGRESS_CLASSIC,
+            ssh_prefix=_ssh_prefix(ssh_host, ssh_port, ssh_user),
+            verify=not is_loopback_host(ssh_host),
+        )
+        dashboard_link = _public_dashboard_url(experiment_hostname)
+        log_command = _log_command(ssh_host, ssh_port, ssh_user, experiment_id)
+        deployment_infos = []
+        if push_build:
+            deployment_infos.append(f"Deployed Docker image name: {image_name}")
 
-    deployment_infos += [
-        "To display the logs for this experiment you can run:",
-        log_command,
-        f"Or you can head to {logs_url} (user = dallinger)",
-        f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
-    ]
-    _record_then_launch(
-        executor, launch_target, deployment_infos, dashboard_password, update
-    )
-    return {
-        "dashboard_user": dashboard_user,
-        "dashboard_password": dashboard_password,
-        "dashboard_link": dashboard_link,
-        "log_command": log_command,
-        "app": experiment_id,
-        "server": server,
-        "ingress": INGRESS_CLASSIC,
-        "public_origin": public_origin,
-    }
+        deployment_infos += [
+            "To display the logs for this experiment you can run:",
+            log_command,
+            f"Or you can head to {logs_url} (user = dallinger)",
+            f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
+        ]
+        _record_then_launch(
+            executor, launch_target, deployment_infos, dashboard_password, update
+        )
+        return {
+            "dashboard_user": dashboard_user,
+            "dashboard_password": dashboard_password,
+            "dashboard_link": dashboard_link,
+            "log_command": log_command,
+            "app": experiment_id,
+            "server": server,
+            "ingress": INGRESS_CLASSIC,
+            "public_origin": public_origin,
+        }
 
 
 def _compose_environment(
@@ -2504,12 +3162,13 @@ def destroy(server, app):
     """Tear down an experiment run on a server you control via ssh."""
     server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
-    ssh_host, _ = split_ssh_host_port(ssh_address)
     ssh_user = server_info.get("user")
     executor = Executor(ssh_address, user=ssh_user, app=app)
 
     caddy_config_exists = executor.run(
-        f"test -f ~/dallinger/caddy.d/{app} && echo Yes", raise_=False
+        f"test -f ~/dallinger/caddy.d/{quote(app)} -o "
+        f"-f ~/dallinger/root.d/{quote(app)} && echo Yes",
+        raise_=False,
     )
     docker_compose_exists = executor.run(
         f"test -f ~/dallinger/{app}/docker-compose.yml && echo Yes", raise_=False
@@ -2556,22 +3215,18 @@ def destroy(server, app):
             raise_=False,
         )
     else:
-        caddyfile_content = executor.run("cat ~/dallinger/Caddyfile", raise_=False)
-        uses_root_domain = f"reverse_proxy {app}_web:5000" in caddyfile_content
-        dns_host = ssh_host
-        executor.run(f"rm -f ~/dallinger/caddy.d/{app}")
-        if uses_root_domain:
-            config = get_config(load=True)
-            email_addr = config.get("contact_email_on_error")
-            has_tls = not is_loopback_host(ssh_host)
-            tls_value = "tls internal" if not has_tls else f"tls {email_addr}"
-            sftp = get_sftp(ssh_address, user=ssh_user)
-            sftp.putfo(
-                BytesIO(
-                    CADDYFILE_SUBDOMAIN.format(host=dns_host, tls=tls_value).encode()
-                ),
-                "dallinger/Caddyfile",
+        state = _server_state(executor)
+        executor.run(f"rm -f ~/dallinger/root.d/{quote(app)}")
+        if _rewritten_by_older_dallinger(state):
+            print(f"Warning: {_older_dallinger_message(server, state)}")
+        elif f"reverse_proxy {app}_web:5000" in state.get("Caddyfile", ""):
+            print(
+                f"The server's Caddyfile still sends the server's own host to {app}, "
+                "as root-domain deploys by older Dallinger versions set it up. "
+                "Destroy leaves that shared file alone. To reset it, run "
+                f"`dallinger docker-ssh servers upgrade --host {server}`."
             )
+        executor.run(f"rm -f ~/dallinger/caddy.d/{quote(app)}")
         executor.reload_caddy()
         executor.run(
             f"docker compose -f ~/dallinger/{app}/docker-compose.yml down",
@@ -2983,11 +3638,11 @@ class Executor:
             raise click.Abort
 
     def reload_caddy(self):
-        with yaspin(text="Reloading Caddy config file", color="green"):
-            self.run(
-                f"{SERVER_COMPOSE} exec -T httpserver "
-                "caddy reload --config /etc/caddy/Caddyfile"
-            )
+        print("Reloading Caddy config file")
+        self.run(
+            f"{SERVER_COMPOSE} exec -T httpserver "
+            "caddy reload --config /etc/caddy/Caddyfile"
+        )
 
     def restart_dozzle(self):
         with yaspin(text="Restarting Dozzle", color="green"):
@@ -3293,6 +3948,57 @@ def _check_experiment_hostname_dns(
             "(up to about 5 minutes for Dallinger Route 53 records) and try again."
         )
     raise click.Abort()
+
+
+def resolve_dns_host(server_info, dns_host=None):
+    """Return the DNS name that experiments on a configured server are served under.
+
+    An explicit ``dns_host`` wins, then the DNS host saved with the server,
+    then the server's own name (without any SSH port) if it is a hostname
+    rather than an IP address.
+
+    Parameters
+    ----------
+    server_info : dict
+        Configured server entry with ``host`` and optionally ``dns_host``.
+    dns_host : str, optional
+        DNS host passed explicitly on the command line.
+
+    Returns
+    -------
+    str or None
+        ``None`` for servers registered by IP address without a saved DNS host.
+    """
+    if dns_host:
+        return dns_host
+    if server_info.get("dns_host"):
+        return server_info["dns_host"]
+    if _is_ip_address(server_info["host"]):
+        return None
+    return split_ssh_host_port(server_info["host"])[0]
+
+
+def _servers_add_command(server_info, **changes):
+    """Return a ``servers add`` command that re-registers a server with ``changes``.
+
+    ``servers add`` keeps the saved fields, so only ``--host`` and the changes
+    are given.
+
+    Parameters
+    ----------
+    server_info : dict
+        Configured server entry.
+    **changes
+        Fields to override, for example ``default_ingress="cloudflare"``.
+
+    Returns
+    -------
+    str
+    """
+    options = [f"--host {quote(server_info['host'])}"]
+    for key, value in changes.items():
+        options.append(f"--{key.replace('_', '-')} {quote(value)}")
+    return "dallinger docker-ssh servers add " + " ".join(options)
 
 
 def get_dns_host(ssh_host):
