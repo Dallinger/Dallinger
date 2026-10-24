@@ -264,12 +264,17 @@ gh pr create --base master --head release-X.Y.Z \
     --title "Release X.Y.Z" \
     --label release \
     --body "$(cat <<'EOF'
+## LLM use
+
+<model that prepared the release branch and this description, or None>
+
 ## Motivation
 
 Cut Dallinger X.Y.Z to PyPI and ghcr.
 
 ## Summary of changes
 
+Finalized the `## [vX.Y.Z]` CHANGELOG section (replaced `## [Unreleased]`).
 See the [vX.Y.Z CHANGELOG](https://github.com/Dallinger/Dallinger/blob/release-X.Y.Z/CHANGELOG.md#vxYz-YYYY-MM-DD).
 
 <paste Migration Notes / Breaking Changes, or say none>
@@ -283,10 +288,6 @@ See the [vX.Y.Z CHANGELOG](https://github.com/Dallinger/Dallinger/blob/release-X
 - [ ] CI green on `release-X.Y.Z`
 - [ ] Demo and `tests/experiment` constraints pin `dallinger==X.Y.Z`
 
-## Changelog
-
-Finalized the `## [vX.Y.Z]` section (replaced `## [Unreleased]`).
-
 ## Automatic code review
 
 Skipped `/branch-review`. Release PRs are version/CHANGELOG/constraints
@@ -296,7 +297,8 @@ EOF
 )"
 ```
 
-Use [`.github/PULL_REQUEST_TEMPLATE.md`](../../../.github/PULL_REQUEST_TEMPLATE.md).
+This body follows [`.github/PULL_REQUEST_TEMPLATE.md`](../../../.github/PULL_REQUEST_TEMPLATE.md),
+leaving out Known limitations.
 Do **not** prompt for `/branch-review` on a release PR. Run the
 [Release PR checks](#release-pr-checks) instead.
 
