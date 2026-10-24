@@ -773,9 +773,22 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
     ]
 
 
-@pytest.mark.parametrize("build_option", ["push_build", "local_build", None])
-def test_only_pushed_deploys_need_image_base_name(monkeypatch, build_option):
-    """Pushed deploys stop before side effects; server-only ones reach the build."""
+@pytest.mark.parametrize(
+    "build_option, image_name",
+    [
+        ("push_build", None),
+        ("local_build", None),
+        (None, None),
+        ("push_build", "registry.example/exp:1"),
+    ],
+)
+def test_only_pushed_deploys_need_image_base_name(
+    monkeypatch, build_option, image_name
+):
+    """Pushed deploys stop before side effects; others reach the build.
+
+    A configured ``docker_image_name`` is reused, so it needs no base name.
+    """
     config = Configuration()
     config._reset(register_defaults=True)
     config.ready = True
@@ -796,12 +809,15 @@ def test_only_pushed_deploys_need_image_base_name(monkeypatch, build_option):
     monkeypatch.setattr(docker_ssh_module, "_check_app_slot", mock.Mock())
     monkeypatch.setattr(docker_ssh_module, "Executor", mock.Mock())
     kwargs = _deploy_kwargs(
-        server="lab", **({build_option: True} if build_option else {})
+        server="lab",
+        config_options=(("docker_image_name", image_name),) if image_name else (),
+        **({build_option: True} if build_option else {}),
     )
 
-    if build_option is None:
+    if build_option is None or image_name:
         with pytest.raises(click.Abort):
             docker_ssh_module._deploy_in_mode(**kwargs)
+        pre_launch_checks.assert_called_once()
         build.assert_called_once()
         return
     with pytest.raises(click.ClickException, match="docker_image_base_name"):
