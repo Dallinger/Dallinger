@@ -81,10 +81,12 @@
     again for every request, in werkzeug's own format with query strings.
   - Werkzeug's request lines are replaced by shorter ones with the status
     and duration and without the query string, for example
-    `POST /participant 200 in 45 ms`. Successful requests for static files,
-    the dashboard and background polling are left out unless they take at
-    least a second; packages built on Dallinger can add their own routes
-    with `dallinger.dev_logging.hide_requests()`. Successful WebSocket
+    `POST /participant 200 in 45 ms`. Successful requests for the startup
+    `/launch` call, static files, the dashboard and polling are left out
+    unless they take at least a second; packages built on Dallinger can add
+    their own routes by calling `dallinger.dev_logging.hide_requests()` in
+    the web server process, for example when the experiment module is
+    imported. Successful WebSocket
     requests, which last as long as their connection, aren't reported. Set
     `DALLINGER_DEV_SLOW_REQUEST_SECONDS` to change the threshold.
   - RQ and APScheduler messages below WARNING, and the worker's "Warm shut

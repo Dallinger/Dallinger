@@ -374,7 +374,11 @@ def configure_from_environment(level=logging.INFO):
 
 
 def slow_request_seconds():
-    """Return the duration after which a successful request is reported."""
+    """Return the duration after which a successful request counts as slow.
+
+    Slow requests are marked ``(slow)``, and are shown even if their path
+    is hidden by :func:`hide_requests`.
+    """
     value = os.environ.get(SLOW_REQUEST_ENV)
     if not value:
         return _DEFAULT_SLOW_REQUEST_SECONDS
@@ -396,6 +400,12 @@ def hide_requests(*prefixes):
     for their own asset and polling routes. Failed and slow requests are
     still shown.
 
+    The hidden prefixes are kept per process, so call this in the web
+    server process, typically when the experiment module is imported (as
+    PsyNet does in ``psynet/experiment.py``). Calling it from the command
+    line process, for example in CLI setup code, has no effect on the
+    server's console.
+
     Parameters
     ----------
     *prefixes : str
@@ -409,7 +419,6 @@ _HIDDEN_PATH_PREFIXES = {
     "/favicon.ico",
     "/robots.txt",
     "/dashboard",
-    "/logs/",
     "/launch",
     "/health",
     "/summary",

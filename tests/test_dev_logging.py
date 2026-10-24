@@ -302,7 +302,7 @@ def wsgi_app(environ, start_response):
     path = environ["PATH_INFO"]
     if path == "/boom":
         raise ValueError("boom")
-    start_response("404 NOT FOUND" if path == "/missing" else "200 OK", [])
+    start_response("404 NOT FOUND" if path.endswith("/missing") else "200 OK", [])
     return [b"body"]
 
 
@@ -317,17 +317,21 @@ def test_access_log_hides_routine_requests(caplog, monkeypatch):
     client.get("/static/style.css", buffered=True)
     client.get("/poll/status", buffered=True)
     client.get("/missing", buffered=True)
+    client.get("/static/missing", buffered=True)
     with pytest.raises(ValueError):
         client.get("/boom")
     slow = Client(AccessLogMiddleware(wsgi_app, slow_seconds=0))
     slow.get("/static/slow.js", buffered=True)
+    slow.get("/page", buffered=True)
     slow.get("/chat", headers={"Upgrade": "websocket"}, buffered=True)
     slow.get("/missing", headers={"Upgrade": "websocket"}, buffered=True)
 
     messages = [r.getMessage() for r in caplog.records]
-    assert len(messages) == 5
+    assert len(messages) == 7
     assert re.fullmatch(r"GET /page 200 in \d+ ms", messages[0])
     assert re.fullmatch(r"GET /missing 404 in \d+ ms", messages[1])
-    assert re.fullmatch(r"GET /boom 500 in \d+ ms", messages[2])
-    assert re.fullmatch(r"GET /static/slow.js 200 in \d+ ms \(slow\)", messages[3])
-    assert messages[4].startswith("GET /missing 404")
+    assert re.fullmatch(r"GET /static/missing 404 in \d+ ms", messages[2])
+    assert re.fullmatch(r"GET /boom 500 in \d+ ms", messages[3])
+    assert re.fullmatch(r"GET /static/slow.js 200 in \d+ ms \(slow\)", messages[4])
+    assert re.fullmatch(r"GET /page 200 in \d+ ms \(slow\)", messages[5])
+    assert messages[6].startswith("GET /missing 404")
