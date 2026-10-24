@@ -271,8 +271,9 @@ def get_all_instances(region_name=None):
             if skipped and set(skipped.values()) <= _AUTH_FAILURE_CODES:
                 message += f". {_AUTH_FAILURE_MSG}"
             raise click.ClickException(message)
+        scanned = f"all regions but {len(skipped)}" if skipped else "all regions"
         click.echo(
-            click.style("✔ Finished retrieving instances in all regions.", fg="green")
+            click.style(f"✔ Finished retrieving instances in {scanned}.", fg="green")
         )
         instance_df = pd.concat(instance_dfs)
     else:

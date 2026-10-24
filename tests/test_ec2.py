@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from unittest import mock
 
 import click
@@ -74,18 +75,37 @@ def test_all_regions_skips_regions_the_account_cannot_use(
                 {"Error": {"Code": code}}, "DescribeInstances"
             )
         else:
-            client.describe_instances.return_value = {"Reservations": []}
+            client.describe_instances.return_value = {"Reservations": [reservation]}
         return client
 
-    with mock.patch(
-        "dallinger.command_line.lib.ec2.boto3.client", side_effect=boto_client
+    reservation = {
+        "Instances": [
+            {
+                "Tags": [{"Value": "kept"}],
+                "InstanceId": "i-1",
+                "InstanceType": "t3.micro",
+                "State": {"Name": "running"},
+                "PublicDnsName": "",
+                "KeyName": "",
+                "LaunchTime": datetime.now(timezone.utc),
+            }
+        ]
+    }
+    with (
+        mock.patch(
+            "dallinger.command_line.lib.ec2.boto3.client", side_effect=boto_client
+        ),
+        mock.patch(
+            "dallinger.command_line.lib.ec2.requests.get",
+            side_effect=requests.RequestException,
+        ),
     ):
         denied.add("me-south-1")
         if not skipped:
             with pytest.raises(click.ClickException, match="authentication failed"):
                 get_all_instances()
             return
-        assert len(get_all_instances()) == 0
+        assert list(get_all_instances()["name"]) == ["kept"]
         warning = capsys.readouterr().err
         assert "me-south-1" in warning and code in warning
 
@@ -367,17 +387,20 @@ class TestGetInstanceRowFrom:
         assert "us-east-1" in str(excinfo.value)
         assert "name 'missing'" in str(excinfo.value)
 
-    def test_no_instances_without_region_mentions_region_hint(self, monkeypatch):
+    def test_no_instances_without_region_mentions_region_hint(
+        self, active_config, monkeypatch
+    ):
         """Test that missing region names the region boto actually uses."""
+        active_config.extend({"aws_access_key_id": ""})
+        monkeypatch.delenv("AWS_REGION", raising=False)
+        monkeypatch.setenv("AWS_DEFAULT_REGION", "eu-west-2")
         monkeypatch.setattr(
             "dallinger.command_line.lib.ec2.get_instances",
             lambda *args, **kwargs: pd.DataFrame(columns=["name", "state"]),
         )
 
-        with mock.patch("dallinger.command_line.lib.ec2.boto3.Session") as session:
-            session.return_value.region_name = "eu-west-2"
-            with pytest.raises(click.ClickException) as excinfo:
-                _get_instance_row_from(region_name=None, instance_name="missing")
+        with pytest.raises(click.ClickException) as excinfo:
+            _get_instance_row_from(region_name=None, instance_name="missing")
 
         message = str(excinfo.value)
         assert "No EC2 instance found" in message
