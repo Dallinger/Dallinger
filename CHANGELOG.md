@@ -400,6 +400,12 @@
 
 ### Fixed
 
+- `dallinger ec2` commands now honour `--region` when AWS credentials come
+  from `~/.aws`, SSO or an instance role rather than Dallinger's
+  `aws_access_key_id`. They used boto's default region instead, so
+  `dallinger ec2 list instances` without `--region` queried the default region
+  once per region rather than every region.
+
 - A participant who signs up through `POST /participant`, as the page's
   `dallinger.createParticipant()` does, keeps the recruiter named in their
   ad URL. They had been given the configured recruiter, and with

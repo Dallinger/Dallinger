@@ -11,6 +11,7 @@ from dallinger.command_line.lib.ec2 import (
     DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
     _get_instance_row_from,
     get_all_instances,
+    get_ec2_client,
     get_image_id,
     get_instance_details,
     get_pem_path,
@@ -42,6 +43,14 @@ def _deleted_names(route_53):
         call.kwargs["ChangeBatch"]["Changes"][0]["ResourceRecordSet"]["Name"]
         for call in route_53.change_resource_record_sets.call_args_list
     ]
+
+
+def test_region_applies_without_dallinger_aws_keys(active_config, monkeypatch):
+    """--region applies when boto finds credentials in ~/.aws, SSO or a role"""
+    active_config.extend({"aws_access_key_id": ""})
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
+
+    assert get_ec2_client("eu-west-2").meta.region_name == "eu-west-2"
 
 
 class TestRemoveDnsRecords:

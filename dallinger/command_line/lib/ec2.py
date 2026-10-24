@@ -60,6 +60,8 @@ def get_keys(region_name=None):
             "aws_secret_access_key": config.get("aws_secret_access_key"),
             "region_name": region_name or config.get("aws_region", DEFAULT_AWS_REGION),
         }
+    if region_name:
+        keys["region_name"] = region_name
     return keys
 
 
