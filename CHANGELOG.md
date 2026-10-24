@@ -15,7 +15,11 @@
   assembling the experiment when the setting was unset. When such an image
   (any name without a `/`) is already on the server, docker-ssh no longer
   tries to pull it from Docker Hub first, so a slow or unreachable Docker
-  Hub no longer delays the deploy.
+  Hub no longer delays the deploy. Likewise, with the setting unset,
+  `dallinger docker build` now names the image after the experiment
+  directory (made valid the same way, e.g. `My Study` becomes `my-study`),
+  and `dallinger docker push` stops with the same `Error:` line before
+  assembling the experiment; both previously failed with a `KeyError`.
 - Local debugging (`dallinger debug`, `LoaderDeployment`, and the
   `pytest_dallinger` debug fixtures) now starts the Procfile processes with
   [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,

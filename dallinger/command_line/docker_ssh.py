@@ -1339,51 +1339,17 @@ def _image_usable_from_registry(docker_client, image_name):
     return True
 
 
-_IMAGE_NAME_SEPARATORS = re.compile(r"[._-]+")
-
-
 def _image_base_name(config, app, push):
-    """Return the repository name for the image a deploy builds.
+    """Return the repository name for the image a deploy of ``app`` builds.
 
-    Parameters
-    ----------
-    config : Configuration or dict
-        Experiment config, read for ``docker_image_base_name``.
-    app : str
-        The docker-ssh app name, which already matches ``APP_NAME_PATTERN``.
-    push : bool
-        Whether the image will be pushed to a registry.
-
-    Returns
-    -------
-    str
-        ``docker_image_base_name`` if set. Otherwise, for an image that stays
-        on the server, the app name made into a valid Docker repository name:
-        lowercase, with runs of ``.``, ``_`` and ``-`` that Docker rejects
-        replaced by ``-``.
-
-    Raises
-    ------
-    click.ClickException
-        If the image will be pushed and ``docker_image_base_name`` is unset,
-        since only the user knows which registry to push to.
+    See :func:`dallinger.docker.tools.image_base_name`; ``push`` says
+    whether the image will be pushed to a registry.
     """
-    base_name = config.get("docker_image_base_name", None)
-    if base_name:
-        return base_name
-    if push:
-        raise click.ClickException(
-            "docker_image_base_name is not set. Pushing the image to a registry "
-            "(--push-build or --local_build) needs it to name the registry and "
-            "repository, for example in config.txt:\n"
-            "    docker_image_base_name = ghcr.io/<github-user>/<experiment>"
-        )
+    from dallinger.docker.tools import image_base_name
 
-    def separator(match):
-        run = match.group()
-        return run if run in (".", "_", "__") or set(run) == {"-"} else "-"
-
-    return _IMAGE_NAME_SEPARATORS.sub(separator, app.lower()).strip("._-")
+    return image_base_name(
+        config, app, "--push-build or --local_build" if push else None
+    )
 
 
 def _build_and_push_image(

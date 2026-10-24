@@ -141,7 +141,7 @@ def deploy(**kwargs):
 @require_exp_directory
 def build():
     """Build a docker image for this experiment."""
-    from dallinger.docker.tools import build_image
+    from dallinger.docker.tools import build_image, image_base_name
 
     config = get_config(load=True)
     _, tmp = setup_experiment(
@@ -150,16 +150,18 @@ def build():
         local_checks=False,
         experiment_files=get_experiment_files(),
     )
-    build_image(tmp, config.get("docker_image_base_name"), Output(), force_build=True)
+    base_name = image_base_name(config, Path(os.getcwd()).name)
+    build_image(tmp, base_name, Output(), force_build=True)
 
 
 @docker.command()
 @click.option("--use-existing", is_flag=True, default=False)
 def push(use_existing: bool, **kwargs) -> str:
     """Build and push the docker image for this experiment."""
-    from dallinger.docker.tools import build_image
+    from dallinger.docker.tools import build_image, image_base_name
 
     config = get_config(load=True)
+    base_name = image_base_name(config, None, pushed_by="dallinger docker push")
     app_name = kwargs.get("app_name", None)
     _, tmp = setup_experiment(
         log=log,
@@ -170,7 +172,7 @@ def push(use_existing: bool, **kwargs) -> str:
     )
     image_name_with_tag = build_image(
         tmp,
-        config.get("docker_image_base_name"),
+        base_name,
         Output(),
         force_build=not use_existing,
     )

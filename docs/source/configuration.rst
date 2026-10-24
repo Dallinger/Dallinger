@@ -699,15 +699,17 @@ Docker Deployment Configuration
 
     Optional for a ``dallinger docker-ssh deploy`` or ``sandbox`` that builds
     the image on the server without ``--push-build`` or ``--local_build``: the
-    image is then named after the app (lowercased, e.g. ``my-study``). Heroku
-    Docker deploys default to the experiment directory name (``bartlett1932``,
-    ``chatroom`` etc).
+    image is then named after the app (lowercased, e.g. ``my-study``). Also
+    optional for ``dallinger docker build``, which names the image after the
+    experiment directory, made valid the same way. Heroku Docker deploys
+    default to the experiment directory name (``bartlett1932``, ``chatroom``
+    etc).
 
     To enable repeatability a generated docker image can be pushed to a registry.
 
     To this end the registry needs to be specified in the ``docker_image_base_name``.
-    docker-ssh requires it when it pushes the image (``--push-build`` or
-    ``--local_build``).
+    ``dallinger docker push`` requires it, and so does docker-ssh when it
+    pushes the image (``--push-build`` or ``--local_build``).
     For example:
 
         * ``ghcr.io/<GITHUB_USERNAME>/<GITHUB_REPOSITORY>/<EXPERIMENT_NAME>``

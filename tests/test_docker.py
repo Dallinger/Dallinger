@@ -217,6 +217,58 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
     push_image.assert_called_once_with("registry/exp:tag")
 
 
+@pytest.fixture
+def docker_cli_without_base_name(tmp_path, monkeypatch):
+    from dallinger.config import Configuration
+
+    docker_cli = importlib.import_module("dallinger.command_line.docker")
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.ready = True
+    (tmp_path / "My Study").mkdir()
+    monkeypatch.chdir(tmp_path / "My Study")
+    monkeypatch.setattr("docker.client.from_env", mock.Mock())
+    monkeypatch.setattr(
+        "dallinger.command_line.utils.verify_package", mock.Mock(return_value=True)
+    )
+    monkeypatch.setattr(docker_cli, "get_config", mock.Mock(return_value=config))
+    monkeypatch.setattr(docker_cli, "get_experiment_files", mock.Mock())
+    monkeypatch.setattr(
+        docker_cli, "setup_experiment", mock.Mock(return_value=("uid", "tmp"))
+    )
+    monkeypatch.setattr(
+        "dallinger.docker.tools.build_image", mock.Mock(return_value="img:tag")
+    )
+    return docker_cli
+
+
+def test_docker_build_names_image_after_directory_without_base_name(
+    docker_cli_without_base_name,
+):
+    from click.testing import CliRunner
+
+    from dallinger.docker import tools
+
+    result = CliRunner().invoke(docker_cli_without_base_name.docker, ["build"])
+
+    assert result.exit_code == 0, result.output
+    assert tools.build_image.call_args.args[1] == "my-study"
+
+
+def test_docker_push_needs_base_name(docker_cli_without_base_name):
+    from click.testing import CliRunner
+
+    from dallinger.docker import tools
+
+    result = CliRunner().invoke(docker_cli_without_base_name.docker, ["push"])
+
+    assert result.exit_code == 1
+    assert "(dallinger docker push)" in result.output
+    assert "docker_image_base_name = " in result.output
+    docker_cli_without_base_name.setup_experiment.assert_not_called()
+    tools.build_image.assert_not_called()
+
+
 def get_yaml(config, ingress="classic"):
     from dallinger.command_line.docker_ssh import get_docker_compose_yml
 
