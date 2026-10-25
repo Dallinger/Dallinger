@@ -1,6 +1,6 @@
 ---
 name: branch-review-loop
-description: Repeat the branch-review skill on a feature branch, fixing findings between reviews, until a review finds no high or medium issues. Use before finalizing a feature pull request, or when asked to review a branch until it is clean. Not for release PRs.
+description: Repeat the branch-review skill on a feature branch, fixing findings between reviews, until a review finds no high or medium issues. Use before finalizing a feature pull request, or when asked to review a branch until no high or medium issues remain. Not for release PRs.
 ---
 
 # Branch review loop
@@ -21,10 +21,12 @@ quickly, not for a reviewer that finds nothing.
   changed since, while watching for regressions elsewhere.
 - Between reviews, fix high and medium findings, and lows that are clearly
   worth it (wrong docs or messages, cheap test gaps, small local fixes).
-  Lows that need a design decision go in the PR description as known
-  limitations.
+  Note lows that need a design decision for the final PR description, as
+  known limitations.
 - The loop has converged when a review finds no high or medium issues.
   Lows alone don't need another review.
+- Reviews read the diff; they don't replace using the change the way a user
+  would. Do that early, not only after the reviews converge.
 
 ## When to step back
 
@@ -34,12 +36,11 @@ quickly, not for a reviewer that finds nothing.
 - If reviews keep finding new high or medium issues after four or five
   rounds, or undo earlier fixes, the PR may be too big or its design
   unsettled. Stop and suggest splitting it, or ask the user.
-- Reviews read the diff; they don't replace using the change the way a user
-  would. Do that early, not only after the reviews converge.
 
 ## Finishing
 
-Once the loop has converged, update the PR title and description as in
-`branch-review` step 7. In **Automatic code review**, record the reviewer
+When the loop ends, whether it converged or you stopped it, update the PR
+title and description as in `branch-review` step 7. If it stopped without
+converging, say so and list the open findings. In **Automatic code review**, record the reviewer
 models, the number of reviews, the last reviewed commit, and what later
 commits change.

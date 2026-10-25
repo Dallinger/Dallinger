@@ -55,7 +55,7 @@ repo-local `branch-review-loop` skill
 (`.cursor/skills/branch-review-loop/SKILL.md`, also the Cursor command
 `/branch-review-loop`). It repeats the single-pass `branch-review` skill
 (`/branch-review`), fixing findings in between, until a review finds no high
-or medium issues. Don't ask the user to run it. These specific command names
+or medium issues, or stops after several rounds that don't converge. Don't ask the user to run it. These specific command names
 avoid ambiguity with generic Cursor-provided review commands.
 
 Address actionable findings before finalizing the pull request, and record
@@ -73,7 +73,7 @@ format.
 
 When running `/branch-review`, always update the pull request title and
 description so they match the committed branch diff (`/branch-review-loop`
-does this once, after the last review).
+does this once, when the loop ends).
 
 ## Tests
 
