@@ -401,8 +401,8 @@
 ### Fixed
 
 - `dallinger ec2` commands now work with AWS credentials from `~/.aws`, SSO
-  or an instance role. Unless `aws_access_key_id` was set, they sent the
-  placeholder keys from Dallinger's defaults, so AWS always rejected them.
+  or an instance role. Dallinger's defaults set placeholder AWS keys, which
+  were treated as configured and sent to AWS, so AWS always rejected them.
   They now leave such credentials to boto and honour `--region`, falling back
   to the AWS profile's region and then `aws_region`. Scanning every region
   (`dallinger ec2 list instances` without `--region`) now skips, with a

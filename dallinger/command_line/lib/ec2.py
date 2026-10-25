@@ -238,7 +238,9 @@ def get_all_instances(region_name=None):
     if region_name is None:
         logger.info("Listing instances in all regions...")
         instance_dfs = []
-        all_regions = get_ec2_client().describe_regions()["Regions"]
+        all_regions = get_ec2_client(config=_REGION_SCAN_CONFIG).describe_regions()[
+            "Regions"
+        ]
         with Progress(
             SpinnerColumn(style="green"),
             TextColumn("[progress.description]{task.description}"),
