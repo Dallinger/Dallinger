@@ -20,23 +20,24 @@ code review.
 
 <!-- A few sentences: the problem, who hits it, and how it was found, with the key evidence (e.g. the error or observed behaviour). Link the issue, CI job or discussion. -->
 
-## Code changes
-
-<!--
-One bullet per change, each starting with a short bold label, e.g.
-"- **Fix: `base_port` was ignored.** ...". For each change, say what it does
-and where it lives, and mention any non-obvious design choice and any change
-to APIs, the data model or architecture. Put fixes for bugs found along the
-way in their own bullets.
--->
-
 ## Behavior changes
 
 <!--
 What users, experiment authors or server operators will notice: new options,
-changed defaults or output, compatibility and migration steps. For output
-changes, show a short before/after `diff` block; for UI changes, include
-screenshots or a short clip. Write "None" if users will notice nothing.
+changed defaults or output, and what they must do differently (compatibility
+and migration steps). For output changes, show a short before/after `diff`
+block; for UI changes, include screenshots or a short clip. Write "None" if
+users will notice nothing.
+-->
+
+## Implementation details
+
+<!--
+How the behavior above is achieved, without repeating it. One bullet per
+change, each starting with a short bold label, e.g.
+"- **Fix: `base_port` was ignored.** ...". Say where each change lives, and
+mention any non-obvious design choice and any change to APIs, the data model
+or architecture. Put fixes for bugs found along the way in their own bullets.
 -->
 
 ## Known limitations

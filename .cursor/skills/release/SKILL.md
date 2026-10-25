@@ -273,16 +273,16 @@ human was involved, or None>
 
 Cut Dallinger X.Y.Z to PyPI and ghcr.
 
-## Code changes
-
-Finalized the `## [vX.Y.Z]` CHANGELOG section (replaced `## [Unreleased]`).
-See the [vX.Y.Z CHANGELOG](https://github.com/Dallinger/Dallinger/blob/release-X.Y.Z/CHANGELOG.md#vxYz-YYYY-MM-DD).
-
-<paste Migration Notes / Breaking Changes, or say none>
-
 ## Behavior changes
 
 <user-facing highlights from the CHANGELOG section>
+
+<paste Migration Notes / Breaking Changes, or say none>
+
+## Implementation details
+
+Finalized the `## [vX.Y.Z]` CHANGELOG section (replaced `## [Unreleased]`).
+See the [vX.Y.Z CHANGELOG](https://github.com/Dallinger/Dallinger/blob/release-X.Y.Z/CHANGELOG.md#vxYz-YYYY-MM-DD).
 
 ## Known limitations
 
