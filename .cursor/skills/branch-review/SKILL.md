@@ -90,7 +90,7 @@ branch diff. Do this even if the current title or description looks close.
 - Find the PR: `gh pr view --json number,title,url,body`
 - Title: a concise, accurate summary of the committed change
 - Description: follow `.github/PULL_REQUEST_TEMPLATE.md` and keep every section
-  current (LLM use, motivation, summary, behavior, known limitations, testing,
+  current (LLM use, motivation, code changes, behavior, known limitations, testing,
   automatic review)
 - Record that `/branch-review` was run in **Automatic code review**
 - If `gh pr edit` fails (classic Projects GraphQL deprecation), use

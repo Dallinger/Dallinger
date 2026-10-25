@@ -20,7 +20,7 @@ code review.
 
 <!-- A few sentences: the problem, who hits it, and how it was found, with the key evidence (e.g. the error or observed behaviour). Link the issue, CI job or discussion. -->
 
-## Summary of changes
+## Code changes
 
 <!--
 One bullet per change, each starting with a short bold label, e.g.

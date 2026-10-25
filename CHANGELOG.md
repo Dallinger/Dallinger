@@ -7,8 +7,9 @@
 - The pull request template now asks for a short description that a
   reviewer can follow without the diff. It adds an **LLM use** section (which
   models wrote the code and description, and how a human was involved) and a
-  **Known limitations** section, drops the Changelog section, moves
-  screenshots into **Behavior changes**, and asks for a short review summary.
+  **Known limitations** section, renames Summary of changes to **Code
+  changes**, drops the Changelog section, moves screenshots into **Behavior
+  changes**, and asks for a short review summary.
   **Testing** and `AGENTS.md` now expect changes to be dogfooded, i.e. used
   the way a user would use them, not just covered by automated tests; changes
   with nothing a user could run say so instead.
