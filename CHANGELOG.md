@@ -4,6 +4,12 @@
 
 ### Changed
 
+- Agents now run the `branch-review` skill themselves before finalizing a
+  feature pull request, instead of asking the user to run it, and repeat it
+  until it converges: a fresh read-only review each time, fixes in between,
+  and another review only while high or medium findings remain. New
+  functionality a review calls for is proposed to the user rather than added
+  or deferred silently.
 - Local debugging (`dallinger debug`, `LoaderDeployment`, and the
   `pytest_dallinger` debug fixtures) now starts the Procfile processes with
   [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,

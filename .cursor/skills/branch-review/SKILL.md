@@ -95,3 +95,28 @@ branch diff. Do this even if the current title or description looks close.
 - If `gh pr edit` fails (classic Projects GraphQL deprecation), use
   `gh api repos/Dallinger/Dallinger/pulls/<n> -X PATCH` instead
 - If no pull request exists, say so and skip this step
+
+## 8) Repeating until the review converges
+
+For a feature PR, run this review repeatedly rather than once:
+
+- Run each review in a fresh context, without editing code. A different
+  model family from the one that wrote the code tends to catch different
+  things. Step 7 can wait for the last review.
+- Fix high and medium findings, and lows that are clearly worth it (wrong
+  docs or messages, cheap test gaps, small local fixes). Lows that need a
+  design decision go under Known limitations.
+- Run another review while reviews find high or medium issues. Later reviews
+  can focus on what changed since the last one. Lows alone don't need
+  another review.
+- If a finding calls for new functionality, don't add it silently or leave it
+  as a limitation. Propose it to the user as a follow-up PR or as part of
+  this one, and let them decide.
+- If findings keep arriving after several reviews, or undo earlier fixes, the
+  PR may be too big or its design unsettled. Suggest splitting it, or ask
+  the user.
+- Reviews read the diff; they don't replace using the change the way a user
+  would. Do that early, not only after the reviews converge.
+
+In **Automatic code review**, record the reviewer models, the number of
+reviews, the last reviewed commit, and what later commits change.
