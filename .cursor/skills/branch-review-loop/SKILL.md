@@ -41,6 +41,6 @@ quickly, not for a reviewer that finds nothing.
 
 When the loop ends, whether it converged or you stopped it, update the PR
 title and description as in `branch-review` step 7. If it stopped without
-converging, say so and list the open findings. In **Automatic code review**, record the reviewer
-models, the number of reviews, the last reviewed commit, and what later
-commits change.
+converging, say so and list the open findings. In **Automatic code
+review**, record the reviewer models, the number of reviews, the last
+reviewed commit, and what later commits change.
