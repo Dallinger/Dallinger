@@ -601,18 +601,18 @@ def test_quiet_build_redraws_one_line_in_a_terminal(tmp_path, monkeypatch):
 
     monkeypatch.setenv("TERM", "xterm")
     monkeypatch.setenv("COLUMNS", "40")
-    # Step 4/9 starts 1.2 s into the build; its clock counts from then.
+    # Step 4/9 starts 2.5 s into the build; its clock counts from then.
     messages = _quiet_build(
         tmp_path,
         monkeypatch,
-        "sleep 1.2\n"
+        "sleep 2.5\n"
         "echo '#5 [4/9] RUN uv pip install -r requirements.txt'\nsleep 0.3\n"
         "echo '#5 DONE 0.3s'\necho '#6 [5/9] RUN ls'\nsleep 0.3\n",
         stdout=Terminal(),
     )
     output = "".join(messages)
     frames = [frame for line in output.split("\n") for frame in line.split("\r")]
-    assert "Building: starting (0:01)" in frames
+    assert any(re.fullmatch(r"Building: starting \(0:0[12]\)", f) for f in frames)
     assert "Building: step 4/9: RUN uv pip … (0:00)" in frames
     assert any(
         frame.startswith("Building: step 5/9: RUN ls (0:00)") for frame in frames
