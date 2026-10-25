@@ -60,6 +60,20 @@ def test_region_applies_without_dallinger_aws_keys(active_config, monkeypatch, k
     assert get_ec2_client("eu-west-2").meta.region_name == "eu-west-2"
 
 
+def test_dallinger_aws_keys_are_passed_with_region(active_config):
+    active_config.extend(
+        {
+            "aws_access_key_id": "AKIAREAL",
+            "aws_secret_access_key": "real-secret",
+            "aws_region": "eu-west-1",
+        }
+    )
+    keys = {"aws_access_key_id": "AKIAREAL", "aws_secret_access_key": "real-secret"}
+
+    assert get_keys() == {**keys, "region_name": "eu-west-1"}
+    assert get_keys("eu-west-2") == {**keys, "region_name": "eu-west-2"}
+
+
 @pytest.mark.parametrize(
     "code, skipped",
     [
