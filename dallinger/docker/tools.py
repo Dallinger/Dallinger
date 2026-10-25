@@ -680,7 +680,9 @@ def _format_duration(seconds):
 class _BuildProgress:
     """Follow a BuildKit plain-progress log and report the running step.
 
-    On a terminal one status line is redrawn in place. A step that runs for
+    On a terminal one status line is redrawn in place, ending with how long
+    the shown step has run (the build's total is reported by "Built image").
+    A step that runs for
     ``SLOW_BUILD_STEP_SECONDS`` gets a permanent "Still on step" line, also
     when output is redirected, so that logs record where a build was slow.
     """
@@ -749,25 +751,32 @@ class _BuildProgress:
                 if step["label"]
                 else f'Still on "{description}" after {elapsed}\n'
             )
-        minutes, seconds = divmod(int(now - self.started), 60)
+        if self.live:
+            self._redraw(now)
+        sys.stdout.flush()
+
+    def _redraw(self, now):
+        """Redraw the status line with the shown step's own elapsed time."""
+        # A long RUN step stays on the line while short internal steps run.
+        numbered = [v for v in self.running if self.steps[v]["label"]]
+        if numbered:
+            vertex = min(numbered, key=lambda v: self.steps[v]["started"])
+        else:
+            vertex = self.running[-1] if self.running else self.latest
+        # Docker over SSH can take several seconds to print its first line.
+        step = self.steps.get(
+            vertex, {"label": "", "description": "starting", "started": self.started}
+        )
+        minutes, seconds = divmod(int(now - step["started"]), 60)
         clock = f" ({minutes}:{seconds:02})"
         width = get_terminal_size().columns - 1 - len(clock)
         # A line wider than the terminal wraps, and "\r" can't redraw it.
-        if self.live and width >= 2:
-            # A long RUN step stays on the line while short internal steps run.
-            numbered = [v for v in self.running if self.steps[v]["label"]]
-            if numbered:
-                vertex = min(numbered, key=lambda v: self.steps[v]["started"])
-            else:
-                vertex = self.running[-1] if self.running else self.latest
-            # Docker over SSH can take several seconds to print its first line.
-            step = self.steps.get(vertex, {"label": "", "description": "starting"})
+        if width >= 2:
             label = step["label"] + ": " if step["label"] else ""
             text = _truncate(f"Building: {label}{step['description']}", width)
             line = (text + clock).ljust(len(self.shown))
             self.out.blather("\r" + line)
             self.shown = line
-        sys.stdout.flush()
 
     def clear(self):
         """Erase the status line so that the next output starts on a clean line."""

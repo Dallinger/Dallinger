@@ -601,9 +601,11 @@ def test_quiet_build_redraws_one_line_in_a_terminal(tmp_path, monkeypatch):
 
     monkeypatch.setenv("TERM", "xterm")
     monkeypatch.setenv("COLUMNS", "40")
+    # Step 4/9 starts 1.2 s into the build; its clock counts from then.
     messages = _quiet_build(
         tmp_path,
         monkeypatch,
+        "sleep 1.2\n"
         "echo '#5 [4/9] RUN uv pip install -r requirements.txt'\nsleep 0.3\n"
         "echo '#5 DONE 0.3s'\necho '#6 [5/9] RUN ls'\nsleep 0.3\n",
         stdout=Terminal(),
