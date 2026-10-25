@@ -90,7 +90,8 @@ Keep summaries brief and make the primary feedback actionable.
 
 Always update the open pull request title and description to match the committed
 branch diff. Do this even if the current title or description looks close.
-When repeating reviews (section 8), do this after the last one.
+When repeating reviews (section 8), the finalizing agent does this once,
+after the last review, and the individual reviews skip it.
 
 - Find the PR: `gh pr view --json number,title,url,body`
 - Title: a concise, accurate summary of the committed change

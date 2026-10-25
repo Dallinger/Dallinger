@@ -50,11 +50,11 @@ skill (release-branch push, release PR, GitHub Release).
 
 ## Automatic code review
 
-Before finalizing a **feature** pull request, run the repo-local
-`branch-review` skill (`.cursor/skills/branch-review/SKILL.md`, also the
-Cursor command `/branch-review`) yourself, repeating it until it converges as
-its "Repeating until the review converges" section describes. Don't ask the
-user to run it. The specific command name avoids ambiguity with generic
+Before finalizing a **feature** pull request, review it yourself with the
+repo-local `branch-review` skill (`.cursor/skills/branch-review/SKILL.md`,
+also the Cursor command `/branch-review`). Each review is one pass of the
+skill's steps 1-7; repeat passes, fixing findings in between, until they
+converge as the skill's section 8 describes. Don't ask the user to run it. The specific command name avoids ambiguity with generic
 Cursor-provided review commands.
 
 Address actionable findings before finalizing the pull request, and record
@@ -71,7 +71,8 @@ Use `.github/PULL_REQUEST_TEMPLATE.md` for the required pull request description
 format.
 
 When running `/branch-review`, always update the pull request title and
-description so they match the committed branch diff.
+description so they match the committed branch diff (when repeating reviews,
+once after the last one).
 
 ## Tests
 
