@@ -612,6 +612,7 @@ def test_quiet_build_redraws_one_line_in_a_terminal(tmp_path, monkeypatch):
     )
     output = "".join(messages)
     frames = [frame for line in output.split("\n") for frame in line.split("\r")]
+    assert "Building: starting (0:01)" in frames
     assert "Building: step 4/9: RUN uv pip … (0:00)" in frames
     assert any(
         frame.startswith("Building: step 5/9: RUN ls (0:00)") for frame in frames

@@ -681,10 +681,11 @@ class _BuildProgress:
     """Follow a BuildKit plain-progress log and report the running step.
 
     On a terminal one status line is redrawn in place, ending with how long
-    the shown step has run (the build's total is reported by "Built image").
-    A step that runs for
-    ``SLOW_BUILD_STEP_SECONDS`` gets a permanent "Still on step" line, also
-    when output is redirected, so that logs record where a build was slow.
+    the shown step has been running, or since the build started if docker
+    hasn't printed a step yet ("Built image" reports the total). A step that
+    runs for ``SLOW_BUILD_STEP_SECONDS`` gets a permanent "Still on step"
+    line, also when output is redirected, so that logs record where a build
+    was slow.
     """
 
     def __init__(self, out):
@@ -716,6 +717,7 @@ class _BuildProgress:
             elif _BUILD_STEP_FINISHED_RE.match(rest):
                 if vertex in self.running:
                     self.running.remove(vertex)
+                    self.steps[vertex]["finished"] = time.monotonic()
             elif vertex not in self.steps:
                 numbered = _BUILD_STEP_NUMBER_RE.match(rest)
                 description = numbered[2] if numbered else rest
@@ -767,7 +769,9 @@ class _BuildProgress:
         step = self.steps.get(
             vertex, {"label": "", "description": "starting", "started": self.started}
         )
-        minutes, seconds = divmod(int(now - step["started"]), 60)
+        # A finished step shown between steps keeps its final time.
+        ended = step.get("finished", now)
+        minutes, seconds = divmod(int(ended - step["started"]), 60)
         clock = f" ({minutes}:{seconds:02})"
         width = get_terminal_size().columns - 1 - len(clock)
         # A line wider than the terminal wraps, and "\r" can't redraw it.
