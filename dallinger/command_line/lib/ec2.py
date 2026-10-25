@@ -13,7 +13,9 @@ import click
 import pandas as pd
 import paramiko
 import requests
+from botocore.config import Config
 from botocore.exceptions import ClientError
+from botocore.exceptions import ConnectionError as BotoConnectionError
 from paramiko import ssh_exception as pse
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from tenacity import (
@@ -41,24 +43,29 @@ DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
 
 def _resolve_default_region_name():
     """Resolve the region boto uses when no region is given, for user-facing messages."""
-    return boto3.Session(**get_keys()).region_name or DEFAULT_AWS_REGION
+    return get_keys()["region_name"]
 
 
 def get_keys(region_name=None):
+    """Return boto client arguments: Dallinger's AWS keys, if set, and a region.
+
+    If the keys are unset or still the placeholder defaults, boto finds
+    credentials itself (``~/.aws``, SSO, a role). The region is
+    ``region_name``, else the AWS profile's region when Dallinger's keys
+    aren't used, else Dallinger's ``aws_region``.
+    """
     from dallinger.config import get_config
+    from dallinger.data import aws_access_keys_present
 
     config = get_config(load=True)
-    keys = {}
-    # If keys are not set let boto get them from ~/.aws/config or other standard places
-    if config.get("aws_access_key_id"):
-        keys = {
+    default_region = config.get("aws_region", DEFAULT_AWS_REGION) or DEFAULT_AWS_REGION
+    if aws_access_keys_present(config):
+        return {
             "aws_access_key_id": config.get("aws_access_key_id"),
             "aws_secret_access_key": config.get("aws_secret_access_key"),
-            "region_name": region_name or config.get("aws_region", DEFAULT_AWS_REGION),
+            "region_name": region_name or default_region,
         }
-    if region_name:
-        keys["region_name"] = region_name
-    return keys
+    return {"region_name": region_name or boto3.Session().region_name or default_region}
 
 
 def url_to_country_city(url):
@@ -86,6 +93,9 @@ _AUTH_FAILURE_MSG = (
 _AUTH_FAILURE_CODES = {"AuthFailure", "InvalidClientTokenId", "RequestExpired"}
 
 _REGION_UNAVAILABLE_CODES = {"AuthFailure", "OptInRequired", "UnauthorizedOperation"}
+# Fail fast on unreachable regions in the all-regions scan; boto's defaults
+# retry for about five minutes per region.
+_REGION_SCAN_CONFIG = Config(connect_timeout=10, retries={"max_attempts": 2})
 
 
 class _BotoClientProxy:
@@ -110,8 +120,10 @@ class _BotoClientProxy:
         return wrapper
 
 
-def get_ec2_client(region_name=None):
-    return _BotoClientProxy(boto3.client("ec2", **get_keys(region_name)))
+def get_ec2_client(region_name=None, config=None):
+    return _BotoClientProxy(
+        boto3.client("ec2", config=config, **get_keys(region_name))
+    )
 
 
 def get_ssm_client(region_name=None):
@@ -168,18 +180,20 @@ def get_instance_details(instance_types, region_name=None):
     return price_df
 
 
-def get_instances(region_name, show_spinner=True):
+def get_instances(region_name, show_spinner=True, boto_config=None):
     display_region = region_name or _resolve_default_region_name()
     if show_spinner:
         with yaspin(
             text=f"Retrieving instances in {display_region}...", color="green"
         ) as sp:
-            reservations = get_ec2_client(region_name).describe_instances()[
-                "Reservations"
-            ]
+            reservations = get_ec2_client(
+                region_name, boto_config
+            ).describe_instances()["Reservations"]
             sp.ok("✔")
     else:
-        reservations = get_ec2_client(region_name).describe_instances()["Reservations"]
+        reservations = get_ec2_client(region_name, boto_config).describe_instances()[
+            "Reservations"
+        ]
     instances = []
     for reservation in reservations:
         for instance in reservation["Instances"]:
@@ -243,8 +257,14 @@ def get_all_instances(region_name=None):
                 )
                 try:
                     instance_dfs.append(
-                        get_instances(region["RegionName"], show_spinner=False)
+                        get_instances(
+                            region["RegionName"],
+                            show_spinner=False,
+                            boto_config=_REGION_SCAN_CONFIG,
+                        )
                     )
+                except BotoConnectionError:
+                    skipped[region["RegionName"]] = "unreachable"
                 except (ClientError, click.ClickException) as e:
                     # _BotoClientProxy turns AuthFailure into a ClickException.
                     error = e if isinstance(e, ClientError) else e.__cause__

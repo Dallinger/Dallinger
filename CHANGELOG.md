@@ -400,15 +400,18 @@
 
 ### Fixed
 
-- `dallinger ec2` commands now honour `--region` when AWS credentials come
-  from `~/.aws`, SSO or an instance role rather than Dallinger's
-  `aws_access_key_id`. They used boto's default region instead, so
-  `dallinger ec2 list instances` without `--region` queried the default region
-  once per region rather than every region. Scanning every region now skips,
-  with a warning, regions the account can't use (`AuthFailure`,
-  `UnauthorizedOperation`, `OptInRequired`), or fails listing them if no
-  region can be used. Messages about the default region now name the region
-  boto actually uses.
+- `dallinger ec2` commands now work with AWS credentials from `~/.aws`, SSO
+  or an instance role. Unless `aws_access_key_id` was set, they sent the
+  placeholder keys from Dallinger's defaults, so AWS always rejected them.
+  They now leave such credentials to boto and honour `--region`, falling back
+  to the AWS profile's region and then `aws_region`. Scanning every region
+  (`dallinger ec2 list instances` without `--region`) now skips, with a
+  warning, regions the account can't use (`AuthFailure`,
+  `UnauthorizedOperation`, `OptInRequired`) or can't reach, rather than
+  failing (an unreachable region used to take about five minutes to fail).
+  It reports an error only if no region can be used. Messages about the
+  default region name the region actually used. The `ec2` extra now
+  installs `tabulate`, which `dallinger ec2 list instances` needs.
 
 - A participant who signs up through `POST /participant`, as the page's
   `dallinger.createParticipant()` does, keeps the recruiter named in their

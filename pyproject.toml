@@ -95,6 +95,7 @@ docker = [
 ]
 ec2 = [
     "pandas",
+    "tabulate",
 ]
 jupyter = [
     "ipython",

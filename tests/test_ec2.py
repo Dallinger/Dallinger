@@ -5,7 +5,7 @@ import pandas as pd
 import paramiko
 import pytest
 import requests
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError
 
 from dallinger.command_line.lib.ec2 import (
     DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
@@ -14,6 +14,7 @@ from dallinger.command_line.lib.ec2 import (
     get_ec2_client,
     get_image_id,
     get_instance_details,
+    get_keys,
     get_pem_path,
     register_key_pair,
     remove_dns_records,
@@ -45,12 +46,17 @@ def _deleted_names(route_53):
     ]
 
 
-def test_region_applies_without_dallinger_aws_keys(active_config, monkeypatch):
-    """--region applies when boto finds credentials in ~/.aws, SSO or a role"""
-    active_config.extend({"aws_access_key_id": ""})
+@pytest.mark.parametrize("key_id", ["", "YourAccessKeyId"])
+def test_region_applies_without_dallinger_aws_keys(active_config, monkeypatch, key_id):
+    """--region applies, and boto finds the credentials, when Dallinger's keys
+    are unset or still the placeholder defaults"""
+    active_config.extend(
+        {"aws_access_key_id": key_id, "aws_secret_access_key": "YourSecretAccessKey"}
+    )
     monkeypatch.delenv("AWS_REGION", raising=False)
     monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
 
+    assert get_keys("eu-west-2") == {"region_name": "eu-west-2"}
     assert get_ec2_client("eu-west-2").meta.region_name == "eu-west-2"
 
 
@@ -61,6 +67,7 @@ def test_region_applies_without_dallinger_aws_keys(active_config, monkeypatch):
         ("UnauthorizedOperation", True),
         ("OptInRequired", True),
         ("RequestExpired", False),
+        ("unreachable", True),
     ],
 )
 def test_all_regions_skips_regions_the_account_cannot_use(
@@ -74,7 +81,11 @@ def test_all_regions_skips_regions_the_account_cannot_use(
         client.describe_regions.return_value = {
             "Regions": [{"RegionName": "us-east-1"}, {"RegionName": "me-south-1"}]
         }
-        if region_name in denied:
+        if region_name in denied and code == "unreachable":
+            client.describe_instances.side_effect = EndpointConnectionError(
+                endpoint_url=f"https://ec2.{region_name}.amazonaws.com"
+            )
+        elif region_name in denied:
             client.describe_instances.side_effect = ClientError(
                 {"Error": {"Code": code}}, "DescribeInstances"
             )
