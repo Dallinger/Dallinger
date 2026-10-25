@@ -62,8 +62,7 @@ tested and why. You don't need to list test names or pass counts.
 <!--
 One or two sentences: the reviewer models, the number of rounds, whether
 `/branch-review` ran, and the last reviewed commit. Say what any later
-commits change. If no review ran, say whether it was declined or not yet
-prompted.
+commits change. If no review ran, say why.
 -->
 
 <!--
