@@ -71,7 +71,11 @@ Flag:
 
 ## 6) Report format
 
-Present findings first, ordered by severity.
+Present findings first, ordered by severity. Tag each finding, missing test
+and refactoring item high, medium or low: high for correctness, data-loss or
+security problems; medium for likely bugs, misleading behavior or docs, and
+missing tests for changed behavior; low for wording, style and optional
+refactors.
 
 Use this structure:
 
@@ -86,6 +90,7 @@ Keep summaries brief and make the primary feedback actionable.
 
 Always update the open pull request title and description to match the committed
 branch diff. Do this even if the current title or description looks close.
+When repeating reviews (section 8), do this after the last one.
 
 - Find the PR: `gh pr view --json number,title,url,body`
 - Title: a concise, accurate summary of the committed change
@@ -98,23 +103,26 @@ branch diff. Do this even if the current title or description looks close.
 
 ## 8) Repeating until the review converges
 
-For a feature PR, run this review repeatedly rather than once:
+This section is for the agent finalizing a feature PR, not for a single
+review. A single review is steps 1-7 and doesn't edit code. Release PRs
+are excluded (see `AGENTS.md`).
 
-- Run each review in a fresh context, without editing code. A different
-  model family from the one that wrote the code tends to catch different
-  things. Step 7 can wait for the last review.
-- Fix high and medium findings, and lows that are clearly worth it (wrong
-  docs or messages, cheap test gaps, small local fixes). Lows that need a
-  design decision go under Known limitations.
-- Run another review while reviews find high or medium issues. Later reviews
-  can focus on what changed since the last one. Lows alone don't need
-  another review.
+- Run each review in a fresh context. A different model family from the one
+  that wrote the code tends to catch different things. The first review
+  covers the whole diff; later ones can focus on what changed since, while
+  watching for regressions elsewhere.
+- Between reviews, fix high and medium findings, and lows that are clearly
+  worth it (wrong docs or messages, cheap test gaps, small local fixes).
+  Lows that need a design decision go in the PR description as known
+  limitations.
+- The review has converged when a review finds no high or medium issues.
+  Lows alone don't need another review.
 - If a finding calls for new functionality, don't add it silently or leave it
   as a limitation. Propose it to the user as a follow-up PR or as part of
   this one, and let them decide.
-- If findings keep arriving after several reviews, or undo earlier fixes, the
-  PR may be too big or its design unsettled. Suggest splitting it, or ask
-  the user.
+- If reviews keep finding new high or medium issues after four or five
+  rounds, or undo earlier fixes, the PR may be too big or its design
+  unsettled. Stop and suggest splitting it, or ask the user.
 - Reviews read the diff; they don't replace using the change the way a user
   would. Do that early, not only after the reviews converge.
 
