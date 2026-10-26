@@ -60,9 +60,7 @@ class Reject(Exception):
 
     A refused message still counts as processed. It's saved with ``reason``,
     unless :meth:`RealtimeGame.save_message` leaves it out, and the sender's
-    page gets the message's number and ``reason`` with its next view. The
-    runner can't undo changes ``apply`` made before raising, so check
-    everything before changing the state.
+    page gets the message's number and ``reason`` with its next view.
 
     :param reason: why the message was refused, as a JSON value
     """
@@ -224,6 +222,8 @@ class RealtimeGame(ABC):
         that has passed runs ``tick`` at once, unless ``tick`` has already
         run at or after it. So this can keep returning a deadline ``tick``
         has handled, and it doesn't run again.
+
+        Don't modify ``state`` here — read it only.
         """
         return None
 
@@ -235,17 +235,23 @@ class RealtimeGame(ABC):
         it, so leave out anything they shouldn't know, such as other players'
         cards. A game with nothing to hide can return ``state``. A smaller
         view is also quicker to send.
+
+        Don't modify ``state`` here — return a new value derived from it.
         """
 
     def is_over(self, state):
         """Return whether the game has finished. Checked after every change
         to the state.
+
+        Don't modify ``state`` here — read it only.
         """
         return False
 
     def outcome(self, state, reason):
         """Return the session's result, saved in Postgres when the session
         ends.
+
+        Don't modify ``state`` here — return a new value derived from it.
 
         :param reason: why the session ended:
             :data:`~dallinger.realtime.game.FINISHED`,
@@ -276,7 +282,8 @@ class RealtimeGame(ABC):
         ``False`` to leave it out. Any other value fails the session.
 
         Called after :meth:`apply` accepts or rejects each message, a bot's
-        included, with the state ``apply`` left. Leaving out messages a game
+        included. On acceptance, ``state`` is the state after ``apply`` ran;
+        on rejection, it is the state before ``apply`` ran. Leaving out messages a game
         gets many of, like moves into a wall, keeps the record small. Leaving
         out accepted messages means the record can't replay the game between
         checkpoints. An accepted message's effects are saved whatever this

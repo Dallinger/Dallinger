@@ -91,7 +91,8 @@ methods as the game goes on:
   message a player's page sends, as soon as it arrives. It changes the state in
   place, or refuses the message by raising
   :class:`~dallinger.realtime.Reject` with a reason. Changes made before
-  ``Reject`` is raised are kept, so ``apply`` should check everything first, as
+  ``Reject`` is raised are rolled back, so the state is always consistent after
+  a rejection. It is clearest to check everything before changing the state, as
   ``SealedBid`` does. It is also passed ``now``, the session time the message
   arrived, and ``sent``, a :class:`~dallinger.realtime.Sent` with what the
   page said about the message, such as when the browser sent it. Most games
@@ -199,10 +200,11 @@ the state as session times.
 
 A game can use Python's ``random`` module, for example to shuffle a deck or roll
 a die. It can draw in the methods that change the state, ``apply``, ``tick``,
-``on_join`` and ``on_leave``, and use what it drew in the state. ``view`` and
-the other methods should only read what's there: Dallinger can call them several
-times for the same state, so a number drawn in ``view`` could come out
-differently each time.
+``on_join`` and ``on_leave``, and use what it drew in the state. ``view``,
+``outcome``, ``is_over`` and ``next_deadline`` should only read the state, not
+modify it: Dallinger can call them several times for the same state, so a number
+drawn in ``view`` could come out differently each time, and an accidental
+mutation in any of them would corrupt the session silently.
 
 A game whose sessions should replay exactly, for example to test it, keeps a
 seed in its state and makes each draw from the seed and a count of the draws so

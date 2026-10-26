@@ -520,7 +520,11 @@ class _Pass:
         return min(times, default=None)
 
     def tick(self):
-        self.record_effects(self.effects_of("tick", self.state, self.time))
+        candidate = copy_json(self.state, self.state_name)
+        effects = self.effects_of("tick", candidate, self.time)
+        self.state = candidate
+        self.session["state"] = self.state
+        self.record_effects(effects)
         self.ticked = True
         self.session["last_tick"] = self.time
         next_tick = self.session["next_tick"]
@@ -557,9 +561,10 @@ class _Pass:
         )
         rejection = None
         effects = []
+        candidate = copy_json(self.state, self.state_name)
         try:
             effects = self.effects_of(
-                "apply", self.state, participant, payload, self.time, sent
+                "apply", candidate, participant, payload, self.time, sent
             )
         except Reject as raised:
             rejection = raised
@@ -567,6 +572,9 @@ class _Pass:
             record["reason"] = copy_json(
                 raised.reason, "{}.apply's Reject reason".format(self.name)
             )
+        else:
+            self.state = candidate
+            self.session["state"] = self.state
         keep = self.call(
             "save_message", self.state, participant, record["payload"], rejection
         )
@@ -616,16 +624,20 @@ class _Pass:
 
     def join(self, participant, scope, socket):
         if self.open_page(participant, scope, socket):
-            self.record_effects(
-                self.effects_of("on_join", self.state, participant, self.time)
-            )
+            candidate = copy_json(self.state, self.state_name)
+            effects = self.effects_of("on_join", candidate, participant, self.time)
+            self.state = candidate
+            self.session["state"] = self.state
+            self.record_effects(effects)
             self.check_over()
 
     def leave(self, participant, scope, socket):
         if self.close_page(participant, scope, socket):
-            self.record_effects(
-                self.effects_of("on_leave", self.state, participant, self.time)
-            )
+            candidate = copy_json(self.state, self.state_name)
+            effects = self.effects_of("on_leave", candidate, participant, self.time)
+            self.state = candidate
+            self.session["state"] = self.state
+            self.record_effects(effects)
             self.check_over()
 
     def open_page(self, participant, scope, socket):
