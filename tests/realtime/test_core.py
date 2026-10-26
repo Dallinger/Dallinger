@@ -3,7 +3,7 @@ import random
 
 import pytest
 
-from dallinger.realtime import RealtimeGame, Sent, core
+from dallinger.realtime import RealtimeGame, Reject, Sent, core
 from dallinger.realtime.core import new_session, parse_message, run_pass
 from dallinger.realtime.game import FAILED, FINISHED, MAX_DURATION, NOT_JOINED
 from tests.realtime.helpers import (
@@ -317,6 +317,20 @@ class TestAcknowledgements:
         assert views_by_page(third)["1", "page"]["last_processed"] == 3
         assert log(third)[-1] == ["1", "b", 3]
         assert third.records[0]["number"] is None
+
+    def test_a_rejection_leaves_the_state_unchanged(self):
+        class MutateBeforeReject(TurnTally):
+            def apply(self, state, player_id, message, now, sent):
+                state["log"].append([player_id, message, now])
+                if message == "bad":
+                    raise Reject({"code": message})
+
+        game = MutateBeforeReject()
+        before = started(game)
+
+        result = play(game, before, [message(1, "1", "bad")], 1)
+
+        assert log(result) == log(play(game, before, [], 1))
 
     def test_a_rejection_goes_out_with_the_next_view_only(self):
         game = Tally()
