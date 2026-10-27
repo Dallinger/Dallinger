@@ -297,7 +297,8 @@ EOF
 ```
 
 Use [`.github/PULL_REQUEST_TEMPLATE.md`](../../../.github/PULL_REQUEST_TEMPLATE.md).
-Do **not** prompt for `/branch-review` on a release PR. Run the
+Do **not** run or prompt `/branch-review` or `/branch-review-loop` on a
+release PR. Run the
 [Release PR checks](#release-pr-checks) instead.
 
 ### Release PR checks
