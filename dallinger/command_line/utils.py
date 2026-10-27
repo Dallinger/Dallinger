@@ -14,7 +14,12 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from dallinger.config import get_config, initialize_experiment_package
+from dallinger.config import (
+    Configuration,
+    default_keys,
+    get_config,
+    initialize_experiment_package,
+)
 from dallinger.constraints import _get_requested_python_version
 from dallinger.deployment_plan import DeploymentPlanError, DeploymentPolicyError
 from dallinger.utils import ExperimentFileSource
@@ -129,8 +134,12 @@ def get_server_pem_path() -> Path:
     """
     config = get_config()
     if not config.ready:
-        # Outside an experiment, ~/.dallingerconfig may hold keys that only an
-        # extension such as PsyNet registers.
+        # ~/.dallingerconfig may hold keys that only an extension such as
+        # PsyNet registers. A separate config keeps the shared one unloaded,
+        # so the caller's own strict load still runs later.
+        config = Configuration()
+        for registration in default_keys:
+            config.register(*registration)
         config.load(strict=False)
     path_string: str = str(config.get("server_pem", "") or "")
     if not path_string:

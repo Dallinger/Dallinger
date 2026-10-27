@@ -1500,7 +1500,7 @@ def _check_server_setup(
         what = (
             "the server's log viewer"
             if hostname.lower() == f"logs.{host}".lower()
-            else "served by the server's Caddyfile"
+            else "already a site in the server's Caddyfile"
         )
         print(
             f"{RED}{hostname} is {what} on {server}, so an app can't use it.{END}\n"
