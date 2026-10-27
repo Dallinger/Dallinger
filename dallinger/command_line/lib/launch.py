@@ -254,7 +254,7 @@ def check_internal_health(executor, target):
         if status and status < 500:
             break
     if status and 200 <= status < 300:
-        print("The app answers /health inside the server.")
+        print("The experiment server is up.")
         return
     if status == 404:
         _stop_before_launch(
