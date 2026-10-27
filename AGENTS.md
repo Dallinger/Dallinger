@@ -87,7 +87,7 @@ tox
 ```
 
 Automated tests aren't enough on their own. Before finalizing a change,
-dogfood it: use it the way a user would (run the command, deploy a demo, open
+dogfood it: use it the way a user would (run the command, run a demo locally, open
 the page) and check the result. Prefer local runs such as `dallinger debug`,
 and ask before anything that costs money, recruits real participants, or
 leaves resources running. Record who did this, what was run and what was

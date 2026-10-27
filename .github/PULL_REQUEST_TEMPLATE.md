@@ -49,7 +49,7 @@ or architecture. Put fixes for bugs found along the way in their own bullets.
 <!--
 What was run and what it showed: new or changed tests, and CI on the head
 commit. Then dogfood: someone (human or agent) used the change the way a user
-would, e.g. ran the command, deployed a demo or opened the page, and checked
+would, e.g. ran the command, ran a demo locally or opened the page, and checked
 the result. Prefer local runs such as `dallinger debug`, and ask before
 anything that costs money, recruits real participants, or leaves resources
 running. Say who did it, what they ran and what they saw. Passing automated
