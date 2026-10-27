@@ -469,8 +469,12 @@ def _config_contact_email(experiment=False):
     count, not an experiment's config.txt or the package default (``???``).
     With ``experiment``, as in a deploy, every source counts.
     """
+    config = get_config()
+    if not config.ready:
+        # ~/.dallingerconfig may hold keys that only an experiment package registers.
+        config.load(strict=False)
     found = []
-    for layer in get_config(load=True)._layers_by_priority():
+    for layer in config._layers_by_priority():
         if "contact_email_on_error" in layer and (
             experiment or layer.source in _USER_CONFIG_SOURCES
         ):
@@ -630,13 +634,17 @@ def _server_state(executor):
     """Read the server's shared Caddyfile, compose file and running services.
 
     Returns a dict with the ``Caddyfile`` and ``docker-compose.yml``
-    contents, the running shared ``services``, and a ``root.d`` key if
-    ``~/dallinger/root.d`` exists. Uses one SSH command.
+    contents, the running shared ``services``, a ``root.d`` key if
+    ``~/dallinger/root.d`` exists, and a ``caddy.d/<app>`` key with the site
+    lines of each app's Caddy file. Uses one SSH command.
     """
     output = executor.run(
         'for f in Caddyfile docker-compose.yml; do echo "#== $f"; '
         "cat ~/dallinger/$f 2>/dev/null; echo; done; "
-        "[ ! -d ~/dallinger/root.d ] || echo '#== root.d'; echo '#== services'; "
+        "[ ! -d ~/dallinger/root.d ] || echo '#== root.d'; "
+        'for f in ~/dallinger/caddy.d/*; do [ -f "$f" ] && '
+        'echo "#== caddy.d/${f##*/}" && '
+        "grep -E '^[^#[:space:]{(@][^{#]*[{]' \"$f\"; done; echo '#== services'; "
         f"{SERVER_COMPOSE} ps --services --status running 2>/dev/null; true",
         raise_=False,
     )
@@ -1382,19 +1390,23 @@ def _classic_preflight(server, app_name, archive_path, dns_host, allow_private_i
         split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
     )
     _check_server_setup(
-        _build_executor(server_info), server, server_info, hostname, dns_host
+        _build_executor(server_info), server, server_info, hostname, dns_host, app_name
     )
     return hostname
 
 
-def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
+def _check_server_setup(
+    executor, server, server_info, hostname, dns_host=None, app=None
+):
     """Abort unless the server's shared services can serve a classic app.
 
     A deploy only adds the app's own Caddy file and reloads Caddy, so the
     server must have been set up by ``servers add``, ``servers upgrade`` or
     ``dallinger ec2 provision``.
     A set-up server whose shared files an older Dallinger has since rewritten
-    is refused with advice to upgrade it again.
+    is refused with advice to upgrade it again. So is a deploy to a hostname
+    that another app's Caddy file already serves, since Caddy refuses a
+    config with the same site twice.
 
     Parameters
     ----------
@@ -1409,6 +1421,8 @@ def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
         server's ``root.d`` import.
     dns_host : str, optional
         The deploy's ``--dns-host``, the server's host if none is saved.
+    app : str, optional
+        The deploy's ``--app``, whose own Caddy file may serve ``hostname``.
     """
     host = _server_host(server_info, dns_host)
     parts = _server_state(executor)
@@ -1452,6 +1466,30 @@ def _check_server_setup(executor, server, server_info, hostname, dns_host=None):
             f"{RED}{server} is not set up for this classic-ingress deploy: "
             f"{'; '.join(problems)}.{END}\n"
             f"Deploys don't change the server's shared files or services. {advice}"
+        )
+        raise click.Abort()
+    owners = [
+        key.split("/", 1)[1]
+        for key, lines in parts.items()
+        if key.startswith("caddy.d/")
+        and key != f"caddy.d/{app}"
+        and any(
+            name.lower() == hostname.lower()
+            for line in lines.splitlines()
+            for name in _site_names(line)
+        )
+    ]
+    if owners:
+        destroy_cmds = "\n".join(
+            f"  dallinger docker-ssh destroy --app {owner} --server {server}"
+            for owner in owners
+        )
+        print(
+            f"{RED}{hostname} is already served by {', '.join(owners)} on {server}, "
+            f"and Caddy cannot serve one site for two apps.{END}\n"
+            "To replace it, destroy it first, then deploy again:\n"
+            f"{destroy_cmds}\n"
+            "To keep it, deploy with another --dns-host or --app."
         )
         raise click.Abort()
 

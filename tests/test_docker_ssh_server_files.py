@@ -385,6 +385,23 @@ def test_server_check_accepts_a_site_with_several_addresses(server):
         docker_ssh._classic_preflight("lab", "myapp", None, None, False)
 
 
+def test_deploy_refuses_a_hostname_another_app_serves(server, capsys):
+    (server / "dallinger/caddy.d/exp").write_text(
+        "https://Exp.example.org:443, www.exp.example.org {\n"
+        "    tls lab@example.org\n    reverse_proxy exp_web:5000\n}"
+    )
+    with mock.patch.object(docker_ssh, "_ipv4_addresses", return_value=["1.2.3.4"]):
+        with pytest.raises(click.Abort):
+            docker_ssh._classic_preflight("lab", None, None, "exp.example.org", False)
+        output = capsys.readouterr().out
+        assert "exp.example.org is already served by exp" in output
+        assert "dallinger docker-ssh destroy --app exp --server lab.example.org" in (
+            output
+        )
+        # The app that serves it can be redeployed there.
+        docker_ssh._classic_preflight("lab", "exp", None, "example.org", False)
+
+
 def test_destroy_leaves_an_old_root_domain_caddyfile_alone(server, capsys):
     (server / "dallinger/Caddyfile").write_text(LEGACY_ROOT_CADDYFILE)
     (server / "dallinger/old").mkdir()
@@ -429,6 +446,32 @@ def test_servers_add_accepts_a_set_up_ip_server_without_a_dns_host(server, monke
 
     assert result.exit_code == 0, result.output
     assert "left unchanged" in result.output
+
+
+def test_servers_add_ignores_config_keys_dallinger_does_not_register(
+    server, monkeypatch
+):
+    (server / ".dallingerconfig").write_text(
+        "[Parameters]\nlucid_api_key = secret\ncontact_email_on_error = me@example.org\n"
+    )
+    monkeypatch.setenv("HOME", str(server))
+    monkeypatch.delenv("contact_email_on_error", raising=False)
+    monkeypatch.chdir(server)
+    monkeypatch.setattr("dallinger.config.config", None)
+    saved = {key: value for key, value in SERVER.items() if key != "contact_email"}
+    monkeypatch.setattr(
+        docker_ssh, "get_configured_hosts", lambda: {"lab.example.org": saved}
+    )
+    with (
+        mock.patch.object(docker_ssh, "prepare_server"),
+        mock.patch.object(docker_ssh, "store_host"),
+    ):
+        result = CliRunner().invoke(
+            docker_ssh.servers, ["add", "--host", "lab.example.org"]
+        )
+
+    assert result.exit_code == 0, result.output
+    assert "me@example.org (from ~/.dallingerconfig)" in result.output
 
 
 def test_a_root_route_occupies_the_app_name(server):
