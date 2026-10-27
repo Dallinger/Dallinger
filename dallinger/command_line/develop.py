@@ -115,7 +115,7 @@ def debug(port, skip_flask, no_browsers=False):
     if not skip_flask:
         try:
             develop_dir = develop_target_path(get_config())
-            env = {**os.environ, "FLASK_RUN_PORT": str(port)}
+            env = {**os.environ, "FLASK_RUN_PORT": str(port), "base_port": str(port)}
             _run_dev_server(["./run.sh"], develop_dir, env=env)
         finally:
             _cancel_pending_job(job)
