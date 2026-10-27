@@ -35,6 +35,11 @@ Check for:
 - regressions
 - breaking API behavior
 - hidden side effects such as I/O, DB, network, or CLI changes
+- neighbouring cases: for each behavior the change adds or fixes, list the
+  similar inputs, callers and paths, and check that each is handled. For
+  example: other reserved names, other credential or config sources, other
+  entry points such as `ctx.invoke` callers and PsyNet's wrappers, and other
+  modes such as ingress types
 
 ## 3) Validate test coverage
 

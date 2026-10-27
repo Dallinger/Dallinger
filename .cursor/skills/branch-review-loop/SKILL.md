@@ -1,6 +1,6 @@
 ---
 name: branch-review-loop
-description: Repeat the branch-review skill on your own feature branch, fixing findings between reviews, until a review finds no high or medium issues. Use before finalizing a feature pull request, or when asked to review your own branch until no high or medium issues remain. Not for release PRs.
+description: Repeat the branch-review skill on your own feature branch, rotating reviewer model families and fixing findings between reviews, until two reviews in a row find no high or medium issues. Use before finalizing a feature pull request, or when asked to review your own branch until no high or medium issues remain. Not for release PRs.
 ---
 
 # Branch review loop
@@ -16,16 +16,21 @@ quickly, not for a reviewer that finds nothing.
 ## The loop
 
 - Run each review in a fresh context that doesn't edit code, following
-  `branch-review` steps 1-6 and skipping step 7. A different model family
-  from the one that wrote the code tends to catch different things.
+  `branch-review` steps 1-6 and skipping step 7.
+- Change the reviewer's model family every review, using the latest strong
+  model of each available family, and never the model that wrote the code.
+  One reviewer settles into what it knows to look for; another family
+  catches different things. Avoid the most expensive models unless the user
+  asks for them.
 - The first review covers the whole diff. Later ones can focus on what
   changed since, while watching for regressions elsewhere.
 - Between reviews, fix high and medium findings, and lows that are clearly
   worth it (wrong docs or messages, cheap test gaps, small local fixes).
   Note lows that need a design decision for the final PR description, as
   known limitations.
-- The loop has converged when a review finds no high or medium issues.
-  Lows alone don't need another review.
+- The loop has converged when two reviews in a row, from different model
+  families, find no high or medium issues. Lows alone don't need another
+  review.
 - Reviews read the diff; they don't replace using the change the way a user
   would. Do that early, not only after the reviews converge. Prefer local
   runs such as `dallinger debug`, and ask before anything that costs money,
