@@ -3156,7 +3156,7 @@ def _remove_experiment_data(executor, app, items):
             command = f"docker volume rm {quote(name)}"
         status, _, stderr = executor.run_with_status(command)
         if status == 0:
-            print(f"Deleted {label}")
+            print(f"Deleted {label}.")
         else:
             removed = False
             timeout = SHARED_PSQL_TIMEOUT if kind in ("database", "user") else None
@@ -3184,7 +3184,7 @@ def _remove_app_data(executor, app):
     )
     result = (stdout or "").strip()
     if result == "removed dir":
-        print(f"Deleted the folder {path}")
+        print(f"Deleted the folder {path}.")
     elif result.startswith("removed symlink"):
         target = result[len("removed symlink") :].strip()
         print(f"Deleted the symlink {path}; its target {target} was kept.")
@@ -3282,7 +3282,7 @@ def destroy(
         print(f"Nothing left to delete for {app} on {ssh_host}.")
         return
     if not deployed:
-        print(f"App {app} is not deployed")
+        print(f"App {app} is not deployed.")
         if not data:
             print(f"No experiment data of {app} is left on {ssh_host}.")
             raise click.Abort()

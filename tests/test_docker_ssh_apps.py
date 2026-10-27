@@ -1155,7 +1155,9 @@ def test_destroy_remove_data_deletes_classic_database_redis_and_folder(monkeypat
     assert volume == "docker volume rm myapp_redis_data"
     ps = "docker ps -q --filter label=com.docker.compose.project=myapp"
     assert commands.index(down) < commands.index(ps) < commands.index(drop_db)
-    assert "Deleted the database myapp (12 MB)" in result.output
+    assert "Deleted the database myapp (12 MB) in the shared Postgres.\n" in (
+        result.output
+    )
 
 
 def test_destroy_asks_and_reports_kept_data(monkeypatch):
@@ -1543,7 +1545,7 @@ def test_remove_app_data_falls_back_to_a_root_container(tmp_path, capsys):
     assert f"-v {data}:/data alpine:3.20 rm -rf /data/demo" in (
         (tmp_path / "docker-args").read_text()
     )
-    assert "Deleted the folder ~/dallinger-data/demo" in capsys.readouterr().out
+    assert "Deleted the folder ~/dallinger-data/demo.\n" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
