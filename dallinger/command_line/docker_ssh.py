@@ -202,6 +202,9 @@ def docker_ssh(ctx):
 @docker_ssh.group()
 def servers():
     """Manage remote servers where experiments can be deployed"""
+    # Like the ec2 group: ~/.dallingerconfig may hold keys that only an
+    # extension such as PsyNet registers, which a strict load rejects.
+    get_config().load(strict=False)
 
 
 @servers.command(name="list")

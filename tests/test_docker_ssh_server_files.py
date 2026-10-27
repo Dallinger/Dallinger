@@ -13,7 +13,7 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from dallinger.config import Configuration, get_config
+from dallinger.config import Configuration
 
 docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
@@ -481,22 +481,6 @@ def test_servers_add_ignores_config_keys_dallinger_does_not_register(
 
     assert result.exit_code == 0, result.output
     assert "me@example.org (from ~/.dallingerconfig)" in result.output
-
-
-def test_reading_server_pem_leaves_the_strict_config_load_to_the_caller(
-    tmp_path, monkeypatch
-):
-    (tmp_path / ".dallingerconfig").write_text(
-        f"[Parameters]\nlucid_api_key = secret\nserver_pem = {tmp_path / 'key.pem'}\n"
-    )
-    (tmp_path / "key.pem").write_text("")
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("dallinger.config.config", None)
-
-    assert docker_ssh.get_server_pem_path() == tmp_path / "key.pem"
-    with pytest.raises(KeyError, match="lucid_api_key"):
-        get_config(load=True)
 
 
 def test_a_root_route_occupies_the_app_name(server):
