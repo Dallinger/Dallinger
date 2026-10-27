@@ -363,13 +363,14 @@ LEGACY_ROOT_CADDYFILE = """lab.example.org {
     "old_host, route, content",
     [
         ("lab.example.org", "root.d/old", "reverse_proxy old_web:5000\n"),
+        ("LAB.example.org", "root.d/old", "reverse_proxy old_web:5000\n"),
         (
             "1.2.3.4.nip.io",
             "caddy.d/old",
             "1.2.3.4.nip.io {\n    tls lab@example.org\n    reverse_proxy old_web:5000\n}",
         ),
     ],
-    ids=["server-host", "other-dns-host"],
+    ids=["server-host", "server-host-other-case", "other-dns-host"],
 )
 def test_upgrade_keeps_an_old_root_domain_app_at_its_address(
     server, old_host, route, content

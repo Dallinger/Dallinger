@@ -414,7 +414,9 @@ def _old_root_routes(executor, caddyfile, host, tls):
         names for names in map(_site_names, (caddyfile or "").splitlines()) if names
     ]
     old_names = sites[0] if sites else [host]
-    old_host = host if host in old_names else old_names[0]
+    old_host = next(
+        (name for name in old_names if name.lower() == host.lower()), old_names[0]
+    )
     routes = {}
     for app in re.findall(
         r"handle \{\s*reverse_proxy ([A-Za-z0-9._-]+)_web:5000", caddyfile or ""
@@ -424,7 +426,7 @@ def _old_root_routes(executor, caddyfile, host, tls):
         ):
             continue
         route = f"reverse_proxy {app}_web:5000"
-        if old_host == host:
+        if old_host.lower() == host.lower():
             routes[f"dallinger/root.d/{app}"] = f"{route}\n"
         else:
             routes[f"dallinger/caddy.d/{app}"] = (
@@ -2113,7 +2115,8 @@ def _manual_removal_commands(name):
     project of a live app (``myapp~`` becomes ``myapp``).
     """
     return [
-        f"rm -rf ~/dallinger/{quote(name)} ~/dallinger/caddy.d/{quote(name)}",
+        f"rm -rf ~/dallinger/{quote(name)} ~/dallinger/caddy.d/{quote(name)} "
+        f"~/dallinger/root.d/{quote(name)}",
         f"{SERVER_COMPOSE} exec -T httpserver caddy reload --config /etc/caddy/Caddyfile",
     ]
 

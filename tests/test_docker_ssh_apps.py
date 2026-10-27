@@ -1280,7 +1280,10 @@ def test_root_domain_teardown_destroys_nothing_if_an_app_name_is_invalid(
     message = error.value.message
     assert "Can't destroy 'good~' automatically" in message
     assert "nothing was destroyed" in message
-    assert "rm -rf ~/dallinger/'good~' ~/dallinger/caddy.d/'good~'" in message
+    assert (
+        "rm -rf ~/dallinger/'good~' ~/dallinger/caddy.d/'good~' "
+        "~/dallinger/root.d/'good~'" in message
+    )
     assert "'good'" not in message and " down" not in message
 
 
