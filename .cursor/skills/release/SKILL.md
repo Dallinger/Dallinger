@@ -296,7 +296,7 @@ None.
 
 ## Automatic code review
 
-Skipped `/branch-review-loop`. Release PRs are version/CHANGELOG/constraints
+Skipped `/branch-review` and `/branch-review-loop`. Release PRs are version/CHANGELOG/constraints
 bookkeeping; the behavior changes already landed on `master`. See
 [Release PR checks](#release-pr-checks).
 EOF
