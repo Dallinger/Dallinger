@@ -22,8 +22,8 @@ review quickly, not for a reviewer that finds nothing.
   changes; the PR's **LLM use** section says which did. One reviewer
   settles into what it knows to look for; another family catches different
   things. Use the latest strong model in each family, but not the most
-  expensive tier unless the user asks. If fewer than two families are left,
-  ask the user.
+  expensive tier unless the user asks. Alternating between two eligible
+  families is enough; if there aren't two, ask the user.
 - The first review covers the whole diff. Later ones can focus on the new
   commits, but only reviews of the whole diff count towards convergence.
 - Between reviews, fix high and medium findings, and lows that are clearly
@@ -44,11 +44,11 @@ review quickly, not for a reviewer that finds nothing.
 - If a finding calls for new functionality, don't add it silently or leave
   it as a limitation. Propose it to the user as a follow-up PR or as part of
   this one, and let them decide.
-- If a review undoes an earlier fix, or the fifth review still finds new
-  high or medium issues, the PR may be too big or its design unsettled.
-  Stop and suggest splitting it, or ask the user. If the fifth review is
-  the first clean one, still run its confirming review; if that finds new
-  high or medium issues, stop.
+- If acting on a finding would undo an earlier fix, or the fifth review
+  (of the whole diff) still finds high or medium issues, the PR may be too
+  big or its design unsettled. Stop and suggest splitting it, or ask the
+  user. If the fifth review is the first clean one, still run its
+  confirming review; if that finds high or medium issues, stop.
 
 ## Finishing
 
