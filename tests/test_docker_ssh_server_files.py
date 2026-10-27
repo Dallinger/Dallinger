@@ -212,16 +212,28 @@ def test_servers_upgrade_saves_a_given_contact_email(server, monkeypatch):
     assert "tls new@example.org" in (server / "dallinger/Caddyfile").read_text()
 
 
+def test_a_dns_host_in_another_case_is_the_servers_host():
+    hostname = docker_ssh._classic_hostname(SERVER, None, None, "Lab.example.org")
+    assert hostname == "lab.example.org"
+
+
 @pytest.mark.parametrize(
     "app_name, hostname, route_dir, update",
     [
         ("myapp", "myapp.1.2.3.4.nip.io", "caddy.d", False),
         (None, "1.2.3.4.nip.io", "caddy.d", False),
         (None, "lab.example.org", "root.d", False),
+        (None, "Lab.example.org", "root.d", False),
         # The preflight gives an updated root.d app the server's own host.
         ("myapp", "lab.example.org", "root.d", True),
     ],
-    ids=["subdomain", "own-host", "server-root", "update-server-root"],
+    ids=[
+        "subdomain",
+        "own-host",
+        "server-root",
+        "server-root-other-case",
+        "update-server-root",
+    ],
 )
 def test_classic_deploy_only_writes_its_own_caddy_route(
     server, app_name, hostname, route_dir, update, capsys
@@ -271,7 +283,7 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
     assert preflight.call_args.kwargs["update"] is update
     # Only a new app that takes the server's own host replaces its other apps.
     assert mocks["ensure_root_domain_ready"].called == (
-        hostname == "lab.example.org" and not app_name
+        hostname.lower() == "lab.example.org" and not app_name
     )
     # A failed new deploy removes the image it built; an update keeps it.
     assert built_image.call_args.kwargs["remove_for_app"] == (

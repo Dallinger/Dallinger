@@ -1421,10 +1421,13 @@ def _classic_hostname(server_info, app_name, archive_path, dns_host):
     """Return the public hostname of a classic-ingress app.
 
     ``dns_host`` (``--dns-host``) only names the app's own site. The server's
-    sites keep the host saved with the server.
+    sites keep the host saved with the server, in its saved spelling even if
+    ``dns_host`` differs from it only in case.
     """
     ssh_host = split_ssh_host_port(server_info["host"])[0]
-    dns_host = dns_host or _server_host(server_info, deploy=True)
+    server_host = _server_host(server_info, dns_host, deploy=True)
+    if not dns_host or _same_host(dns_host, server_host):
+        dns_host = server_host
     if dns_host == "nip.io":
         dns_host = get_dns_host(ssh_host)
         print(f"""{RED}Using {dns_host} as hostname. This might cause problems:{END}
