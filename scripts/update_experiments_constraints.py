@@ -25,6 +25,12 @@ ansi2html==1.9.2
 
 The original format was neater, but the advantage of the latter is that it is consistent
 with what the user will get if they run `dallinger constraints generate` themselves.
+
+The compile calls ``generate_constraints(upgrade=True)``. Packages pinned by
+Dallinger's dev requirements stay at those pins. Every other package in the
+experiment lock, including dependencies named only in the experiment's
+requirements such as NLTK, moves to the newest version that requirements file
+allows.
 """
 # This was originally a shell script, but for better cross-platform support
 # we've now ported it to Python.
@@ -37,13 +43,13 @@ import subprocess
 from pathlib import Path
 
 import dallinger
+from dallinger.constraints import generate_constraints, working_directory
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEMOS_DIR = REPO_ROOT / "demos" / "dlgr" / "demos"
 # The test experiment's constraints.txt is a committed fixture; regenerate it
 # alongside the demos so it does not drift from the released dependency pins.
 TEST_EXPERIMENT_DIR = REPO_ROOT / "tests" / "experiment"
-CONSTRAINTS_SCRIPT = REPO_ROOT / "dallinger" / "constraints.py"
 
 
 def write_python_version_file(demo_dir):
@@ -83,6 +89,15 @@ def replace_in_file(path, pattern, repl):
     path.write_text(new_text)
 
 
+def refresh_experiment_constraints(demo_dir):
+    """Recompile one experiment's constraints, including its extra dependencies.
+
+    ``upgrade=True`` refreshes packages that are not part of Dallinger's own lock.
+    """
+    with working_directory(demo_dir):
+        generate_constraints(upgrade=True)
+
+
 def main():
     os.chdir(REPO_ROOT)
     current_branch = get_current_branch()
@@ -115,9 +130,7 @@ def main():
             )
             requirements_txt.write_text(new_req_text)
         # 2. Run constraints generator (using current branch for GitHub reference)
-        subprocess.run(
-            ["uv", "run", str(CONSTRAINTS_SCRIPT), "generate"], cwd=demo_dir, check=True
-        )
+        refresh_experiment_constraints(demo_dir)
         # 3. Remove extras from constraints.txt
         con_text = constraints_txt.read_text()
         # Remove extras: [something== to ==
