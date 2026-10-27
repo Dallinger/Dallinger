@@ -188,7 +188,8 @@ To update an app on the server's own host in place, run the deploy with
 ``--app`` names an app already deployed on the server's own host is
 refused, because ``--app`` would move it to a subdomain. A new ``--app``
 name starting with ``dlgr-`` deploys to a subdomain like any other name;
-leave out ``--app`` to deploy a new app to the server's own host.
+leave out ``--app`` and ``--dns-host`` to deploy a new app to the server's own
+host.
 
 The app's database password lives in ``~/dallinger/<app>/.env`` (mode
 ``0600``), which Compose reads, so ``docker-compose.yml`` no longer holds it.

@@ -1412,6 +1412,11 @@ def _check_classic_ingress_reachable(server, ingress=None):
         raise click.ClickException(advice)
 
 
+def _same_host(a, b):
+    """Return whether two hostnames name the same site; DNS ignores case."""
+    return a.lower() == b.lower()
+
+
 def _classic_hostname(server_info, app_name, archive_path, dns_host):
     """Return the public hostname of a classic-ingress app.
 
@@ -1513,7 +1518,7 @@ def _check_server_setup(
             problems.append(f"its Caddyfile does not serve {host}")
         if "import caddy.d/*" not in caddyfile:
             problems.append("its Caddyfile does not import caddy.d")
-        if hostname == host and not (
+        if _same_host(hostname, host) and not (
             "import root.d/*" in caddyfile and "/etc/caddy/root.d" in compose
         ):
             problems.append(f"it cannot route {host} to an app")
@@ -2432,7 +2437,7 @@ def _deploy_in_mode(
         )
         if _root_domain_preflight_required(
             server, app_name, archive_path, ingress
-        ) and experiment_hostname == _server_host(server_info, dns_host):
+        ) and _same_host(experiment_hostname, _server_host(server_info, dns_host)):
             ensure_root_domain_ready(server=server, update=update)
 
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
@@ -2476,7 +2481,9 @@ def _deploy_in_mode(
 
         app_identifier = app_name or experiment_id
         executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
-        takes_server_root = experiment_hostname == _server_host(server_info, dns_host)
+        takes_server_root = _same_host(
+            experiment_hostname, _server_host(server_info, dns_host)
+        )
         if not update:
             print("Removing any pre-existing Redis volumes.")
             remove_redis_volumes(app_identifier, executor)

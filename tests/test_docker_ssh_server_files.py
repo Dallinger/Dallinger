@@ -293,25 +293,26 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
 
 
 @pytest.mark.parametrize(
-    "app_name, remove, problem",
+    "app_name, dns_host, remove, problem",
     [
-        ("myapp", None, None),
-        ("myapp", "docker-compose.yml", "has no ~/dallinger/docker-compose.yml"),
-        (None, None, "cannot route lab.example.org to an app"),
+        ("myapp", None, None, None),
+        ("myapp", None, "docker-compose.yml", "has no ~/dallinger/docker-compose.yml"),
+        (None, None, None, "cannot route lab.example.org to an app"),
+        (None, "Lab.example.org", None, "cannot route lab.example.org to an app"),
     ],
-    ids=["set-up", "not-set-up", "root-on-old-layout"],
+    ids=["set-up", "not-set-up", "root-on-old-layout", "root-in-another-case"],
 )
 def test_classic_deploy_checks_the_server_setup_before_building(
-    server, app_name, remove, problem, capsys
+    server, app_name, dns_host, remove, problem, capsys
 ):
     if remove:
         (server / "dallinger" / remove).unlink()
     with mock.patch.object(docker_ssh, "_ipv4_addresses", return_value=["1.2.3.4"]):
         if problem is None:
-            docker_ssh._classic_preflight("lab", app_name, None, None, False)
+            docker_ssh._classic_preflight("lab", app_name, None, dns_host, False)
             return
         with pytest.raises(click.Abort):
-            docker_ssh._classic_preflight("lab", app_name, None, None, False)
+            docker_ssh._classic_preflight("lab", app_name, None, dns_host, False)
     output = capsys.readouterr().out
     assert problem in output
     assert "dallinger docker-ssh servers upgrade --host lab.example.org" in output
