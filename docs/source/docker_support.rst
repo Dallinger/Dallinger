@@ -269,7 +269,10 @@ A classic deploy without ``--app`` to the server's own DNS host takes over the
 server's root domain, so the other classic apps on the server must be
 destroyed first. In a terminal the deploy offers to destroy them; without one
 it stops with an error that lists the
-``dallinger docker-ssh destroy … --keep-data`` commands to run. Any other
+``dallinger docker-ssh destroy … --keep-data`` commands to run. An
+``--update`` of an app on the server's root domain needs ``--app``, but is
+checked and served at the server's own host, so ``<app>.<host>`` need not
+resolve. Any other
 classic deploy to a hostname that another app
 already serves, for example a second deploy without ``--app`` under the same
 ``--dns-host``, stops before the image build and names that app, since Caddy

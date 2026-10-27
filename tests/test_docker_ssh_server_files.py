@@ -220,8 +220,16 @@ def test_servers_upgrade_saves_a_given_contact_email(server, monkeypatch):
         (None, None, "lab.example.org", "root.d", False),
         (None, "LAB.example.org", "LAB.example.org", "root.d", False),
         ("myapp", None, "lab.example.org", "root.d", True),
+        ("myapp", None, "myapp.lab.example.org", "caddy.d", True),
     ],
-    ids=["subdomain", "own-host", "server-root", "server-root-case", "update-root"],
+    ids=[
+        "subdomain",
+        "own-host",
+        "server-root",
+        "server-root-case",
+        "update-root",
+        "update-subdomain",
+    ],
 )
 def test_classic_deploy_only_writes_its_own_caddy_route(
     server, app_name, dns_host, hostname, route_dir, update, capsys
@@ -232,7 +240,7 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
     if update:
         (server / "dallinger/myapp").mkdir()
         (server / "dallinger/myapp/docker-compose.yml").write_text("services: {}\n")
-        (server / "dallinger/root.d/myapp").write_text("old route\n")
+        (server / "dallinger" / route_dir / "myapp").write_text("old route\n")
     before = checksums(server)
     config = Configuration()
     config._reset(register_defaults=True)
@@ -317,6 +325,12 @@ def test_classic_deploy_checks_the_server_setup_before_building(
     assert "dallinger docker-ssh servers upgrade --host lab.example.org" in output
     assert "another DNS name" not in output
     assert "older Dallinger" not in output
+
+
+def test_classic_update_stops_if_the_server_cannot_say_where_the_app_is(server):
+    (server / "dallinger/root.d").write_text("")  # not a searchable directory
+    with pytest.raises(click.ClickException, match="route in ~/dallinger/root.d"):
+        docker_ssh._classic_preflight("lab", "myapp", None, None, False, update=True)
 
 
 def test_server_check_suggests_saving_the_dns_host_the_server_serves(server, capsys):

@@ -409,7 +409,8 @@
   `dozzle-users.yml`) or restart its shared Caddy, Postgres and Dozzle, which
   briefly took every other app on a shared server offline. A deploy now only
   adds its own Caddy route and reloads Caddy. A root-domain app's route goes
-  in `~/dallinger/root.d/<app>`. `servers add` sets up the shared services on
+  in `~/dallinger/root.d/<app>`; an `--update` of such an app is checked and
+  served at the server's host, so `<app>.<host>` need not resolve. `servers add` sets up the shared services on
   a server without `~/dallinger/docker-compose.yml`; for that, it needs a
   contact email and, for a server registered by IP address, a `--dns-host`.
   `dallinger ec2 provision` does the same on the new instance (saving

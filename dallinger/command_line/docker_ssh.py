@@ -1467,18 +1467,42 @@ def _classic_preflight(
     """
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     server_info = CONFIGURED_HOSTS[server]
-    executor = _build_executor(server_info)
-    if update and executor.run(
-        f"test -f ~/dallinger/root.d/{quote(app_name)} && echo yes", raise_=False
-    ):
+    executor = _build_executor(server_info) if update else None
+    if update and _has_root_route(executor, app_name):
         hostname = _server_host(server_info, dns_host, deploy=True)
     else:
         hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
     _check_experiment_hostname_dns(
         split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
     )
-    _check_server_setup(executor, server, server_info, hostname, dns_host, app_name)
+    _check_server_setup(
+        executor or _build_executor(server_info),
+        server,
+        server_info,
+        hostname,
+        dns_host,
+        app_name,
+    )
     return hostname
+
+
+def _has_root_route(executor, app):
+    """Return whether ``app`` has a route in the server's ``~/dallinger/root.d``.
+
+    Aborts if the server can't tell, rather than moving the app to a subdomain.
+    """
+    status, _, stderr = executor.run_with_status(
+        f"f=~/dallinger/root.d/{quote(app)}; "
+        'if [ -f "$f" ]; then exit 0; '
+        "elif [ -x ~/dallinger/root.d ] || [ ! -e ~/dallinger/root.d ]; then exit 1; "
+        "else exit 2; fi"
+    )
+    if status not in (0, 1):
+        raise click.ClickException(
+            f"Could not check whether {app} has a route in ~/dallinger/root.d "
+            f"(exit status {status}). {stderr.strip()}".strip()
+        )
+    return status == 0
 
 
 def _check_server_setup(
@@ -1519,7 +1543,11 @@ def _check_server_setup(
     caddyfile = parts.get("Caddyfile", "")
     compose = parts.get("docker-compose.yml", "")
     problems = []
-    serves_host = any(host in _site_names(line) for line in caddyfile.splitlines())
+    serves_host = any(
+        name.lower() == host.lower()
+        for line in caddyfile.splitlines()
+        for name in _site_names(line)
+    )
     if not compose.strip():
         problems.append("it has no ~/dallinger/docker-compose.yml")
     else:
