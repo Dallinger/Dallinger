@@ -1405,8 +1405,9 @@ def _check_server_setup(
     ``dallinger ec2 provision``.
     A set-up server whose shared files an older Dallinger has since rewritten
     is refused with advice to upgrade it again. So is a deploy to a hostname
-    that another app's Caddy file already serves, since Caddy refuses a
-    config with the same site twice.
+    that another app's Caddy file or the server's Caddyfile (such as the log
+    viewer at ``logs.<host>``) already serves, since Caddy refuses a config
+    with the same site twice.
 
     Parameters
     ----------
@@ -1490,6 +1491,20 @@ def _check_server_setup(
             "To replace it, destroy it first, then deploy again:\n"
             f"{destroy_cmds}\n"
             "To keep it, deploy with another --dns-host or --app."
+        )
+        raise click.Abort()
+    server_sites = {
+        name.lower() for line in caddyfile.splitlines() for name in _site_names(line)
+    } - {host.lower()}
+    if hostname.lower() in server_sites:
+        what = (
+            "the server's log viewer"
+            if hostname.lower() == f"logs.{host}".lower()
+            else "served by the server's Caddyfile"
+        )
+        print(
+            f"{RED}{hostname} is {what} on {server}, so an app can't use it.{END}\n"
+            "Deploy with another --dns-host or --app."
         )
         raise click.Abort()
 

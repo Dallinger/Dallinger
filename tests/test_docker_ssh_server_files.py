@@ -400,6 +400,11 @@ def test_deploy_refuses_a_hostname_another_app_serves(server, capsys):
         )
         # The app that serves it can be redeployed there.
         docker_ssh._classic_preflight("lab", "exp", None, "example.org", False)
+        with pytest.raises(click.Abort):
+            docker_ssh._classic_preflight("lab", "logs", None, None, False)
+        assert (
+            "logs.lab.example.org is the server's log viewer" in capsys.readouterr().out
+        )
 
 
 def test_destroy_leaves_an_old_root_domain_caddyfile_alone(server, capsys):

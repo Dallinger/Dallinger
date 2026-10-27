@@ -272,7 +272,8 @@ it stops with an error that lists the ``dallinger docker-ssh destroy``
 commands to run. Any other classic deploy to a hostname that another app
 already serves, for example a second deploy without ``--app`` under the same
 ``--dns-host``, stops before the image build and names that app, since Caddy
-cannot serve one site for two apps.
+cannot serve one site for two apps. The same goes for the server's log viewer
+at ``logs.<host>``, so an app called ``logs`` needs another ``--dns-host``.
 
 Classic ingress needs a server that the internet can reach, because Let's
 Encrypt must reach it to issue TLS certificates. If the SSH host resolves only
