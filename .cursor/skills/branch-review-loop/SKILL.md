@@ -1,6 +1,6 @@
 ---
 name: branch-review-loop
-description: Repeat the branch-review skill on your own feature branch, fixing findings between reviews, until a review finds no high or medium issues. Use before finalizing a feature pull request, or when asked to review a branch until no high or medium issues remain. Not for release PRs.
+description: Repeat the branch-review skill on your own feature branch, fixing findings between reviews, until a review finds no high or medium issues. Use before finalizing a feature pull request, or when asked to review your own branch until no high or medium issues remain. Not for release PRs.
 ---
 
 # Branch review loop

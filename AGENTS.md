@@ -60,8 +60,8 @@ ask the user to run it. These specific command names avoid ambiguity with
 generic Cursor-provided review commands.
 
 Address actionable findings before finalizing the pull request, and record
-the reviews in the pull request description. If no review was run, say so
-there.
+the reviews in the pull request description. If no review was run, say
+why.
 
 Do **not** run or prompt `/branch-review` or `/branch-review-loop` for a
 `/release` PR. Those diffs are version, CHANGELOG, and demo-constraint
