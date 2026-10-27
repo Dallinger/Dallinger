@@ -213,17 +213,18 @@ def test_servers_upgrade_saves_a_given_contact_email(server, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "app_name, hostname, route_dir, update",
+    "app_name, dns_host, hostname, route_dir, update",
     [
-        ("myapp", "myapp.1.2.3.4.nip.io", "caddy.d", False),
-        (None, "1.2.3.4.nip.io", "caddy.d", False),
-        (None, "lab.example.org", "root.d", False),
-        ("myapp", "myapp.1.2.3.4.nip.io", "root.d", True),
+        ("myapp", "1.2.3.4.nip.io", "myapp.1.2.3.4.nip.io", "caddy.d", False),
+        (None, "1.2.3.4.nip.io", "1.2.3.4.nip.io", "caddy.d", False),
+        (None, None, "lab.example.org", "root.d", False),
+        (None, "LAB.example.org", "LAB.example.org", "root.d", False),
+        ("myapp", None, "lab.example.org", "root.d", True),
     ],
-    ids=["subdomain", "own-host", "server-root", "update-server-root"],
+    ids=["subdomain", "own-host", "server-root", "server-root-case", "update-root"],
 )
 def test_classic_deploy_only_writes_its_own_caddy_route(
-    server, app_name, hostname, route_dir, update, capsys
+    server, app_name, dns_host, hostname, route_dir, update, capsys
 ):
     if route_dir == "root.d":
         CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
@@ -248,7 +249,10 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
         get_server_pem_path=mock.Mock(return_value="key.pem"),
         get_experiment_files=mock.DEFAULT,
         _check_classic_ingress_reachable=mock.DEFAULT,
-        _classic_preflight=mock.Mock(return_value=hostname),
+        # Only the app's hostname and the SSH host resolve.
+        _ipv4_addresses=lambda name: (
+            ["1.2.3.4"] if name in {hostname, SERVER["host"]} else []
+        ),
         ensure_root_domain_ready=mock.DEFAULT,
         _built_image=built_image,
     ) as mocks:
@@ -256,7 +260,7 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
             app_name=app_name,
             archive_path=None,
             config_options=(),
-            dns_host="1.2.3.4.nip.io",
+            dns_host=dns_host,
             mode="live",
             server="lab",
             update=update,
@@ -266,7 +270,9 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
 
     assert checksums(server) == before
     # Only an app that takes the server's own host replaces its other apps.
-    assert mocks["ensure_root_domain_ready"].called == (hostname == "lab.example.org")
+    assert mocks["ensure_root_domain_ready"].called == (
+        route_dir == "root.d" and not update
+    )
     # A failed new deploy removes the image it built; an update keeps it.
     assert built_image.call_args.kwargs["remove_for_app"] == (
         None if update else result["app"]

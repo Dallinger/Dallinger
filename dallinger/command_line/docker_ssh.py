@@ -1456,21 +1456,28 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
     return dns_host
 
 
-def _classic_preflight(server, app_name, archive_path, dns_host, allow_private_ip):
-    """Check TLS email, DNS and the server's shared services for a classic deploy.
+def _classic_preflight(
+    server, app_name, archive_path, dns_host, allow_private_ip, update=False
+):
+    """Check DNS and the server's shared services for a classic deploy.
 
-    Runs before the image build. Returns the app's public hostname.
+    Runs before the image build. Returns the app's public hostname. An
+    ``update`` of an app deployed on the server's root keeps the root,
+    although ``--update`` needs ``--app``.
     """
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     server_info = CONFIGURED_HOSTS[server]
-    _server_tls(server_info, experiment=True)
-    hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
+    executor = _build_executor(server_info)
+    if update and executor.run(
+        f"test -f ~/dallinger/root.d/{quote(app_name)} && echo yes", raise_=False
+    ):
+        hostname = _server_host(server_info, dns_host, deploy=True)
+    else:
+        hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
     _check_experiment_hostname_dns(
         split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
     )
-    _check_server_setup(
-        _build_executor(server_info), server, server_info, hostname, dns_host, app_name
-    )
+    _check_server_setup(executor, server, server_info, hostname, dns_host, app_name)
     return hostname
 
 
@@ -1520,7 +1527,7 @@ def _check_server_setup(
             problems.append(f"its Caddyfile does not serve {host}")
         if "import caddy.d/*" not in caddyfile:
             problems.append("its Caddyfile does not import caddy.d")
-        if hostname == host and not (
+        if hostname.lower() == host.lower() and not (
             "import root.d/*" in caddyfile and "/etc/caddy/root.d" in compose
         ):
             problems.append(f"it cannot route {host} to an app")
@@ -2763,11 +2770,14 @@ def _deploy_in_mode(
         cloudflare_settings = None
         tls = _server_tls(server_info, experiment=True)
         experiment_hostname = _classic_preflight(
-            server, app_name, archive_path, dns_host, allow_private_ip
+            server, app_name, archive_path, dns_host, allow_private_ip, update
         )
-        takes_root_domain = _root_domain_preflight_required(
+        takes_server_root = (
+            experiment_hostname.lower() == _server_host(server_info, dns_host).lower()
+        )
+        takes_root_domain = takes_server_root and _root_domain_preflight_required(
             server, app_name, archive_path, ingress
-        ) and experiment_hostname == _server_host(server_info, dns_host)
+        )
 
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
     _check_compose_project_free(slot_executor, experiment_id, update)
@@ -2816,14 +2826,6 @@ def _deploy_in_mode(
 
         app_identifier = app_name or experiment_id
         executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
-        takes_server_root = experiment_hostname == _server_host(server_info, dns_host)
-        if update and executor.run(
-            f"test -f ~/dallinger/root.d/{quote(app_identifier)} && echo yes",
-            raise_=False,
-        ):
-            # --update needs --app, but this app was deployed on the server's root.
-            experiment_hostname = _server_host(server_info, dns_host)
-            takes_server_root = True
         if not update:
             logging.getLogger(__name__).debug(
                 "Removing any pre-existing Redis volumes."
