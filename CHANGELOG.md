@@ -263,6 +263,27 @@
   too; if only ``num_dynos_worker`` is set, they still use it, with a
   ``FutureWarning`` asking for ``worker_processes``.
 
+### Fixed
+
+- Fixed a race condition in `POST /participant` where two concurrent signup
+  requests could both be recorded as `"working"` when only one should be
+  (write-skew at the occupancy count). Also fixed the related issue where a
+  routine participant status update (e.g. `"submitted"`) could block a new
+  signup due to a table-wide `LOCK TABLE ... EXCLUSIVE MODE` conflict. The
+  fix replaces both the table lock and `@db.serialized` on this route with a
+  PostgreSQL transaction-level advisory lock (`pg_advisory_xact_lock`) that
+  serializes signup decisions without interfering with unrelated participant
+  writes. A 5-second `lock_timeout` prevents a wedged holder from blocking
+  all signups indefinitely. The `lock_table_when_creating_participant`
+  configuration option is now ignored; the advisory lock is always used.
+  `psycogreen` is now a dependency: gunicorn web workers and RQ gevent workers
+  apply `psycogreen.patch_psycopg2()` so that psycopg2 socket waits yield to
+  the gevent event loop rather than blocking the OS thread. As a consequence,
+  experiment code must not call `dallinger.data.export()` or `ingest_zip()`
+  from inside a web handler or RQ job, as psycogreen's async mode does not
+  support `COPY`. The `dallinger export` CLI command is unaffected (it runs
+  in a separate process where psycogreen is never applied).
+
 ### Changed
 
 - `dallinger docker-ssh destroy` no longer deletes a Cloudflare-ingress app's
