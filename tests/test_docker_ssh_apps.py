@@ -20,15 +20,19 @@ docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
 
 @pytest.mark.parametrize(
     "ssh_g_user, advised",
-    [("pmch2@cam.ac.uk", False), ("peter", True), (None, True)],
+    [("pmch2@cam.ac.uk", False), ("peter", True), (None, True), ("", True)],
 )
 def test_docker_host_uri_omits_at_sign_usernames(
     monkeypatch, capsys, ssh_g_user, advised
 ):
     def fake_run(cmd, **kwargs):
+        # OpenSSH's `ssh -G` reports the user it would log in as.
         assert cmd[:2] == ["ssh", "-G"] and cmd[-1] == "rr-pc01.example"
+        assert kwargs["stdin"] is subprocess.DEVNULL
         if ssh_g_user is None:
             raise FileNotFoundError("ssh")
+        if not ssh_g_user:
+            return subprocess.CompletedProcess(cmd, 255, "")
         return subprocess.CompletedProcess(cmd, 0, f"port 22\nuser {ssh_g_user}\n")
 
     monkeypatch.setattr(docker_ssh_module.subprocess, "run", fake_run)
@@ -282,7 +286,9 @@ def test_classic_deploy_without_contact_email_prints_an_error_line(monkeypatch):
         )
 
 
-def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch):
+def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(
+    monkeypatch, capsys
+):
     class Executor:
         def __init__(self, *args, **kwargs):
             pass
@@ -328,6 +334,7 @@ def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch)
             update=False,
         )
     assert deleted == ["new"]
+    assert capsys.readouterr().out.startswith("Setting up the Cloudflare tunnel...\n")
 
 
 def _cloudflare_destroy(monkeypatch, removed, cloudflare=None):
@@ -790,7 +797,8 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
     app_slot = mock.Mock(side_effect=step("app-slot"))
     monkeypatch.setattr(docker_ssh_module, "ensure_root_domain_ready", root_domain)
     monkeypatch.setattr(docker_ssh_module, "_check_app_slot", app_slot)
-    monkeypatch.setattr(docker_ssh_module, "Executor", mock.Mock())
+    executor = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "Executor", executor)
     monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
 
     with pytest.raises(click.Abort):
@@ -801,6 +809,9 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
                 delete_data_command="wrapper rm {app}",
             )
         )
+
+    # Executors share one SSH connection, which the build reuses.
+    executor.return_value.client.close.assert_not_called()
 
     assert events == [
         "policy",
@@ -905,6 +916,8 @@ def test_docker_ssh_build_assembles_the_validated_source(tmp_path, monkeypatch):
     assert build_image.call_args.kwargs["image_tag"] == (
         "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     )
+    assert setup.call_args.kwargs["quiet"] is True
+    assert build_image.call_args.kwargs["quiet"] is True
 
 
 def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path):
@@ -973,7 +986,7 @@ def test_remove_experiment_image_runs_docker_rmi_without_force(capsys):
     command = executor.run.call_args[0][0]
     assert "docker rmi registry/exp:old-uid" in command
     assert "--force" not in command
-    assert "Kept experiment image registry/exp:old-uid (still in use)" in (
+    assert "Kept experiment image registry/exp:old-uid (still in use).\n" in (
         capsys.readouterr().out
     )
 
@@ -1002,7 +1015,7 @@ def _patch_destroy_executor(monkeypatch, run):
     return executor
 
 
-def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
+def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch, capsys):
     compose_yml = docker_ssh_module.get_docker_compose_yml(
         {},
         "myapp",
@@ -1022,6 +1035,8 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
             return "https://example.com {\n    reverse_proxy other_web:5000\n}\n"
         if cmd.startswith("grep -xF -l"):
             return "/home/ubuntu/dallinger/myapp/docker-compose.yml\n"
+        if "docker rmi" in cmd:
+            return "removed\n"
         return ""
 
     _patch_destroy_executor(monkeypatch, run)
@@ -1036,6 +1051,9 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
     assert "docker rmi registry/exp:old-uid" in rmi_commands[0]
     rmi = rmi_commands[0]
     assert commands.index(down) < commands.index(rmi) < commands.index(rm_tree)
+    out = capsys.readouterr().out
+    assert "Removed experiment image registry/exp:old-uid.\n" in out
+    assert out.endswith("App myapp removed.\n")
     for forbidden in (
         "redis",
         "postgres:12",
@@ -1137,7 +1155,9 @@ def test_destroy_remove_data_deletes_classic_database_redis_and_folder(monkeypat
     assert volume == "docker volume rm myapp_redis_data"
     ps = "docker ps -q --filter label=com.docker.compose.project=myapp"
     assert commands.index(down) < commands.index(ps) < commands.index(drop_db)
-    assert "Deleted the database myapp (12 MB)" in result.output
+    assert "Deleted the database myapp (12 MB) in the shared Postgres.\n" in (
+        result.output
+    )
 
 
 def test_destroy_asks_and_reports_kept_data(monkeypatch):
@@ -1525,7 +1545,7 @@ def test_remove_app_data_falls_back_to_a_root_container(tmp_path, capsys):
     assert f"-v {data}:/data alpine:3.20 rm -rf /data/demo" in (
         (tmp_path / "docker-args").read_text()
     )
-    assert "Deleted the folder ~/dallinger-data/demo" in capsys.readouterr().out
+    assert "Deleted the folder ~/dallinger-data/demo.\n" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
@@ -1835,7 +1855,7 @@ def test_remote_postgres_prefers_pinned_container_name(monkeypatch):
 
     open_channel = executor.client.get_transport.return_value.open_channel
     assert open_channel.call_args.args[:2] == ("direct-tcpip", ("10.0.0.8", 5432))
-    executor.client.close.assert_called_once()
+    executor.client.close.assert_not_called()
     remote.close()
 
 
@@ -1867,7 +1887,7 @@ def test_remote_postgres_does_not_fall_back_when_app_db_is_stopped(monkeypatch):
             {"host": "example.com", "user": "ubuntu"}, "myapp"
         ):
             pass
-    executor.client.close.assert_called_once()
+    executor.client.close.assert_not_called()
 
 
 def test_select_running_app_returns_lone_hibernating_app(monkeypatch):
@@ -2096,7 +2116,7 @@ def test_hibernate_explains_apps_without_a_front_door(monkeypatch, capsys):
     assert not any("exec" in cmd for cmd in executor.commands)
 
 
-def test_awaken_skips_an_app_that_is_already_awake(monkeypatch):
+def test_awaken_skips_an_app_that_is_already_awake(monkeypatch, capsys):
     executor = FakeExecutor({"test -f": "Yes"})
     monkeypatch.setattr(
         docker_ssh_module, "CONFIGURED_HOSTS", {"s": {"host": "example.com"}}
@@ -2104,6 +2124,9 @@ def test_awaken_skips_an_app_that_is_already_awake(monkeypatch):
     monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
     assert docker_ssh_module.awaken_app("s", "demo", required=False) is True
     assert not any("exec" in cmd for cmd in executor.commands)
+    assert capsys.readouterr().out == ""
+    docker_ssh_module.awaken.callback(server="s", app="demo")
+    assert capsys.readouterr().out == "App demo is awake\n"
 
 
 def test_get_apps_reports_hibernation_from_markers():

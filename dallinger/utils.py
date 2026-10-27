@@ -238,9 +238,21 @@ class GitClient:
         return tempdir
 
     def files(self):
+        """Return the tracked and untracked, non-ignored files, or an empty set.
+
+        Outside a Git repository the set is empty and nothing is printed;
+        other git failures are logged as warnings.
+        """
         cmd = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
         try:
-            raw = check_output(cmd).decode(locale.getpreferredencoding())
+            raw = check_output(cmd, stderr=subprocess.PIPE).decode(
+                locale.getpreferredencoding()
+            )
+        except subprocess.CalledProcessError as exc:
+            message = (exc.stderr or b"").decode(errors="replace").strip()
+            if "not a git repository" not in message:
+                logging.getLogger(__name__).warning("git ls-files failed: %s", message)
+            return set()
         except Exception:
             return set()
 
@@ -604,12 +616,14 @@ def setup_experiment(
     exp_config=None,
     local_checks=True,
     experiment_files=None,
+    quiet=False,
 ):
     """Checks the experiment's python dependencies, then prepares a temp directory
     with files merged from the custom experiment and Dallinger.
 
     The resulting directory includes all the files necessary to deploy to
-    Heroku.
+    Heroku. With ``quiet``, the experiment UID and temp directory are logged
+    at debug level instead of passed to ``log``.
 
     Commands that verify before assembly may pass the same
     ``ExperimentFileSource`` to ``verify_package`` and this function to retain
@@ -625,8 +639,14 @@ def setup_experiment(
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
 
+    def detail(message, **kwargs):
+        if quiet:
+            logging.getLogger(__name__).debug(message)
+        else:
+            log(message, **kwargs)
+
     experiment_uid = heroku_app_id = Experiment.make_uuid(app)
-    log("Experiment UID: {}".format(experiment_uid))
+    detail("Experiment UID: {}".format(experiment_uid))
 
     # Load and update the config
     config = get_config(load=True)
@@ -638,7 +658,9 @@ def setup_experiment(
     # this value actually represents (it's not used as _only_ the Heroku app ID).
     if app:
         heroku_app_id = str(app)
-        log("Using custom Heroku ID root: {}".format(heroku_app_id))
+        logging.getLogger(__name__).debug(
+            "Using custom Heroku ID root: %s", heroku_app_id
+        )
 
     config.extend(
         {
@@ -656,7 +678,7 @@ def setup_experiment(
         for_remote=not local_checks,
         experiment_files=source,
     )
-    log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
+    detail("Deployment temp directory: {}".format(temp_dir), chevrons=False)
 
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
@@ -736,21 +758,15 @@ def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files
             if dallinger_path:
                 if source:
                     log(
-                        f"DALLINGER_SOURCE is set, so the Dallinger tree at {source} "
-                        "will be deployed in its current state, ignoring the "
-                        "dallinger version specified in your experiment's "
-                        "requirements.txt file."
+                        f"Using the Dallinger checkout at {source} "
+                        "(DALLINGER_SOURCE) instead of the version pinned in "
+                        "constraints.txt."
                     )
                 else:
                     log(
-                        "Dallinger is installed as an editable package, "
-                        "and so will be copied and deployed in its current state, "
-                        "ignoring the dallinger version specified in your experiment's "
-                        "requirements.txt file!\n"
-                        "If you don't need this you can speed up startup time by setting "
-                        "the environment variable DALLINGER_NO_EGG_BUILD:\n"
-                        "    export DALLINGER_NO_EGG_BUILD=1\n"
-                        "or you can install dallinger without the editable (-e) flag."
+                        f"Using the editable Dallinger checkout at {dallinger_path} "
+                        "instead of the version pinned in constraints.txt (set "
+                        "DALLINGER_NO_EGG_BUILD=1 to use the pin)."
                     )
                 egg_name = build_and_place(dallinger_path, dst)
                 # A custom Dockerfile (e.g. PsyNet's) installs requirements
@@ -1246,11 +1262,22 @@ def exclusion_policy():
 
 
 def build_and_place(source: str, destination: str) -> str:
-    """Build a wheel from ``source`` into ``destination`` and return its name."""
+    """Build a wheel from ``source`` into ``destination`` and return its name.
+
+    The build runs with the current interpreter. Its output is printed to
+    stderr only if the build fails.
+    """
     with tempfile.TemporaryDirectory() as outdir:
-        check_output(
-            ["python", "-m", "build", "--wheel", "--outdir", outdir], cwd=source
+        build = subprocess.run(
+            [sys.executable, "-m", "build", "--wheel", "--outdir", outdir],
+            cwd=source,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
         )
+        if build.returncode:
+            sys.stderr.write(build.stdout)
+            build.check_returncode()
         (wheel,) = Path(outdir).glob("*.whl")
         shutil.copy(wheel, destination)
         return wheel.name
