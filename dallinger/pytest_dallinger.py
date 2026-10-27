@@ -163,7 +163,6 @@ def stub_config():
         "id": "TEST_EXPERIMENT_UID",  # This is a significant value; change with caution.
         "keywords": "kw1, kw2, kw3",
         "lifetime": 1,
-        "lock_table_when_creating_participant": True,
         "logfile": "-",
         "loglevel": 0,
         "loglevel_worker": 2,
