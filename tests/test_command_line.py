@@ -510,7 +510,9 @@ class TestDevelopCommand:
         assert problem in result.output
         assert "Traceback" not in result.output
 
-    def test_debug_no_browsers_logs_launch_details(self, active_config, develop):
+    def test_debug_no_browsers_logs_launch_details(
+        self, active_config, develop, capsys
+    ):
         develop_module = sys.modules["dallinger.command_line.develop"]
         active_config.extend({"dashboard_user": "admin", "dashboard_password": "pw"})
         with mock.patch("dallinger.command_line.develop.Queue") as queue:
@@ -525,19 +527,87 @@ class TestDevelopCommand:
             mock.patch.object(
                 develop_module,
                 "handle_launch_data",
-                return_value={"recruitment_msg": "Recruitment is open"},
+                return_value={
+                    "recruitment_msg": "Initial recruitment list:\nhttp://x/ad?a=1\n"
+                    "Additional details:\nSingle recruitment link: http://x/ad?t=1"
+                },
             ),
             mock.patch.object(develop_module, "open_browser") as open_browser,
-            mock.patch.object(develop_module, "log") as log,
         ):
             job(port=5001)
-        logged = [c.args[0] for c in log.call_args_list]
-        assert logged == [
-            "Recruitment is open",
-            "Experiment dashboard: http://127.0.0.1:5001/dashboard/develop",
-            "Dashboard user: admin password: pw",
+        out = capsys.readouterr().out.splitlines()
+        assert out[:3] == [
+            "",
+            "Ready.",
+            "  Participant link: http://x/ad?t=1",
         ]
+        assert out[3] == (
+            "  Dashboard:        http://127.0.0.1:5001/dashboard/develop "
+            "(user admin, password pw)"
+        )
+        assert out[4].startswith("  Full log:         ")
+        assert out[4].endswith("logs.jsonl")
+        assert out[5:] == ["Press Ctrl+C to stop."]
         open_browser.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "message, rows",
+        [
+            (
+                "Initial recruitment list:\nhttp://x/ad?p=1\n"
+                "Additional details:\nA simulated study.",
+                [
+                    ("Participant link", "http://x/ad?p=1"),
+                    ("Recruitment", "A simulated study."),
+                ],
+            ),
+            (
+                "Additional details:\nOpen the study.",
+                [("Recruitment", "Open the study.")],
+            ),
+            (
+                "Recruitment hasn't started.",
+                [("Recruitment", "Recruitment hasn't started.")],
+            ),
+            (
+                "Additional details:\nSingle recruitment link: http://x/ad?t=1",
+                [("Participant link", "http://x/ad?t=1")],
+            ),
+            (None, []),
+        ],
+    )
+    def test_launch_message_rows_drop_the_headings(self, message, rows):
+        from dallinger.command_line.develop import launch_message_rows
+
+        assert launch_message_rows(message) == rows
+
+    def test_echo_ready_shows_after_rows_below_the_full_log(
+        self, active_config, capsys, tmp_path
+    ):
+        from dallinger.command_line.develop import echo_ready
+
+        active_config.extend({"dallinger_develop_directory": str(tmp_path)})
+        echo_ready([("Link", "http://x")], after=[("Other terminals", "export A=1")])
+        labels = [
+            line.split(":")[0].strip() for line in capsys.readouterr().out.splitlines()
+        ]
+        assert labels == [
+            "",
+            "Ready.",
+            "Link",
+            "Full log",
+            "Other terminals",
+            "Press Ctrl+C to stop.",
+        ]
+
+    def test_debug_verbose_shows_full_server_output(self, develop):
+        with (
+            mock.patch("dallinger.command_line.develop.Queue"),
+            mock.patch("dallinger.command_line.develop._run_dev_server") as server,
+        ):
+            result = CliRunner().invoke(develop, ["debug", "--verbose"])
+        assert result.exit_code == 0, result.output
+        assert server.call_args.kwargs["env"]["DALLINGER_DEV_LOG"] == "full"
 
     def test_debug_surfaces_invalid_policy(self, develop, tmp_path, monkeypatch):
         (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")

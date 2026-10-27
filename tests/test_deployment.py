@@ -2121,12 +2121,34 @@ class TestDebugServer:
         )
 
         browser.assert_called_once_with("some-fake-url")
+        debugger_unpatched.out.log.assert_called_with(
+            "Opening a browser for a new participant: some-fake-url"
+        )
 
-    def test_new_recruit_no_browser(self, no_browser_debugger, browser):
+    def test_new_recruit_no_browser_prints_the_proxied_link(
+        self, active_config, no_browser_debugger, browser
+    ):
+        no_browser_debugger.proxy_port = "2222"
         no_browser_debugger.notify(
-            " {} some-fake-url".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+            " {} some-fake-url:{}".format(
+                recruiters.NEW_RECRUIT_LOG_PREFIX, active_config.get("base_port")
+            )
         )
         browser.assert_not_called()
+        no_browser_debugger.out.log.assert_called_with(
+            "New participant requested: some-fake-url:2222"
+        )
+
+    def test_new_recruit_no_browser_prints_links_from_the_launch_message_too(
+        self, no_browser_debugger
+    ):
+        no_browser_debugger.recruitment_msg = "Initial recruitment list:\nhttp://x/ad"
+        no_browser_debugger.notify(
+            " {} http://x/ad".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+        )
+        no_browser_debugger.out.log.assert_called_with(
+            "New participant requested: http://x/ad"
+        )
 
     def test_new_recruit_opens_browser_on_proxy_port(
         self, active_config, debugger_unpatched, browser
@@ -2247,8 +2269,9 @@ class TestDockerServer:
         )
         p.logfile = sys.stdout
         # --verbose also echoes the server's own "New participant requested: <url>"
-        # line, so match only the debugger's double-colon line to see each URL once.
-        new_recruit = r"{}: (http://\S+)".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+        # line after a prefix, so match only the debugger's line, which starts
+        # the line, to see each URL once.
+        new_recruit = r"(?m)^{} (http://\S+)".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
         try:
             p.expect_exact("Server is running", timeout=180)
             p.expect_exact("Initial recruitment list:", timeout=30)

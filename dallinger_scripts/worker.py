@@ -112,6 +112,7 @@ def main():
     from redis import BlockingConnectionPool, StrictRedis
     from rq import Queue
 
+    from dallinger import dev_logging
     from dallinger.config import get_config, initialize_experiment_package
     from dallinger.heroku.rq_gevent_worker import GeventWorker as Worker
     from dallinger.utils import attach_json_logger
@@ -128,10 +129,11 @@ def main():
         logging.CRITICAL,
     ]
     LOG_LEVEL = LOG_LEVELS[config.get("loglevel_worker")]
-    logging.basicConfig(
-        format="%(asctime)s %(message)s",
-        level=LOG_LEVEL,
-    )
+    if not dev_logging.configure_from_environment(LOG_LEVEL):
+        logging.basicConfig(
+            format="%(asctime)s %(message)s",
+            level=LOG_LEVEL,
+        )
     attach_json_logger(logging.getLogger())
     worker_kwargs, max_connections = worker_options(config)
 
