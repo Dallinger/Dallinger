@@ -7,6 +7,10 @@
 - Cloudflare Tunnel deployments now use cloudflared 2026.10.4, including the
   eMudhra certificate-compromise mitigation. Existing connectors require a
   separate image update and restart.
+- Dependabot now opens pull requests for new cloudflared releases. The
+  docker-ssh Cloudflare Tunnel image is pinned in
+  `dallinger/docker/ssh_templates/Dockerfile.cloudflared`, like the
+  hibernation controller image, instead of in the Compose template.
 - Local debugging (`dallinger debug`, `LoaderDeployment`, and the
   `pytest_dallinger` debug fixtures) now starts the Procfile processes with
   [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,

@@ -1,0 +1,4 @@
+# Image for the Cloudflare Tunnel connector of docker-ssh deployments. Nothing
+# builds this file: docker_ssh.py reads the FROM line, and Dependabot keeps the
+# pinned tag current.
+FROM cloudflare/cloudflared:2026.10.4

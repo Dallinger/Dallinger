@@ -149,26 +149,24 @@ HIBERNATION_CONTROLLER = abspath_from_egg(
 ).read_text()
 
 
-def _read_controller_image(dockerfile: Path | None) -> str:
-    """Return the image named on the ``FROM`` line of ``Dockerfile.controller``."""
+def _read_pinned_image(name: str) -> str:
+    """Return the image named on the ``FROM`` line of ``ssh_templates/<name>``.
+
+    Nothing builds these Dockerfiles. They hold image pins that Dependabot
+    can update, which it cannot do inside the Jinja Compose templates.
+    """
+    path = f"dallinger/docker/ssh_templates/{name}"
+    dockerfile = abspath_from_egg("dallinger", path)
     if dockerfile is None:
-        raise RuntimeError(
-            "Dallinger's docker-ssh controller image file "
-            "(dallinger/docker/ssh_templates/Dockerfile.controller) is missing."
-        )
+        raise RuntimeError(f"Dallinger's docker-ssh image file ({path}) is missing.")
     match = re.search(r"(?m)^FROM\s+(\S+)", dockerfile.read_text())
     if match is None:
-        raise RuntimeError(
-            f"{dockerfile} has no FROM line naming the controller image."
-        )
+        raise RuntimeError(f"{dockerfile} has no FROM line naming an image.")
     return match.group(1)
 
 
-CONTROLLER_IMAGE = _read_controller_image(
-    abspath_from_egg(
-        "dallinger", "dallinger/docker/ssh_templates/Dockerfile.controller"
-    )
-)
+CONTROLLER_IMAGE = _read_pinned_image("Dockerfile.controller")
+CLOUDFLARED_IMAGE = _read_pinned_image("Dockerfile.cloudflared")
 
 
 CADDYFILE_SUBDOMAIN = """
@@ -3063,6 +3061,7 @@ def get_docker_compose_yml(
         idle_enabled=str(idle_enabled).lower(),
         idle_minutes=idle_minutes,
         controller_image=CONTROLLER_IMAGE,
+        cloudflared_image=CLOUDFLARED_IMAGE,
         # Compose's own project-name normalization, which its labels use.
         compose_project=re.sub(r"[^a-z0-9_-]", "", experiment_id.lower()),
         run_as_ssh_user=run_as_ssh_user,
