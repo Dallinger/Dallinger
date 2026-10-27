@@ -2575,7 +2575,7 @@ def remove_unshared_experiment_image(
     if not image_name:
         return
     if image_pinned_by_other_apps(executor, image_name, except_app):
-        print(f"Not removing image {image_name}: another app still pins it in compose")
+        print(f"Kept experiment image {image_name} (another app uses it).")
         return
     remove_experiment_image(executor, image_name)
 
