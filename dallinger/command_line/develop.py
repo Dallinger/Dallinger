@@ -129,7 +129,7 @@ def debug(port, skip_flask, no_browsers=False, verbose=False):
     if not skip_flask:
         try:
             develop_dir = develop_target_path(get_config())
-            env = {**os.environ, "FLASK_RUN_PORT": str(port)}
+            env = {**os.environ, "FLASK_RUN_PORT": str(port), "base_port": str(port)}
             if verbose:
                 env[dev_logging.LOG_MODE_ENV] = "full"
             _run_dev_server(["./run.sh"], develop_dir, env=env)

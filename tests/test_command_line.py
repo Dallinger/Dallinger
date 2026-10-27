@@ -467,6 +467,7 @@ class TestDevelopCommand:
     ):
         active_config.extend({"base_port": 5123})
         monkeypatch.setenv("FLASK_RUN_PORT", "5999")
+        monkeypatch.setenv("base_port", "5998")
         with (
             mock.patch("dallinger.command_line.develop.Queue") as queue,
             mock.patch("dallinger.command_line.develop._run_dev_server") as server,
@@ -478,6 +479,7 @@ class TestDevelopCommand:
             "port": port
         }
         assert server.call_args.kwargs["env"]["FLASK_RUN_PORT"] == str(port)
+        assert server.call_args.kwargs["env"]["base_port"] == str(port)
         assert active_config.get("base_port") == port
 
     def test_browser_defaults_to_base_port(self, active_config, develop):
