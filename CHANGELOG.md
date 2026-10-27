@@ -401,10 +401,15 @@
 ### Fixed
 
 - `dallinger docker-ssh deploy` and `dallinger docker-ssh sandbox` now reject
-  the app name `logs` (in any case) before doing anything, with `"logs" is
-  reserved for the server's log viewer; choose another app name.` On classic
-  ingress the server serves its Dozzle log viewer at `logs.<server host>`, so
-  an app of that name clashed with it.
+  app names the server already uses before doing anything, in any case, with
+  for example `"logs" is reserved for the server's log viewer; choose another
+  app name.` The reserved names are `logs`, which clashed with the Dozzle log
+  viewer at `logs.<server host>`; `caddy.d` and `root.d`, whose app files would
+  have landed in a directory Caddy imports and broken Caddy for every app; and
+  `dallinger`, including names Compose normalises to it such as `Dal.linger`,
+  which shared the Compose project of the server's shared services; with
+  Cloudflare ingress, deploying it recreated the shared Postgres container on
+  an empty volume.
 - A participant who signs up through `POST /participant`, as the page's
   `dallinger.createParticipant()` does, keeps the recruiter named in their
   ad URL. They had been given the configured recruiter, and with

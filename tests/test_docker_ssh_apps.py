@@ -134,8 +134,18 @@ def test_root_domain_conflicts_ignore_cloudflare_apps():
     assert docker_ssh_module._host_caddy_apps(Executor()) == ["classic"]
 
 
-@pytest.mark.parametrize("command", ["deploy", "sandbox"])
-def test_reserved_app_name_is_rejected_up_front(monkeypatch, command):
+@pytest.mark.parametrize(
+    "command, app, owner",
+    [
+        ("deploy", "Logs", "the server's log viewer"),
+        ("sandbox", "Logs", "the server's log viewer"),
+        ("deploy", "caddy.d", "the server's Caddy configuration"),
+        ("deploy", "root.d", "the server's Caddy configuration"),
+        ("deploy", "dallinger", "the server's shared services"),
+        ("deploy", "Dal.linger", "the server's shared services"),
+    ],
+)
+def test_reserved_app_name_is_rejected_up_front(monkeypatch, command, app, owner):
     from click.testing import CliRunner
 
     hosts = {"lab": {"host": "lab.example"}}
@@ -145,14 +155,11 @@ def test_reserved_app_name_is_rejected_up_front(monkeypatch, command):
     monkeypatch.setattr(docker_ssh_module, "get_experiment_files", get_experiment_files)
 
     result = CliRunner().invoke(
-        getattr(docker_ssh_module, command), ["--app", "Logs", "--server", "lab"]
+        getattr(docker_ssh_module, command), ["--app", app, "--server", "lab"]
     )
 
     assert result.exit_code == 2
-    assert (
-        '"Logs" is reserved for the server\'s log viewer; choose another app name.'
-        in result.output
-    )
+    assert f'"{app}" is reserved for {owner}; choose another app name.' in result.output
     get_experiment_files.assert_not_called()
 
 

@@ -228,8 +228,12 @@ tunnel already exists, unless it is the tunnel this server recorded for that app
 connector token from an earlier attempt). Destroy stops the connector, then deletes the DNS record and
 tunnel, but never a same-named tunnel with a different id. If that cleanup fails, destroy leaves the app's files in place so it
 can be run again.
-With either ingress, deploy also refuses the app name ``logs``, because the
-server serves its log viewer at ``logs.<server DNS name>``.
+With either ingress, deploy also refuses app names the server already uses:
+``logs``, because the server serves its log viewer at ``logs.<server DNS name>``;
+``caddy.d`` and ``root.d``, which are Caddy configuration directories beside the
+app directories in ``~/dallinger``; and ``dallinger``, the Compose project name of
+the shared services. The check ignores case, and for ``dallinger`` also covers
+names that Compose normalises to it, such as ``Dal.linger``.
 
 Each app also gets an unprivileged Caddy front door (WebSockets, no Docker
 socket), which host Caddy or the tunnel now reach instead of web, and a

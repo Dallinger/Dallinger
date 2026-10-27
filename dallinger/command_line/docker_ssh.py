@@ -568,14 +568,29 @@ option_allow_private_ip = click.option(
 )
 
 
-# Subdomains of the server host that the server itself serves (see
-# CADDYFILE_SUBDOMAIN), mapped to what serves them.
-RESERVED_APP_NAMES = {"logs": "the server's log viewer"}
+# Names the server already uses, mapped to what uses them: subdomains it
+# serves (see CADDYFILE_SUBDOMAIN), directories beside the app directories in
+# ~/dallinger, and the Compose project of the shared stack (SERVER_COMPOSE),
+# which Compose names after ~/dallinger.
+SERVER_COMPOSE_PROJECT = "dallinger"
+RESERVED_APP_NAMES = {
+    "logs": "the server's log viewer",
+    "caddy.d": "the server's Caddy configuration",
+    "root.d": "the server's Caddy configuration",
+    SERVER_COMPOSE_PROJECT: "the server's shared services",
+}
+
+
+def _compose_project_name(app_name):
+    """Return the Compose project name Compose derives for an app directory."""
+    return re.sub(r"[^a-z0-9_-]", "", app_name.lower())
 
 
 def _check_app_name_not_reserved(app_name):
-    """Reject an app name that would clash with a subdomain the server uses."""
+    """Reject an app name that would clash with a name the server uses."""
     owner = RESERVED_APP_NAMES.get(app_name.lower())
+    if _compose_project_name(app_name) == SERVER_COMPOSE_PROJECT:
+        owner = RESERVED_APP_NAMES[SERVER_COMPOSE_PROJECT]
     if owner:
         raise click.UsageError(
             f'"{app_name}" is reserved for {owner}; choose another app name.'
@@ -3079,8 +3094,7 @@ def get_docker_compose_yml(
         idle_enabled=str(idle_enabled).lower(),
         idle_minutes=idle_minutes,
         controller_image=CONTROLLER_IMAGE,
-        # Compose's own project-name normalization, which its labels use.
-        compose_project=re.sub(r"[^a-z0-9_-]", "", experiment_id.lower()),
+        compose_project=_compose_project_name(experiment_id),
         run_as_ssh_user=run_as_ssh_user,
     )
 
