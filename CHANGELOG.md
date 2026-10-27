@@ -694,12 +694,14 @@
 - Pressing Ctrl+C while a Dallinger server starts no longer prints a flood of
   `ResourceWarning` messages; they stay hidden, as in Python's default
   warning filters.
-- Dallinger commands and servers no longer print other packages'
-  `DeprecationWarning`s (for example Flask-Login's `datetime.utcnow()`
-  warning, or Python's warning about `fork()` in a process with threads when
-  another package forks). Those triggered by code in Dallinger, PsyNet or the
-  experiment are still shown. Python's `-W` option or `PYTHONWARNINGS`
-  overrides this, as for `ResourceWarning`.
+- Dallinger commands, including local debugging, and deployed servers no
+  longer print other packages' `DeprecationWarning`s (for example
+  Flask-Login's `datetime.utcnow()` warning). Those triggered by code in
+  Dallinger, PsyNet or the experiment (including a script run directly and
+  demos installed as `dlgr.*`) are still shown, as is Python 3.12+'s warning
+  that forking a multi-threaded process may deadlock, whichever package
+  forks. Python's `-W` option or `PYTHONWARNINGS` overrides this, as for
+  `ResourceWarning`.
 - `dallinger docker-ssh deploy` and `sandbox`, and
   `ensure_remote_host_in_known_hosts()` (which `psynet deploy ssh` calls
   first), stop with one `Error:` line instead of a traceback when they can't

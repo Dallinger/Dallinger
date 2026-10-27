@@ -161,33 +161,36 @@ def test_setup_warning_hooks_hides_resource_warnings_unless_opted_in(
 
 
 @pytest.mark.parametrize(
-    "warnoptions, expected",
-    [
-        ([], ["dallinger.models", "dallinger_experiment", "psynet.page"]),
-        (
-            ["default"],
-            ["flask_login", "dallinger.models", "dallinger_experiment", "psynet.page"],
-        ),
-    ],
+    "warnoptions, hidden", [([], ["flask_login"]), (["default"], [])]
 )
 def test_setup_warning_hooks_shows_only_our_deprecation_warnings(
-    monkeypatch, warnoptions, expected
+    monkeypatch, warnoptions, hidden
 ):
+    deprecations = [
+        ("flask_login", "old in flask_login"),
+        ("dallinger.models", "old in dallinger.models"),
+        ("dallinger_experiment", "old in dallinger_experiment"),
+        ("psynet.page", "old in psynet.page"),
+        ("__main__", "old in __main__"),
+        ("dlgr.demos.chatroom.experiment", "old in dlgr.demos"),
+        (
+            "multiprocessing.popen_fork",
+            "This process (pid=1) is multi-threaded, use of fork() may lead to "
+            "deadlocks in the child.",
+        ),
+    ]
     monkeypatch.setattr("sys.warnoptions", warnoptions)
     with warnings.catch_warnings():
         utils.setup_warning_hooks()
         with warnings.catch_warnings(record=True) as caught:
-            for module in (
-                "flask_login",
-                "dallinger.models",
-                "dallinger_experiment",
-                "psynet.page",
-            ):
+            for module, message in deprecations:
                 warnings.warn_explicit(
-                    f"old in {module}", DeprecationWarning, "f.py", 1, module=module
+                    message, DeprecationWarning, "f.py", 1, module=module
                 )
 
-    assert [str(w.message) for w in caught] == [f"old in {m}" for m in expected]
+    assert [str(w.message) for w in caught] == [
+        message for module, message in deprecations if module not in hidden
+    ]
 
 
 @pytest.mark.usefixtures("in_tempdir")
