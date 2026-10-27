@@ -38,6 +38,27 @@
     "Starting up the Docker server..." and "Monitoring the Docker server...".
     Update any scripts that wait for the old text.
   - The Procfile processes run with `PYTHONUNBUFFERED=1`.
+- Quieter `dallinger develop debug` (used by `psynet debug local`) output:
+  - When every experiment file check passes, one line such as
+    `Experiment files OK (config.txt, experiment.py; 0 MB).` replaces the
+    four `✓` lines. If a check fails or warns, every check's line is printed
+    as before. `verify_package()` has a new `summary` argument for this.
+  - The development server no longer writes ANSI colour codes into its log
+    lines when its stderr is not a terminal (for example when redirected to a
+    file or pipe), or when `NO_COLOR` is set.
+  - The Dallinger logo and the `Experiment UID: …` line (also printed by
+    `dallinger develop bootstrap`) are no longer printed. The ID is still
+    written to the develop directory's `config.txt` (`id`).
+- Command-line messages printed through `dallinger.command_line.utils.log()`
+  and `error()` (by every Dallinger command, including Heroku and Docker
+  deployments) are now plain lines: the blank line and `❯❯ ` that started
+  each message printed with the default `chevrons=True` are gone. The
+  `chevrons` argument is still accepted but has no effect. Update any
+  scripts that match `❯❯ ` in Dallinger's output.
+- The worker's "Worker will exit if it hasn't registered with RQ within …"
+  start-up notice is now logged at DEBUG instead of WARNING, so it only
+  appears with `loglevel_worker = 0`. The message printed when the worker
+  does exit for this reason is unchanged.
 
 ### Added
 
@@ -529,6 +550,20 @@
   They used Paramiko, which ignores parts of `~/.ssh/config` and could fail
   to log in (`paramiko.ssh_exception.AuthenticationException:
   Authentication failed.`) to a server that `ssh` reaches without problems.
+- `dallinger develop debug` now serves the experiment on the `base_port`
+  setting and waits for that port when it launches the experiment. It used
+  to run Flask on 5000 whatever `base_port` said and wait for 5000. `--port`
+  still overrides it, and now also sets the Flask server's port
+  (`FLASK_RUN_PORT`) and the session's `base_port`, including in the server,
+  worker and clock processes, where an exported `base_port` environment variable
+  used to win. `dallinger develop browser` also defaults to `base_port`.
+- `dallinger develop debug` and `dallinger develop bootstrap` now stop with
+  one `Error:` line naming the `dallinger_develop_directory` setting, its
+  path and the problem when that folder can't be used (a folder name that
+  isn't a Python identifier, or one that can't be created, read or emptied,
+  such as a path that isn't a folder), instead of a traceback. `develop_target_path()` and
+  `bootstrap_development_session()` raise the new `DevelopDirectoryError`,
+  a `ValueError` subclass.
 - `dallinger docker-ssh deploy --update` now removes the app's previous
   experiment image once the new containers are up, unless another app still
   uses it. Previously each update left the old image on the server. Image
