@@ -4,7 +4,9 @@ dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd $dir/..
 set -xe
 
-target_python=3.11
+# uv treats a minor version such as 3.11 as 3.11.0. Compile for the latest
+# patch of the oldest supported line instead, taken from requires-python.
+target_python=$(python scripts/lockfile_python.py)
 export UV_CUSTOM_COMPILE_COMMAND=./scripts/update_dependencies.sh
 uv pip compile --python-version "$target_python" --upgrade constraints.in --output-file constraints.txt
 uv pip compile --python-version "$target_python" --upgrade dev-requirements.in --output-file dev-requirements.txt
