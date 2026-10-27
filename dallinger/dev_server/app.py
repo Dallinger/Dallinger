@@ -35,6 +35,13 @@ dev_logging.setup_dev_server(app)
 if load_error is not None:
     dev_logging.report_load_error(load_error)
 
+# Werkzeug (2.1+) colours its log lines without checking where they go: stderr.
+werkzeug.serving._log_add_style = (
+    getattr(werkzeug.serving, "_log_add_style", True)
+    and sys.stderr.isatty()
+    and "NO_COLOR" not in os.environ
+)
+
 
 @atexit.register
 def _shutdown_logging_before_teardown():

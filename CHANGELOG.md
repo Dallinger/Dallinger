@@ -162,6 +162,29 @@
 
 ### Added
 
+- `dallinger docker-ssh destroy` now makes you choose what happens to the
+  experiment's data: its database (with its Postgres user for classic
+  ingress), its Redis volume and its data folder `~/dallinger-data/<app>`.
+  It lists the data it finds, with sizes where it can measure them, and asks
+  whether to delete it before tearing anything down. `--remove-data` deletes
+  it (after confirmation, or straight away with `--yes`) and `--keep-data`
+  keeps it; in non-interactive sessions destroy keeps the data unless given
+  `--remove-data --yes`, and `--remove-data` without `--yes` is an error.
+  Destroying an app that isn't deployed still exits with an error unless
+  `--remove-data` is given, even when it lists leftover data. Kept data is
+  listed after destroy with the command that deletes it; tools that wrap
+  destroy can name their own command with the hidden `--delete-data-command`
+  option. `--remove-data`
+  also cleans up the data of an app that has already been destroyed, and
+  exits successfully with "Nothing left to delete" when nothing is left. Data
+  that destroy can't check, for example because the shared Postgres doesn't
+  answer within 30 seconds, is listed as such, and `--remove-data` then exits
+  with an error so it can be run again; for a Cloudflare app, which doesn't
+  use the shared Postgres, a failed check there only prints a note. Data is
+  not deleted while the app's containers run, and a symlinked data folder is
+  only unlinked. If `docker compose down` fails, destroy now stops and leaves
+  the app's files in place instead of removing them around running
+  containers.
 - Added `dallinger.command_line.docker_ssh.check_deploy_credentials(server,
   ingress, config_options)`, which runs the docker-ssh deploy's Cloudflare
   API token check on its own and returns the token. Tools that wrap
@@ -348,6 +371,27 @@
 
 ### Changed
 
+- `dallinger docker-ssh destroy` no longer deletes a Cloudflare-ingress app's
+  database and Redis volumes unless you choose to delete the experiment's
+  data. Classic-ingress apps' databases are now dropped when you do. Without
+  a terminal, destroy keeps the data unless given `--remove-data --yes`.
+  When a root-domain deploy destroys the server's
+  other classic apps, it keeps their data, as `--keep-data` does, and prints
+  the command that deletes each app's data later; tools that wrap deploy can
+  name their own command with the hidden `--delete-data-command` option,
+  where `{app}` stands for the app name. If one of those apps has a name
+  that docker-ssh doesn't accept, the deploy now destroys none of them and
+  prints the commands that remove that app by hand, instead of stopping
+  halfway through the teardown.
+- docker-ssh refuses names that Docker Compose turns into the same project
+  name as another app on the server, such as `MyApp` next to `myapp`, because
+  such apps share containers and volumes: `deploy` and `sandbox` stop before
+  building the image or destroying other apps for a root-domain deploy, and
+  `destroy` stops before the teardown while the other app exists, unless it
+  is keeping the data (with `--keep-data`, or by default without a
+  terminal), so it never deletes the other app's data. The
+  messages say that destroying one of two such apps also stops the other
+  one's containers.
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter
   config, ``-c`` values, ``contact_email_on_error``, ``--dns-host`` and DNS,
   Cloudflare settings and API token, and whether the app name is already
@@ -357,6 +401,15 @@
   after these checks. Because ``-c`` values are applied before the build,
   ``-c docker_image_name`` now chooses the image to reuse.
   ([#9846](https://github.com/Dallinger/Dallinger/issues/9846))
+- Dependency lockfiles are compiled for the latest patch of the oldest
+  supported Python, currently 3.11.17. This refresh includes ``soupsieve`` 3.0.3
+  and bumps the ruff pre-commit hook to v0.17.1.
+- The chatroom and chatroom_ws constraints lock NLTK 3.10.3 instead of 3.6.3.
+  Their requirements name ``nltk`` with no version.
+- ``scripts/update_experiments_constraints.py`` now refreshes dependencies that
+  are not pinned by Dallinger's dev requirements, such as NLTK in the chatroom
+  demos, to the newest version their requirements allow. Dallinger's own pins
+  stay in place.
 - docker-ssh ``--server`` options also accept a server's short hostname,
   such as ``rr-pc02`` for ``rr-pc02.example.ac.uk``. A short name shared by
   several configured servers is rejected with a list of the matches, and
@@ -532,6 +585,17 @@
   such as a path that isn't a folder), instead of a traceback. `develop_target_path()` and
   `bootstrap_development_session()` raise the new `DevelopDirectoryError`,
   a `ValueError` subclass.
+- `dallinger docker-ssh deploy --update` now removes the app's previous
+  experiment image once the new containers are up, unless another app still
+  uses it. Previously each update left the old image on the server. Image
+  cleanup now reports when an image is kept because it is still in use.
+- A new classic-ingress deploy of an app whose name has capitals or dots now
+  removes its old Redis volume, which Compose names in lowercase without dots.
+- `dallinger docker-ssh destroy` now rejects app names that aren't valid
+  docker-ssh app names. Previously the name went unquoted into remote shell
+  commands, so `--app '*'` could delete every app's folder on the server.
+- docker-ssh builds no longer advise setting `User` in `~/.ssh/config` for an
+  SSH user containing `@` when `ssh -G` already resolves the host to that user.
 - A participant who signs up through `POST /participant`, as the page's
   `dallinger.createParticipant()` does, keeps the recruiter named in their
   ad URL. They had been given the configured recruiter, and with
@@ -554,11 +618,11 @@
   and, when output was piped, could appear after "Aborted!".
 - A root-domain docker-ssh deploy to a server that still has other
   classic-ingress experiments now fails without a terminal with an `Error:` line
-  that lists those experiments and the `docker-ssh destroy` commands to run
-  first, instead of a bare "Aborted!" from the confirmation prompt. They are
-  never destroyed automatically without a terminal, so a piped answer such as
-  `yes | dallinger docker-ssh deploy` is refused too; in a terminal, the
-  deploy still offers to destroy them.
+  that lists those experiments and the `docker-ssh destroy --keep-data`
+  commands to run first, instead of a bare "Aborted!" from the confirmation
+  prompt. They are never destroyed automatically without a terminal, so a
+  piped answer such as `yes | dallinger docker-ssh deploy` is refused too;
+  in a terminal, the deploy still offers to destroy them.
 - ``dallinger debug`` counts an HTTP error from ``/summary`` as a failed
   status check.
 - ``restore_state_from_replay`` closes its import database connections when
