@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from datetime import datetime
 from unittest import mock
 
@@ -89,6 +90,15 @@ def reset_config():
     import dallinger.config
 
     dallinger.config.config = None
+
+
+@pytest.fixture(autouse=True)
+def reset_shared_ssh_clients():
+    """Keep docker-ssh's shared SSH clients from leaking between tests."""
+    yield
+    docker_ssh = sys.modules.get("dallinger.command_line.docker_ssh")
+    if docker_ssh is not None:
+        docker_ssh._ssh_clients.clear()
 
 
 @pytest.fixture(scope="session", autouse=True)

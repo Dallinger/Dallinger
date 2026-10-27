@@ -1,5 +1,6 @@
 import importlib
 import os
+import shlex
 import socket
 import subprocess
 import sys
@@ -8,6 +9,7 @@ from unittest import mock
 
 import click
 import pytest
+from click.testing import CliRunner
 
 from dallinger.command_line.lib.cloudflare import CloudflareError, TunnelDeletion
 from dallinger.config import Configuration
@@ -16,12 +18,29 @@ from dallinger.docker.tools import docker_tag_from_experiment_id
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
 
 
-def test_docker_host_uri_omits_at_sign_usernames(capsys):
+@pytest.mark.parametrize(
+    "ssh_g_user, advised",
+    [("pmch2@cam.ac.uk", False), ("peter", True), (None, True), ("", True)],
+)
+def test_docker_host_uri_omits_at_sign_usernames(
+    monkeypatch, capsys, ssh_g_user, advised
+):
+    def fake_run(cmd, **kwargs):
+        # OpenSSH's `ssh -G` reports the user it would log in as.
+        assert cmd[:2] == ["ssh", "-G"] and cmd[-1] == "rr-pc01.example"
+        assert kwargs["stdin"] is subprocess.DEVNULL
+        if ssh_g_user is None:
+            raise FileNotFoundError("ssh")
+        if not ssh_g_user:
+            return subprocess.CompletedProcess(cmd, 255, "")
+        return subprocess.CompletedProcess(cmd, 0, f"port 22\nuser {ssh_g_user}\n")
+
+    monkeypatch.setattr(docker_ssh_module.subprocess, "run", fake_run)
     assert (
         docker_ssh_module.docker_host_uri("rr-pc01.example", user="pmch2@cam.ac.uk")
         == "ssh://rr-pc01.example"
     )
-    assert "User pmch2@cam.ac.uk" in capsys.readouterr().out
+    assert ("User pmch2@cam.ac.uk" in capsys.readouterr().out) == advised
     assert (
         docker_ssh_module.docker_host_uri("musix.example", user="pmch2", port=2222)
         == "ssh://pmch2@musix.example:2222"
@@ -58,15 +77,19 @@ class LocalExecutor:
         self.path = f"{bin_dir}:{BASE_PATH}" if bin_dir else BASE_PATH
 
     def run(self, cmd, raise_=True):
+        status, stdout, stderr = self.run_with_status(cmd)
+        if raise_ and status:
+            raise docker_ssh_module.ExecuteException(stderr)
+        return stdout
+
+    def run_with_status(self, cmd):
         result = subprocess.run(
             ["bash", "-c", cmd],
             capture_output=True,
             text=True,
             env={"HOME": str(self.home), "PATH": self.path},
         )
-        if raise_ and result.returncode:
-            raise docker_ssh_module.ExecuteException(result.stderr)
-        return result.stdout
+        return result.returncode, result.stdout, result.stderr
 
 
 def _mock_executor(manifest_lines=""):
@@ -263,7 +286,9 @@ def test_classic_deploy_without_contact_email_prints_an_error_line(monkeypatch):
         )
 
 
-def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch):
+def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(
+    monkeypatch, capsys
+):
     class Executor:
         def __init__(self, *args, **kwargs):
             pass
@@ -309,6 +334,7 @@ def test_cloudflare_deploy_deletes_a_new_tunnel_it_could_not_record(monkeypatch)
             update=False,
         )
     assert deleted == ["new"]
+    assert capsys.readouterr().out.startswith("Setting up the Cloudflare tunnel...\n")
 
 
 def _cloudflare_destroy(monkeypatch, removed, cloudflare=None):
@@ -329,7 +355,8 @@ def _cloudflare_destroy(monkeypatch, removed, cloudflare=None):
             return "myapp\t" + manifest.to_json().replace("\n", "") + "\n"
         for marker, name in (
             ("stop cloudflared", "stop"),
-            ("down -v", "down"),
+            (" down", "down"),
+            ("down -v", "down -v"),
             ("rm -rf", "rm"),
         ):
             if marker in cmd:
@@ -357,7 +384,9 @@ def test_destroy_cloudflare_stops_connector_before_deleting_the_tunnel(
 ):
     removed = TunnelDeletion(True, "dallinger-myapp", "myapp.science-of-music.org")
     order = _cloudflare_destroy(monkeypatch, removed=removed)
-    docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+    docker_ssh_module.destroy.callback(
+        server="test-server", app="myapp", keep_data=True
+    )
     assert order == ["stop", ("delete", "myapp", "acct"), ("own", "tun"), "down", "rm"]
     assert (
         "Deleted Cloudflare tunnel dallinger-myapp and DNS record "
@@ -374,7 +403,9 @@ def test_destroy_uses_the_cloudflare_ids_recorded_at_deploy(monkeypatch):
     order = _cloudflare_destroy(
         monkeypatch, removed=TunnelDeletion(True), cloudflare=recorded
     )
-    docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+    docker_ssh_module.destroy.callback(
+        server="test-server", app="myapp", keep_data=True
+    )
     assert ("delete", "myapp", "deploy-acct") in order
 
 
@@ -382,7 +413,9 @@ def test_destroy_keeps_the_app_when_cloudflare_cleanup_fails(monkeypatch, capsys
     removed = TunnelDeletion(False, hostname="myapp.x.org")
     order = _cloudflare_destroy(monkeypatch, removed=removed)
     with pytest.raises(click.Abort):
-        docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+        docker_ssh_module.destroy.callback(
+            server="test-server", app="myapp", keep_data=True
+        )
     assert order == ["stop", ("delete", "myapp", "acct"), ("own", "tun")]
     out = capsys.readouterr().out
     assert "Deleted DNS record myapp.x.org." in out
@@ -403,7 +436,9 @@ def test_destroy_reports_cloudflare_resources_left(
     monkeypatch, capsys, removed, message
 ):
     _cloudflare_destroy(monkeypatch, removed=removed)
-    docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+    docker_ssh_module.destroy.callback(
+        server="test-server", app="myapp", keep_data=True
+    )
     assert message in capsys.readouterr().out
 
 
@@ -579,7 +614,12 @@ def test_root_domain_auto_destroy_uses_full_server_name(monkeypatch):
     monkeypatch.setattr(docker_ssh_module.destroy, "callback", destroy)
 
     assert docker_ssh_module.ensure_root_domain_ready("pc01", update=False)
-    destroy.assert_called_once_with(server="pc01.lab.example.org", app="old")
+    destroy.assert_called_once_with(
+        server="pc01.lab.example.org",
+        app="old",
+        keep_data=True,
+        delete_data_command=None,
+    )
 
     docker_ssh_module._host_caddy_apps.side_effect = [["old"], ["old"]]
     with pytest.raises(click.ClickException, match="still present: old"):
@@ -604,6 +644,7 @@ def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatc
         docker_ssh_module, "_check_experiment_hostname_dns", mock.Mock()
     )
     monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "Executor", mock.MagicMock())
     monkeypatch.setattr(
         docker_ssh_module, "_host_caddy_apps", lambda executor: ["old", "older"]
     )
@@ -621,8 +662,8 @@ def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatc
     )
     for app in ("old", "older"):
         assert (
-            f"  dallinger docker-ssh destroy --app {app} --server pc01.lab.example.org"
-            in result.output
+            f"  dallinger docker-ssh destroy --app {app} --server "
+            "pc01.lab.example.org --keep-data\n" in result.output + "\n"
         )
     assert "Aborted!" not in result.output
     destroy.assert_not_called()
@@ -747,11 +788,17 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         ("run_pre_launch_checks", "recruiter", None),
         ("_classic_tls_and_dns_host", "tls", ("tls internal", "lab.example.org")),
         ("_check_experiment_hostname_dns", "dns", None),
-        ("ensure_root_domain_ready", "root-domain", True),
-        ("_check_app_slot", "app-slot", None),
     ):
         monkeypatch.setattr(docker_ssh_module, name, step(event, result))
-    monkeypatch.setattr(docker_ssh_module, "Executor", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "_check_compose_project_free", step("compose-project")
+    )
+    root_domain = mock.Mock(side_effect=step("root-domain", True))
+    app_slot = mock.Mock(side_effect=step("app-slot"))
+    monkeypatch.setattr(docker_ssh_module, "ensure_root_domain_ready", root_domain)
+    monkeypatch.setattr(docker_ssh_module, "_check_app_slot", app_slot)
+    executor = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "Executor", executor)
     monkeypatch.setattr(docker_ssh_module, "_build_and_push_image", build)
 
     with pytest.raises(click.Abort):
@@ -759,18 +806,27 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
             **_deploy_kwargs(
                 server="lab",
                 config_options=(("docker_image_name", "registry.example/exp:1"),),
+                delete_data_command="wrapper rm {app}",
             )
         )
+
+    # Executors share one SSH connection, which the build reuses.
+    executor.return_value.client.close.assert_not_called()
 
     assert events == [
         "policy",
         "recruiter",
         "tls",
         "dns",
+        "compose-project",
         "root-domain",
         "app-slot",
         "build",
     ]
+    assert root_domain.call_args.kwargs["new_app"] == app_slot.call_args.args[1]
+    assert root_domain.call_args.kwargs["delete_data_command"] == "wrapper rm {app}"
+    for command in docker_ssh_module.deploy, docker_ssh_module.sandbox:
+        assert "delete_data_command" in {param.name for param in command.params}
 
 
 def test_cloudflare_deploy_without_api_token_stops_before_the_build(monkeypatch):
@@ -860,6 +916,8 @@ def test_docker_ssh_build_assembles_the_validated_source(tmp_path, monkeypatch):
     assert build_image.call_args.kwargs["image_tag"] == (
         "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     )
+    assert setup.call_args.kwargs["quiet"] is True
+    assert build_image.call_args.kwargs["quiet"] is True
 
 
 def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path):
@@ -921,13 +979,16 @@ def test_experiment_image_from_compose_reads_web_not_infra_images():
     }
 
 
-def test_remove_experiment_image_runs_docker_rmi_without_force():
+def test_remove_experiment_image_runs_docker_rmi_without_force(capsys):
     executor = mock.Mock()
+    executor.run.return_value = "kept\n"
     docker_ssh_module.remove_experiment_image(executor, "registry/exp:old-uid")
-    executor.run.assert_called_once_with(
-        "docker rmi registry/exp:old-uid", raise_=False
+    command = executor.run.call_args[0][0]
+    assert "docker rmi registry/exp:old-uid" in command
+    assert "--force" not in command
+    assert "Kept experiment image registry/exp:old-uid (still in use).\n" in (
+        capsys.readouterr().out
     )
-    assert "--force" not in executor.run.call_args[0][0]
 
 
 def test_remove_unshared_skips_rmi_when_another_app_pins_the_image():
@@ -938,12 +999,13 @@ def test_remove_unshared_skips_rmi_when_another_app_pins_the_image():
     )
     commands = [call.args[0] for call in executor.run.call_args_list]
     assert any(cmd.startswith("grep -xF -l") for cmd in commands)
-    assert not any(cmd.startswith("docker rmi") for cmd in commands)
+    assert not any("docker rmi" in cmd for cmd in commands)
 
 
 def _patch_destroy_executor(monkeypatch, run):
     executor = mock.Mock()
     executor.run.side_effect = run
+    executor.run_with_status.side_effect = lambda cmd: (0, run(cmd), "")
     monkeypatch.setattr(
         docker_ssh_module,
         "CONFIGURED_HOSTS",
@@ -953,7 +1015,7 @@ def _patch_destroy_executor(monkeypatch, run):
     return executor
 
 
-def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
+def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch, capsys):
     compose_yml = docker_ssh_module.get_docker_compose_yml(
         {},
         "myapp",
@@ -973,17 +1035,25 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
             return "https://example.com {\n    reverse_proxy other_web:5000\n}\n"
         if cmd.startswith("grep -xF -l"):
             return "/home/ubuntu/dallinger/myapp/docker-compose.yml\n"
+        if "docker rmi" in cmd:
+            return "removed\n"
         return ""
 
     _patch_destroy_executor(monkeypatch, run)
-    docker_ssh_module.destroy.callback(server="test-server", app="myapp")
+    docker_ssh_module.destroy.callback(
+        server="test-server", app="myapp", keep_data=True
+    )
 
     down = "docker compose -f ~/dallinger/myapp/docker-compose.yml down"
-    rmi = "docker rmi registry/exp:old-uid"
     rm_tree = "rm -rf ~/dallinger/myapp/"
+    rmi_commands = [cmd for cmd in commands if "docker rmi" in cmd]
+    assert len(rmi_commands) == 1
+    assert "docker rmi registry/exp:old-uid" in rmi_commands[0]
+    rmi = rmi_commands[0]
     assert commands.index(down) < commands.index(rmi) < commands.index(rm_tree)
-    rmi_commands = [cmd for cmd in commands if cmd.startswith("docker rmi")]
-    assert rmi_commands == [rmi]
+    out = capsys.readouterr().out
+    assert "Removed experiment image registry/exp:old-uid.\n" in out
+    assert out.endswith("App myapp removed.\n")
     for forbidden in (
         "redis",
         "postgres:12",
@@ -992,6 +1062,549 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch):
         "amir20/dozzle",
     ):
         assert not any(forbidden in cmd for cmd in rmi_commands)
+
+
+def _destroy_with_data(monkeypatch, args=(), input=None, **server):
+    commands = _server_with_data(monkeypatch, **server)
+    result = CliRunner().invoke(
+        docker_ssh_module.destroy,
+        ["--app", "myapp", "--server", "test-server", *args],
+        input=input,
+    )
+    return commands, result
+
+
+def _server_with_data(
+    monkeypatch,
+    tty=True,
+    deployed=True,
+    db="12 MB",
+    volumes=("myapp_redis_data",),
+    folder=True,
+    down_status=0,
+    own_db="",
+    tunnel_token=False,
+    server_apps="myapp\n",
+):
+    commands = []
+
+    def run(cmd, raise_=True):
+        commands.append(cmd)
+        if cmd.startswith("ls -1 ~/dallinger/caddy.d"):
+            return server_apps
+        if cmd.startswith("test -f") and "cloudflare-tunnel-token" in cmd:
+            return "Yes" if tunnel_token else ""
+        if cmd.startswith("test -f") and "docker-compose.yml" in cmd:
+            return "Yes" if deployed else ""
+        if cmd.startswith("if [ -L ~/dallinger-data/myapp ]"):
+            return "dir\n" if folder else ""
+        if cmd.startswith("timeout 15 du"):
+            return "3.4G\t/home/u/dallinger-data/myapp\nrc=0\n"
+        return ""
+
+    def run_with_status(cmd):
+        commands.append(cmd)
+        if "pg_database_size(datname)" in cmd:
+            if db is None:
+                return 1, "", "service postgresql is not running\n"
+            if db == "timeout":
+                return 124, "", ""
+            return 0, f"{db}|t\n" if db else "|f\n", ""
+        if "docker exec myapp_postgresql" in cmd:
+            return 0, own_db, ""
+        if cmd.startswith("docker volume ls"):
+            if volumes is None:
+                return 1, "", "Cannot connect to the Docker daemon\n"
+            return 0, "\n".join(volumes), ""
+        if "removed $kind" in cmd:
+            return 0, "removed dir\n", ""
+        if cmd.endswith("docker-compose.yml down"):
+            return down_status, "", "network in use\n"
+        return 0, "", ""
+
+    executor = _patch_destroy_executor(monkeypatch, run)
+    executor.run_with_status.side_effect = run_with_status
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "get_configured_hosts",
+        lambda: docker_ssh_module.CONFIGURED_HOSTS,
+    )
+    monkeypatch.setattr(docker_ssh_module, "_stdin_is_tty", lambda: tty)
+    return commands
+
+
+def _deletes(commands):
+    return [
+        c
+        for c in commands
+        if "DROP" in c or "docker volume rm" in c or "removed $kind" in c
+    ]
+
+
+def test_destroy_remove_data_deletes_classic_database_redis_and_folder(monkeypatch):
+    commands, result = _destroy_with_data(monkeypatch, ["--remove-data", "--yes"])
+    assert result.exit_code == 0, result.output
+    drop_db, drop_user, volume, folder = _deletes(commands)
+    down = "docker compose -f ~/dallinger/myapp/docker-compose.yml down"
+    assert commands.index(down) < commands.index(drop_db)
+    args = shlex.split(drop_db)
+    terminate, drop = [args[i + 1] for i, arg in enumerate(args) if arg == "-c"]
+    assert "pg_terminate_backend" in terminate and "datname = 'myapp'" in terminate
+    assert drop == 'DROP DATABASE IF EXISTS "myapp"'
+    assert shlex.split(drop_user)[-1] == 'DROP USER IF EXISTS "myapp"'
+    assert volume == "docker volume rm myapp_redis_data"
+    ps = "docker ps -q --filter label=com.docker.compose.project=myapp"
+    assert commands.index(down) < commands.index(ps) < commands.index(drop_db)
+    assert "Deleted the database myapp (12 MB) in the shared Postgres.\n" in (
+        result.output
+    )
+
+
+def test_destroy_asks_and_reports_kept_data(monkeypatch):
+    commands, result = _destroy_with_data(monkeypatch, input="n\n")
+    assert result.exit_code == 0, result.output
+    assert not _deletes(commands)
+    out = result.output
+    assert "  - the database myapp (12 MB) in the shared Postgres" in out
+    assert "  - the Postgres user myapp" in out
+    assert "  - the Redis volume myapp_redis_data" in out
+    assert "  - the folder ~/dallinger-data/myapp (3.4G)" in out
+    assert "Delete this data? This cannot be undone. Answer no to keep it." in out
+    kept = out.index("Kept the experiment data of myapp on example.com:")
+    assert kept > out.index("Delete this data?")
+    assert "  - the folder ~/dallinger-data/myapp" in out[kept:]
+    assert (
+        "dallinger docker-ssh destroy --app myapp --server test-server --remove-data"
+        in out
+    )
+
+    _, result = _destroy_with_data(
+        monkeypatch,
+        ["--keep-data"],
+        volumes=("myapp_postgres_data",),
+        own_db="11 MB\n",
+    )
+    assert result.exit_code == 0, result.output
+    assert "Kept the experiment data of myapp on example.com:" in result.output
+    assert (
+        "  - the database myapp (11 MB) in the volume myapp_postgres_data"
+        in result.output
+    )
+    assert "  - the folder ~/dallinger-data/myapp (3.4G)" in result.output
+
+
+def test_destroy_prints_the_callers_delete_data_command(monkeypatch):
+    _, result = _destroy_with_data(
+        monkeypatch, ["--keep-data", "--delete-data-command", "wrapper rm myapp"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "To delete it, run: wrapper rm myapp" in result.output
+    assert "dallinger docker-ssh destroy" not in result.output
+
+
+@pytest.mark.parametrize(
+    "new_app, kept, delete_command, printed",
+    [
+        (
+            "dlgr-new",
+            "Their data is kept.",
+            None,
+            "dallinger docker-ssh destroy --app myapp --server test-server "
+            "--remove-data",
+        ),
+        (
+            "myapp",
+            "Their data is kept, but this deploy replaces the database and "
+            "Redis volume of myapp.",
+            "wrapper destroy {app} --remove-data",
+            "wrapper destroy myapp --remove-data",
+        ),
+    ],
+)
+def test_root_domain_teardown_keeps_data_without_asking(
+    monkeypatch, capsys, new_app, kept, delete_command, printed
+):
+    commands = _server_with_data(monkeypatch, tty=True)
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "_host_caddy_apps", mock.Mock(side_effect=[["myapp"], []])
+    )
+    prompts = []
+    monkeypatch.setattr(
+        docker_ssh_module.click,
+        "confirm",
+        lambda text, **kwargs: prompts.append(text) or True,
+    )
+
+    assert docker_ssh_module.ensure_root_domain_ready(
+        "test-server",
+        update=False,
+        new_app=new_app,
+        delete_data_command=delete_command,
+    )
+    assert prompts == [
+        f"Destroy these experiments automatically before proceeding? {kept}"
+    ]
+    assert "docker compose -f ~/dallinger/myapp/docker-compose.yml down" in commands
+    assert not _deletes(commands)
+    out = capsys.readouterr().out
+    assert (
+        "  dallinger docker-ssh destroy --app myapp --server test-server --keep-data"
+        in out
+    )
+    assert "  - the folder ~/dallinger-data/myapp (3.4G)" in out
+    assert f"To delete it, run: {printed}\n" in out
+
+
+def test_root_domain_teardown_destroys_nothing_if_an_app_name_is_invalid(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example"}}
+    )
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "_host_caddy_apps", lambda executor: ["good", "good~"]
+    )
+    confirm = mock.Mock()
+    destroy = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module.click, "confirm", confirm)
+    monkeypatch.setattr(docker_ssh_module.destroy, "callback", destroy)
+
+    with pytest.raises(click.ClickException) as error:
+        docker_ssh_module.ensure_root_domain_ready("lab", update=False)
+
+    assert not confirm.called and not destroy.called
+    message = error.value.message
+    assert "Can't destroy 'good~' automatically" in message
+    assert "nothing was destroyed" in message
+    assert "rm -rf ~/dallinger/'good~' ~/dallinger/caddy.d/'good~'" in message
+    assert "'good'" not in message and " down" not in message
+
+
+def test_destroy_remove_data_asks_before_teardown(monkeypatch):
+    commands, result = _destroy_with_data(monkeypatch, ["--remove-data"], input="n\n")
+    assert result.exit_code == 1
+    assert not any(" down" in c or "rm -" in c for c in commands)
+    assert not _deletes(commands)
+
+
+def test_destroy_without_a_tty_keeps_data_unless_told_to_delete_it(monkeypatch):
+    commands, result = _destroy_with_data(monkeypatch, [], tty=False)
+    assert result.exit_code == 0, result.output
+    assert "App myapp removed" in result.output and not _deletes(commands)
+    assert "Kept the experiment data of myapp on example.com:" in result.output
+    assert "To delete it, run:" in result.output
+
+    commands, result = _destroy_with_data(monkeypatch, ["--remove-data"], tty=False)
+    assert result.exit_code == 2 and commands == []
+    assert "pass --yes in non-interactive sessions" in result.output
+
+    commands, result = _destroy_with_data(
+        monkeypatch, ["--remove-data", "--yes"], tty=False
+    )
+    assert result.exit_code == 0, result.output
+    assert "docker volume rm myapp_redis_data" in _deletes(commands)
+
+    commands, result = _destroy_with_data(monkeypatch, [], tty=False, deployed=False)
+    assert result.exit_code == 1 and not _deletes(commands)
+    assert "Kept the experiment data of myapp on example.com:" in result.output
+    assert "App myapp is not deployed, so nothing was destroyed." in result.output
+
+    commands, result = _destroy_with_data(
+        monkeypatch, [], tty=False, server_apps="MyApp\nmyapp\n"
+    )
+    assert result.exit_code == 0, result.output
+    assert any(" down" in c for c in commands) and not _deletes(commands)
+
+
+def test_destroy_remove_data_after_destroy_cleans_up_leftovers(monkeypatch):
+    volumes = ("myapp_postgres_data", "myapp_redis_data", "otherapp_redis_data")
+    commands, result = _destroy_with_data(
+        monkeypatch, ["--remove-data", "--yes"], deployed=False, volumes=volumes
+    )
+    assert result.exit_code == 0, result.output
+    assert "Deleted the database volume myapp_postgres_data" in result.output
+    assert not any(" down" in c for c in commands)
+    drop_db, drop_user, *volume_rms, folder = _deletes(commands)
+    assert volume_rms == [
+        "docker volume rm myapp_postgres_data",
+        "docker volume rm myapp_redis_data",
+    ]
+
+    for args, answer in ([], "n\n"), (["--keep-data"], None):
+        commands, result = _destroy_with_data(
+            monkeypatch, args, input=answer, deployed=False
+        )
+        assert result.exit_code == 1 and not _deletes(commands)
+        assert "Kept the experiment data of myapp on example.com:" in result.output
+        assert "App myapp is not deployed, so nothing was destroyed." in result.output
+
+    nothing_left = dict(deployed=False, db="", volumes=(), folder=False)
+    for args in [], ["--keep-data"]:
+        _, result = _destroy_with_data(monkeypatch, args, **nothing_left)
+        assert result.exit_code == 1
+        assert "No experiment data of myapp is left on example.com." in result.output
+
+    for args in ["--remove-data", "--yes"], ["--remove-data"]:
+        commands, result = _destroy_with_data(monkeypatch, args, **nothing_left)
+        assert result.exit_code == 0, result.output
+        assert "Nothing left to delete for myapp on example.com." in result.output
+        assert "Aborted" not in result.output and "not deployed" not in result.output
+        assert not _deletes(commands)
+
+
+def test_destroy_stops_if_compose_down_fails(monkeypatch):
+    commands, result = _destroy_with_data(
+        monkeypatch, ["--remove-data", "--yes"], down_status=1
+    )
+    assert result.exit_code == 1
+    assert "Could not stop the containers of myapp" in result.output
+    assert "rm -rf ~/dallinger/myapp/" not in commands and not _deletes(commands)
+
+
+@pytest.mark.parametrize(
+    "unchecked, label",
+    [
+        ({"volumes": None}, "the Docker volumes of myapp, if any (could not check:"),
+        (
+            {"db": None},
+            "the database myapp in the shared Postgres, if any (could not check: "
+            "service postgresql is not running)",
+        ),
+        (
+            {"db": "timeout"},
+            "the database myapp in the shared Postgres, if any (could not check: "
+            "timed out after 30 s; the server may be busy, so try again)",
+        ),
+    ],
+)
+def test_destroy_remove_data_fails_if_some_data_cant_be_checked(
+    monkeypatch, unchecked, label
+):
+    args = ["--remove-data", "--yes", "--delete-data-command", "wrapper rm myapp"]
+    _, result = _destroy_with_data(monkeypatch, args, **unchecked)
+    assert result.exit_code == 1
+    assert f"Did not delete {label}" in result.output
+    assert "Some data of myapp was not deleted" in result.output
+    assert "and run: wrapper rm myapp" in result.output
+
+
+@pytest.mark.parametrize(
+    "db, dropped, notes",
+    [
+        (
+            "timeout",
+            False,
+            [
+                "Could not check whether the shared Postgres still has a database "
+                "myapp from an earlier classic deploy of this name (timed out "
+                "after 30 s; the server may be busy).",
+                "--remove-data again when the server is less busy.",
+            ],
+        ),
+        (
+            None,
+            False,
+            [
+                "(service postgresql is not running).",
+                "--remove-data again after fixing the problem.",
+            ],
+        ),
+        (
+            "12 MB",
+            True,
+            ["Deleted the database myapp (12 MB) in the shared Postgres"],
+        ),
+    ],
+)
+def test_destroy_cloudflare_only_reports_a_shared_database_it_finds(
+    monkeypatch, db, dropped, notes
+):
+    monkeypatch.setattr(
+        docker_ssh_module, "_destroy_cloudflare_resources", lambda *a, **k: True
+    )
+    commands, result = _destroy_with_data(
+        monkeypatch,
+        ["--remove-data", "--yes"],
+        db=db,
+        deployed=False,
+        tunnel_token=True,
+    )
+    assert result.exit_code == 0, result.output
+    assert "Did not delete" not in result.output
+    assert all(note in result.output for note in notes)
+    assert any("DROP DATABASE" in c for c in commands) == dropped
+
+
+def test_destroy_rejects_both_data_choices(monkeypatch):
+    commands, result = _destroy_with_data(monkeypatch, ["--remove-data", "--keep-data"])
+    assert result.exit_code == 2 and commands == []
+    assert "Pass only one of --remove-data and --keep-data." in result.output
+
+
+def test_destroy_keeps_data_shared_with_another_app(monkeypatch):
+    shared = dict(server_apps="MyApp\nmyapp\n", volumes=("myapp_redis_data",))
+    for args in ["--remove-data", "--yes"], []:
+        commands, result = _destroy_with_data(monkeypatch, args, **shared)
+        assert result.exit_code == 1
+        assert "The data of myapp can't be deleted while MyApp exists" in result.output
+        assert not any(" down" in c for c in commands) and not _deletes(commands)
+
+    assert "this also stops the containers of MyApp" in result.output
+
+    _, result = _destroy_with_data(monkeypatch, [], deployed=False, **shared)
+    assert result.exit_code == 1
+    assert "Nothing was destroyed" not in result.output
+    assert "Once MyApp is destroyed too, --remove-data" in result.output
+
+    commands, result = _destroy_with_data(monkeypatch, ["--keep-data"], **shared)
+    assert result.exit_code == 0, result.output
+    assert any(" down" in c for c in commands) and not _deletes(commands)
+
+    commands, result = _destroy_with_data(
+        monkeypatch, ["--remove-data", "--yes"], server_apps="myapp\nmyapp~\n"
+    )
+    assert result.exit_code == 0, result.output
+    assert "docker volume rm myapp_redis_data" in _deletes(commands)
+
+
+@pytest.mark.parametrize("update", [False, True])
+def test_deploy_refuses_a_name_another_apps_compose_project_uses(update, capsys):
+    executor = FakeExecutor({"caddy.d": "MyApp\nmyapp\n"})
+    with pytest.raises(click.Abort):
+        docker_ssh_module._check_compose_project_free(executor, "myapp", update)
+    out = capsys.readouterr().out
+    assert (
+        "App name myapp gives the same Docker Compose project, myapp, as the "
+        "existing app MyApp" in out
+    )
+    assert ("Destroy MyApp first with --keep-data;" in out) == update
+    if update:
+        with pytest.raises(click.Abort):
+            docker_ssh_module._check_compose_project_free(
+                FakeExecutor({"caddy.d": "MyApp\n"}), "myapp", update
+            )
+        out = capsys.readouterr().out
+        assert "There is no app myapp to update; did you mean MyApp?" in out
+    executor = FakeExecutor({"caddy.d": "myapp\nmyapp~\n"})
+    docker_ssh_module._check_compose_project_free(executor, "myapp", update)
+
+
+def test_stop_cloudflare_connector_quotes_the_app_name():
+    executor = FakeExecutor({})
+    docker_ssh_module._stop_cloudflare_connector(executor, "my app")
+    assert executor.commands == [
+        "docker compose -f ~/dallinger/'my app'/docker-compose.yml stop cloudflared"
+    ]
+
+
+def test_redis_volume_cleanup_uses_the_compose_project_name():
+    executor = FakeExecutor({})
+    docker_ssh_module.remove_redis_volumes("My.App", executor)
+    assert executor.commands == ["docker volume rm 'myapp_redis_data'"]
+
+
+def test_cloudflare_volume_cleanup_uses_the_compose_project_name():
+    executor = FakeExecutor({})
+    docker_ssh_module._remove_cloudflare_volumes("My.App", executor)
+    assert executor.commands == [
+        "docker volume rm 'myapp_redis_data'",
+        "docker volume rm 'myapp_postgres_data'",
+    ]
+
+
+def test_destroy_rejects_shell_patterns_as_app_names(monkeypatch):
+    with pytest.raises(click.UsageError):
+        docker_ssh_module.destroy.callback(server="test-server", app="*")
+
+
+def _fake_root_docker(tmp_path, ps_output="", ps_status=0):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    (bin_dir / "docker").write_text(
+        f'#!/bin/bash\n[ "$1" = ps ] && {{ echo "{ps_output}"; exit {ps_status}; }}\n'
+        'echo "$@" > "$HOME/docker-args"\n'
+        'chmod u+w "$HOME/dallinger-data"; rm -rf "$HOME/dallinger-data/demo"\n'
+    )
+    (bin_dir / "docker").chmod(0o755)
+    return LocalExecutor(tmp_path, bin_dir)
+
+
+def test_remove_app_data_falls_back_to_a_root_container(tmp_path, capsys):
+    data = tmp_path / "dallinger-data"
+    (data / "demo" / "sub").mkdir(parents=True)
+    (data / "other").mkdir()
+    executor = _fake_root_docker(tmp_path)
+    data.chmod(0o555)  # Stands in for the root-owned parent.
+    try:
+        docker_ssh_module._remove_app_data(executor, "demo")
+    finally:
+        data.chmod(0o755)
+    assert not (data / "demo").exists() and (data / "other").exists()
+    assert f"-v {data}:/data alpine:3.20 rm -rf /data/demo" in (
+        (tmp_path / "docker-args").read_text()
+    )
+    assert "Deleted the folder ~/dallinger-data/demo.\n" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "ps_output, ps_status, warning",
+    [
+        ("abc123", 0, "its containers are still running"),
+        ("", 1, "could not check whether its containers"),
+    ],
+)
+def test_remove_data_refuses_unless_no_containers_run(
+    tmp_path, capsys, ps_output, ps_status, warning
+):
+    (tmp_path / "dallinger-data" / "demo").mkdir(parents=True)
+    executor = _fake_root_docker(tmp_path, ps_output, ps_status)
+    item = ("folder", "~/dallinger-data/demo", "the folder ~/dallinger-data/demo")
+    assert not docker_ssh_module._remove_experiment_data(executor, "demo", [item])
+    assert (tmp_path / "dallinger-data" / "demo").exists()
+    assert warning in capsys.readouterr().out
+
+
+def test_remove_app_data_only_unlinks_a_symlink(tmp_path, capsys):
+    target = tmp_path / "precious"
+    target.mkdir()
+    (tmp_path / "dallinger-data").mkdir()
+    (tmp_path / "dallinger-data" / "demo").symlink_to(target)
+    docker_ssh_module._remove_app_data(_fake_root_docker(tmp_path), "demo")
+    assert not (tmp_path / "dallinger-data" / "demo").is_symlink()
+    assert target.exists()
+    assert f"its target {target} was kept" in capsys.readouterr().out
+
+
+def test_update_removes_the_replaced_image_once_the_new_one_runs(capsys):
+    old_compose = docker_ssh_module.get_docker_compose_yml({}, "myapp", "reg/exp:old")
+    executor = FakeExecutor({"cat ~/dallinger/myapp/docker-compose.yml": old_compose})
+    previous = docker_ssh_module._upload_app_stack(
+        mock.Mock(),
+        executor,
+        {},
+        app="myapp",
+        server="s",
+        public_origin="https://myapp.example",
+        image_name="reg/exp:new",
+        ingress="cloudflare",
+        secrets={},
+    )
+    assert previous == "reg/exp:old"
+    docker_ssh_module._remove_replaced_image(executor, "myapp", previous, "reg/exp:new")
+    docker_ssh_module._remove_replaced_image(
+        executor, "myapp", "reg/exp:new", "reg/exp:new"
+    )
+    rmis = [c for c in executor.commands if "docker rmi" in c]
+    assert len(rmis) == 1 and "docker rmi reg/exp:old " in rmis[0]
+
+    failing = mock.Mock()
+    failing.run.side_effect = OSError("connection lost")
+    docker_ssh_module._remove_replaced_image(failing, "myapp", previous, "reg/exp:new")
+    assert "could not remove the previous image reg/exp:old" in (
+        capsys.readouterr().out
+    )
 
 
 class _LocalDockerExecutor:
@@ -1242,7 +1855,7 @@ def test_remote_postgres_prefers_pinned_container_name(monkeypatch):
 
     open_channel = executor.client.get_transport.return_value.open_channel
     assert open_channel.call_args.args[:2] == ("direct-tcpip", ("10.0.0.8", 5432))
-    executor.client.close.assert_called_once()
+    executor.client.close.assert_not_called()
     remote.close()
 
 
@@ -1274,7 +1887,7 @@ def test_remote_postgres_does_not_fall_back_when_app_db_is_stopped(monkeypatch):
             {"host": "example.com", "user": "ubuntu"}, "myapp"
         ):
             pass
-    executor.client.close.assert_called_once()
+    executor.client.close.assert_not_called()
 
 
 def test_select_running_app_returns_lone_hibernating_app(monkeypatch):
@@ -1503,7 +2116,7 @@ def test_hibernate_explains_apps_without_a_front_door(monkeypatch, capsys):
     assert not any("exec" in cmd for cmd in executor.commands)
 
 
-def test_awaken_skips_an_app_that_is_already_awake(monkeypatch):
+def test_awaken_skips_an_app_that_is_already_awake(monkeypatch, capsys):
     executor = FakeExecutor({"test -f": "Yes"})
     monkeypatch.setattr(
         docker_ssh_module, "CONFIGURED_HOSTS", {"s": {"host": "example.com"}}
@@ -1511,6 +2124,9 @@ def test_awaken_skips_an_app_that_is_already_awake(monkeypatch):
     monkeypatch.setattr(docker_ssh_module, "Executor", lambda *a, **k: executor)
     assert docker_ssh_module.awaken_app("s", "demo", required=False) is True
     assert not any("exec" in cmd for cmd in executor.commands)
+    assert capsys.readouterr().out == ""
+    docker_ssh_module.awaken.callback(server="s", app="demo")
+    assert capsys.readouterr().out == "App demo is awake\n"
 
 
 def test_get_apps_reports_hibernation_from_markers():

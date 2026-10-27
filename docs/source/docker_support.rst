@@ -200,7 +200,7 @@ default. Cloudflare apps don't block a classic root-domain deploy.
 A classic deploy without ``--app`` takes over the server's root domain, so the
 other classic apps on the server must be destroyed first. In a terminal the
 deploy offers to destroy them; without one it stops with an error that lists
-the ``dallinger docker-ssh destroy`` commands to run.
+the ``dallinger docker-ssh destroy … --keep-data`` commands to run.
 
 Classic ingress needs a server that the internet can reach, because Let's
 Encrypt must reach it to issue TLS certificates. If the SSH host resolves only
@@ -490,20 +490,45 @@ The above command will output:
 
 .. code-block:: shell
 
-    Connecting to 0.0.0.0
+    Connecting to 0.0.0.0...
     Connected.
-    Launched http and postgresql servers. Starting experiment
-    Creating database dlgr-d5543ddd
-    Experiment dlgr-d5543ddd started. Initializing database
-    Database initialized
-    Launching experiment
+    Launching http, postgresql and dozzle servers.
+    Starting the experiment server...
+    To view the logs for this experiment go to https://logs.0.0.0.0.nip.io (user = dallinger, password = ...)
+    Cleaning up the database and its user...
+    Creating database dlgr-d5543ddd...
+    To display the logs for this experiment you can run:
+    ssh -i ~/.ssh/server.pem debian@0.0.0.0 "docker compose -f ~/dallinger/dlgr-d5543ddd/docker-compose.yml logs -f"
+    Or you can head to https://logs.0.0.0.0.nip.io (user = dallinger)
+    You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard (user = admin)
+    Dashboard password: foobar
+    The experiment server is up.
+    Waiting for <public URL> to become reachable before launching (up to 7 min).
+    <public URL> is reachable.
+    Launching the experiment...
     Initial recruitment list:
     https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&assignmentId=F2Q19C&hitId=BE9BWB&workerId=YC30TJ&mode=debug
     Additional details:
-    Recruitment requests will open browser windows automatically.
-    To display the logs for this experiment you can run:
-    ssh debian@0.0.0.0 docker compose -f '~/dallinger/dlgr-d5543ddd/docker-compose.yml' logs -f
-    You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard as user admin using password foobar
+    Single recruitment link: https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&generate_tokens=1&mode=debug
+
+If your SSH config has a short alias for the server (``Host lab`` with
+``HostName lab.example.org``, the same user and the ``server_pem`` key), the
+logs command uses it, for example ``ssh lab "docker compose ... logs -f"``.
+
+This example deploys a prebuilt image. Without a ``docker_image_name`` that the
+registry has (set in config or with ``-c docker_image_name <image>``), the deploy
+first builds one and prints a single ``Building image ...`` line, which mentions
+the experiment's own ``Dockerfile`` if it has one, followed by ``Built image: ...``
+with the build's duration. In a terminal, a line in between shows the current
+build step and the elapsed time. A step that takes 30 seconds or more is reported
+with a ``Still on ...`` line, repeated every minute, also in redirected output.
+If the build fails, the full ``docker build`` log is printed with the path of its saved copy.
+Set ``DALLINGER_VERBOSE_BUILD=1`` to see the build output as it runs.
+Python callers that print their own summary, such as PsyNet, can invoke the command
+with ``show_summary=False``. This leaves out the links, logs command, passwords and
+recruitment message, which are all in the returned dict. If the health check, the
+public URL wait or the launch fails, the notes and dashboard password are printed
+before the error, because there is no returned dict.
 
 Dallinger uses the free service [nip.io](https://nip.io/) to provide a URL for the experiment to get an SSL certificate from Let's Encrypt.
 The experiment URL is a combination of the app id and the server IP. In this case the id of the deployed experiment is ``dlgr-d5543ddd``.
@@ -524,6 +549,11 @@ the DNS label:
     CLOUDFLARE_API_TOKEN=... dallinger docker-ssh deploy \
         --app consonance --ingress cloudflare \
         --image ghcr.io/dallinger/dallinger/bartlett1932@sha256:0586d93bf49fd555031ffe7c40d1ace798ee3a2773e32d467593ce3de40f35b5
+
+Once the image is ready, a Cloudflare deploy prints ``Setting up the Cloudflare
+tunnel...`` while it creates or reuses the app's tunnel and uploads its Compose
+stack, then ``Starting the experiment server...`` (``Restarting ...`` for
+``--update``).
 
 Launching an experiment opens recruitment, so a docker-ssh deploy first checks
 the app's ``/health`` from inside the server, then waits up to 7 minutes for
@@ -567,6 +597,98 @@ To stop an experiment and remove its containers from the server, run:
 .. code-block:: shell
 
     dallinger docker-ssh destroy --app $APP_ID
+
+Destroy removes the app's containers, its ``~/dallinger/$APP_ID/`` folder,
+its Caddy configuration or Cloudflare tunnel,
+and its experiment image unless another app still uses that image. When you
+redeploy an app with ``--update``, the image it ran before is removed in the
+same way once the new containers are up. If the update fails before then, the
+old image stays on the server.
+
+Destroy only deletes or keeps the experiment's data when you choose to, at its
+prompt or with a flag. The data is:
+
+- the app's database: for classic ingress, the database ``$APP_ID`` and its
+  Postgres user in the server's shared Postgres; for Cloudflare ingress, the
+  Docker volume ``${APP_ID}_postgres_data``, plus any database that an earlier
+  classic deploy of the same name left in the shared Postgres;
+- the app's Redis volume ``${APP_ID}_redis_data``;
+- the app's data folder ``~/dallinger-data/$APP_ID``, which holds files the
+  experiment saved (see the note below).
+
+Before it tears anything down, destroy asks whether to delete the data, and
+its prompt lists the data it finds, with sizes where it can measure them, for
+example:
+
+.. code-block:: text
+
+    Experiment data of myapp on lab.example.org:
+      - the database myapp (12 MB) in the shared Postgres
+      - the Postgres user myapp
+      - the Redis volume myapp_redis_data
+      - the folder ~/dallinger-data/myapp (3.4G)
+    Delete this data? This cannot be undone. Answer no to keep it. [y/N]:
+
+For Cloudflare ingress, the database is listed as ``the database myapp (12 MB)
+in the volume myapp_postgres_data``; the size is the database's, and deleting
+it removes the whole volume.
+
+Answering no, or passing ``--keep-data``, keeps the data; after the teardown,
+destroy lists the data it kept and prints the command that deletes it later.
+A root-domain deploy that destroys the server's other classic apps always
+keeps their data, as ``--keep-data`` does, and prints the command that
+deletes each app's data later. If the new deploy has the same name as one of
+those apps, it replaces that app's database and Redis volume, and the prompt
+says so. If one of the apps has a name that docker-ssh doesn't accept (for
+example a stray file ``~/dallinger/caddy.d/myapp~``), the deploy destroys none of
+them and prints the commands that remove that app by hand.
+Export anything you need before you delete the data.
+You can also decide up front:
+
+.. code-block:: shell
+
+    # Keep the data
+    dallinger docker-ssh destroy --app $APP_ID --keep-data
+    # Delete the data; asks for confirmation unless you add --yes
+    dallinger docker-ssh destroy --app $APP_ID --remove-data
+
+If you decline the confirmation for ``--remove-data``, destroy stops without
+touching the app. In a non-interactive session, such as a script, destroy keeps
+the data unless you pass ``--remove-data --yes``, and lists the kept data with
+the command that deletes it; ``--remove-data`` without ``--yes`` is an error
+there. ``--remove-data`` also works after
+the app has been destroyed, and deletes whatever data is left; if nothing is
+left, it says so and exits successfully, so you can safely run it again
+(scripts still need ``--yes``). Without ``--remove-data``, destroying an app
+that isn't deployed exits with an error, even if it lists leftover data. Bind
+mounts that you added with ``docker_volumes`` are always kept. Volume names use the app
+name as Docker Compose writes it, in lowercase without dots. Two app names
+that Docker Compose writes the same way, such as ``MyApp`` and ``myapp``,
+would share containers and volumes, so a deploy refuses a name that matches
+another app on the server in this way. While the other app exists, destroy
+won't delete the data of such an app: it stops before the teardown, without
+asking, unless you pass ``--keep-data`` or run it without a terminal, where it
+keeps the data by default. Destroying such an app also stops
+the other app's containers, because they belong to the same project; deploy
+the other app again with ``--update`` to start them.
+
+Kept data stays on the server until you delete it. A new deploy with the same
+app name and without ``--update`` deletes the volumes left under that name (a
+classic deploy also deletes the database in the shared Postgres), but reuses
+the data folder ``~/dallinger-data/$APP_ID``.
+
+Data is not deleted while the app's containers are still running, or if
+Dallinger can't check whether they are. Data that destroy can't check, for
+example because the shared Postgres doesn't answer within 30 seconds on a busy
+server, is listed as ``…, if any (could not check: …)``; ``--remove-data``
+then reports it as not deleted and exits with an error, and you can run it
+again. For a Cloudflare app, which doesn't use the shared Postgres, a failed
+check of the shared Postgres only prints a note. If ``~/dallinger-data/$APP_ID`` is a
+symlink, only the link is removed and its target is kept.
+
+The data folder's parent is often owned by root, so if the SSH user can't
+delete the folder, Dallinger deletes it with a short-lived root ``alpine``
+container.
 
 .. note::
 
