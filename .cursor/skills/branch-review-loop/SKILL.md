@@ -1,13 +1,14 @@
 ---
 name: branch-review-loop
-description: Repeat the branch-review skill on a feature branch, fixing findings between reviews, until a review finds no high or medium issues. Use before finalizing a feature pull request, or when asked to review a branch until no high or medium issues remain. Not for release PRs.
+description: Repeat the branch-review skill on your own feature branch, fixing findings between reviews, until a review finds no high or medium issues. Use before finalizing a feature pull request, or when asked to review a branch until no high or medium issues remain. Not for release PRs.
 ---
 
 # Branch review loop
 
 Use this skill when finalizing a feature pull request. It repeats the
 single-pass review in `.cursor/skills/branch-review/SKILL.md` and fixes the
-findings in between. Release PRs are excluded (see `AGENTS.md`).
+findings in between. Release PRs are excluded (see `AGENTS.md`). Run this
+on your own branch; push fixes before the final step-7 update.
 
 Each review is cheap, but reviews add up. Aim for a PR a human can review
 quickly, not for a reviewer that finds nothing.
@@ -26,7 +27,9 @@ quickly, not for a reviewer that finds nothing.
 - The loop has converged when a review finds no high or medium issues.
   Lows alone don't need another review.
 - Reviews read the diff; they don't replace using the change the way a user
-  would. Do that early, not only after the reviews converge.
+  would. Do that early, not only after the reviews converge. Prefer local
+  runs such as `dallinger debug`, and ask before anything that costs money,
+  recruits real participants, or leaves resources running.
 
 ## When to step back
 
