@@ -751,4 +751,9 @@ DEPRECATED_KEYS = {
         "Docker deployments now give the web server priority over the workers "
         "when CPU is short."
     ),
+    "lock_table_when_creating_participant": (
+        "The 'lock_table_when_creating_participant' config variable is deprecated "
+        "and has no effect. Participant signup now always uses a PostgreSQL "
+        "transaction-level advisory lock."
+    ),
 }
