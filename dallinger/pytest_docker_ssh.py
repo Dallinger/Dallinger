@@ -280,7 +280,16 @@ class DockerSSHServer:
     def destroy_app(self, app_id):
         try:
             self.run_dallinger(
-                ["docker-ssh", "destroy", "--server", self.server, "--app", app_id]
+                [
+                    "docker-ssh",
+                    "destroy",
+                    "--server",
+                    self.server,
+                    "--app",
+                    app_id,
+                    "--remove-data",
+                    "--yes",
+                ]
             )
         except RuntimeError as exc:
             diagnostics = self._collect_remote_diagnostics()
