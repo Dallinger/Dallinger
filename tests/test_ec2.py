@@ -19,7 +19,7 @@ from dallinger.command_line.lib.ec2 import (
     register_key_pair,
     remove_dns_records,
 )
-from dallinger.config import Configuration
+from dallinger.config import ConfigSource, Configuration
 
 
 def _route_53_client(*pages):
@@ -200,6 +200,7 @@ class TestGetAllInstances:
             )
             yield
 
+    @pytest.mark.filterwarnings("error::DeprecationWarning")
     def test_success_includes_ec2_shop_details(self):
         """Test that ec2.shop details are included when available"""
         with mock.patch("dallinger.command_line.lib.ec2.requests.get") as mock_get:
@@ -506,8 +507,11 @@ class TestRegisterKeyPair:
 @pytest.mark.parametrize(
     "settings, error",
     [
-        ({"contact_email_on_error": "???"}, "contact_email_on_error"),
-        ({"dashboard_password": ""}, "dashboard_user and dashboard_password"),
+        (
+            {"contact_email_on_error": "???"},
+            "'???' from the contact_email_on_error environment variable",
+        ),
+        ({"dashboard_password": ""}, "dashboard_password in ~/.dallingerconfig or"),
     ],
 )
 def test_provision_checks_settings_before_booting(monkeypatch, settings, error):
@@ -518,11 +522,11 @@ def test_provision_checks_settings_before_booting(monkeypatch, settings, error):
         "dashboard_user": "admin",
         "dashboard_password": "pw",
         "contact_email_on_error": "me@example.org",
-        **settings,
     }
     config = Configuration()
     config._reset(register_defaults=True)
-    config.extend(values)
+    config.extend({k: v for k, v in values.items() if k not in settings})
+    config.extend(settings, source=ConfigSource.ENVIRONMENT)
     config.ready = True
     monkeypatch.setattr(ec2, "get_config", lambda strict=True: config)
     monkeypatch.setattr(
@@ -660,7 +664,12 @@ def test_provision_failure_before_setup_names_teardown(
 ):
     lib = importlib.import_module("dallinger.command_line.lib.ec2")
     monkeypatch.setattr(lib, "get_all_instances", lambda region: [])
-    for name in ("get_ec2_client", "get_security_group_id", "get_image_id"):
+    monkeypatch.setattr(
+        lib,
+        "get_ec2_client",
+        lambda region: mock.Mock(meta=mock.Mock(region_name=region)),
+    )
+    for name in ("get_security_group_id", "get_image_id"):
         monkeypatch.setattr(lib, name, mock.Mock())
     monkeypatch.setattr(lib, "setup_ssh_keys", mock.Mock())
     monkeypatch.setattr(lib, "boot_instance", mock.Mock(return_value="i-123"))
@@ -702,10 +711,15 @@ def test_interrupted_boot_wait_names_teardown(monkeypatch, capsys):
     assert "dallinger ec2 teardown --name exp --region eu-west-3" in output
 
 
-def test_provision_setup_failure_also_names_teardown(monkeypatch, capsys):
+@pytest.mark.parametrize("cli_region", [None, "us-west-2"])
+def test_provision_setup_failure_also_names_teardown(monkeypatch, capsys, cli_region):
     lib = importlib.import_module("dallinger.command_line.lib.ec2")
     monkeypatch.setattr(lib, "get_all_instances", lambda region: [])
-    for name in ("get_ec2_client", "get_security_group_id", "get_image_id"):
+    # The region boto's client uses is reported, even if --region is ignored.
+    client = mock.Mock()
+    client.meta.region_name = "eu-west-3"
+    monkeypatch.setattr(lib, "get_ec2_client", lambda region: client)
+    for name in ("get_security_group_id", "get_image_id"):
         monkeypatch.setattr(lib, name, mock.Mock())
     for name in ("setup_ssh_keys", "set_security_group"):
         monkeypatch.setattr(lib, name, mock.Mock())
@@ -717,7 +731,7 @@ def test_provision_setup_failure_also_names_teardown(monkeypatch, capsys):
     with pytest.raises(click.Abort):
         lib.prepare_instance(
             "exp",
-            "eu-west-3",
+            cli_region,
             "m5.large",
             32,
             "lab",
@@ -726,6 +740,6 @@ def test_provision_setup_failure_also_names_teardown(monkeypatch, capsys):
             callback=mock.Mock(side_effect=click.Abort),
         )
 
-    assert "`dallinger ec2 teardown --name exp --region eu-west-3`" in (
-        capsys.readouterr().out
-    )
+    output = capsys.readouterr().out
+    assert "Provisioning exp on eu-west-3..." in output
+    assert "`dallinger ec2 teardown --name exp --region eu-west-3`" in output

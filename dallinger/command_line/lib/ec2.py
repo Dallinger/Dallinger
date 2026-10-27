@@ -284,7 +284,7 @@ def get_all_instances(region_name=None):
                 instance_df["Cost"] = (
                     instance_df["Cost"] * instance_df["uptime"] / (60**2)
                 )
-                instance_df.sort_values("Cost", inplace=True)
+                instance_df = instance_df.sort_values("Cost")
                 instance_df["Cost"] = instance_df["Cost"].apply(
                     lambda x: f"${int(x)}" if pd.notna(x) else "N/A"
                 )
@@ -552,7 +552,8 @@ def check_server_pem_matches_key_pair(key_name):
             f"server_pem ({server_pem}) is not the private key of the EC2 key pair "
             f"ec2_default_pem = {key_name} ({pair_path}). New instances accept only "
             "that key pair, and Dallinger logs in to every server with server_pem. "
-            f"Set server_pem = {pair_path} in ~/.dallingerconfig, or set "
+            f"Set server_pem = {pair_path} in ~/.dallingerconfig or the "
+            "environment, or set "
             "ec2_default_pem to the key pair whose private key server_pem is."
         )
 
@@ -988,6 +989,8 @@ def prepare_instance(
 
     start = time.time()
     ec2 = get_ec2_client(region_name)
+    # get_keys passes --region to boto only with credentials from the config.
+    region_name = ec2.meta.region_name
     security_group_id = get_security_group_id(security_group_name, region_name)
     print(f"Provisioning {instance_name} on {region_name}...")
     image_id = get_image_id(ec2, image_name)

@@ -246,6 +246,10 @@
   or the EC2 console while it is still starting). If the setup had started,
   it also prints the `servers add` commands that would finish it instead.
   It explains a key that the instance rejected. It prints its total time in whole seconds.
+  It names the region boto actually uses (rather than `None` without
+  `--region`), and its pre-boot errors say that a setting can be in
+  `~/.dallingerconfig` or the environment; it and `ec2 list instances` no
+  longer show a pandas 3.1 deprecation warning.
   The new `dallinger docker-ssh servers upgrade --host <server>` command sets
   them up or rewrites them. It lists the files it replaces and the routes it
   adds, asks first unless given `--yes`, keeps a `.bak` copy of each replaced
@@ -275,7 +279,11 @@
   without a saved DNS host, where it also stays the server's own host as
   before. A deploy without
   `--app` only replaces the server's other experiments when it takes the
-  server's own DNS host. The Dozzle log viewer is always `https://logs.<server
+  server's own DNS host; any other deploy to a hostname that another app or
+  the server's log viewer already serves stops before the image build and
+  names that app or the log viewer. `servers add` and `servers upgrade` no
+  longer fail when `~/.dallingerconfig` has keys that only an extension such
+  as PsyNet registers. The Dozzle log viewer is always `https://logs.<server
   DNS host>`, so the printed URL is right when a deploy uses a different
   `--dns-host`; a server that served it at `<host>/logs` needs `logs.<host>`
   to resolve to it after `servers upgrade`. After `servers upgrade`, Caddy

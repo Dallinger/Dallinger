@@ -252,7 +252,7 @@ def test_classic_deploy_without_contact_email_prints_an_error_line(monkeypatch):
     # The value from global_config_defaults.txt.
     config.extend({"contact_email_on_error": "???"})
     config.ready = True
-    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load=False: config)
     monkeypatch.setattr(
         docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example"}}
     )
