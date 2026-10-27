@@ -1672,6 +1672,7 @@ def _deploy_in_mode(
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
     if not APP_NAME_PATTERN.fullmatch(experiment_id):
         raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
+    _check_app_name_not_reserved(experiment_id)
 
     resolved_ingress = _resolve_ingress(server_info, ingress)
     if resolved_ingress == INGRESS_CLOUDFLARE:

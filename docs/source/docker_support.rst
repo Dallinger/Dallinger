@@ -233,7 +233,8 @@ With either ingress, deploy also refuses app names the server already uses:
 ``caddy.d`` and ``root.d``, which are Caddy configuration directories beside the
 app directories in ``~/dallinger``; and ``dallinger``, the Compose project name of
 the shared services. The check ignores case, and for ``dallinger`` also covers
-names that Compose normalises to it, such as ``Dal.linger``.
+names that Compose normalises to it, such as ``Dal.linger``. It applies to the
+app name from ``--app`` or from an ``--archive``.
 
 Each app also gets an unprivileged Caddy front door (WebSockets, no Docker
 socket), which host Caddy or the tunnel now reach instead of web, and a

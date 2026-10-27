@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import uuid
+import zipfile
 from unittest import mock
 
 import click
@@ -171,6 +172,22 @@ def test_deploy_in_mode_rejects_reserved_app_name(monkeypatch):
         docker_ssh_module._deploy_in_mode(**_deploy_kwargs(app_name="logs"))
 
     get_experiment_files.assert_not_called()
+
+
+def test_deploy_rejects_a_reserved_app_name_from_the_archive(monkeypatch, tmp_path):
+    archive = tmp_path / "exp.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("experiment_id.md", "logs")
+    hosts = {"test-server": {"host": "lab.example"}}
+    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", hosts)
+    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: [])
+    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: mock.MagicMock())
+    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", mock.Mock())
+
+    with pytest.raises(click.UsageError, match="reserved for the server's log viewer"):
+        docker_ssh_module._deploy_in_mode(
+            **_deploy_kwargs(archive_path=str(archive), allow_private_ip=True)
+        )
 
 
 def test_cloudflare_error_prints_one_error_line(monkeypatch):

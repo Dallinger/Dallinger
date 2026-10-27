@@ -401,7 +401,8 @@
 ### Fixed
 
 - `dallinger docker-ssh deploy` and `dallinger docker-ssh sandbox` now reject
-  app names the server already uses before doing anything, in any case, with
+  app names the server already uses, whether given with `--app` or taken from
+  an `--archive`, before doing anything else, in any case, with
   for example `"logs" is reserved for the server's log viewer; choose another
   app name.` The reserved names are `logs`, which clashed with the Dozzle log
   viewer at `logs.<server host>`; `caddy.d` and `root.d`, whose app files would

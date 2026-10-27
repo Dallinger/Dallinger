@@ -1,3 +1,0 @@
-{"name": "dallinger.experiment", "asctime": "2026-10-27 09:57:59,477", "levelname": "ERROR", "filename": "experiment.py", "lineno": 2374, "message": "Error retrieving experiment class"}
-{"name": "dallinger.experiment", "asctime": "2026-10-27 09:57:59,478", "levelname": "ERROR", "filename": "experiment.py", "lineno": 2387, "message": "Could not import experiment."}
-{"name": "dallinger.command_line.docker_ssh", "asctime": "2026-10-27 09:58:00,141", "levelname": "WARNING", "filename": "docker_ssh.py", "lineno": 2402, "message": "Could not open SSH tunnel to 10.0.0.8:5432: ChannelException(1, 'Administratively prohibited')"}
