@@ -119,7 +119,9 @@ def test_tunnel_compose_has_isolated_postgres_and_no_published_ports():
     from dallinger.command_line.docker_ssh import CLOUDFLARED_IMAGE
 
     assert services["cloudflared"]["image"] == CLOUDFLARED_IMAGE
-    assert re.fullmatch(r"cloudflare/cloudflared:\d{4}\.\d+\.\d+", CLOUDFLARED_IMAGE)
+    assert re.fullmatch(
+        r"cloudflare/cloudflared:\d{4}\.\d+\.\d+@sha256:[0-9a-f]{64}", CLOUDFLARED_IMAGE
+    )
     assert services["frontdoor"]["user"] == "${UID}:${GID}"
     assert services["frontdoor"]["environment"]["XDG_DATA_HOME"] == "/state/caddy-data"
     assert services["cloudflared"]["environment"]["HOME"] == "/tmp"
