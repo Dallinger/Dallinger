@@ -246,9 +246,9 @@
 
 - `dallinger docker-ssh destroy` no longer deletes a Cloudflare-ingress app's
   database and Redis volumes unless you choose to delete the experiment's
-  data. Classic-ingress apps' databases are now dropped when you do. Scripts
-  that run destroy without a terminal must now pass `--keep-data` or
-  `--remove-data --yes`. When a root-domain deploy destroys the server's
+  data. Classic-ingress apps' databases are now dropped when you do. Without
+  a terminal, destroy keeps the data unless given `--remove-data --yes`.
+  When a root-domain deploy destroys the server's
   other classic apps, it keeps their data, as `--keep-data` does, and prints
   the command that deletes each app's data later; tools that wrap deploy can
   name their own command with the hidden `--delete-data-command` option,
@@ -260,8 +260,9 @@
   name as another app on the server, such as `MyApp` next to `myapp`, because
   such apps share containers and volumes: `deploy` and `sandbox` stop before
   building the image or destroying other apps for a root-domain deploy, and
-  `destroy` stops before the teardown unless you pass `--keep-data` while
-  the other app exists, so it never deletes the other app's data. The
+  `destroy` stops before the teardown while the other app exists, unless it
+  is keeping the data (with `--keep-data`, or by default without a
+  terminal), so it never deletes the other app's data. The
   messages say that destroying one of two such apps also stops the other
   one's containers.
 - ``dallinger docker-ssh deploy`` and ``sandbox`` now check recruiter

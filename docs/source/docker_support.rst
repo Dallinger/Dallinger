@@ -637,7 +637,8 @@ that Docker Compose writes the same way, such as ``MyApp`` and ``myapp``,
 would share containers and volumes, so a deploy refuses a name that matches
 another app on the server in this way. While the other app exists, destroy
 won't delete the data of such an app: it stops before the teardown, without
-asking, unless you pass ``--keep-data``. Destroying such an app also stops
+asking, unless you pass ``--keep-data`` or run it without a terminal, where it
+keeps the data by default. Destroying such an app also stops
 the other app's containers, because they belong to the same project; deploy
 the other app again with ``--update`` to start them.
 

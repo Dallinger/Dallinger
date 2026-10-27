@@ -1274,10 +1274,28 @@ def test_destroy_without_a_tty_keeps_data_unless_told_to_delete_it(monkeypatch):
     assert result.exit_code == 0, result.output
     assert "App myapp removed" in result.output and not _deletes(commands)
     assert "Kept the experiment data of myapp on example.com:" in result.output
+    assert "To delete it, run:" in result.output
 
     commands, result = _destroy_with_data(monkeypatch, ["--remove-data"], tty=False)
     assert result.exit_code == 2 and commands == []
     assert "pass --yes in non-interactive sessions" in result.output
+
+    commands, result = _destroy_with_data(
+        monkeypatch, ["--remove-data", "--yes"], tty=False
+    )
+    assert result.exit_code == 0, result.output
+    assert "docker volume rm myapp_redis_data" in _deletes(commands)
+
+    commands, result = _destroy_with_data(monkeypatch, [], tty=False, deployed=False)
+    assert result.exit_code == 1 and not _deletes(commands)
+    assert "Kept the experiment data of myapp on example.com:" in result.output
+    assert "App myapp is not deployed, so nothing was destroyed." in result.output
+
+    commands, result = _destroy_with_data(
+        monkeypatch, [], tty=False, server_apps="MyApp\nmyapp\n"
+    )
+    assert result.exit_code == 0, result.output
+    assert any(" down" in c for c in commands) and not _deletes(commands)
 
 
 def test_destroy_remove_data_after_destroy_cleans_up_leftovers(monkeypatch):

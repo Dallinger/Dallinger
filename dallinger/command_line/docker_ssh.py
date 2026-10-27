@@ -2957,7 +2957,7 @@ def destroy(
     Without --remove-data or --keep-data, asks whether to delete the
     experiment's data, or keeps it if there is no terminal to ask in. While
     another app on the server has the same Docker Compose project name (such
-    as MyApp and myapp), only --keep-data works.
+    as MyApp and myapp), destroy only runs if it keeps the data.
     """
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
