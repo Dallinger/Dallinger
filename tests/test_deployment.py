@@ -2240,6 +2240,7 @@ def quiet_cli_recruiter(active_config):
         ({"recruiter": "bots"}, False, False),
         ({"debug_recruiter": "quietcli"}, False, False),
         ({"recruiter": "multi", "recruiters": "bots: 1, hotair: 1"}, False, True),
+        ({"recruiter": "multi", "recruiters": "bots: 1, hotair: 0"}, False, False),
     ],
 )
 def test_debug_launch_mentions_browser_windows_only_if_they_will_open(

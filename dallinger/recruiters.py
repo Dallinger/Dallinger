@@ -2448,8 +2448,8 @@ def class_from_config(config):
 def config_opens_participant_browsers(config):
     """Return whether the configured recruiter opens participant browsers.
 
-    A MultiRecruiter counts if any recruiter in its ``recruiters`` spec does.
-    No recruiter is constructed.
+    A MultiRecruiter counts if any recruiter in its ``recruiters`` spec with
+    a nonzero count does. No recruiter is constructed.
 
     Parameters
     ----------
@@ -2465,7 +2465,7 @@ def config_opens_participant_browsers(config):
     klass = class_from_config(config)
     if klass is not None and issubclass(klass, MultiRecruiter):
         spec = MultiRecruiter._parse_spec(config.get("recruiters", ""))
-        classes = [_class_by_name(name) for name, _ in spec]
+        classes = [_class_by_name(name) for name, count in spec if count]
     else:
         classes = [klass]
     return any(c is not None and c.opens_participant_browsers for c in classes)

@@ -413,7 +413,7 @@
   with the new `opens_participant_browsers` class attribute (True for the CLI
   and HotAir recruiters), and `recruiters.config_opens_participant_browsers()`
   applies it to the configured recruiter; a MultiRecruiter counts if any
-  recruiter in its spec does. The new `recruiters.class_from_config()`
+  recruiter in its spec with a nonzero count does. The new `recruiters.class_from_config()`
   returns the recruiter class that `from_config()` would build, without
   constructing it. As a result, `from_config()` no longer constructs a
   configured recruiter that debug mode replaces. For example, `recruiter =
@@ -692,16 +692,22 @@
 - A syntax error in `experiment.py` now names the author's file instead of
   its symlink in the temporary develop directory.
 - Pressing Ctrl+C while a Dallinger server starts no longer prints a flood of
-  `ResourceWarning` messages; they stay hidden, as in Python's default
-  warning filters.
+  `ResourceWarning` messages. Dallinger now keeps Python's default warning
+  filters for categories other than `DeprecationWarning` and SQLAlchemy's
+  `SAWarning`, so `ResourceWarning` and `PendingDeprecationWarning` stay
+  hidden by default.
 - Dallinger commands, including local debugging, and deployed servers no
   longer print other packages' `DeprecationWarning`s (for example
   Flask-Login's `datetime.utcnow()` warning). Those triggered by code in
-  Dallinger, PsyNet or the experiment (including a script run directly and
-  demos installed as `dlgr.*`) are still shown, as is Python 3.12+'s warning
-  that forking a multi-threaded process may deadlock, whichever package
-  forks. Python's `-W` option or `PYTHONWARNINGS` overrides this, as for
-  `ResourceWarning`.
+  Dallinger, PsyNet or the experiment (whether Dallinger loads it as
+  `dallinger_experiment`, it runs directly as a script, or it is installed
+  as a `dlgr.*` demo) are still shown, as is Python 3.12+'s warning that forking
+  a multi-threaded process may deadlock, whichever package forks.
+- Python's `-W` option, `PYTHONWARNINGS` and `-X dev` now take precedence
+  over Dallinger's warning filters: for example, `-W
+  ignore::DeprecationWarning` hides Dallinger's deprecation warnings and
+  `-W error::DeprecationWarning` turns them into errors. `SAWarning` stays
+  hidden.
 - `dallinger docker-ssh deploy` and `sandbox`, and
   `ensure_remote_host_in_known_hosts()` (which `psynet deploy ssh` calls
   first), stop with one `Error:` line instead of a traceback when they can't
