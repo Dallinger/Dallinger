@@ -1269,17 +1269,15 @@ def test_destroy_remove_data_asks_before_teardown(monkeypatch):
     assert not _deletes(commands)
 
 
-@pytest.mark.parametrize(
-    "args, message",
-    [
-        ([], "pass --remove-data or --keep-data"),
-        (["--remove-data"], "pass --yes in non-interactive sessions"),
-    ],
-)
-def test_destroy_without_a_tty_needs_an_explicit_choice(monkeypatch, args, message):
-    commands, result = _destroy_with_data(monkeypatch, args, tty=False)
+def test_destroy_without_a_tty_keeps_data_unless_told_to_delete_it(monkeypatch):
+    commands, result = _destroy_with_data(monkeypatch, [], tty=False)
+    assert result.exit_code == 0, result.output
+    assert "App myapp removed" in result.output and not _deletes(commands)
+    assert "Kept the experiment data of myapp on example.com:" in result.output
+
+    commands, result = _destroy_with_data(monkeypatch, ["--remove-data"], tty=False)
     assert result.exit_code == 2 and commands == []
-    assert message in result.output
+    assert "pass --yes in non-interactive sessions" in result.output
 
 
 def test_destroy_remove_data_after_destroy_cleans_up_leftovers(monkeypatch):
@@ -1295,6 +1293,14 @@ def test_destroy_remove_data_after_destroy_cleans_up_leftovers(monkeypatch):
         "docker volume rm myapp_postgres_data",
         "docker volume rm myapp_redis_data",
     ]
+
+    for args, answer in ([], "n\n"), (["--keep-data"], None):
+        commands, result = _destroy_with_data(
+            monkeypatch, args, input=answer, deployed=False
+        )
+        assert result.exit_code == 1 and not _deletes(commands)
+        assert "Kept the experiment data of myapp on example.com:" in result.output
+        assert "App myapp is not deployed, so nothing was destroyed." in result.output
 
     nothing_left = dict(deployed=False, db="", volumes=(), folder=False)
     for args in [], ["--keep-data"]:

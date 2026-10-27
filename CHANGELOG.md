@@ -47,10 +47,13 @@
   It lists the data it finds, with sizes where it can measure them, and asks
   whether to delete it before tearing anything down. `--remove-data` deletes
   it (after confirmation, or straight away with `--yes`) and `--keep-data`
-  keeps it; in non-interactive sessions one of them is required, and
-  `--remove-data` also needs `--yes`. Kept data is listed after destroy with
-  the command that deletes it; tools that wrap destroy can name their own
-  command with the hidden `--delete-data-command` option. `--remove-data`
+  keeps it; in non-interactive sessions destroy keeps the data unless given
+  `--remove-data --yes`, and `--remove-data` without `--yes` is an error.
+  Destroying an app that isn't deployed still exits with an error unless
+  `--remove-data` is given, even when it lists leftover data. Kept data is
+  listed after destroy with the command that deletes it; tools that wrap
+  destroy can name their own command with the hidden `--delete-data-command`
+  option. `--remove-data`
   also cleans up the data of an app that has already been destroyed, and
   exits successfully with "Nothing left to delete" when nothing is left. Data
   that destroy can't check, for example because the shared Postgres doesn't

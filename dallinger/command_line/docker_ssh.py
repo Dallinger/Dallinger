@@ -2955,24 +2955,21 @@ def destroy(
     """Tear down an experiment run on a server you control via ssh.
 
     Without --remove-data or --keep-data, asks whether to delete the
-    experiment's data. While another app on the server has the same Docker
-    Compose project name (such as MyApp and myapp), only --keep-data works.
+    experiment's data, or keeps it if there is no terminal to ask in. While
+    another app on the server has the same Docker Compose project name (such
+    as MyApp and myapp), only --keep-data works.
     """
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
     if remove_data and keep_data:
         raise click.UsageError("Pass only one of --remove-data and --keep-data.")
     if not _stdin_is_tty():
-        if not (remove_data or keep_data):
-            raise click.UsageError(
-                "Choose what happens to the experiment's data: pass --remove-data "
-                "or --keep-data in non-interactive sessions."
-            )
         if remove_data and not yes:
             raise click.UsageError(
                 "--remove-data needs confirmation; pass --yes in non-interactive "
                 "sessions."
             )
+        keep_data = not remove_data
     server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
     ssh_host, _ = split_ssh_host_port(ssh_address)
@@ -3066,6 +3063,10 @@ def destroy(
             f"A new deploy of {app} without --update deletes its database and "
             f"volumes, but reuses ~/dallinger-data/{app}."
         )
+        if not deployed:
+            raise click.ClickException(
+                f"App {app} is not deployed, so nothing was destroyed."
+            )
 
 
 def _tear_down_app(

@@ -623,11 +623,14 @@ You can also decide up front:
     dallinger docker-ssh destroy --app $APP_ID --remove-data
 
 If you decline the confirmation for ``--remove-data``, destroy stops without
-touching the app. In a non-interactive session, such as a script, you must pass
-``--keep-data`` or ``--remove-data --yes``. ``--remove-data`` also works after
+touching the app. In a non-interactive session, such as a script, destroy keeps
+the data unless you pass ``--remove-data --yes``, and lists the kept data with
+the command that deletes it; ``--remove-data`` without ``--yes`` is an error
+there. ``--remove-data`` also works after
 the app has been destroyed, and deletes whatever data is left; if nothing is
 left, it says so and exits successfully, so you can safely run it again
-(scripts still need ``--yes``). Bind
+(scripts still need ``--yes``). Without ``--remove-data``, destroying an app
+that isn't deployed exits with an error, even if it lists leftover data. Bind
 mounts that you added with ``docker_volumes`` are always kept. Volume names use the app
 name as Docker Compose writes it, in lowercase without dots. Two app names
 that Docker Compose writes the same way, such as ``MyApp`` and ``myapp``,
