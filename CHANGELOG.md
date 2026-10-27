@@ -4,9 +4,9 @@
 
 ### Changed
 
-- Cloudflare Tunnel deployments now use cloudflared 2026.10.4, pinned by image
-  digest, including the eMudhra certificate-compromise mitigation. Existing
-  connectors require a separate image update and restart.
+- Cloudflare Tunnel deployments now use cloudflared 2026.10.4, including the
+  eMudhra certificate-compromise mitigation. Existing connectors require a
+  separate image update and restart.
 - Local debugging (`dallinger debug`, `LoaderDeployment`, and the
   `pytest_dallinger` debug fixtures) now starts the Procfile processes with
   [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,
