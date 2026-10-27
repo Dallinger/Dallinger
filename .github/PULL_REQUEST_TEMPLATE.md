@@ -62,8 +62,8 @@ why. You don't need to list test names or pass counts.
 ## Automatic code review
 
 <!--
-One or two sentences: the reviewer models, the number of rounds, whether
-`/branch-review` ran, and the last reviewed commit. Say what any later
+One or two sentences: the reviewer models, the number of reviews, and the
+last reviewed commit. Say what any later
 commits change. If no review ran, say why.
 -->
 
