@@ -10,46 +10,45 @@ single-pass review in `.cursor/skills/branch-review/SKILL.md` and fixes the
 findings in between. Release PRs are excluded (see `AGENTS.md`). Run this
 on your own branch; push fixes before the final step-7 update.
 
-Each review is cheap, but reviews add up. Aim for a PR a human can review
-quickly, not for a reviewer that finds nothing.
+Reviews cost time and money, and they add up. Aim for a PR a human can
+review quickly, not for a reviewer that finds nothing.
 
 ## The loop
 
-- Run each review in a fresh context that doesn't edit code, following
+- Run each review as a separate agent that doesn't edit code, following
   `branch-review` steps 1-6 and skipping step 7.
-- Change the reviewer's model family every review, using the latest strong
-  model of each available family, and never the family that wrote the
-  code. One reviewer settles into what it knows to look for; another family
-  catches different things. Avoid the most expensive models unless the user
-  asks for them. If fewer than two such families are available, ask the
-  user before relaxing these rules.
-- The first review covers the whole diff. Later ones can focus on what
-  changed since, while watching for regressions elsewhere, until a review
-  finds no high or medium issues; from then on, each review covers the
-  whole diff.
+- Use a different model family (provider, such as Claude, GPT, Grok or
+  Gemini) from the previous review, and never a family that wrote the
+  changes; the PR's **LLM use** section says which did. One reviewer
+  settles into what it knows to look for; another family catches different
+  things. Use the latest strong model in each family, but not the most
+  expensive tier unless the user asks. If fewer than two families are left,
+  ask the user.
+- The first review covers the whole diff. Later ones can focus on the new
+  commits, but only reviews of the whole diff count towards convergence.
 - Between reviews, fix high and medium findings, and lows that are clearly
   worth it (wrong docs or messages, cheap test gaps, small local fixes).
   Note lows that need a design decision for the final PR description, as
   known limitations.
-- The loop has converged when two reviews in a row, from different model
-  families, find no high or medium issues in the whole diff at the same
-  commit. Lows alone don't need another review. A fix after a clean review
-  starts the count again, unless it only changes wording or tests; record
-  such unreviewed commits in the PR description.
-- Reviews read the diff; they don't replace using the change the way a user
-  would. Do that early, not only after the reviews converge. Prefer local
-  runs such as `dallinger debug`, and ask before anything that costs money,
-  recruits real participants, or leaves resources running.
+- The loop has converged when two reviews in a row, from different
+  families, review the whole diff at the current head and find no high or
+  medium issues. Their lows don't need a third review. Any commit after the
+  first of the two restarts the count, except one that only rewords
+  comments or `CHANGELOG.md`; record such commits in the PR description.
+- Reviews read the diff; they don't replace dogfooding (see `AGENTS.md`).
+  Use the change the way a user would early, not only after the reviews
+  converge.
 
 ## When to step back
 
 - If a finding calls for new functionality, don't add it silently or leave
   it as a limitation. Propose it to the user as a follow-up PR or as part of
   this one, and let them decide.
-- If reviews keep finding new high or medium issues after four or five
-  rounds, or undo earlier fixes (a first clean review at that point still
-  gets its confirming review), the PR may be too big or its design
-  unsettled. Stop and suggest splitting it, or ask the user.
+- If a review undoes an earlier fix, or the fifth review still finds new
+  high or medium issues, the PR may be too big or its design unsettled.
+  Stop and suggest splitting it, or ask the user. If the fifth review is
+  the first clean one, still run its confirming review; if that finds new
+  high or medium issues, stop.
 
 ## Finishing
 

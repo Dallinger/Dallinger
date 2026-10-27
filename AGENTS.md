@@ -55,9 +55,8 @@ repo-local `branch-review-loop` skill
 (`.cursor/skills/branch-review-loop/SKILL.md`, also the Cursor command
 `/branch-review-loop`). It repeats the single-pass `branch-review` skill
 (`/branch-review`) with a different reviewer model family each time, fixing
-findings in between, until two reviews in a row find no high or medium
-issues, or stops after several rounds that don't converge. Don't
-ask the user to run it. These specific command names avoid ambiguity with
+findings in between, until it converges or stops; the skill defines both.
+Don't ask the user to run it. These specific command names avoid ambiguity with
 generic Cursor-provided review commands.
 
 Address actionable findings before finalizing the pull request, and record

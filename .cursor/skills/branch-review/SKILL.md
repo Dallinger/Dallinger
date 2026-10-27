@@ -38,8 +38,9 @@ Check for:
 - neighbouring cases: for each behavior the change adds or fixes, list the
   similar inputs, callers and paths, and check that each is handled. For
   example: other reserved names, other credential or config sources, other
-  entry points such as `ctx.invoke` callers and PsyNet's wrappers, and other
-  modes such as ingress types
+  entry points such as `ctx.invoke` callers and PsyNet's wrappers, other
+  modes such as ingress types, and other docs, skills or commands that state
+  the same rule.
 
 ## 3) Validate test coverage
 
