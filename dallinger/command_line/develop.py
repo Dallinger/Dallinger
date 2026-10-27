@@ -15,7 +15,6 @@ from rq.job import Job, JobStatus
 from dallinger.command_line.utils import (
     Output,
     get_experiment_files,
-    header,
     log,
     require_exp_directory,
 )
@@ -27,6 +26,7 @@ from dallinger.deployment import (
     stop_signals_raise_keyboard_interrupt,
 )
 from dallinger.utils import (
+    DevelopDirectoryError,
     develop_target_path,
     ignore_stop_signals,
     open_browser,
@@ -64,7 +64,12 @@ def develop():
 
 
 @develop.command()
-@click.option("--port", default=5000, help="The port Flask is running on")
+@click.option(
+    "--port",
+    type=int,
+    default=None,
+    help="The port Flask is running on (default: the base_port setting)",
+)
 @click.option(
     "--skip-flask",
     is_flag=True,
@@ -85,6 +90,7 @@ def debug(port, skip_flask, no_browsers=False):
     if not verify_package(
         verify_experiment=False,
         experiment_files=files,
+        summary=True,
     ):
         # We could instead use the @require_exp_directory decorator,
         # but this doesn't print anything useful without the verbose flag.
@@ -94,7 +100,11 @@ def debug(port, skip_flask, no_browsers=False):
         )
         raise click.Abort
 
-    _bootstrap(experiment_files=files)
+    _bootstrap(
+        exp_config=None if port is None else {"base_port": port},
+        experiment_files=files,
+    )
+    port = get_config().get("base_port")
 
     q = Queue("default", connection=redis_conn)
     if no_browsers:
@@ -105,7 +115,8 @@ def debug(port, skip_flask, no_browsers=False):
     if not skip_flask:
         try:
             develop_dir = develop_target_path(get_config())
-            _run_dev_server(["./run.sh"], develop_dir)
+            env = {**os.environ, "FLASK_RUN_PORT": str(port), "base_port": str(port)}
+            _run_dev_server(["./run.sh"], develop_dir, env=env)
         finally:
             _cancel_pending_job(job)
 
@@ -121,7 +132,7 @@ def _cancel_pending_job(job):
         log(f"Could not cancel the launch job: {ex}")
 
 
-def _run_dev_server(cmd, cwd, stop_timeout=5):
+def _run_dev_server(cmd, cwd, stop_timeout=5, env=None):
     """Run the local server until it exits or this process is interrupted.
 
     The server runs in its own session, so Ctrl-C reaches only this process,
@@ -137,6 +148,8 @@ def _run_dev_server(cmd, cwd, stop_timeout=5):
         Directory to run ``cmd`` in.
     stop_timeout : float
         Seconds to wait after SIGTERM before killing the server's processes.
+    env : dict, optional
+        Environment for the server; defaults to this process's environment.
 
     Raises
     ------
@@ -145,7 +158,7 @@ def _run_dev_server(cmd, cwd, stop_timeout=5):
     """
     interrupted = False
     with stop_signals_raise_keyboard_interrupt():
-        proc = subprocess.Popen(cmd, cwd=cwd, start_new_session=True)
+        proc = subprocess.Popen(cmd, cwd=cwd, env=env, start_new_session=True)
         try:
             code = proc.wait()
         except KeyboardInterrupt:
@@ -198,8 +211,10 @@ def _bootstrap(exp_config=None, experiment_files=None):
         exp_config,
         experiment_files=experiment_files,
     )
-    log(header, chevrons=False)
-    bootstrapper.run()
+    try:
+        bootstrapper.run()
+    except DevelopDirectoryError as ex:
+        raise click.ClickException(str(ex))
 
 
 def launch_app_and_open_browser(port):
@@ -238,8 +253,15 @@ def _launch_app(port):
     default=None,
     help="Route name (valid routes are: {})".format(", ".join(valid_routes.keys())),
 )
-@click.option("--port", default=5000, help="The port Flask is running on")
-def browser(route=None, port=5000):
+@click.option(
+    "--port",
+    type=int,
+    default=None,
+    help="The port Flask is running on (default: the base_port setting)",
+)
+def browser(route=None, port=None):
+    if port is None:
+        port = get_config(load=True).get("base_port")
     _browser(route=route, port=port)
 
 

@@ -148,7 +148,7 @@ def main():
         startup_timeout = configured_timeout
         startup_watchdog = _exit_unless_registered_within(startup_timeout, started)
     if startup_watchdog is not None:
-        logging.getLogger(__name__).warning(
+        logging.getLogger(__name__).debug(
             "Worker will exit if it hasn't registered with RQ within %s s",
             startup_timeout,
         )

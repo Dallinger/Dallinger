@@ -350,7 +350,7 @@ def deploy_sandbox_shared_setup(
             r = connect_to_redis(url=heroku_app.redis_url)
             r.set("foo", "bar")
             ready = True
-            log("\n✓ connected at {}".format(heroku_app.redis_url), chevrons=False)
+            log("\nConnected at {}.".format(heroku_app.redis_url))
         except (ValueError, redis.exceptions.ConnectionError):
             time.sleep(2)
             log(".", chevrons=False, nl=False)
