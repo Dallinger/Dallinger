@@ -281,7 +281,7 @@
   `--app` only replaces the server's other experiments when it takes the
   server's own DNS host; any other deploy to a hostname that another app or
   the server's log viewer already serves stops before the image build and
-  names that app. `servers add` and `servers upgrade` no longer fail when
+  names that app or the log viewer. `servers add` and `servers upgrade` no longer fail when
   `~/.dallingerconfig` has keys that only an extension such as PsyNet
   registers. The Dozzle log viewer is always `https://logs.<server
   DNS host>`, so the printed URL is right when a deploy uses a different

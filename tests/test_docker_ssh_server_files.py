@@ -456,8 +456,10 @@ def test_servers_add_accepts_a_set_up_ip_server_without_a_dns_host(server, monke
 def test_servers_add_ignores_config_keys_dallinger_does_not_register(
     server, monkeypatch
 ):
+    (server / "key.pem").write_text("")
     (server / ".dallingerconfig").write_text(
         "[Parameters]\nlucid_api_key = secret\ncontact_email_on_error = me@example.org\n"
+        f"server_pem = {server / 'key.pem'}\n"
     )
     monkeypatch.setenv("HOME", str(server))
     monkeypatch.delenv("contact_email_on_error", raising=False)
@@ -467,8 +469,10 @@ def test_servers_add_ignores_config_keys_dallinger_does_not_register(
     monkeypatch.setattr(
         docker_ssh, "get_configured_hosts", lambda: {"lab.example.org": saved}
     )
+    # Connecting to the server reads server_pem first.
+    connect = mock.Mock(side_effect=lambda host, user: docker_ssh.get_server_pem_path())
     with (
-        mock.patch.object(docker_ssh, "prepare_server"),
+        mock.patch.object(docker_ssh, "prepare_server", connect),
         mock.patch.object(docker_ssh, "store_host"),
     ):
         result = CliRunner().invoke(

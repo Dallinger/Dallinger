@@ -127,7 +127,11 @@ def get_server_pem_path() -> Path:
     Raises FileNotFoundError with a helpful message if the config key is missing
     or the file does not exist.
     """
-    config = get_config(load=True)
+    config = get_config()
+    if not config.ready:
+        # Outside an experiment, ~/.dallingerconfig may hold keys that only an
+        # extension such as PsyNet registers.
+        config.load(strict=False)
     path_string: str = str(config.get("server_pem", "") or "")
     if not path_string:
         raise FileNotFoundError(
