@@ -50,11 +50,13 @@ or architecture. Put fixes for bugs found along the way in their own bullets.
 What was run and what it showed: new or changed tests, and CI on the head
 commit. Then dogfood: someone (human or agent) used the change the way a user
 would, e.g. ran the command, deployed a demo or opened the page, and checked
-the result. Say who did it, what they ran and what they saw. Passing
-automated tests isn't enough on its own. If the change has nothing a user
-could run (e.g. CI or a private helper), or dogfooding isn't possible (e.g.
-it needs credentials you don't have), say so instead. Say what wasn't
-tested and why. You don't need to list test names or pass counts.
+the result. Prefer local runs such as `dallinger debug`, and ask before
+anything that costs money, recruits real participants, or leaves resources
+running. Say who did it, what they ran and what they saw. Passing automated
+tests isn't enough on its own. If the change has nothing a user could run
+(e.g. CI or a private helper), or dogfooding isn't possible (e.g. it needs
+credentials you don't have), say so instead. Say what wasn't tested and
+why. You don't need to list test names or pass counts.
 -->
 
 ## Automatic code review

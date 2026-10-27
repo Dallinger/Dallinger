@@ -12,8 +12,10 @@
   moves screenshots into Behavior changes, and asks for a short review
   summary.
   **Testing** and `AGENTS.md` now expect changes to be dogfooded, i.e. used
-  the way a user would use them, not just covered by automated tests; changes
-  with nothing a user could run say so instead.
+  the way a user would use them, not just covered by automated tests,
+  preferring local runs and asking before anything that costs money,
+  recruits real participants, or leaves resources running; changes with
+  nothing a user could run say so instead.
 - Local debugging (`dallinger debug`, `LoaderDeployment`, and the
   `pytest_dallinger` debug fixtures) now starts the Procfile processes with
   [honcho](https://github.com/nickstenning/honcho) instead of `heroku local`,
