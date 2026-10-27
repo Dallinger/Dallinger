@@ -108,6 +108,7 @@ def test_docker_ssh_destroy_missing_app_reports_error(fresh_docker_ssh_server):
             fresh_docker_ssh_server.server,
             "--app",
             missing_app_id,
+            "--keep-data",
         ],
         check=False,
     )
