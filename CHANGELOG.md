@@ -522,8 +522,8 @@
   setting and waits for that port when it launches the experiment. It used
   to run Flask on 5000 whatever `base_port` said and wait for 5000. `--port`
   still overrides it, and now also sets the Flask server's port
-  (`FLASK_RUN_PORT`) and the session's `base_port`, including in the server
-  and worker processes, where an exported `base_port` environment variable
+  (`FLASK_RUN_PORT`) and the session's `base_port`, including in the server,
+  worker and clock processes, where an exported `base_port` environment variable
   used to win. `dallinger develop browser` also defaults to `base_port`.
 - `dallinger develop debug` and `dallinger develop bootstrap` now stop with
   one `Error:` line naming the `dallinger_develop_directory` setting, its
