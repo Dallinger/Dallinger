@@ -74,6 +74,21 @@ def test_dallinger_aws_keys_are_passed_with_region(active_config):
     assert get_keys("eu-west-2") == {**keys, "region_name": "eu-west-2"}
 
 
+def test_exported_temporary_credentials_keep_their_session_token(
+    active_config, monkeypatch
+):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "ASIATEMP")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "temp-secret")
+    monkeypatch.setenv("AWS_SESSION_TOKEN", "temp-token")
+    active_config.extend(
+        {"aws_access_key_id": "ASIATEMP", "aws_secret_access_key": "temp-secret"}
+    )
+    assert get_keys()["aws_session_token"] == "temp-token"
+
+    active_config.extend({"aws_access_key_id": "AKIAREAL"})
+    assert "aws_session_token" not in get_keys()
+
+
 @pytest.mark.parametrize(
     "code, skipped",
     [

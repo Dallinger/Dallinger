@@ -404,7 +404,11 @@
   or an instance role. Dallinger's defaults set placeholder AWS keys, which
   were treated as configured and sent to AWS, so AWS always rejected them.
   They now leave such credentials to boto and honour `--region`, falling back
-  to the AWS profile's region and then `aws_region`. Scanning every region
+  to boto's default region (`AWS_REGION`, `AWS_DEFAULT_REGION` or the AWS
+  profile's region) and then `aws_region`. Temporary credentials exported as
+  `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN` (for
+  example by `aws-vault exec` or CI role assumption) now include the session
+  token, which used to be dropped. Scanning every region
   (`dallinger ec2 list instances` without `--region`) now skips, with a
   warning, regions the account can't use (`AuthFailure`,
   `UnauthorizedOperation`, `OptInRequired`) or can't reach, rather than
