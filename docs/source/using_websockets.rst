@@ -283,13 +283,22 @@ rather than on a worker, and the budget above applies to it.
 Making Database Waits Cooperative
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Two changes would remove that budget, and Dallinger makes neither today.
-``psycogreen.gevent.patch_psycopg()`` is only a few lines, but it puts
-connections into psycopg2's asynchronous mode, which does not support ``COPY``,
-and Dallinger uses ``COPY`` to export data. Psycopg 3 waits cooperatively on its
-own and keeps ``COPY``, but it needs the SQLAlchemy 2.0 upgrade first, and
-Dallinger pins ``sqlalchemy==1.4.54``. `Issue #9807
-<https://github.com/Dallinger/Dallinger/issues/9807>`_ has the full comparison.
+Dallinger applies ``psycogreen`` in the gunicorn web workers and in the RQ
+gevent workers. ``psycogreen`` registers a gevent wait callback so that
+psycopg2 socket waits yield to the gevent event loop rather than blocking the
+OS thread — a database wait in one greenlet no longer stalls every other
+request on the same worker.
+
+The trade-off is that psycogreen puts psycopg2 into asynchronous mode, which
+does not support the ``COPY`` command. ``dallinger export`` and
+``dallinger.data.ingest_zip`` use ``COPY``, but they run as CLI commands in a
+separate process where psycogreen is never applied, so they are unaffected.
+The limitation applies to experiment code: if a handler or RQ job calls
+``data.export()`` or ``ingest_zip()`` directly, it will fail inside a patched
+process. Psycopg 3 would keep ``COPY`` cooperative natively, but requires the
+SQLAlchemy 2.0 upgrade first. `Issue #9807
+<https://github.com/Dallinger/Dallinger/issues/9807>`_ has the full
+comparison.
 
 
 Sending to Specific Participants
