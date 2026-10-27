@@ -50,11 +50,12 @@ def get_keys(region_name=None):
     """Return boto client arguments: Dallinger's AWS keys, if set, and a region.
 
     If the keys are unset or still the placeholder defaults, boto finds
-    credentials itself (``~/.aws``, SSO, a role). If the key ID is the one
-    in ``AWS_ACCESS_KEY_ID``, ``AWS_SESSION_TOKEN`` is passed along with the
-    keys, so exported temporary credentials work. The region is
-    ``region_name``, else boto's default region (``AWS_REGION``,
-    ``AWS_DEFAULT_REGION`` or the AWS profile's region) when Dallinger's keys
+    credentials itself (``~/.aws``, SSO, a role). If the key ID is a
+    temporary one (``ASIA...``) and is the one in ``AWS_ACCESS_KEY_ID``,
+    ``AWS_SESSION_TOKEN`` is passed along with the keys, so exported temporary
+    credentials work; a leftover token never reaches long-lived keys. The
+    region is ``region_name``, else boto's default region
+    (``AWS_DEFAULT_REGION`` or the AWS profile's region) when Dallinger's keys
     aren't used, else Dallinger's ``aws_region``.
     """
     from dallinger.config import get_config
@@ -69,8 +70,11 @@ def get_keys(region_name=None):
             "region_name": region_name or default_region,
         }
         session_token = os.environ.get("AWS_SESSION_TOKEN")
-        if session_token and keys["aws_access_key_id"] == os.environ.get(
-            "AWS_ACCESS_KEY_ID"
+        key_id = keys["aws_access_key_id"]
+        if (
+            session_token
+            and key_id.startswith("ASIA")
+            and key_id == os.environ.get("AWS_ACCESS_KEY_ID")
         ):
             keys["aws_session_token"] = session_token
         return keys

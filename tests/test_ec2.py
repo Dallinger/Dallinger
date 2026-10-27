@@ -88,6 +88,9 @@ def test_exported_temporary_credentials_keep_their_session_token(
     active_config.extend({"aws_access_key_id": "AKIAREAL"})
     assert "aws_session_token" not in get_keys()
 
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAREAL")
+    assert "aws_session_token" not in get_keys()
+
 
 @pytest.mark.parametrize(
     "code, skipped",
