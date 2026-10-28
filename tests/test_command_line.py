@@ -300,6 +300,15 @@ class TestVerify:
         verify_directory.assert_called_once_with(True, source)
         verify_experiment.assert_called_once_with(True, source)
 
+    def test_module_verification_checks_the_game_types(self, v_package):
+        with mock.patch(
+            "dallinger.command_line.utils.verify_realtime_games", return_value=False
+        ) as check:
+            assert v_package() is False
+
+        exp_class, verbose = check.call_args.args
+        assert (exp_class.__name__, verbose) == ("Bartlett1932", True)
+
     def test_policy_membership_controls_verified_size(
         self, v_directory, tmp_path, monkeypatch
     ):
@@ -319,6 +328,75 @@ class TestVerify:
         )
         with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "1"}):
             assert v_directory(verbose=False) is True
+
+
+class TestVerifyRealtimeGames:
+    @pytest.fixture
+    def verify(self):
+        from dallinger.command_line.utils import verify_realtime_games
+
+        return verify_realtime_games
+
+    @staticmethod
+    def experiment(game_types, channel=None):
+        return type("Exp", (), {"realtime_games": game_types, "channel": channel})
+
+    def test_an_experiment_without_game_types_passes_quietly(self, verify, capsys):
+        assert verify(self.experiment([])) is True
+        assert capsys.readouterr().out == ""
+
+    def test_valid_game_types_pass(self, verify, active_config, capsys):
+        from tests.realtime.helpers import Tally
+
+        assert verify(self.experiment([Tally])) is True
+        assert "✓ realtime_games are valid" in capsys.readouterr().out
+
+    def test_invalid_game_types_fail_with_the_reason(
+        self, verify, active_config, capsys
+    ):
+        assert verify(self.experiment([object])) is False
+        assert (
+            "✗ experiment.py has invalid realtime_games: <class 'object'> is not a "
+            "RealtimeGame subclass." in capsys.readouterr().out
+        )
+
+    def test_the_config_is_loaded_for_game_types_that_read_it(self, verify):
+        from tests.realtime.helpers import Tally
+
+        config = mock.Mock(ready=False)
+
+        class ReadsConfig(Tally):
+            def __init__(self):
+                if not config.load.called:
+                    raise RuntimeError("Config not loaded")
+
+        with mock.patch("dallinger.command_line.utils.get_config", return_value=config):
+            assert verify(self.experiment([ReadsConfig])) is True
+
+    def test_a_config_that_will_not_load_is_left_to_verify_config(self, verify, capsys):
+        config = mock.Mock(ready=False)
+        config.load.side_effect = ValueError("bad config")
+
+        with mock.patch("dallinger.command_line.utils.get_config", return_value=config):
+            assert verify(self.experiment([object])) is True
+        assert capsys.readouterr().out == ""
+
+    def test_a_loaded_config_is_not_loaded_again(self, verify):
+        from tests.realtime.helpers import Tally
+
+        config = mock.Mock(ready=True)
+
+        with mock.patch("dallinger.command_line.utils.get_config", return_value=config):
+            assert verify(self.experiment([Tally])) is True
+        config.load.assert_not_called()
+
+    def test_a_game_type_on_the_experiments_channel_fails(
+        self, verify, active_config, capsys
+    ):
+        from tests.realtime.helpers import Tally
+
+        assert verify(self.experiment([Tally], channel="tally")) is False
+        assert "is the experiment's channel" in capsys.readouterr().out
 
 
 @pytest.mark.slow

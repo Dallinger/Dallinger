@@ -162,10 +162,14 @@ class TestGeventCooperativeness:
         the gevent cooperative-scheduling test passes regardless because it
         applies psycogreen via fixture; this test catches the deployment gap.
         """
-        from dallinger.experiment_server.gunicorn import post_worker_init
+        from dallinger.experiment_server import gunicorn
 
         try:
-            post_worker_init(worker=None)
+            with (
+                mock.patch("dallinger.experiment_server.sockets.process_games"),
+                mock.patch.object(gunicorn, "close_sockets_on_sigterm"),
+            ):
+                gunicorn.post_worker_init(worker=None)
             assert psycopg2.extensions.get_wait_callback() is not None, (
                 "post_worker_init must register psycogreen's wait callback so "
                 "that psycopg2 lock waits are gevent-cooperative in gunicorn workers."

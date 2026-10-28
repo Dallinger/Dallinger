@@ -762,7 +762,25 @@ var dallinger = (function () {
    */
   dlgr.DIRECT_CHANNEL = "dallinger_direct";
 
-  var RESERVED_CHANNELS = ["dallinger_control", dlgr.DIRECT_CHANNEL];
+  /**
+   * The channel on which a page in a real-time session measures its clock
+   * against the server's. It is reserved for Dallinger's own use.
+   */
+  dlgr.TIME_CHANNEL = "dallinger_time";
+
+  /**
+   * The channel on which a page in a real-time session receives its views,
+   * and learns that the session has ended. It is reserved for Dallinger's own
+   * use.
+   */
+  dlgr.REALTIME_SESSION_CHANNEL = "dallinger_realtime_session";
+
+  var RESERVED_CHANNELS = [
+    "dallinger_control",
+    dlgr.DIRECT_CHANNEL,
+    dlgr.REALTIME_SESSION_CHANNEL,
+    dlgr.TIME_CHANNEL,
+  ];
 
   /**
    * A value identifying this page load. Sockets opened with
@@ -1034,7 +1052,8 @@ var dallinger = (function () {
    * connection.
    *
    * The connection identifies the participant from ``dallinger.identity``,
-   * and the server refuses it if that participant does not exist.
+   * and the server refuses it if that participant does not exist or the
+   * experiment's ``accept_websocket_connection`` method says no.
    *
    * @example
    * var socket = dallinger.openExperimentSocket();

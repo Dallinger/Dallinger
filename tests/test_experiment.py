@@ -369,19 +369,19 @@ class TestExperimentBaseClass:
             exp.publish_to_participants({"type": "wake"}, [12, 13], scope="page-7")
 
         channel, envelope = mock_redis.publish.mock_calls[0].args
-        envelope = json.loads(envelope)
+        [send] = json.loads(envelope)["items"]
         assert channel == "dallinger_direct"
-        assert envelope["participant_ids"] == ["12", "13"]
-        assert envelope["scope"] == "page-7"
-        assert json.loads(envelope["payload"]) == {"type": "wake"}
+        assert send["participant_ids"] == ["12", "13"]
+        assert send["scope"] == "page-7"
+        assert json.loads(send["payload"]) == {"type": "wake"}
 
     def test_publish_to_participants_defaults_to_every_connection(self, exp):
         with mock.patch("dallinger.experiment_server.sockets.redis_conn") as mock_redis:
             exp.publish_to_participants({"type": "wake"}, 12)
 
-        envelope = json.loads(mock_redis.publish.mock_calls[0].args[1])
-        assert envelope["participant_ids"] == ["12"]
-        assert envelope["scope"] is None
+        [send] = json.loads(mock_redis.publish.mock_calls[0].args[1])["items"]
+        assert send["participant_ids"] == ["12"]
+        assert send["scope"] is None
 
     def test_send_enqueues_worker_function(self, exp):
         from dallinger.experiment_server.worker_events import worker_function

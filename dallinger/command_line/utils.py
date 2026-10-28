@@ -416,8 +416,39 @@ def verify_experiment_module(verbose, experiment_files=None):
                     verbose=verbose,
                 )
                 ok = False
+        if not verify_realtime_games(exp_class, verbose):
+            ok = False
 
     return ok
+
+
+def verify_realtime_games(exp_class, verbose=True):
+    """Check the game types in the experiment's ``realtime_games`` property, as
+    the web and worker processes do when they start.
+    """
+    from dallinger.realtime import validate_game_types
+
+    if not exp_class.realtime_games:
+        return True
+    # A game type's __init__ may read the config.
+    config = get_config()
+    if not config.ready:
+        try:
+            config.load()
+        except Exception:
+            # verify_config reports it.
+            return True
+    try:
+        validate_game_types(exp_class.realtime_games, exp_class.channel)
+    except Exception as error:
+        log(
+            "✗ experiment.py has invalid realtime_games: {}".format(error),
+            chevrons=False,
+            verbose=verbose,
+        )
+        return False
+    log("✓ realtime_games are valid", chevrons=False, verbose=verbose)
+    return True
 
 
 def verify_config(verbose=True):

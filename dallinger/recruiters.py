@@ -18,7 +18,7 @@ from sqlalchemy import func
 
 from dallinger import dev_logging
 from dallinger.command_line.utils import Output, render_rich_table
-from dallinger.config import get_config
+from dallinger.config import LOG_LEVELS, get_config
 from dallinger.db import get_queue, redis_conn, scoped_session_decorator, session
 from dallinger.experiment_server.utils import crossdomain, success_response
 from dallinger.experiment_server.worker_events import worker_function
@@ -62,15 +62,8 @@ def set_log_level(level):
         - This only affects logging output from this module, not globally.
     """
 
-    loglevels = [
-        logging.DEBUG,
-        logging.INFO,
-        logging.WARNING,
-        logging.ERROR,
-        logging.CRITICAL,
-    ]
     try:
-        new_level = loglevels[level]
+        new_level = LOG_LEVELS[level]
     except IndexError:
         new_level = logging.NOTSET
 

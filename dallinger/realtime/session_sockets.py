@@ -1,0 +1,432 @@
+"""A page's websocket can take part in a real-time session.
+
+A page joins a session by opening a websocket with the session's id in the
+``session`` query parameter. The web process adds a join to the session when
+the socket is ready, a message for each frame the page sends on the game
+type's channel, and a leave when the socket closes. Frames on a game channel
+are never broadcast or passed to
+:meth:`~dallinger.experiment.Experiment.handle_websocket_message`. The runner
+answers each join with the player's current view, so a page that opens or
+reopens its socket gets one without asking.
+
+A page sends each message as a JSON object with two keys, so the game knows
+what the page said about it and the page's views can acknowledge it:
+
+- ``payload``: the message, which
+  :meth:`~dallinger.realtime.RealtimeGame.apply` receives
+- ``envelope``: an object holding the values
+  :class:`~dallinger.realtime.Sent` describes. ``number`` counts the
+  page's messages, a whole number from 0 to 2147483647 that goes up by one
+  with each message. Views report the number of the latest message the game
+  processed rather than the highest, so a page can count again from the
+  start when it reloads. ``browser_time`` is a number read from the
+  browser's clock, and ``view_time`` is the ``time`` of the view the page was
+  showing.
+
+Any other frame is still applied, with ``None`` for each of the ``Sent``
+values, and no view acknowledges it. A frame that is JSON is passed to
+``apply`` as it is, and any other text as a string.
+
+A page whose session has already ended gets no join. Its socket gets the
+session's ending instead, as :mod:`dallinger.realtime.delivery` describes.
+
+A page that doesn't know its session's id yet opens a websocket to
+``/experiment-socket`` with a game type's channel in the ``wait_for_game``
+query parameter, instead of a ``session``. The socket is sent a
+``realtime_started`` frame for the newest running session of that game type
+with the participant as a player other than a bot: at once if there is one,
+otherwise when :func:`~dallinger.realtime.create_realtime_session` starts
+one. A participant's sockets also get the frames of their other game types'
+sessions, so a page checks the frame's ``game_type``. A page whose participant
+plays several sessions of the game type, one after another, gives the id of
+the session it has in ``after_session``, so that only newer sessions count.
+
+A ``wait_for_game`` that isn't one of the experiment's game types, one with a
+``session`` or on ``/chat``, and an ``after_session`` that isn't a whole
+number are refused with code ``1008``. Like any experiment socket, the
+connection is checked by
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection` and
+reported on the control channel. Its frames on game channels and the time
+channel are dropped.
+
+A page measures its clock against the server's with frames on
+:data:`~dallinger.db.TIME_CHANNEL`, each a JSON object:
+
+- ``{"type": "request", "id": ...}`` asks for the server's clock. The ``id``
+  is a number the page chooses. The web process answers at once, on the same
+  socket, with ``{"type": "time", "id": ..., "clock": ...}``: the request's
+  ``id`` and the server's clock, in seconds since 1970. A request whose ``id``
+  isn't a finite number that fits in a float is dropped. The server's clock
+  is redis's, which also sets the times entries are received and the
+  session's time.
+- ``{"type": "clock", "browser_time": ..., "server_time": ...,
+  "round_trip": ...}`` reports a measurement, which is saved with the
+  session's records. ``browser_time`` is the browser's clock, the clock of
+  message envelopes' ``browser_time``. ``server_time`` is the server's clock
+  at the same moment, as the page estimated it, in seconds since 1970, and
+  ``round_trip`` is the round trip of the request the estimate came from, in
+  seconds. A report counts against the rate limit as a message does. One
+  missing a value, with a value that isn't a finite number that fits in a
+  float, or with a negative ``round_trip``, is dropped.
+
+A socket with no session gets no answers, and its reports are dropped.
+
+The web process only checks that the participant the socket names is one of
+the session's players, and closes the socket with code ``1008`` and the reason
+``not a player in this session`` if not. If redis or Postgres fails while a
+session is looked up or joined, it closes the socket with ``1013``, which
+tells the page to try again later. Dallinger's sockets don't authenticate
+anyone, so a page that names another player's participant id can play as that
+player. An experiment can check ``/experiment-socket`` connections itself with
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection`, but a
+``/chat`` connection can join a session without that check.
+"""
+
+import json
+import logging
+import math
+import time
+import uuid
+
+from redis import RedisError
+
+from dallinger.db import REALTIME_SESSION_CHANNEL, TIME_CHANNEL, channel_frame
+from dallinger.realtime import store
+from dallinger.realtime.delivery import ending_payload, started_payload
+
+logger = logging.getLogger(__name__)
+
+#: The least time, in seconds, between a connection's warnings about the
+#: messages it drops.
+DROP_WARNING_INTERVAL_SECS = 1.0
+
+
+class TokenBucket:
+    """Allows ``rate`` events a second on average, and up to ``capacity`` at
+    once.
+    """
+
+    def __init__(self, rate, capacity):
+        self.rate = rate
+        self.capacity = capacity
+        self.tokens = capacity
+        self.updated = time.monotonic()
+
+    def take(self):
+        """Return whether an event is allowed now, and count it if so."""
+        now = time.monotonic()
+        self.tokens = min(self.capacity, self.tokens + (now - self.updated) * self.rate)
+        self.updated = now
+        if self.tokens < 1:
+            return False
+        self.tokens -= 1
+        return True
+
+
+class Refusal(Exception):
+    """A connection's session can't be opened.
+
+    :param reason: the reason the socket is closed with
+    :param retry: whether the page should try again later
+    """
+
+    def __init__(self, reason, retry=False):
+        super().__init__(reason)
+        self.reason = reason
+        self.retry = retry
+
+
+class SessionExpired(Exception):
+    """The session's keys expired after the connection was found to be one of
+    its players.
+    """
+
+
+class NoSession:
+    """The session side of a connection with no session, which drops every
+    frame on a game channel or the time channel.
+
+    :param describe: what the warnings call the connection
+    """
+
+    #: Whether the connection's process needs its listener for
+    #: :data:`~dallinger.db.REALTIME_SESSION_CHANNEL`.
+    uses_session_listener = False
+
+    def __init__(self, describe):
+        self.describe = describe
+        self.last_warning = None
+
+    def join(self):
+        return None
+
+    def leave(self):
+        pass
+
+    def handle_frame(self, channel, data):
+        """Drop a frame on a game channel or the time channel, and return
+        ``None``.
+        """
+        self.warn_dropped("on {} with no session".format(channel))
+
+    def warn_dropped(self, why, exc_info=False):
+        """Log a warning about a dropped frame, at most once every
+        :data:`DROP_WARNING_INTERVAL_SECS`.
+        """
+        now = time.monotonic()
+        if (
+            self.last_warning is not None
+            and now - self.last_warning < DROP_WARNING_INTERVAL_SECS
+        ):
+            return
+        self.last_warning = now
+        logger.warning(
+            "Dropping messages from %s %s.", self.describe, why, exc_info=exc_info
+        )
+
+
+class SessionSocket(NoSession):
+    """A connection's place in a session: it adds the connection's join,
+    messages, clock reports and leave to the session's entries.
+
+    Each connection has its own rate limit, from the game type's
+    :attr:`~dallinger.realtime.RealtimeGame.max_messages_per_second`
+    and :attr:`~dallinger.realtime.RealtimeGame.message_burst`.
+    """
+
+    uses_session_listener = True
+
+    def __init__(self, session_id, game, participant, scope, describe):
+        super().__init__(describe)
+        self.session_id = session_id
+        self.game = game
+        self.participant = participant
+        self.scope = scope
+        #: Names this connection in its session's join and leave entries.
+        self.socket = uuid.uuid4().hex
+        self.bucket = TokenBucket(game.max_messages_per_second, game.message_burst)
+        #: Seconds to add to this process's clock for redis's.
+        self.clock_offset = 0.0
+        self.joined = False
+
+    def join(self):
+        """Add the connection's join to its session and return ``None``, or,
+        if the session has ended, return the frame that tells the page how it
+        ended.
+
+        :raises SessionExpired: if the session's keys have expired
+        """
+        self.clock_offset = store.server_time() - time.time()
+        if self.add_socket_entry("join") is not None:
+            self.joined = True
+            return None
+        ending = store.load_ending(self.session_id)
+        if ending is None:
+            raise SessionExpired(self.session_id)
+        return channel_frame(
+            REALTIME_SESSION_CHANNEL,
+            ending_payload(self.session_id, ending, self.participant),
+        )
+
+    def leave(self):
+        """Add the connection's leave to its session, if it joined."""
+        if self.joined:
+            self.add_socket_entry("leave")
+
+    def add_socket_entry(self, kind):
+        return store.add_entry(
+            self.session_id,
+            {
+                "type": kind,
+                "participant": self.participant,
+                "scope": self.scope,
+                "socket": self.socket,
+            },
+        )
+
+    def handle_frame(self, channel, data):
+        """Add a game frame to the session as a message, or handle a frame on
+        the time channel. Return the frame that answers a time request, or
+        ``None``.
+
+        A game frame on another game type's channel is dropped.
+        """
+        if channel == TIME_CHANNEL:
+            return self.handle_time_frame(data)
+        if channel != self.game.channel:
+            self.warn_dropped(
+                "on the game channel {}, which isn't its session's".format(channel)
+            )
+            return None
+        self.add_limited_entry({"type": "message", "data": data})
+        return None
+
+    def handle_time_frame(self, data):
+        """Return the frame that answers a time request, or add a clock report
+        to the session and return ``None``.
+        """
+        frame = _json_object(data)
+        kind = None if frame is None else frame.get("type")
+        if kind == "request" and _finite_number(frame.get("id")) is not None:
+            clock = time.time() + self.clock_offset
+            answer = {"type": "time", "id": frame["id"], "clock": clock}
+            return channel_frame(TIME_CHANNEL, json.dumps(answer))
+        report = _clock_report(frame) if kind == "clock" else None
+        if report is None:
+            self.warn_dropped(
+                "on {} that aren't time requests or clock reports".format(TIME_CHANNEL)
+            )
+            return None
+        self.add_limited_entry({"type": "clock", **report})
+        return None
+
+    def add_limited_entry(self, entry):
+        """Add an entry from the page to the session, or drop it if it's over
+        the rate limit, the session has ended or redis refuses it.
+        """
+        if not self.bucket.take():
+            self.warn_dropped("over {}'s rate limit".format(type(self.game).__name__))
+            return
+        try:
+            added = store.add_entry(
+                self.session_id,
+                {"participant": self.participant, "scope": self.scope, **entry},
+            )
+        except RedisError:
+            self.warn_dropped("that redis refused", exc_info=True)
+            return
+        if added is None:
+            self.warn_dropped("for a session that has ended")
+
+
+class SessionWait(NoSession):
+    """The session side of a connection waiting for its participant's
+    session of a game type, which drops every frame on a game channel or the
+    time channel.
+
+    :param game_type: the game type's channel
+    :param after: a session id, so only newer sessions count, or ``None``
+    """
+
+    uses_session_listener = True
+
+    def __init__(self, game_type, participant, describe, after=None):
+        super().__init__(describe)
+        self.game_type = game_type
+        self.participant = participant
+        self.after = after
+
+    def join(self):
+        """Return the frame that tells the page about the newest running
+        session of the game type that has the participant as a player, or
+        ``None`` if there isn't one.
+        """
+        session_id = store.newest_running_session(
+            self.game_type, self.participant, after=self.after
+        )
+        if session_id is None:
+            return None
+        return channel_frame(
+            REALTIME_SESSION_CHANNEL, started_payload(session_id, self.game_type)
+        )
+
+
+def _json_object(data):
+    try:
+        value = json.loads(data)
+    # json.loads raises RecursionError for deeply nested arrays or objects.
+    except (ValueError, RecursionError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _finite_number(value):
+    """``value`` as a float if it's a finite number that fits in one, otherwise
+    ``None``.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        value = float(value)
+    except OverflowError:
+        return None
+    # json.loads reads NaN and Infinity, and a float too large as infinity.
+    return value if math.isfinite(value) else None
+
+
+def _clock_report(frame):
+    names = ("browser_time", "server_time", "round_trip")
+    report = {name: _finite_number(frame.get(name)) for name in names}
+    if None in report.values() or report["round_trip"] < 0:
+        return None
+    return report
+
+
+def open_session_socket(requested, participant, scope, games, describe):
+    """Return the :class:`SessionSocket` for a connection that asked for the
+    session ``requested``, or ``None`` if its participant isn't one of the
+    session's players. A bot isn't, because the runner plays for it.
+
+    :param requested: the ``session`` query parameter
+    :param participant: the connection's participant id, a string, or
+        ``None``
+    :param scope: the connection's scope
+    :param games: the experiment's game types, as
+        :func:`~dallinger.realtime.store.experiment_games` returns them
+    :param describe: what warnings call the connection
+
+    A redis error looking the session up is raised.
+    """
+    try:
+        session_id = int(requested)
+    except ValueError:
+        return None
+    if participant is None:
+        return None
+    game = games.get(store.player_game_channel(session_id, participant))
+    if game is None:
+        return None
+    return SessionSocket(session_id, game, participant, scope, describe)
+
+
+def open_connection_session(args, participant, scope, games, checked, describe):
+    """Return the session side of a new connection: a :class:`SessionSocket`
+    for one that asks for a ``session``, a :class:`SessionWait` for one that
+    waits for a game type's session, otherwise a :class:`NoSession`.
+
+    :param args: the connection's query parameters
+    :param participant: the connection's participant id, a string, or
+        ``None``
+    :param scope: the connection's scope
+    :param games: the experiment's game types, as
+        :func:`~dallinger.realtime.store.experiment_games` returns them
+    :param checked: whether the experiment checked the connection, as it does
+        on ``/experiment-socket``
+    :param describe: what warnings call the connection
+    :raises Refusal: as the module docstring describes
+    """
+    requested = args.get("session")
+    waiting_for = args.get("wait_for_game")
+    if waiting_for is not None:
+        if not checked:
+            raise Refusal("wait_for_game needs /experiment-socket")
+        if requested is not None:
+            raise Refusal("session and wait_for_game together")
+        if waiting_for not in games:
+            raise Refusal("not a game type")
+        after = args.get("after_session")
+        if after is not None and not (after.isascii() and after.isdigit()):
+            raise Refusal("after_session isn't a session id")
+        after = None if after is None else int(after)
+        return SessionWait(waiting_for, participant, describe, after=after)
+    if requested is None:
+        return NoSession(describe)
+    try:
+        session = open_session_socket(requested, participant, scope, games, describe)
+    except RedisError:
+        logger.exception("Could not look up a real-time session.")
+        raise Refusal("session lookup failed", retry=True)
+    if session is None:
+        logger.warning("Refusing %s for real-time session %r.", describe, requested)
+        raise Refusal("not a player in this session")
+    return session

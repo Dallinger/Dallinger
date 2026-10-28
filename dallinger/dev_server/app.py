@@ -9,14 +9,18 @@ import os  # noqa: E402
 import subprocess  # noqa: E402
 import sys  # noqa: E402
 
+import psutil  # noqa: E402
 import werkzeug  # noqa: E402
 import werkzeug.serving  # noqa: E402
 
 from dallinger import dev_logging  # noqa: E402
 
 try:
+    from dallinger.experiment_server import sockets  # noqa: E402
     from dallinger.experiment_server.experiment_server import app  # noqa: E402, F401
 
+    # Raises for invalid game types.
+    sockets.process_games()
     load_error = None
 except Exception as error:
     # After a code change, keep serving (and watching for the fix) instead of
@@ -69,6 +73,12 @@ if werkzeug.serving.is_running_from_reloader() and load_error is None:
     )
 
     def cleanup():
+        # A killed worker can't stop its real-time runner.
+        try:
+            for child in psutil.Process(worker.pid).children(recursive=True):
+                child.kill()
+        except psutil.NoSuchProcess:
+            pass
         worker.kill()
         clock.kill()
 
