@@ -4,13 +4,14 @@
 
 ### Changed
 
-- Agents now review feature pull requests themselves, instead of asking the
-  user to run `/branch-review`, using the new `branch-review-loop` skill
-  (`/branch-review-loop`). It repeats `/branch-review` as a separate agent
-  with a different model family each time, fixing findings in
-  between, until two reviews in a row find no high or medium issues, or
-  stops after several rounds that don't converge. New
-  functionality a review calls for is proposed to the user.
+- Before finalizing a feature pull request, agents now offer either a
+  single `/branch-review` or the new `/branch-review-loop` (skill
+  `branch-review-loop`). The loop repeats `/branch-review` as a separate
+  agent, preferably with a different model family each time, fixing
+  findings in between, until two reviews in a row find no high or medium
+  issues, or stops after several rounds that don't converge. The agent
+  proposes the reviewer models and waits for approval before starting, and
+  new functionality a review calls for is proposed to the user.
   `/branch-review` now tags findings high, medium or low, and checks the
   cases neighbouring each change, such as other names, config sources and
   entry points.

@@ -13,18 +13,25 @@ on your own branch; push fixes before the final step-7 update.
 Reviews cost time and money, and they add up. Aim for a PR a human can
 review quickly, not for a reviewer that finds nothing.
 
+## Before starting
+
+Unless the user's rules already settle it, propose the reviewer models
+(see the rotation below) and an estimate of the number of reviews, and wait
+for the user's approval. They may prefer fewer reviews or other models.
+
 ## The loop
 
 - Run each review as a separate agent that doesn't edit code, following
   `branch-review` steps 1-6 and skipping step 7, but checking the PR title
   and description against the diff.
-- Use a different model family (provider, such as Claude, GPT, Grok or
-  Gemini) from the previous review, and never a family that wrote the
-  changes; the PR's **LLM use** section says which did. One reviewer
-  settles into what it knows to look for; another family catches different
-  things. Use the latest strong model in each family, but not the most
-  expensive tier unless the user asks. Alternating between two eligible
-  families is enough; if there aren't two, ask the user.
+- Prefer a different model family (provider, such as Claude, GPT, Grok or
+  Gemini) from the previous review, and one that didn't write the changes;
+  the PR's **LLM use** section says which did. One reviewer settles into
+  what it knows to look for; another family catches different things. Use
+  the latest strong model in each family, but not the most expensive tier
+  unless the user asks. Alternating between two families is enough. If only
+  one family is available, run each review as a fresh agent and say in the
+  PR description that one family reviewed it.
 - The first review covers the whole diff. Later ones can focus on the new
   commits, but only reviews of the whole diff count towards convergence.
 - Between reviews, fix high and medium issues, and lows that are clearly
