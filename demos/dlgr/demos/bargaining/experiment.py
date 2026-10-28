@@ -113,8 +113,7 @@ class Bargain(RealtimeGame):
         }
 
     def apply(self, state, player_id, message, now, sent):
-        # The player sees a Reject's reason. A refused message mustn't change
-        # anything, so every check comes before the first change.
+        # The player sees a Reject's reason.
         role = state["roles"][player_id]
         value = state["values"][player_id]
         if not isinstance(message, dict):
