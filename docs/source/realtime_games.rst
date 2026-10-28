@@ -94,10 +94,12 @@ methods as the game goes on:
   message a player's page sends, as soon as it arrives. It changes the state in
   place, or refuses the message by raising
   :class:`~dallinger.realtime.Reject` with a reason. Changes made before
-  ``Reject`` is raised are kept, so ``apply`` should check everything first, as
-  ``SealedBid`` does. It is also passed ``now``, the session time the message
-  arrived, and ``sent``, a :class:`~dallinger.realtime.Sent` with what the
-  page said about the message, such as when the browser sent it. Most games
+  ``Reject`` is raised are undone. The message comes from the player's browser,
+  so ``apply`` should check it, as ``SealedBid`` does, and refuse a message it
+  can't use rather than let an error through: an error fails the whole session,
+  as described under Failures. It is also passed ``now``, the session time the
+  message arrived, and ``sent``, a :class:`~dallinger.realtime.Sent` with what
+  the page said about the message, such as when the browser sent it. Most games
   don't need ``sent``.
 - :meth:`~dallinger.realtime.RealtimeGame.tick` is the game's timed
   update, for anything that happens because time has passed, such as a turn
@@ -202,10 +204,11 @@ the state as session times.
 
 A game can use Python's ``random`` module, for example to shuffle a deck or roll
 a die. It can draw in the methods that change the state, ``apply``, ``tick``,
-``on_join`` and ``on_leave``, and use what it drew in the state. ``view`` and
-the other methods should only read what's there: Dallinger can call them several
-times for the same state, so a number drawn in ``view`` could come out
-differently each time.
+``on_join`` and ``on_leave``, and use what it drew in the state. ``view``,
+``is_over``, ``outcome``, ``next_deadline`` and ``save_message`` should only
+read the state, not change it: Dallinger can call them several times for the
+same state, so a number drawn in ``view`` could come out differently each time,
+and a change one of them makes is kept without any error.
 
 A game whose sessions should replay exactly, for example to test it, keeps a
 seed in its state and makes each draw from the seed and a count of the draws so
@@ -485,7 +488,8 @@ anything the browser sends.
 Failures
 ~~~~~~~~
 
-Dallinger fails a session when its game code goes wrong:
+Dallinger fails a session when its game code goes wrong, or its record can't be
+saved:
 
 - a game type's method raises an error or calls ``sys.exit()``, other than
   ``apply`` raising ``Reject``
@@ -493,6 +497,8 @@ Dallinger fails a session when its game code goes wrong:
 - the methods run for longer than the game type's
   :attr:`~dallinger.realtime.RealtimeGame.time_limit`
 - ``handle_effect`` raises an error
+- saving the session's record raises an error, for example because the
+  database is unavailable. Dallinger doesn't try again.
 
 A failed session ends with the reason :data:`~dallinger.realtime.game.FAILED`,
 so its players can still move on, and the experiment's other sessions carry

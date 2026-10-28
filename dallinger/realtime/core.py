@@ -557,12 +557,14 @@ class _Pass:
         )
         rejection = None
         effects = []
+        before = dump_json(self.state, self.state_name)
         try:
             effects = self.effects_of(
                 "apply", self.state, participant, payload, self.time, sent
             )
         except Reject as raised:
             rejection = raised
+            self.state = self.session["state"] = json.loads(before)
             record["status"] = "rejected"
             record["reason"] = copy_json(
                 raised.reason, "{}.apply's Reject reason".format(self.name)

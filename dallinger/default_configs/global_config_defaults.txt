@@ -20,7 +20,6 @@ dallinger_email_address = dallinger@mailinator.com
 [Experiment]
 enable_global_experiment_registry = False
 language = en
-lock_table_when_creating_participant = True
 mode = debug
 replay = False
 

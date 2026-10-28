@@ -910,6 +910,14 @@ class Experiment:
         :param entry_information: a JSON serializable data structure containing
                                   additional participant entry information
         :returns: A :attr:`~dallinger.models.Participant` instance
+
+        .. note::
+            This method is called inside a PostgreSQL transaction-level advisory
+            lock (``pg_advisory_xact_lock``). That lock is released automatically
+            when the surrounding transaction commits. Overrides must therefore
+            **not** call ``session.commit()``, since doing so releases the lock
+            early and allows concurrent signup requests to enter the critical
+            section before the current one has finished.
         """
         if not recruiter_name:
             recruiter = self.recruiter
@@ -2431,6 +2439,11 @@ def load():
             return classes[0][1]
     except ImportError:
         logger.error("Could not import experiment.")
+        raise
+    except SyntaxError as e:
+        # Develop directories symlink to the author's files; report the real path.
+        if e.filename and not e.filename.startswith("<"):
+            e.filename = os.path.realpath(e.filename)
         raise
 
 

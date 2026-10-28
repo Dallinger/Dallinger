@@ -1867,6 +1867,20 @@ class TestLaunchRoute:
         assert resp.status_code == 200
         mock_exp.recruiter.open_recruitment.assert_called()
 
+    def test_launch_omits_empty_recruitment_sections(self, webapp, active_config):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as mock_class:
+            mock_exp = mock.Mock(protected_routes=[], background_tasks=[], channel=None)
+            mock_exp.recruiter.open_recruitment.return_value = {
+                "items": [],
+                "message": "Single recruitment link: x",
+            }
+            mock_class.return_value = mock_exp
+            resp = webapp.post("/launch", data={})
+        message = json.loads(resp.get_data())["recruitment_msg"]
+        assert message == "Additional details:\nSingle recruitment link: x"
+
     def test_launch_establishes_channel_subscription(self, webapp, active_config):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
@@ -1940,6 +1954,30 @@ class TestWorkerFunctionIntegration:
         assert (
             mock.call("Event type IgnoreMe is not supported... ignoring.") in log_calls
         )
+
+    def test_logs_notifications_in_plain_words(self, worker_func):
+        mock_exp = mock.Mock()
+        with mock.patch(
+            "dallinger.experiment_server.worker_events._loaded_experiment",
+            return_value=mock_exp,
+        ):
+            worker_func("RecruiterSubmissionComplete", "A1", 2)
+            worker_func("NotificationMissing", "A2", None)
+            with pytest.raises(ValueError):  # There is no participant 3.
+                worker_func("AssignmentReassigned", None, 3)
+        messages = [c.args[0] for c in mock_exp.log.call_args_list]
+        assert (
+            "Participant 2 finished (RecruiterSubmissionComplete, assignment A1)."
+            in messages
+        )
+        assert (
+            "The participant with assignment A2 ran over time without the "
+            "recruiter reporting a submission (NotificationMissing)."
+        ) in messages
+        assert (
+            "Participant 3 was replaced by a new participant with the same "
+            "assignment (AssignmentReassigned)."
+        ) in messages
 
     def test_uses_assignment_id(self, a, worker_func):
         participant = a.participant()
