@@ -4,6 +4,16 @@
 
 ### Changed
 
+- Before finalizing a feature pull request, agents now ask whether to run
+  a single `/branch-review` or the new `branch-review-loop` skill. The loop
+  repeats `/branch-review` as a separate agent, preferably with a different
+  model family each time, fixing findings in between, until two reviews in
+  a row find no high or medium issues, or stops after five reviews that
+  don't converge. The agent proposes the reviewer models and an estimated
+  number of reviews, and waits for approval before starting.
+  `/branch-review` now tags findings high, medium or low, and checks the
+  cases neighbouring each change, such as other names, config sources and
+  entry points.
 - The pull request template now asks for a short description that a
   reviewer can follow without the diff. It adds an **LLM use** section (which
   models wrote the code and description, and how a human was involved) and a
