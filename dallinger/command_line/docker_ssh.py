@@ -723,7 +723,7 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     upgrade_command = f"dallinger docker-ssh servers upgrade --host {quote(server)}"
     host = _server_host(server_info)
     tls = _server_tls(server_info, command=upgrade_command if replace else None)
-    # The Caddyfile goes last, just before root.d, which it imports.
+    # The Caddyfile goes last: it imports root.d, which the compose file mounts.
     files = {
         "dallinger/docker-compose.yml": DOCKER_COMPOSE_SERVER_TPL.render(),
         "dallinger/Caddyfile": CADDYFILE_SERVER.format(host=host, tls=tls),
@@ -771,12 +771,14 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     )
     sftp = get_sftp(server_info["host"], user=server_info.get("user"))
     with _unlocked_server_files(executor, lock=True):
-        for path in changed:
-            sftp.putfo(BytesIO(files[path].encode()), path)
         # root.d marks the server as set up (see _rewritten_by_older_dallinger).
         executor.run("mkdir -p ~/dallinger/root.d")
+        # Routes go before the Caddyfile that drops the old inline ones, so an
+        # interrupted run leaves the old Caddyfile for a retry to migrate.
         for path, content in routes.items():
             sftp.putfo(BytesIO(content.encode()), path)
+        for path in changed:
+            sftp.putfo(BytesIO(files[path].encode()), path)
         if not executor.run(
             "test -f ~/dallinger/dozzle-users.yml && echo yes", raise_=False
         ):

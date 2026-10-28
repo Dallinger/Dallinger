@@ -235,8 +235,9 @@ but before it creates the app or changes anything shared, ending with
 machine and deploy again. An older root-domain deploy still offers to destroy
 the server's other experiments before it fails, so decline that prompt. The
 older version's ``set-dozzle-password`` fails the same way. Read-only files
-don't stop an SSH user that is ``root``, and re-running ``servers add`` on a
-server that already has the files leaves them writable. If an older Dallinger
+don't stop an SSH user that is ``root``, and ``servers add`` doesn't change
+the mode of files a server already has, so files that were writable stay
+writable until ``servers upgrade``. If an older Dallinger
 did rewrite the files (before they were read-only, or as root), a deploy with
 this version stops before the image build and says so; ``destroy`` warns and
 carries on. Run ``servers upgrade`` to restore them.
@@ -699,7 +700,10 @@ its Caddy configuration or Cloudflare tunnel,
 and its experiment image unless another app still uses that image. When you
 redeploy an app with ``--update``, the image it ran before is removed in the
 same way once the new containers are up. If the update fails before then, the
-old image stays on the server.
+old image stays on the server. A root-domain app deployed by an older
+Dallinger has its route inside the server's shared Caddyfile, which destroy
+leaves alone: it warns that the server's own host still points to the app and
+names ``servers upgrade``, which removes that route.
 
 Destroy only deletes or keeps the experiment's data when you choose to, at its
 prompt or with a flag. The data is:

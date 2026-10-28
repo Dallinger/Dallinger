@@ -395,6 +395,40 @@ def test_upgrade_keeps_an_old_root_domain_app_at_its_address(
     )
 
 
+def test_a_retried_upgrade_keeps_an_old_root_domain_app(server, monkeypatch):
+    (server / "dallinger/Caddyfile").write_text(LEGACY_ROOT_CADDYFILE)
+    (server / "dallinger/old").mkdir()
+    (server / "dallinger/old/docker-compose.yml").write_text("services: {}\n")
+
+    class FailingSftp(LocalSftp):
+        def putfo(self, fo, path):
+            if path == "dallinger/root.d/old":
+                raise OSError("connection lost")
+            super().putfo(fo, path)
+
+    monkeypatch.setattr(docker_ssh, "get_sftp", lambda *a, **k: FailingSftp(server))
+    upgrade = ["upgrade", "--host", "lab", "--yes"]
+    assert isinstance(
+        CliRunner().invoke(docker_ssh.servers, upgrade).exception, OSError
+    )
+    monkeypatch.setattr(docker_ssh, "get_sftp", lambda *a, **k: LocalSftp(server))
+    result = CliRunner().invoke(docker_ssh.servers, upgrade)
+
+    assert result.exit_code == 0, result.output
+    assert (server / "dallinger/root.d/old").read_text() == (
+        "reverse_proxy old_web:5000\n"
+    )
+
+
+def test_a_new_deploy_checks_dns_before_connecting(server, monkeypatch):
+    monkeypatch.setattr(docker_ssh, "Executor", mock.Mock(side_effect=AssertionError))
+    with (
+        mock.patch.object(docker_ssh, "_ipv4_addresses", return_value=[]),
+        pytest.raises(click.Abort),
+    ):
+        docker_ssh._classic_preflight("lab", "myapp", None, None, False)
+
+
 def test_server_check_accepts_a_site_with_several_addresses(server):
     caddyfile = server / "dallinger/Caddyfile"
     caddyfile.write_text(
