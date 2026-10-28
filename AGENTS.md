@@ -50,23 +50,17 @@ skill (release-branch push, release PR, GitHub Release).
 
 ## Automatic code review
 
-Before finalizing a **feature** pull request, offer the user an automatic
-code review, unless their rules already say what to do. Offer a single pass
-with the repo-local `/branch-review` command
-(`.cursor/skills/branch-review/SKILL.md`), or `/branch-review-loop`
-(`.cursor/skills/branch-review-loop/SKILL.md`), which repeats it, fixing
-findings in between, until two reviews in a row find no high or medium
-issues. When offering the loop, propose the reviewer models and an
-estimated number of reviews, and wait for the user's approval before
-starting. These specific command names avoid
-ambiguity with generic Cursor-provided review commands.
+Before finalizing a **feature** pull request, ask the user whether to run
+an automatic code review: a single pass with the `branch-review` skill
+(`.cursor/skills/branch-review/SKILL.md`), or repeated reviews with the
+`branch-review-loop` skill (`.cursor/skills/branch-review-loop/SKILL.md`).
 
 Address actionable findings before finalizing the pull request, and record
 in the pull request description which reviews ran. If none did, say why.
 
-Do **not** run or prompt `/branch-review` or `/branch-review-loop` for a
-`/release` PR. Those diffs are version, CHANGELOG, and demo-constraint
-bookkeeping; follow the release skill's Release PR checks instead.
+Do **not** run or offer either review for a `/release` PR. Those diffs are
+version, CHANGELOG, and demo-constraint bookkeeping; follow the release
+skill's Release PR checks instead.
 
 ## Pull request descriptions
 
@@ -74,8 +68,7 @@ Use `.github/PULL_REQUEST_TEMPLATE.md` for the required pull request description
 format.
 
 When running `/branch-review`, always update the pull request title and
-description so they match the committed branch diff (`/branch-review-loop`
-does this once, when the loop ends).
+description so they match the committed branch diff.
 
 ## Tests
 
