@@ -275,6 +275,8 @@ class Coins(RealtimeGame):
         self.bot_speed = config.get("bot_speed")
         self.bonus_per_coin = config.get("bonus_per_coin")
 
+    # --- RealtimeGame hooks ---
+
     def initial_state(self, players):
         if not 2 <= len(players) <= len(STARTS):
             raise ValueError("Coins is for 2 to {} players.".format(len(STARTS)))
@@ -316,16 +318,6 @@ class Coins(RealtimeGame):
             self.add_coin(state)
         return state
 
-    def add_coin(self, state):
-        state["coins"].append(
-            {
-                "id": state["next_coin_id"],
-                "x": round(random.uniform(1, WIDTH - 1), 2),
-                "y": round(random.uniform(1, HEIGHT - 1), 2),
-            }
-        )
-        state["next_coin_id"] += 1
-
     def apply(self, state, player_id, message, now, sent):
         dx, dy, seconds = read_move(message)
         player = state["players"][player_id]
@@ -354,6 +346,94 @@ class Coins(RealtimeGame):
                 state["coins"].remove(coin)
                 player["coins"] += 1
                 player["eventful"] = True
+
+    def tick(self, state, now):
+        while now >= state["next_coin"]:
+            if len(state["coins"]) < MAX_COINS:
+                self.add_coin(state)
+            state["next_coin"] += COIN_SECONDS
+
+    def view(self, state, player_id):
+        return {
+            "me": player_id,
+            "players": {
+                other_id: {
+                    "number": player["number"],
+                    "x": player["x"],
+                    "y": player["y"],
+                    "coins": player["coins"],
+                    "safe_until": player["safe_until"],
+                    "stole": player["stole"],
+                    "coins_lost": player["coins_lost"],
+                    "bounced": player["bounced"],
+                    "bounced_others": player["bounced_others"],
+                }
+                for other_id, player in state["players"].items()
+            },
+            "coins": state["coins"],
+            "end": self.max_duration,
+            "stealing": self.stealing,
+            "bouncing": self.bouncing,
+            "bonus_per_coin": self.bonus_per_coin,
+        }
+
+    def outcome(self, state, reason):
+        players = state["players"].items()
+        return {
+            name: {player_id: player[name] for player_id, player in players}
+            for name in ("coins", "stole", "coins_lost", "bounced", "bounced_others")
+        }
+
+    def save_message(self, state, player_id, message, rejection):
+        # Only the moves that collected a coin or touched another player go in
+        # the record, which then can't replay where players went between
+        # checkpoints
+        return rejection is None and state["players"][player_id]["eventful"]
+
+    def handle_effect(self, name, payload, session_row):
+        # Each steal and bounce also becomes an Info on the node of the player
+        # who did it, so it's in the experiment tables
+        # A player who has since been failed has no node to add it to, and
+        # the effect is still in the session's record
+        nodes = Participant.query.get(int(payload["by"])).nodes()
+        if nodes:
+            db.session.add(Info(origin=nodes[0], contents=name, details=payload))
+
+    def bot(self, view, player_id, now):
+        """Make one move a tick, each ``bot_speed`` ticks' worth of time, so a
+        ``bot_speed`` below 1 makes bots slower than players.
+
+        A bot goes for the nearest coin it has a chance of reaching first.
+        With none, it waits in the middle of the part of the arena nearer to it
+        than to anyone else, so bots spread out and each is ready for the next
+        coin that appears in its part.
+        """
+        me = view["players"][player_id]
+        others = [p for other_id, p in view["players"].items() if other_id != player_id]
+        coin = coin_worth_chasing(me, others, view["coins"])
+        if coin is not None:
+            dx, dy = steps_toward(me, coin)
+            if dx == dy == 0:
+                # A coin can appear within reach of a bot standing still, and
+                # only a move collects it
+                dx = 1 if coin["x"] >= me["x"] else -1
+        else:
+            dx, dy = steps_toward(me, territory_center(me, others))
+            if dx == dy == 0:
+                return None
+        return {"dx": dx, "dy": dy, "seconds": self.bot_speed / self.tick_rate}
+
+    # --- Game helpers ---
+
+    def add_coin(self, state):
+        state["coins"].append(
+            {
+                "id": state["next_coin_id"],
+                "x": round(random.uniform(1, WIDTH - 1), 2),
+                "y": round(random.uniform(1, HEIGHT - 1), 2),
+            }
+        )
+        state["next_coin_id"] += 1
 
     def touch(self, state, player_id, other_id, now, point):
         """Settle ``player_id``'s move running into ``other_id`` at ``point``,
@@ -399,82 +479,6 @@ class Coins(RealtimeGame):
                 "bounce", {"by": player_id, "bounced": other_id, "at": at}
             )
         return stop
-
-    def handle_effect(self, name, payload, session_row):
-        # Each steal and bounce also becomes an Info on the node of the player
-        # who did it, so it's in the experiment tables
-        # A player who has since been failed has no node to add it to, and
-        # the effect is still in the session's record
-        nodes = Participant.query.get(int(payload["by"])).nodes()
-        if nodes:
-            db.session.add(Info(origin=nodes[0], contents=name, details=payload))
-
-    def save_message(self, state, player_id, message, rejection):
-        # Only the moves that collected a coin or touched another player go in
-        # the record, which then can't replay where players went between
-        # checkpoints
-        return rejection is None and state["players"][player_id]["eventful"]
-
-    def tick(self, state, now):
-        while now >= state["next_coin"]:
-            if len(state["coins"]) < MAX_COINS:
-                self.add_coin(state)
-            state["next_coin"] += COIN_SECONDS
-
-    def view(self, state, player_id):
-        return {
-            "me": player_id,
-            "players": {
-                other_id: {
-                    "number": player["number"],
-                    "x": player["x"],
-                    "y": player["y"],
-                    "coins": player["coins"],
-                    "safe_until": player["safe_until"],
-                    "stole": player["stole"],
-                    "coins_lost": player["coins_lost"],
-                    "bounced": player["bounced"],
-                    "bounced_others": player["bounced_others"],
-                }
-                for other_id, player in state["players"].items()
-            },
-            "coins": state["coins"],
-            "end": self.max_duration,
-            "stealing": self.stealing,
-            "bouncing": self.bouncing,
-            "bonus_per_coin": self.bonus_per_coin,
-        }
-
-    def outcome(self, state, reason):
-        players = state["players"].items()
-        return {
-            name: {player_id: player[name] for player_id, player in players}
-            for name in ("coins", "stole", "coins_lost", "bounced", "bounced_others")
-        }
-
-    def bot(self, view, player_id, now):
-        """Make one move a tick, each ``bot_speed`` ticks' worth of time, so a
-        ``bot_speed`` below 1 makes bots slower than players.
-
-        A bot goes for the nearest coin it has a chance of reaching first.
-        With none, it waits in the middle of the part of the arena nearer to it
-        than to anyone else, so bots spread out and each is ready for the next
-        coin that appears in its part.
-        """
-        me = view["players"][player_id]
-        others = [p for other_id, p in view["players"].items() if other_id != player_id]
-        coin = coin_worth_chasing(me, others, view["coins"])
-        if coin is not None:
-            dx, dy = steps_toward(me, coin)
-            if dx == dy == 0:
-                # A coin can appear within reach of a bot standing still, and
-                # only a move collects it
-                dx = 1 if coin["x"] >= me["x"] else -1
-        else:
-            dx, dy = steps_toward(me, territory_center(me, others))
-            if dx == dy == 0:
-                return None
-        return {"dx": dx, "dy": dy, "seconds": self.bot_speed / self.tick_rate}
 
 
 class CoinCollection(Experiment):

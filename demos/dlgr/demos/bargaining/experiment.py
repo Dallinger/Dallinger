@@ -91,6 +91,8 @@ class Bargain(RealtimeGame):
         self.bargaining_seconds = config.get("bargaining_seconds")
         self.rounds = config.get("rounds")
 
+    # --- RealtimeGame hooks ---
+
     def initial_state(self, players):
         # Each round draws new roles and values
         seller, buyer = random.sample(players, 2)
@@ -153,10 +155,6 @@ class Bargain(RealtimeGame):
         if state["started"] is None and len(state["present"]) == len(state["roles"]):
             self.start_clock(state, now)
 
-    def start_clock(self, state, now):
-        state["started"] = now
-        state["deadline"] = now + self.bargaining_seconds
-
     def next_deadline(self, state):
         # Dallinger calls tick at this time: when the round's time runs out,
         # or before the clock has started, when it stops waiting for players
@@ -193,16 +191,6 @@ class Bargain(RealtimeGame):
             "earnings": self.earnings(state)[player_id] if over else None,
         }
 
-    def earnings(self, state):
-        """Each player's earnings in cents, by player id."""
-        price = state["deal"]
-        return {
-            player_id: 0
-            if price is None
-            else gain(role, state["values"][player_id], price)
-            for player_id, role in state["roles"].items()
-        }
-
     def outcome(self, state, reason):
         return {
             "roles": state["roles"],
@@ -210,16 +198,6 @@ class Bargain(RealtimeGame):
             "deal": state["deal"],
             "earnings": self.earnings(state),
         }
-
-    def request_next_round(self):
-        """Ask ``handle_effect`` to start the pair's next round.
-
-        Game methods can't use the database, which starting a session needs,
-        so they queue an effect, and Dallinger passes it to ``handle_effect``
-        on a worker that can.
-        """
-        if self.rounds > 1:
-            self.queue_effect("bargain_over", {})
 
     def handle_effect(self, name, payload, session_row):
         # The next round is saved no later than this round's ending, so pages
@@ -257,6 +235,32 @@ class Bargain(RealtimeGame):
         if price == view["my_offer"]:
             return None
         return {"offer": price}
+
+    # --- Game helpers ---
+
+    def start_clock(self, state, now):
+        state["started"] = now
+        state["deadline"] = now + self.bargaining_seconds
+
+    def earnings(self, state):
+        """Each player's earnings in cents, by player id."""
+        price = state["deal"]
+        return {
+            player_id: 0
+            if price is None
+            else gain(role, state["values"][player_id], price)
+            for player_id, role in state["roles"].items()
+        }
+
+    def request_next_round(self):
+        """Ask ``handle_effect`` to start the pair's next round.
+
+        Game methods can't use the database, which starting a session needs,
+        so they queue an effect, and Dallinger passes it to ``handle_effect``
+        on a worker that can.
+        """
+        if self.rounds > 1:
+            self.queue_effect("bargain_over", {})
 
 
 #: Bots chat like Weizenbaum's ELIZA, turning the player's own words around
