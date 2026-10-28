@@ -404,6 +404,23 @@
 
 ### Changed
 
+- The HotAir recruiter's launch message is now just the single recruitment
+  link, and the CLI and HotAir messages no longer start with a blank line.
+  `dallinger debug` says that new participants will open in browser windows
+  only when browsers are enabled and the recruiter opens them, rather than
+  claiming so with `--no-browsers`, `--bot`, other recruiters, or in
+  `dallinger develop debug`, which never opens them. Recruiters declare this
+  with the new `opens_participant_browsers` class attribute (True for the CLI
+  and HotAir recruiters), and `recruiters.config_opens_participant_browsers()`
+  applies it to the configured recruiter; a MultiRecruiter counts if any
+  recruiter in its spec with a nonzero count does. The new `recruiters.class_from_config()`
+  returns the recruiter class that `from_config()` would build, without
+  constructing it. As a result, `from_config()` no longer constructs a
+  configured recruiter that debug mode replaces. For example, `recruiter =
+  mturk` in debug mode no longer builds an MTurk service or raises its
+  constructor errors, and `recruiter = prolific` builds only the debug
+  Prolific recruiter.
+
 - docker-ssh commands print much less. Spinners only animate in a terminal,
   and errors no longer interleave with spinner frames. Each command shares one
   SSH connection per server instead of reconnecting for every step, and
@@ -672,6 +689,25 @@
 
 ### Fixed
 
+- A syntax error in `experiment.py` now names the author's file instead of
+  its symlink in the temporary develop directory.
+- Pressing Ctrl+C while a Dallinger server starts no longer prints a flood of
+  `ResourceWarning` messages. Dallinger now keeps Python's default warning
+  filters for categories other than `DeprecationWarning` and SQLAlchemy's
+  `SAWarning`, so `ResourceWarning` and `PendingDeprecationWarning` stay
+  hidden by default.
+- Dallinger commands, including local debugging, and deployed servers no
+  longer print other packages' `DeprecationWarning`s (for example
+  Flask-Login's `datetime.utcnow()` warning). Those triggered by code in
+  Dallinger, PsyNet or the experiment (whether Dallinger loads it as
+  `dallinger_experiment`, it runs directly as a script, or it is installed
+  as a `dlgr.*` demo) are still shown, as is Python 3.12+'s warning that forking
+  a multi-threaded process may deadlock, whichever package forks.
+- Python's `-W` and `-b` options, `PYTHONWARNINGS` and `-X dev` now take
+  precedence over Dallinger's warning filters: for example, `-W
+  ignore::DeprecationWarning` hides Dallinger's deprecation warnings and
+  `-W error::DeprecationWarning` turns them into errors. `SAWarning` stays
+  hidden.
 - `dallinger ec2` commands now work with AWS credentials from `~/.aws`, SSO
   or an instance role. Dallinger's defaults set placeholder AWS keys, which
   were treated as configured and sent to AWS, so AWS always rejected them.
