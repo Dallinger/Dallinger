@@ -1143,7 +1143,7 @@ option_deploy_delete_data_command = click.option(
 
 
 # Names the server already uses, mapped to what uses them: subdomains it
-# serves (see CADDYFILE_SUBDOMAIN), directories beside the app directories in
+# serves (see CADDYFILE_SERVER), directories beside the app directories in
 # ~/dallinger, and the Compose project of the shared stack (SERVER_COMPOSE),
 # which Compose names after ~/dallinger.
 SERVER_COMPOSE_PROJECT = "dallinger"

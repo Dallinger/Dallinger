@@ -231,8 +231,10 @@ certificates for every site (Let's Encrypt allows 5 duplicate certificates per
 week). Against read-only files, such a deploy fails after building its image
 but before it creates the app or changes anything shared, ending with
 ``PermissionError: [Errno 13] Permission denied`` raised by
-``sftp.putfo(..., "dallinger/docker-compose.yml")``. Update Dallinger on that
-machine and deploy again. An older root-domain deploy still offers to destroy
+``sftp.putfo(..., "dallinger/docker-compose.yml")``. Redeploying an app that
+is still running, without ``--update``, stops earlier instead, because Docker
+won't remove a Redis volume a running container uses; the app stays up, so
+don't stop it to retry. Update Dallinger on that machine and deploy again. An older root-domain deploy still offers to destroy
 the server's other experiments before it fails, so decline that prompt. The
 older version's ``set-dozzle-password`` fails the same way. Read-only files
 don't stop an SSH user that is ``root``, and ``servers add`` doesn't change
