@@ -112,6 +112,7 @@ def main():
     from redis import BlockingConnectionPool, StrictRedis
     from rq import Queue
 
+    from dallinger import dev_logging
     from dallinger.config import LOG_LEVELS, get_config, initialize_experiment_package
     from dallinger.heroku.rq_gevent_worker import GeventWorker as Worker
     from dallinger.utils import attach_json_logger
@@ -120,7 +121,8 @@ def main():
 
     config = get_config(load=True)
     log_level = LOG_LEVELS[config.get("loglevel_worker")]
-    logging.basicConfig(format="%(asctime)s %(message)s", level=log_level)
+    if not dev_logging.configure_from_environment(log_level):
+        logging.basicConfig(format="%(asctime)s %(message)s", level=log_level)
     attach_json_logger(logging.getLogger())
     worker_kwargs, max_connections = worker_options(config)
 
@@ -137,7 +139,7 @@ def main():
         startup_timeout = configured_timeout
         startup_watchdog = _exit_unless_registered_within(startup_timeout, started)
     if startup_watchdog is not None:
-        logging.getLogger(__name__).warning(
+        logging.getLogger(__name__).debug(
             "Worker will exit if it hasn't registered with RQ within %s s",
             startup_timeout,
         )
