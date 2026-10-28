@@ -16,7 +16,8 @@ review quickly, not for a reviewer that finds nothing.
 ## The loop
 
 - Run each review as a separate agent that doesn't edit code, following
-  `branch-review` steps 1-6 and skipping step 7.
+  `branch-review` steps 1-6 and skipping step 7, but checking the PR title
+  and description against the diff.
 - Use a different model family (provider, such as Claude, GPT, Grok or
   Gemini) from the previous review, and never a family that wrote the
   changes; the PR's **LLM use** section says which did. One reviewer
