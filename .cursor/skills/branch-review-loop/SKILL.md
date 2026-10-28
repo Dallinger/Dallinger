@@ -27,8 +27,8 @@ review quickly, not for a reviewer that finds nothing.
   families is enough; if there aren't two, ask the user.
 - The first review covers the whole diff. Later ones can focus on the new
   commits, but only reviews of the whole diff count towards convergence.
-- Between reviews, fix high and medium findings, and lows that are clearly
-  worth it (wrong docs or messages, cheap test gaps, small local fixes).
+- Between reviews, fix high and medium issues, and lows that are clearly
+  worth it (cheap test gaps, small local fixes).
   Note lows that need a design decision for the final PR description, as
   known limitations.
 - The loop has converged when two reviews in a row, from different
