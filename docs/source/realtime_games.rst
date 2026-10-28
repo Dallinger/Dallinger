@@ -14,10 +14,12 @@ An experiment with a real-time game:
 2. lists the game type in its ``realtime_games`` property
 3. starts a session of the game type for each group of players, and reads the
    session's outcome once it's over
+4. has a game page, which shows each player their view and sends their messages
 
 Dallinger saves a record of every session, which is exported with the rest of
 the experiment's data. A WebSocket uses the real-time engine only if it joins
-a session when it connects, and the experiment's other WebSockets work as
+a session, or waits for one, when it connects, and the experiment's other
+WebSockets work as
 :doc:`Using WebSockets in Dallinger Experiments <using_websockets>` describes.
 
 Writing a Game Type
@@ -72,6 +74,7 @@ highest bid wins::
             return {
                 "my_bid": bids.get(player_id),
                 "bids_made": len(bids),
+                "deadline": state["deadline"],
                 "highest_bid": max(bids.values(), default=None) if over else None,
             }
 
@@ -323,10 +326,10 @@ those rules, with its own players, its own state and its own session time,
 which starts at 0. Each session has an id, an integer, and any number of
 sessions, of one game type or several, can run at once.
 
-The experiment's own code does three things with a session: it starts the
-session, passes the session's id to the players' pages, and reads the outcome
-once the session is over. Everything in between happens automatically:
-Dallinger plays the game, ends it when it's over and saves its record.
+The experiment's own code does two things with a session: it starts the
+session, and reads the outcome once the session is over. Everything in between
+happens automatically: Dallinger tells the players' pages that the session has
+started, plays the game, ends it when it's over and saves its record.
 
 Starting a Session
 ~~~~~~~~~~~~~~~~~~
@@ -355,11 +358,11 @@ a network, that's when the network fills::
 of the group has done that. ``create_realtime_session`` returns the new
 session's id, an integer. Like any other change to the database, the session
 starts once it's committed, so code that starts one outside Dallinger's routes
-must call ``db.session.commit()`` afterwards. The players' pages learn the id
-from Dallinger, and the experiment finds each player's sessions from the
-participant, as described below, so ``Auction`` doesn't keep the id. An
-experiment keeps it to use the other session functions, such as ending the
-session early.
+must call ``db.session.commit()`` afterwards. Dallinger tells the players'
+pages that the session has started, and the experiment finds each player's
+sessions from the participant, as described below, so ``Auction`` doesn't keep
+the id. An experiment keeps it to use the other session functions, such as
+ending the session early.
 
 A player can also be a bot, whose messages come from the game type's ``bot``
 method rather than from a page. A bot's participant id goes in the list of
@@ -405,15 +408,8 @@ WebSockets, such as one started with ``dallinger bot``, uses the web API and
 the session's socket the way the game's page does, and finds out the game is
 over from the session's ending, as the page does.
 
-Each player's page joins the session by opening a WebSocket, on either
-``/experiment-socket`` or ``/chat``, with the session's id as its ``session``
-argument. Dallinger automatically checks that the participant is one of the
-session's players, and refuses the connection if not. It doesn't check who is
-on the other end of a socket, so an experiment that needs to can check
-``/experiment-socket`` connections itself with
-:meth:`~dallinger.experiment.Experiment.accept_websocket_connection`. The
-frames a page sends and receives are listed in the socket protocol reference
-below.
+How each player's page joins the session is described in the section on game
+pages below.
 
 While a Session Is Played
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -509,6 +505,263 @@ so its players can still move on, and the experiment's other sessions carry
 on. ``outcome`` is given the state from before the error. The session's
 :class:`~dallinger.models.RealtimeSession` row has the status ``failed`` and
 the error's traceback, and the experiment decides what its players are paid.
+
+Game Pages
+----------
+
+A game's page is an experiment page that uses Dallinger's JavaScript helpers to
+join its session, send the player's messages and draw the views it is sent.
+The helpers for sessions are in ``dallinger-realtime.js``. The base layout
+loads it after ``dallinger2.js`` when the experiment's ``realtime_games``
+property lists any game types, so a page that extends the layout needs nothing
+more. A page that replaces the layout's ``libs`` block, or doesn't use the
+layout, loads the script itself, after ``dallinger2.js``:
+
+.. code-block:: html+jinja
+
+    <script src="{{ url_for('static', filename='scripts/dallinger-realtime.js') }}"></script>
+
+Every helper is listed in the
+:ref:`JavaScript API's real-time sessions section <realtime-sessions-label>`.
+
+``Auction`` starts a session once a network is full, so each player's node has
+to exist before the game can start. The page before the game's page, such as
+the instructions or a waiting room, creates it with
+:js:func:`dallinger.createAgent`, and the game's page only joins the session.
+That keeps the game's page safe to reload: it finds a running session again,
+whereas calling ``createAgent`` a second time would put the participant in
+another network.
+
+The page below plays ``SealedBid``. It shows how many bids have been made and
+how long is left, takes the player's bid, says why a bid didn't count, and
+shows the highest bid once bidding has closed:
+
+.. code-block:: html+jinja
+
+    {% extends "layout.html" %}
+
+    {% block body %}
+        <p>Bids made: <span id="bids-made">0</span></p>
+        <p>Bidding closes in <span id="timer"></span> seconds.</p>
+        <form id="bid-form">
+            <input type="number" id="bid" min="1" max="100" />
+            <button type="submit">Bid</button>
+        </form>
+        <p id="error"></p>
+        <p id="result"></p>
+    {% endblock %}
+
+    {% block scripts %}
+    <script>
+      dallinger.joinRealtimeSession('sealed_bid').done(function (socket) {
+        var deadline = null;
+
+        // Draw the game from each new view
+        socket.onView(function (view) {
+          deadline = view.deadline;
+          $('#bids-made').text(view.bids_made);
+          if (view.my_bid !== null) {
+            $('#bid-form').hide();
+          }
+        });
+
+        // Send the bid to the game
+        $('#bid-form').on('submit', function (event) {
+          event.preventDefault();
+          $('#error').text('');
+          socket.send('sealed_bid', {bid: Number($('#bid').val())});
+        });
+
+        // Tell the player why a bid didn't count
+        socket.onRejected(function (number, reason) {
+          $('#error').text('That bid didn\'t count: ' + reason);
+        });
+
+        // Count down to the deadline in session time
+        setInterval(function () {
+          var now = socket.sessionTime();
+          if (now !== null && deadline !== null) {
+            $('#timer').text(Math.ceil(Math.max(0, deadline - now)));
+          }
+        }, 250);
+
+        // Show the highest bid, then move on once the result is saved
+        socket.onEnded(function (reason, view) {
+          $('#bid-form').hide();
+          if (view.highest_bid !== null) {
+            $('#result').text('The highest bid was ' + view.highest_bid);
+          } else if (view.bids_made === 0) {
+            $('#result').text('No one bid.');
+          } else {
+            $('#result').text('The game was stopped before bidding closed.');
+          }
+        });
+        socket.resultSaved().done(function () {
+          dallinger.goToPage('questionnaire');
+        });
+      });
+    </script>
+    {% endblock %}
+
+The sections below describe each part of the page.
+
+Joining a Session
+~~~~~~~~~~~~~~~~~
+
+A game's page usually opens before its session exists, since the experiment
+starts the session once a group is complete. The page joins it with
+:js:func:`dallinger.joinRealtimeSession`, passing the game type's channel. The
+returned promise resolves with the page's socket for the session once the
+experiment has started a session of that game type with the participant as a
+player. If the participant is already playing one, it resolves at once, so a
+page that is reloaded during a game finds its session again. A session stops
+counting once its ending is saved, a moment after it ends, so a page reloaded
+after its game has ended keeps waiting.
+The page sets the socket's callbacks, such as ``onView``, as soon as it has the
+socket, as ``SealedBid``'s page does.
+
+A participant who plays several sessions of the game type, one after another,
+passes the id of the session the page already has, the socket's ``session``,
+as the ``afterSession`` option, so that only a newer one counts.
+
+Each load of a page needs a scope of its own, the value that tells a session
+one of a player's pages from another. Dallinger's helpers use
+``dallinger.pageScope``, which is new on every load, unless they're given a
+``scope`` option. An experiment that names its pages can pass that name as the
+``scope``. If the name stays the same when the page is reloaded, add
+``dallinger.pageScope`` to it, since a reloaded page that reuses its scope
+while the earlier load is still connected can have its messages mixed up with
+that load's.
+
+Dallinger refuses a connection to a session from a participant who isn't one
+of its players. It doesn't check who is on the other end of a connection, so
+an experiment that needs to can check connections itself with
+:meth:`~dallinger.experiment.Experiment.accept_websocket_connection`, which
+also checks the connection ``joinRealtimeSession`` waits on.
+
+A page that also uses a chat channel waits for its session with
+:js:func:`dallinger.waitForRealtimeSession`, which resolves with the session's
+id, and joins it by passing :js:func:`dallinger.openChatSocket` that id as its
+``session`` option and the game type's channel as its ``gameChannel``. The
+waiting connection is checked as above, but a ``/chat`` connection can join a
+session without ``accept_websocket_connection``'s check.
+
+Views and Messages
+~~~~~~~~~~~~~~~~~~
+
+The socket's :js:func:`~dallinger.Socket.onView` callback is called with each
+new view of the game: when the page joins the session, again after a
+reconnect, and whenever the game changes. It is only called with views newer
+than the last one, so the page can always draw the view it's given. The
+callback is also passed details about the view, such as the session time it
+shows and whether a tick or a message made the change.
+
+The page sends the player's messages with the socket's ``send`` method, on the
+game type's channel. Each message goes to the game type's ``apply`` method,
+and nowhere else. A message sent while the connection is down waits, and goes
+out once the connection reopens. ``send`` returns the message's number, and if
+``apply`` rejects the message, the socket's
+:js:func:`~dallinger.Socket.onRejected` callback is called with that number
+and the reason ``apply`` gave ``Reject``, as ``SealedBid``'s page does to tell
+the player why a bid didn't count. A message rejected just before the
+connection dropped isn't reported.
+
+The End of the Session
+~~~~~~~~~~~~~~~~~~~~~~
+
+When the session ends, the socket's :js:func:`~dallinger.Socket.onEnded`
+callback is called once, with the reason it ended and the player's final view,
+so the page can stop taking moves and show how the game turned out. The final
+view can reach ``onView`` after ``onEnded``, so the page shows the result from
+the view ``onEnded`` is passed.
+
+The page waits for :js:func:`~dallinger.Socket.resultSaved` before it is
+submitted or moves on, so that the experiment can read the outcome, for
+example in its ``bonus`` method. A failed session's result is saved too, so the
+page can move on either way.
+
+Time
+~~~~
+
+The socket's :js:func:`~dallinger.Socket.sessionTime` method gives the
+session time now, the ``now`` the game type's methods would be passed at that
+moment. ``SealedBid``'s page uses it to count down to the deadline in its
+view. It keeps counting between views, and since session time stops while the
+session is paused, the next view can move it back a little.
+
+To estimate it, the socket measures the server's clock when it connects, and
+then about every 30 seconds until the session ends. The measurements are saved
+in the session's record, so that an analysis can put the browser times of the
+players' messages on the server's clock. A page can do the same with
+:js:func:`~dallinger.Socket.serverTime`, which converts a time on the browser's
+clock, from :js:func:`dallinger.browserTime`, to the server's clock, so that
+moments on different players' pages can be compared.
+
+Prediction and Interpolation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Prediction and interpolation are optional, for pages that need smoother
+movement than the views alone give. A page that draws only the views it is
+sent shows each of the player's moves once the game has applied it and the
+view has come back, a round trip after the player made it. In a game with a
+``tick_rate``, the page also sees the other players jump from one tick view to
+the next. Many games need nothing more, including ``SealedBid`` and many simple
+games in which players move. When the views alone aren't smooth enough, as in
+a fast game where several players move around at once, a page can show the
+player's own moves at once with prediction, and the other players moving
+smoothly with interpolation. Each works without the other. The page below
+assumes a game type whose view holds the player's own position as ``me`` and
+the other players' positions as ``others``, listed in the same order in every
+view:
+
+.. code-block:: javascript
+
+    dallinger.joinRealtimeSession('moves', {
+      // Do to the view what apply does to the state
+      predict: function (view, message) {
+        view.me.x += message.dx;
+        view.me.y += message.dy;
+      },
+      // Place the other players between two tick views
+      interpolate: function (a, b, fraction) {
+        return {
+          others: a.others.map(function (player, i) {
+            var next = b.others[i];
+            return {
+              x: player.x + (next.x - player.x) * fraction,
+              y: player.y + (next.y - player.y) * fraction
+            };
+          })
+        };
+      }
+    }).done(function (socket) {
+      function draw() {
+        var predicted = socket.predictedView();
+        var interpolated = socket.interpolatedView();
+        if (predicted !== null) { drawPlayer(predicted.me); }
+        if (interpolated !== null) { interpolated.others.forEach(drawPlayer); }
+        requestAnimationFrame(draw);
+      }
+      requestAnimationFrame(draw);
+    });
+
+:js:func:`~dallinger.Socket.predictedView` is the newest view with
+``predict`` applied to each of the player's messages that the game hasn't
+handled yet. ``predict`` has to do to the view what ``apply`` does to the
+state, or the player's piece jumps when the next view arrives. So each
+movement message should say how far, or for how long, the player moved, rather
+than ``tick`` moving players while a key is held, which the page can't
+predict. A move the game rejects is undone by the next view.
+
+:js:func:`~dallinger.Socket.interpolatedView` shows the game two tick
+intervals behind ``sessionTime``, between the tick views either side of that
+time. ``interpolate`` is passed those two views and how far between them that
+time falls, from 0 to 1, and returns a new view in between. The
+``interpolationDelay`` option sets how many tick intervals behind it draws. A
+longer delay copes better with tick views that arrive late, but shows the game
+further in the past. The example's ``interpolate`` pairs the other players by
+their place in ``others``, so a game in which players join or leave mid-game
+lists them by participant id instead, and ``interpolate`` pairs them by id.
 
 The Record in Postgres
 ----------------------

@@ -415,6 +415,44 @@
   engine. The experiment isn't complete while any of its sessions is
   running, so a `HighPerformanceBotBase` bot that a game type plays for can
   sign off once it has joined.
+- JavaScript helpers for real-time game pages, in the new
+  `dallinger-realtime.js`, which the base layout loads after `dallinger2.js`
+  when an experiment has game types.
+  `dallinger.waitForRealtimeSession(gameChannel)` resolves with the id of the
+  participant's session of a game type once the experiment starts it, or at
+  once if one is running, waiting on an `/experiment-socket` connection with
+  the new `wait_for_game` query parameter.
+  `dallinger.joinRealtimeSession(gameChannel)` waits the same way, then joins
+  the session and resolves with its socket. Both take an `afterSession`
+  option, so that only a session newer than one the page already has counts,
+  and a `scope` option for the page load.
+  `openExperimentSocket` and `openChatSocket` take `session` and
+  `gameChannel` options to join a session. Such a socket's `send` numbers the
+  messages it sends on the game channel, and `onView`, `onRejected`,
+  `onEnded`, `onResultSaved` and `resultSaved()` report the game's views,
+  rejections and ending. The socket measures the server's clock for
+  `sessionTime()` and `serverTime(browserTime)`, which converts times from
+  `dallinger.browserTime()`, and `onClock` reports each measurement.
+  The `predict` and `interpolate` options add `predictedView()`, which shows
+  the player's own moves at once, and `interpolatedView()`, which moves the
+  other players smoothly between tick views. The "Real-Time Games" docs page
+  describes a game's page.
+- A `bargaining` demo, a real-time game in which a buyer and a seller, each
+  knowing only their own value, bargain over a price against a clock that
+  starts once both players are there. Each player's bonus is paid from the
+  saved outcomes, and participants recruited as `HighPerformanceBotBase` bots
+  are played by the game type's `bot` method. The `rounds` setting has a pair
+  play several rounds, each started from an effect when the last one ends,
+  and `chat` lets the pair talk on `/chat`, with the experiment saving each
+  message as an `Info`. Its README walks through building the game.
+- A `coins` demo, a real-time game in which two to four players move around
+  an arena collecting coins. Its page uses prediction for the player's own
+  moves and interpolation for the other players, and the game type caps how
+  fast a page can move its player. Settings turn on stealing and bouncing
+  between players and set the bots' speed and the bonus per coin, and the
+  instructions describe them. Each steal and bounce is saved as
+  an effect and an `Info`, and only the moves that collect a coin or touch
+  another player are saved. Its README walks through building the game.
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
   experiment refuse an `/experiment-socket` connection when it opens. A falsy
   return closes the socket with code `1008`, and Dallinger's client helpers

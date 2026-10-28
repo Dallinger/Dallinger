@@ -511,6 +511,7 @@ def verify_no_conflicts(verbose=True):
         os.path.join("templates", "launch.html"),
         os.path.join("static", "css", "dallinger.css"),
         os.path.join("static", "scripts", "dallinger2.js"),
+        os.path.join("static", "scripts", "dallinger-realtime.js"),
         os.path.join("static", "scripts", "reqwest.min.js"),
         os.path.join("static", "scripts", "store+json2.min.js"),
         os.path.join("static", "scripts", "tracker.js"),
