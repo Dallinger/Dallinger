@@ -75,10 +75,38 @@ def show_warnings_once(warning, category, filename, lineno, file=None, line=None
     print(formatwarning(warning, category, filename, lineno, line))
 
 
+# Other packages' deprecation warnings are for their maintainers. Dallinger
+# loads experiments as ``dallinger_experiment``; scripts run as ``__main__``
+# and installed demos as ``dlgr.*``.
+_DEPRECATION_WARNING_MODULES = (
+    r"(__main__|dallinger|dallinger_experiment|dlgr|psynet)(\.|$)"
+)
+# Python 3.12+ warns of a real deadlock risk, usually from another package's fork().
+_FORK_WARNING_MESSAGE = r"This process .* is multi-threaded, use of fork"
+
+
 def setup_warning_hooks():
+    """Show each warning once, leaving out those meant for other packages' maintainers.
+
+    ``SAWarning`` is always hidden. A ``DeprecationWarning`` is shown only
+    if code in Dallinger, PsyNet or the experiment triggered it, or if it
+    warns that forking a multi-threaded process may deadlock, unless
+    Python's ``-W`` or ``-b`` option, ``PYTHONWARNINGS`` or ``-X dev``
+    configures the warning filters, in which case Python's filters apply. Other categories
+    keep Python's filters, so by default ``ResourceWarning`` and
+    ``PendingDeprecationWarning`` stay hidden.
+    """
     warnings.showwarning = show_warnings_once
-    warnings.simplefilter("default", Warning)
-    warnings.simplefilter("ignore", category=sa_exc.SAWarning)
+    warnings.filterwarnings("ignore", category=sa_exc.SAWarning)
+    if sys.warnoptions:  # Also set by -b and -X dev.
+        return
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    warnings.filterwarnings(
+        "default", category=DeprecationWarning, module=_DEPRECATION_WARNING_MODULES
+    )
+    warnings.filterwarnings(
+        "default", _FORK_WARNING_MESSAGE, category=DeprecationWarning
+    )
 
 
 fake = Faker()

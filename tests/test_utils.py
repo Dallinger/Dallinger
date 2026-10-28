@@ -5,6 +5,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import warnings
 from contextlib import nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -140,6 +141,79 @@ class TestShowDeprecationWarningsOnce:
         utils.show_warnings_once(warning, category, filename, lineno)
         redis_conn.exists.assert_called_once_with(warning)
         redis_conn.set.assert_called_once_with(warning, "Logged")
+
+
+WARN_SCRIPT = """
+import warnings
+from sqlalchemy.exc import SAWarning
+from dallinger.utils import setup_warning_hooks
+setup_warning_hooks()
+warnings.showwarning = lambda message, *args, **kwargs: print(message)
+for message, category, module in [
+    ("ours", DeprecationWarning, "dallinger.models"),
+    ("theirs", DeprecationWarning, "flask_login"),
+    ("pending", PendingDeprecationWarning, "flask_login"),
+    ("resource", ResourceWarning, "socket"),
+    ("sa", SAWarning, "sqlalchemy.orm"),
+    ("user", UserWarning, "flask_login"),
+]:
+    try:
+        warnings.warn_explicit(message, category, "f.py", 1, module=module)
+    except Warning as error:
+        print("error", error)
+"""
+
+
+@pytest.mark.parametrize(
+    "options, pythonwarnings, expected",
+    [
+        ([], "", ["ours", "user"]),
+        (["-W", "ignore::DeprecationWarning"], "", ["user"]),
+        (
+            ["-W", "error::DeprecationWarning:dallinger.models"],
+            "",
+            ["error ours", "user"],
+        ),
+        ([], "default", ["ours", "theirs", "pending", "resource", "user"]),
+    ],
+)
+def test_setup_warning_hooks_defers_to_user_warning_options(
+    options, pythonwarnings, expected
+):
+    result = subprocess.run(
+        [sys.executable, *options, "-c", WARN_SCRIPT],
+        env={**os.environ, "PYTHONWARNINGS": pythonwarnings, "PYTHONDEVMODE": ""},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.splitlines() == expected
+
+
+def test_setup_warning_hooks_shows_only_our_deprecation_warnings(monkeypatch):
+    deprecations = [
+        ("flask_login", "old in flask_login"),
+        ("dallinger.models", "old in dallinger.models"),
+        ("dallinger_experiment", "old in dallinger_experiment"),
+        ("psynet.page", "old in psynet.page"),
+        ("__main__", "old in __main__"),
+        ("dlgr.demos.chatroom.experiment", "old in dlgr.demos"),
+        (
+            "multiprocessing.popen_fork",
+            "This process (pid=1) is multi-threaded, use of fork() may lead to "
+            "deadlocks in the child.",
+        ),
+    ]
+    monkeypatch.setattr("sys.warnoptions", [])
+    with warnings.catch_warnings():
+        utils.setup_warning_hooks()
+        with warnings.catch_warnings(record=True) as caught:
+            for module, message in deprecations:
+                warnings.warn_explicit(
+                    message, DeprecationWarning, "f.py", 1, module=module
+                )
+
+    assert [str(w.message) for w in caught] == [m for _, m in deprecations[1:]]
 
 
 @pytest.mark.usefixtures("in_tempdir")

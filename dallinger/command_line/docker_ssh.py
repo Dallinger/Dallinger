@@ -1127,6 +1127,30 @@ option_deploy_delete_data_command = click.option(
 )
 
 
+# Names the server already uses, mapped to what uses them: subdomains it
+# serves (see CADDYFILE_SUBDOMAIN), directories beside the app directories in
+# ~/dallinger, and the Compose project of the shared stack (SERVER_COMPOSE),
+# which Compose names after ~/dallinger.
+SERVER_COMPOSE_PROJECT = "dallinger"
+RESERVED_APP_NAMES = {
+    "logs": "the server's log viewer",
+    "caddy.d": "the server's Caddy configuration",
+    "root.d": "the server's Caddy configuration",
+    SERVER_COMPOSE_PROJECT: "the server's shared services",
+}
+
+
+def _check_app_name_not_reserved(app_name):
+    """Reject an app name that would clash with a name the server uses."""
+    owner = RESERVED_APP_NAMES.get(app_name.lower())
+    if _compose_project(app_name) == SERVER_COMPOSE_PROJECT:
+        owner = RESERVED_APP_NAMES[SERVER_COMPOSE_PROJECT]
+    if owner:
+        raise click.UsageError(
+            f'"{app_name}" is reserved for {owner}; choose another app name.'
+        )
+
+
 def should_use_subdomain(app_name, archive_path):
     if app_name:
         return True
@@ -2762,6 +2786,8 @@ def _deploy_in_mode(
     the cleanup can free that name; the Compose project check comes before
     it, since the cleanup keeps the data that a clashing name would share.
     """
+    if app_name:
+        _check_app_name_not_reserved(app_name)
     experiment_files = get_experiment_files(os.getcwd())
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     # Existing apps already have their certificates, so updates skip the check.
@@ -2786,6 +2812,7 @@ def _deploy_in_mode(
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
     if not APP_NAME_PATTERN.fullmatch(experiment_id):
         raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
+    _check_app_name_not_reserved(experiment_id)
 
     resolved_ingress = _resolve_ingress(server_info, ingress)
     takes_root_domain = False
