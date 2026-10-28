@@ -61,8 +61,8 @@ class Reject(Exception):
     A refused message still counts as processed. It's saved with ``reason``,
     unless :meth:`RealtimeGame.save_message` leaves it out, and the sender's
     page gets the message's number and ``reason`` with its next view. The
-    runner can't undo changes ``apply`` made before raising, so check
-    everything before changing the state.
+    state goes back to how it was before ``apply`` was called, undoing any
+    changes ``apply`` made before raising.
 
     :param reason: why the message was refused, as a JSON value
     """
@@ -224,6 +224,8 @@ class RealtimeGame(ABC):
         that has passed runs ``tick`` at once, unless ``tick`` has already
         run at or after it. So this can keep returning a deadline ``tick``
         has handled, and it doesn't run again.
+
+        It should only read ``state``, not change it.
         """
         return None
 
@@ -235,17 +237,23 @@ class RealtimeGame(ABC):
         it, so leave out anything they shouldn't know, such as other players'
         cards. A game with nothing to hide can return ``state``. A smaller
         view is also quicker to send.
+
+        It should only read ``state``, not change it.
         """
 
     def is_over(self, state):
         """Return whether the game has finished. Checked after every change
         to the state.
+
+        It should only read ``state``, not change it.
         """
         return False
 
     def outcome(self, state, reason):
         """Return the session's result, saved in Postgres when the session
         ends.
+
+        It should only read ``state``, not change it.
 
         :param reason: why the session ended:
             :data:`~dallinger.realtime.game.FINISHED`,
@@ -276,12 +284,13 @@ class RealtimeGame(ABC):
         ``False`` to leave it out. Any other value fails the session.
 
         Called after :meth:`apply` accepts or rejects each message, a bot's
-        included, with the state ``apply`` left. Leaving out messages a game
+        included, with the state ``apply`` left, or for a rejected message the
+        state from before ``apply`` was called. Leaving out messages a game
         gets many of, like moves into a wall, keeps the record small. Leaving
         out accepted messages means the record can't replay the game between
         checkpoints. An accepted message's effects are saved whatever this
         returns, so the record can hold effects without the message that
-        queued them.
+        queued them. It should only read ``state``, not change it.
 
         :param message: the message as the player's page or bot sent it, a
             copy that ``apply`` hasn't changed
