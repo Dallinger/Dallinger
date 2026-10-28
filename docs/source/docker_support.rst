@@ -278,7 +278,9 @@ classic deploy to a hostname that another app
 already serves, for example a second deploy without ``--app`` under the same
 ``--dns-host``, stops before the image build and names that app, since Caddy
 cannot serve one site for two apps. The same goes for the server's log viewer
-at ``logs.<host>``, so an app called ``logs`` needs another ``--dns-host``.
+at ``logs.<host>`` and any other site in its Caddyfile, for example a deploy
+without ``--app`` under ``--dns-host logs.<host>``; an app called ``logs`` is
+refused outright (see below).
 
 Classic ingress needs a server that the internet can reach, because Let's
 Encrypt must reach it to issue TLS certificates. If the SSH host resolves only

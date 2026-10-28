@@ -420,6 +420,21 @@ def test_a_retried_upgrade_keeps_an_old_root_domain_app(server, monkeypatch):
     )
 
 
+def test_upgrade_refuses_a_server_with_an_old_app_called_root_d(server):
+    (server / "dallinger/root.d").mkdir()
+    (server / "dallinger/root.d/docker-compose.yml").write_text("services: {}\n")
+    before = checksums(server)
+
+    result = CliRunner().invoke(
+        docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
+    )
+
+    assert result.exit_code == 1
+    assert "destroy --server lab.example.org --app root.d" in result.output
+    assert checksums(server) == before
+    assert docker_calls(server) == ""
+
+
 def test_a_new_deploy_checks_dns_before_connecting(server, monkeypatch):
     monkeypatch.setattr(docker_ssh, "Executor", mock.Mock(side_effect=AssertionError))
     with (

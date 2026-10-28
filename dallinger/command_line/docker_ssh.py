@@ -642,13 +642,16 @@ def _server_state(executor):
 
     Returns a dict with the ``Caddyfile`` and ``docker-compose.yml``
     contents, the running shared ``services``, a ``root.d`` key if
-    ``~/dallinger/root.d`` exists, and a ``caddy.d/<app>`` key with the site
+    ``~/dallinger/root.d`` exists and is not the directory of an app that
+    older Dallinger versions let users call ``root.d``, and a
+    ``caddy.d/<app>`` key with the site
     lines of each app's Caddy file. Uses one SSH command.
     """
     output = executor.run(
         'for f in Caddyfile docker-compose.yml; do echo "#== $f"; '
         "cat ~/dallinger/$f 2>/dev/null; echo; done; "
-        "[ ! -d ~/dallinger/root.d ] || echo '#== root.d'; "
+        "[ ! -d ~/dallinger/root.d ] || [ -f ~/dallinger/root.d/docker-compose.yml ] "
+        "|| echo '#== root.d'; "
         'for f in ~/dallinger/caddy.d/*; do [ -f "$f" ] && '
         'echo "#== caddy.d/${f##*/}" && '
         "grep -E '^[^#[:space:]{(@][^{#]*[{]' \"$f\"; done; echo '#== services'; "
@@ -707,7 +710,8 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     Without ``replace``, a server that already has a server compose file is
     left alone. With it, changed files are listed and, unless ``yes``,
     confirmed before they are replaced. The shared files are left read-only.
-    Returns whether the files were written.
+    A server with an app called ``root.d`` is refused before anything is
+    written. Returns whether the files were written.
     """
     executor = _build_executor(server_info)
     if not replace and executor.run(
@@ -720,6 +724,17 @@ def _write_server_files(server, server_info, *, replace, yes=True):
             f"`dallinger docker-ssh servers upgrade --host {server}`."
         )
         return False
+    if executor.run(
+        "test -f ~/dallinger/root.d/docker-compose.yml && echo yes", raise_=False
+    ):
+        raise click.ClickException(
+            f"{server} has an app called root.d, which older Dallinger versions "
+            "allowed. Its directory, ~/dallinger/root.d, is where the shared "
+            "Caddy configuration keeps its routes, so nothing was changed. "
+            f"Destroy that app first with `dallinger docker-ssh destroy --server "
+            f"{quote(server)} --app root.d` (add --keep-data to keep its data), "
+            "then run this command again."
+        )
     upgrade_command = f"dallinger docker-ssh servers upgrade --host {quote(server)}"
     host = _server_host(server_info)
     tls = _server_tls(server_info, command=upgrade_command if replace else None)

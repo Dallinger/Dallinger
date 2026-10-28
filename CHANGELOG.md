@@ -438,7 +438,9 @@
   them up or rewrites them. It lists the files it replaces and the routes it
   adds, asks first unless given `--yes`, keeps a `.bak` copy of each replaced
   file, and keeps a root-domain app deployed by an older Dallinger at its
-  address. A deploy to a server that lacks the setup it needs stops before
+  address. It refuses, before changing anything, a server with an app called
+  `root.d` (which older Dallinger allowed) and asks to destroy that app
+  first, since its directory is where the routes go. A deploy to a server that lacks the setup it needs stops before
   the image build and names that command: for example a root-domain app on a
   server set up by an older Dallinger, or any app on a server whose last
   classic deploy by an older Dallinger was a root-domain one. The server's
