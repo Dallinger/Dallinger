@@ -708,6 +708,34 @@
   ignore::DeprecationWarning` hides Dallinger's deprecation warnings and
   `-W error::DeprecationWarning` turns them into errors. `SAWarning` stays
   hidden.
+- `dallinger ec2` commands now work with AWS credentials from `~/.aws`, SSO
+  or an instance role. Dallinger's defaults set placeholder AWS keys, which
+  were treated as configured and sent to AWS, so AWS always rejected them.
+  They now leave such credentials to boto and honour `--region`, falling back
+  to boto's default region (`AWS_DEFAULT_REGION` or the AWS profile's region)
+  and then `aws_region`. Temporary credentials exported as
+  `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and `AWS_SESSION_TOKEN` (for
+  example by `aws-vault exec` or CI role assumption) now include the session
+  token, which used to be dropped. Scanning every region
+  (`dallinger ec2 list instances` without `--region`) now skips, with a
+  warning, regions the account can't use (`AuthFailure`,
+  `UnauthorizedOperation`, `OptInRequired`) or can't reach, rather than
+  failing (an unreachable region used to take about five minutes to fail).
+  It reports an error only if no region can be used. Messages about the
+  default region name the region actually used. The `ec2` extra now
+  installs `tabulate`, which `dallinger ec2 list instances` needs.
+
+- `dallinger docker-ssh deploy` and `dallinger docker-ssh sandbox` now reject
+  app names the server already uses, whether given with `--app` or taken from
+  an `--archive`, before running anything on the server, in any case, with
+  for example `"logs" is reserved for the server's log viewer; choose another
+  app name.` The reserved names are `logs`, which clashed with the Dozzle log
+  viewer at `logs.<server host>`; `caddy.d` and `root.d`, whose app files would
+  have landed in a directory Caddy imports and broken Caddy for every app; and
+  `dallinger`, including names Compose normalises to it such as `Dal.linger`,
+  which shared the Compose project of the server's shared services; with
+  Cloudflare ingress, deploying it recreated the shared Postgres container on
+  an empty volume.
 - `dallinger docker-ssh deploy` and `sandbox`, and
   `ensure_remote_host_in_known_hosts()` (which `psynet deploy ssh` calls
   first), stop with one `Error:` line instead of a traceback when they can't
