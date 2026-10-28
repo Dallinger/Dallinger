@@ -4,6 +4,7 @@ import platform
 import re
 import sys
 import tempfile
+from contextlib import redirect_stdout
 from functools import wraps
 from io import StringIO
 from pathlib import Path
@@ -35,21 +36,31 @@ header = r"""
 
 
 def log(msg, chevrons=True, verbose=True, **kw):
-    """Log a message to stdout."""
+    """Print a message to stdout, as one plain line.
+
+    Parameters
+    ----------
+    msg : str
+        The message.
+    chevrons : bool
+        Ignored; kept so that existing callers keep working. Messages used
+        to start with a blank line and ``❯❯``.
+    verbose : bool
+        Print nothing if False.
+    **kw
+        Passed to :func:`click.echo`.
+    """
     if verbose:
-        if chevrons:
-            click.echo("\n❯❯ " + msg, **kw)
-        else:
-            click.echo(msg, **kw)
+        click.echo(msg, **kw)
 
 
 def error(msg, chevrons=True, verbose=True):
-    """Log a message to stdout."""
+    """Print a message to stderr in red, as one plain line.
+
+    ``chevrons`` is ignored, as for :func:`log`.
+    """
     if verbose:
-        if chevrons:
-            click.secho("\n❯❯ " + msg, err=True, fg="red")
-        else:
-            click.secho(msg, err=True, fg="red")
+        click.secho(msg, err=True, fg="red")
 
 
 class Output:
@@ -146,6 +157,8 @@ def get_server_pem_path() -> Path:
 
 _EXPERIMENT_FILES_META = "dallinger.experiment_files"
 
+_REQUIRED_EXPERIMENT_FILES = ("config.txt", "experiment.py")
+
 
 def get_experiment_files(root="."):
     """Return the command-scoped experiment files, building them if needed.
@@ -196,14 +209,53 @@ def verify_package(
     verbose=True,
     verify_experiment=True,
     experiment_files=None,
+    summary=False,
 ):
     """Perform a series of checks on the current directory to verify that
     it's a valid Dallinger experiment.
 
     A command can pass one ``ExperimentFileSource`` here and to
     ``setup_experiment`` so verification and assembly share one frozen plan.
+
+    Parameters
+    ----------
+    verbose : bool
+        Print the result of each check.
+    verify_experiment : bool
+        Import ``experiment.py`` from a temporary copy and check its classes.
+    experiment_files : dallinger.utils.ExperimentFileSource, optional
+        The experiment's files; built from the current directory if omitted.
+    summary : bool
+        With ``verbose``, print one line if every check passes without a
+        warning, and every check's output otherwise.
+
+    Returns
+    -------
+    bool
+        True if the experiment passed every check.
     """
     file_source = experiment_files or ExperimentFileSource(os.getcwd())
+    if summary and verbose:
+        output = StringIO()
+        try:
+            with redirect_stdout(output):
+                ok = verify_package(
+                    verbose=True,
+                    verify_experiment=verify_experiment,
+                    experiment_files=file_source,
+                    summary=False,
+                )
+        except BaseException:
+            click.echo(output.getvalue(), nl=False)
+            raise
+        details = output.getvalue()
+        if ok and "✗" not in details:
+            size_in_mb = round(file_source.size / (1000 * 1000))
+            names = ", ".join(_REQUIRED_EXPERIMENT_FILES)
+            click.echo(f"Experiment files OK ({names}; {size_in_mb} MB).")
+        else:
+            click.echo(details, nl=False)
+        return ok
     return all(
         (
             verify_directory(verbose, file_source),
@@ -227,9 +279,7 @@ def verify_directory(verbose=True, experiment_files=None):
     # Check required files
     ok = True
     mb_to_bytes = 1000 * 1000
-    expected_files = ["config.txt", "experiment.py"]
-
-    for f in expected_files:
+    for f in _REQUIRED_EXPERIMENT_FILES:
         if os.path.exists(f):
             log("✓ {} is PRESENT".format(f), chevrons=False, verbose=verbose)
         else:
@@ -510,7 +560,6 @@ def run_pre_launch_checks(**kwargs):
 
     recruiter_name = kwargs["config"].get("recruiter", None)
     if recruiter_name is not None:
-        log(f"Validating config for {recruiter_name} recruitment...")
         by_name(recruiter_name).validate_config(**kwargs)
 
 

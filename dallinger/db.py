@@ -244,9 +244,13 @@ def sessions_scope(session_=session, commit=False):
             session_.commit()
             logger.debug("DB session auto-committed as requested")
     except Exception as e:
-        # We log the exception before re-raising it, in case the rollback also
-        # fails
-        logger.exception("Exception during scoped worker transaction, rolling back.")
+        # The exception is re-raised to whoever reports it with its traceback
+        # (Flask, werkzeug's debugger, RQ, APScheduler or Python itself);
+        # logging the traceback here as well printed it twice. If the
+        # rollback fails, Python chains its exception to this one.
+        logger.debug(
+            "Rolling back the database session after %s: %s", type(e).__name__, e
+        )
         # This rollback is potentially redundant with the remove call below,
         # depending on how the scoped session is configured, but we'll be
         # explicit here.

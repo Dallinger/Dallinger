@@ -76,10 +76,38 @@ def show_warnings_once(warning, category, filename, lineno, file=None, line=None
     print(formatwarning(warning, category, filename, lineno, line))
 
 
+# Other packages' deprecation warnings are for their maintainers. Dallinger
+# loads experiments as ``dallinger_experiment``; scripts run as ``__main__``
+# and installed demos as ``dlgr.*``.
+_DEPRECATION_WARNING_MODULES = (
+    r"(__main__|dallinger|dallinger_experiment|dlgr|psynet)(\.|$)"
+)
+# Python 3.12+ warns of a real deadlock risk, usually from another package's fork().
+_FORK_WARNING_MESSAGE = r"This process .* is multi-threaded, use of fork"
+
+
 def setup_warning_hooks():
+    """Show each warning once, leaving out those meant for other packages' maintainers.
+
+    ``SAWarning`` is always hidden. A ``DeprecationWarning`` is shown only
+    if code in Dallinger, PsyNet or the experiment triggered it, or if it
+    warns that forking a multi-threaded process may deadlock, unless
+    Python's ``-W`` or ``-b`` option, ``PYTHONWARNINGS`` or ``-X dev``
+    configures the warning filters, in which case Python's filters apply. Other categories
+    keep Python's filters, so by default ``ResourceWarning`` and
+    ``PendingDeprecationWarning`` stay hidden.
+    """
     warnings.showwarning = show_warnings_once
-    warnings.simplefilter("default", Warning)
-    warnings.simplefilter("ignore", category=sa_exc.SAWarning)
+    warnings.filterwarnings("ignore", category=sa_exc.SAWarning)
+    if sys.warnoptions:  # Also set by -b and -X dev.
+        return
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    warnings.filterwarnings(
+        "default", category=DeprecationWarning, module=_DEPRECATION_WARNING_MODULES
+    )
+    warnings.filterwarnings(
+        "default", _FORK_WARNING_MESSAGE, category=DeprecationWarning
+    )
 
 
 fake = Faker()
@@ -239,9 +267,21 @@ class GitClient:
         return tempdir
 
     def files(self):
+        """Return the tracked and untracked, non-ignored files, or an empty set.
+
+        Outside a Git repository the set is empty and nothing is printed;
+        other git failures are logged as warnings.
+        """
         cmd = ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
         try:
-            raw = check_output(cmd).decode(locale.getpreferredencoding())
+            raw = check_output(cmd, stderr=subprocess.PIPE).decode(
+                locale.getpreferredencoding()
+            )
+        except subprocess.CalledProcessError as exc:
+            message = (exc.stderr or b"").decode(errors="replace").strip()
+            if "not a git repository" not in message:
+                logging.getLogger(__name__).warning("git ls-files failed: %s", message)
+            return set()
         except Exception:
             return set()
 
@@ -508,27 +548,32 @@ def check_experiment_dependencies(requirements_file):
                 )
 
 
+class DevelopDirectoryError(ValueError):
+    """The ``dallinger_develop_directory`` setting can't be used."""
+
+
 def develop_target_path(config):
     """Extract the target `dallinger develop` working directory from
     configuration, and return it as a Path.
+
+    Raises
+    ------
+    DevelopDirectoryError
+        If the setting isn't a path or its last part isn't a Python identifier.
     """
     develop_path_string = config.get("dallinger_develop_directory", None)
     try:
         develop_path = Path(develop_path_string).expanduser()
     except TypeError:
-        raise ValueError(
-            'The Dallinger configuration value "dallinger_develop_directory" '
-            'must be a file path, like "~/dallinger_develop".\n'
-            'Your value is "{}" which cannot be translated '
-            "to a file path.".format(develop_path_string)
+        raise DevelopDirectoryError(
+            f'The dallinger_develop_directory setting "{develop_path_string}" '
+            'is not a file path; use one like "~/dallinger_develop".'
         )
     if not develop_path.name.isidentifier():
-        raise ValueError(
-            'The directory in the Dallinger configuration value "dallinger_develop_directory" '
-            "must be a valid python identifier: only letters, numbers and underscores are allowed.\n"
-            'The directory name "{}" is not a valid identifier.'.format(
-                develop_path.name
-            )
+        raise DevelopDirectoryError(
+            f'The dallinger_develop_directory setting "{develop_path}" can\'t be '
+            f'used: the folder name "{develop_path.name}" may only contain '
+            "letters, numbers and underscores, and can't start with a number."
         )
 
     return develop_path
@@ -547,7 +592,7 @@ def bootstrap_development_session(
     from dallinger.experiment import Experiment
 
     experiment_uid = Experiment.make_uuid()
-    log("Experiment UID: {}".format(experiment_uid))
+    logging.getLogger(__name__).debug("Experiment UID: %s", experiment_uid)
 
     # Load and update the config
     config = get_config(load=True)
@@ -564,8 +609,14 @@ def bootstrap_development_session(
     source_path = Path(dallinger_package_path()) / "dev_server"
     destination_path = develop_target_path(config)
 
-    ensure_directory(destination_path)
-    expunge_directory(destination_path)
+    try:
+        ensure_directory(destination_path)
+        expunge_directory(destination_path)
+    except OSError as ex:
+        raise DevelopDirectoryError(
+            f'The dallinger_develop_directory setting "{destination_path}" '
+            f"can't be used: {ex.strerror or ex}."
+        ) from ex
     collate_experiment_files(
         config,
         experiment_path=experiment_path,
@@ -594,12 +645,14 @@ def setup_experiment(
     exp_config=None,
     local_checks=True,
     experiment_files=None,
+    quiet=False,
 ):
     """Checks the experiment's python dependencies, then prepares a temp directory
     with files merged from the custom experiment and Dallinger.
 
     The resulting directory includes all the files necessary to deploy to
-    Heroku.
+    Heroku. With ``quiet``, the experiment UID and temp directory are logged
+    at debug level instead of passed to ``log``.
 
     Commands that verify before assembly may pass the same
     ``ExperimentFileSource`` to ``verify_package`` and this function to retain
@@ -615,8 +668,14 @@ def setup_experiment(
     # Generate a unique id for this experiment.
     from dallinger.experiment import Experiment
 
+    def detail(message, **kwargs):
+        if quiet:
+            logging.getLogger(__name__).debug(message)
+        else:
+            log(message, **kwargs)
+
     experiment_uid = heroku_app_id = Experiment.make_uuid(app)
-    log("Experiment UID: {}".format(experiment_uid))
+    detail("Experiment UID: {}".format(experiment_uid))
 
     # Load and update the config
     config = get_config(load=True)
@@ -628,7 +687,9 @@ def setup_experiment(
     # this value actually represents (it's not used as _only_ the Heroku app ID).
     if app:
         heroku_app_id = str(app)
-        log("Using custom Heroku ID root: {}".format(heroku_app_id))
+        logging.getLogger(__name__).debug(
+            "Using custom Heroku ID root: %s", heroku_app_id
+        )
 
     config.extend(
         {
@@ -646,7 +707,7 @@ def setup_experiment(
         for_remote=not local_checks,
         experiment_files=source,
     )
-    log("Deployment temp directory: {}".format(temp_dir), chevrons=False)
+    detail("Deployment temp directory: {}".format(temp_dir), chevrons=False)
 
     # Zip up the temporary directory and place it in the cwd.
     if not debug:
@@ -726,21 +787,15 @@ def assemble_experiment_temp_dir(log, config, for_remote=False, experiment_files
             if dallinger_path:
                 if source:
                     log(
-                        f"DALLINGER_SOURCE is set, so the Dallinger tree at {source} "
-                        "will be deployed in its current state, ignoring the "
-                        "dallinger version specified in your experiment's "
-                        "requirements.txt file."
+                        f"Using the Dallinger checkout at {source} "
+                        "(DALLINGER_SOURCE) instead of the version pinned in "
+                        "constraints.txt."
                     )
                 else:
                     log(
-                        "Dallinger is installed as an editable package, "
-                        "and so will be copied and deployed in its current state, "
-                        "ignoring the dallinger version specified in your experiment's "
-                        "requirements.txt file!\n"
-                        "If you don't need this you can speed up startup time by setting "
-                        "the environment variable DALLINGER_NO_EGG_BUILD:\n"
-                        "    export DALLINGER_NO_EGG_BUILD=1\n"
-                        "or you can install dallinger without the editable (-e) flag."
+                        f"Using the editable Dallinger checkout at {dallinger_path} "
+                        "instead of the version pinned in constraints.txt (set "
+                        "DALLINGER_NO_EGG_BUILD=1 to use the pin)."
                     )
                 egg_name = build_and_place(dallinger_path, dst)
                 # A custom Dockerfile (e.g. PsyNet's) installs requirements
@@ -1236,11 +1291,22 @@ def exclusion_policy():
 
 
 def build_and_place(source: str, destination: str) -> str:
-    """Build a wheel from ``source`` into ``destination`` and return its name."""
+    """Build a wheel from ``source`` into ``destination`` and return its name.
+
+    The build runs with the current interpreter. Its output is printed to
+    stderr only if the build fails.
+    """
     with tempfile.TemporaryDirectory() as outdir:
-        check_output(
-            ["python", "-m", "build", "--wheel", "--outdir", outdir], cwd=source
+        build = subprocess.run(
+            [sys.executable, "-m", "build", "--wheel", "--outdir", outdir],
+            cwd=source,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
         )
+        if build.returncode:
+            sys.stderr.write(build.stdout)
+            build.check_returncode()
         (wheel,) = Path(outdir).glob("*.whl")
         shutil.copy(wheel, destination)
         return wheel.name

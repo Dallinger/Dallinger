@@ -3,7 +3,7 @@ import random
 
 import pytest
 
-from dallinger.realtime import RealtimeGame, Sent, core
+from dallinger.realtime import RealtimeGame, Reject, Sent, core
 from dallinger.realtime.core import new_session, parse_message, run_pass
 from dallinger.realtime.game import FAILED, FINISHED, MAX_DURATION, NOT_JOINED
 from tests.realtime.helpers import (
@@ -331,6 +331,27 @@ class TestAcknowledgements:
         assert views_by_page(second)["1", "page"]["rejected"] == []
         assert first.records[0]["status"] == "rejected"
         assert first.records[0]["reason"] == {"code": "bad"}
+
+    def test_a_rejection_undoes_the_changes_apply_made(self):
+        class Hasty(TurnTally):
+            def apply(self, state, player_id, message, now, sent):
+                state["log"].append([player_id, message, now])
+                if message == "bad":
+                    raise Reject({"code": message})
+
+            def save_message(self, state, player_id, message, rejection):
+                self.logs_seen.append(list(state["log"]))
+                return True
+
+        game = Hasty()
+        game.logs_seen = []
+        saved = started(game)
+        joined = json.loads(saved)["state"]["log"]
+
+        result = play(game, saved, [message(1, "1", "bad"), message(2, "1", "a")], 2)
+
+        assert log(result) == joined + [["1", "a", 2]]
+        assert game.logs_seen == [joined, joined + [["1", "a", 2]]]
 
 
 class TestJoinAndLeave:
