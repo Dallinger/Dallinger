@@ -33,7 +33,8 @@ for the user's approval. They may prefer fewer reviews or other models.
   unless the user asks. Alternating between two families is enough. If the
   user approved only one family, or only one is available, run each review
   as a fresh agent of that family, even if it wrote the changes, and say so
-  in the PR description.
+  in the PR description. If an approved family becomes unavailable, ask the
+  user.
 - The first review covers the whole diff. Later ones can focus on the new
   commits, but only reviews of the whole diff count towards convergence.
 - Between reviews, fix high and medium issues, and lows that are clearly
@@ -56,11 +57,11 @@ for the user's approval. They may prefer fewer reviews or other models.
 - If a finding calls for new functionality, don't add it silently or leave
   it as a limitation. Propose it to the user as a follow-up PR or as part of
   this one, and let them decide.
-- If acting on a finding would undo an earlier fix, or the fifth review
-  (of the whole diff) still finds high or medium issues, the PR may be too
-  big or its design unsettled. Stop and suggest splitting it, or ask the
-  user. If the fifth review is the first clean one, still run its
-  confirming review; if that finds high or medium issues, stop.
+- If acting on a finding would undo an earlier fix, or the loop hasn't
+  converged after five reviews of the whole diff, the PR may be too big or
+  its design unsettled. Stop and suggest splitting it, or ask the user. If
+  the fifth review is the first clean one, still run its confirming review,
+  then stop either way.
 
 ## Finishing
 

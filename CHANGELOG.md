@@ -9,7 +9,7 @@
   `branch-review-loop`). The loop repeats `/branch-review` as a separate
   agent, preferably with a different model family each time, fixing
   findings in between, until two reviews in a row find no high or medium
-  issues, or stops after several rounds that don't converge. The agent
+  issues, or stops after five reviews that don't converge. The agent
   proposes the reviewer models and an estimated number of reviews, and
   waits for approval before starting, and
   new functionality a review calls for is proposed to the user.
