@@ -56,8 +56,9 @@ with the repo-local `/branch-review` command
 (`.cursor/skills/branch-review/SKILL.md`), or `/branch-review-loop`
 (`.cursor/skills/branch-review-loop/SKILL.md`), which repeats it, fixing
 findings in between, until two reviews in a row find no high or medium
-issues. When offering the loop, propose the reviewer models and wait for
-the user's approval before starting. These specific command names avoid
+issues. When offering the loop, propose the reviewer models and an
+estimated number of reviews, and wait for the user's approval before
+starting. These specific command names avoid
 ambiguity with generic Cursor-provided review commands.
 
 Address actionable findings before finalizing the pull request, and record

@@ -1,6 +1,6 @@
 ---
 name: branch-review-loop
-description: Repeat the branch-review skill on your own feature branch, rotating reviewer model families and fixing findings between reviews, until two reviews in a row find no high or medium issues. Use before finalizing your own feature pull request, or when asked to review your own branch until no high or medium issues remain. Not for release PRs.
+description: Repeat the branch-review skill on your own feature branch, preferably rotating reviewer model families, fixing findings between reviews, until two reviews in a row find no high or medium issues. Use when the user approves a review loop before finalizing your own feature pull request, or asks to review your own branch until no high or medium issues remain. Not for release PRs.
 ---
 
 # Branch review loop
@@ -38,9 +38,9 @@ for the user's approval. They may prefer fewer reviews or other models.
   worth it (cheap test gaps, small local fixes).
   Note lows that need a design decision for the final PR description, as
   known limitations.
-- The loop has converged when two reviews in a row, from different
-  families, review the whole diff at the current head and find no high or
-  medium issues. Their lows don't need a third review. Any commit after the
+- The loop has converged when two reviews in a row, each by a fresh agent
+  and from different families if two are available, review the whole diff
+  at the current head and find no high or medium issues. Their lows don't need a third review. Any commit after the
   first of the two restarts the count, except one that only rewords
   comments or `CHANGELOG.md`; record such commits in the PR description.
 - Reviews read the diff; they don't replace dogfooding (see `AGENTS.md`).
