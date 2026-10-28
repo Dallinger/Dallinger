@@ -703,8 +703,8 @@
   `dallinger_experiment`, it runs directly as a script, or it is installed
   as a `dlgr.*` demo) are still shown, as is Python 3.12+'s warning that forking
   a multi-threaded process may deadlock, whichever package forks.
-- Python's `-W` option, `PYTHONWARNINGS` and `-X dev` now take precedence
-  over Dallinger's warning filters: for example, `-W
+- Python's `-W` and `-b` options, `PYTHONWARNINGS` and `-X dev` now take
+  precedence over Dallinger's warning filters: for example, `-W
   ignore::DeprecationWarning` hides Dallinger's deprecation warnings and
   `-W error::DeprecationWarning` turns them into errors. `SAWarning` stays
   hidden.

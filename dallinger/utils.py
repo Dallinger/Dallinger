@@ -91,14 +91,14 @@ def setup_warning_hooks():
     ``SAWarning`` is always hidden. A ``DeprecationWarning`` is shown only
     if code in Dallinger, PsyNet or the experiment triggered it, or if it
     warns that forking a multi-threaded process may deadlock, unless
-    Python's ``-W`` option, ``PYTHONWARNINGS`` or ``-X dev`` configures the
-    warning filters, in which case Python's filters apply. Other categories
+    Python's ``-W`` or ``-b`` option, ``PYTHONWARNINGS`` or ``-X dev``
+    configures the warning filters, in which case Python's filters apply. Other categories
     keep Python's filters, so by default ``ResourceWarning`` and
     ``PendingDeprecationWarning`` stay hidden.
     """
     warnings.showwarning = show_warnings_once
     warnings.filterwarnings("ignore", category=sa_exc.SAWarning)
-    if sys.warnoptions:  # Also set by -X dev.
+    if sys.warnoptions:  # Also set by -b and -X dev.
         return
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     warnings.filterwarnings(
