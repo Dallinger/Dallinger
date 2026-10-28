@@ -672,6 +672,17 @@
 
 ### Fixed
 
+- `dallinger docker-ssh deploy` and `dallinger docker-ssh sandbox` now reject
+  app names the server already uses, whether given with `--app` or taken from
+  an `--archive`, before running anything on the server, in any case, with
+  for example `"logs" is reserved for the server's log viewer; choose another
+  app name.` The reserved names are `logs`, which clashed with the Dozzle log
+  viewer at `logs.<server host>`; `caddy.d` and `root.d`, whose app files would
+  have landed in a directory Caddy imports and broken Caddy for every app; and
+  `dallinger`, including names Compose normalises to it such as `Dal.linger`,
+  which shared the Compose project of the server's shared services; with
+  Cloudflare ingress, deploying it recreated the shared Postgres container on
+  an empty volume.
 - `dallinger docker-ssh deploy` and `sandbox`, and
   `ensure_remote_host_in_known_hosts()` (which `psynet deploy ssh` calls
   first), stop with one `Error:` line instead of a traceback when they can't
