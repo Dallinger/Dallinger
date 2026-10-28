@@ -62,7 +62,7 @@ starting. These specific command names avoid
 ambiguity with generic Cursor-provided review commands.
 
 Address actionable findings before finalizing the pull request, and record
-in the pull request description which reviews ran, or that none did.
+in the pull request description which reviews ran. If none did, say why.
 
 Do **not** run or prompt `/branch-review` or `/branch-review-loop` for a
 `/release` PR. Those diffs are version, CHANGELOG, and demo-constraint

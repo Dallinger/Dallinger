@@ -5,9 +5,10 @@ description: Repeat the branch-review skill on your own feature branch, preferab
 
 # Branch review loop
 
-Use this skill when finalizing a feature pull request. It repeats the
-single-pass review in `.cursor/skills/branch-review/SKILL.md` and fixes the
-findings in between. Release PRs are excluded (see `AGENTS.md`). Run this
+Use this skill when the user has approved a review loop on your own feature
+pull request, or asked you to review your branch until no high or medium
+issues remain. It repeats the single-pass review in
+`.cursor/skills/branch-review/SKILL.md`, with fixes in between. Release PRs are excluded (see `AGENTS.md`). Run this
 on your own branch; push fixes before the final step-7 update.
 
 Reviews cost time and money, and they add up. Aim for a PR a human can
@@ -29,9 +30,10 @@ for the user's approval. They may prefer fewer reviews or other models.
   the PR's **LLM use** section says which did. One reviewer settles into
   what it knows to look for; another family catches different things. Use
   the latest strong model in each family, but not the most expensive tier
-  unless the user asks. Alternating between two families is enough. If only
-  one family is available, run each review as a fresh agent and say in the
-  PR description that one family reviewed it.
+  unless the user asks. Alternating between two families is enough. If the
+  user approved only one family, or only one is available, run each review
+  as a fresh agent of that family, even if it wrote the changes, and say so
+  in the PR description.
 - The first review covers the whole diff. Later ones can focus on the new
   commits, but only reviews of the whole diff count towards convergence.
 - Between reviews, fix high and medium issues, and lows that are clearly
@@ -39,10 +41,12 @@ for the user's approval. They may prefer fewer reviews or other models.
   Note lows that need a design decision for the final PR description, as
   known limitations.
 - The loop has converged when two reviews in a row, each by a fresh agent
-  and from different families if two are available, review the whole diff
-  at the current head and find no high or medium issues. Their lows don't need a third review. Any commit after the
-  first of the two restarts the count, except one that only rewords
-  comments or `CHANGELOG.md`; record such commits in the PR description.
+  and from different families if two were approved, review the whole diff
+  at the current head and find no high or medium issues. Their lows don't
+  need a third review.
+- Any commit after the first of those two restarts the count, except one
+  that only rewords comments or `CHANGELOG.md`; record such commits in the
+  PR description.
 - Reviews read the diff; they don't replace dogfooding (see `AGENTS.md`).
   Use the change the way a user would early, not only after the reviews
   converge.
