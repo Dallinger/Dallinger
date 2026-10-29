@@ -1,4 +1,5 @@
 import configparser
+import gc
 import os
 import re
 import shutil
@@ -986,6 +987,16 @@ class TestSetupExperiment:
 
         assert exp_id == "my-custom-app-id"
 
+    @pytest.mark.parametrize("quiet", [False, True])
+    def test_quiet_keeps_the_uid_and_temp_dir_out_of_the_log(
+        self, setup_experiment, quiet
+    ):
+        log = mock.Mock()
+        setup_experiment(log=log, quiet=quiet)
+
+        assert ("Experiment UID" in str(log.call_args_list)) is not quiet
+        assert ("temp directory" in str(log.call_args_list)) is not quiet
+
     def test_saves_provided_app_uid_to_config(self, active_config, setup_experiment):
         exp_id, dst = setup_experiment(log=mock.Mock(), app="my-custom-app-id")
 
@@ -1390,7 +1401,9 @@ class TestSetupExperiment:
             log = mock.Mock()
             tmp_dir = assemble_experiment_temp_dir(log, active_config, for_remote=True)
 
-        assert "Dallinger is installed as an editable package" in log.call_args[0][0]
+        notice = log.call_args[0][0]
+        assert notice.startswith(f"Using the editable Dallinger checkout at {tmp_egg} ")
+        assert "DALLINGER_NO_EGG_BUILD=1" in notice and "\n" not in notice
         assert "dallinger==" not in (Path(tmp_dir) / "requirements.txt").read_text()
         shutil.rmtree(tmp_dir)
 
@@ -1434,18 +1447,18 @@ class TestSetupExperimentAdditional:
             _, _ = setup_experiment(log=mock.Mock())
 
         assert len(warn.mock_calls) >= 1
-        e = warn.mock_calls[0][1][0]
-        assert "EXPERIMENT_CLASS_NAME" in str(e)
-        assert (
-            "Picking TestExperiment from ['TestExperiment', 'ZSubclassThatSortsLower']"
-            in str(e)
-        )
+        message = str(warn.mock_calls[0][1][0])
+
+        assert "EXPERIMENT_CLASS_NAME" in message
+        assert "More than one potential experiment class found" in message
+        assert "Picking TestExperiment" in message
+        assert "ZSubclassThatSortsLower" in message
 
         # No warning raised if we set the variable
         try:
             os.environ["EXPERIMENT_CLASS_NAME"] = "ZSubclassThatSortsLower"
             with mock.patch("warnings.warn") as warn:
-                exp_id, dst = setup_experiment(log=mock.Mock())
+                _, _ = setup_experiment(log=mock.Mock())
             assert len(warn.mock_calls) == 0
         finally:
             del os.environ["EXPERIMENT_CLASS_NAME"]
@@ -2138,12 +2151,34 @@ class TestDebugServer:
         )
 
         browser.assert_called_once_with("some-fake-url")
+        debugger_unpatched.out.log.assert_called_with(
+            "Opening a browser for a new participant: some-fake-url"
+        )
 
-    def test_new_recruit_no_browser(self, no_browser_debugger, browser):
+    def test_new_recruit_no_browser_prints_the_proxied_link(
+        self, active_config, no_browser_debugger, browser
+    ):
+        no_browser_debugger.proxy_port = "2222"
         no_browser_debugger.notify(
-            " {} some-fake-url".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+            " {} some-fake-url:{}".format(
+                recruiters.NEW_RECRUIT_LOG_PREFIX, active_config.get("base_port")
+            )
         )
         browser.assert_not_called()
+        no_browser_debugger.out.log.assert_called_with(
+            "New participant requested: some-fake-url:2222"
+        )
+
+    def test_new_recruit_no_browser_prints_links_from_the_launch_message_too(
+        self, no_browser_debugger
+    ):
+        no_browser_debugger.recruitment_msg = "Initial recruitment list:\nhttp://x/ad"
+        no_browser_debugger.notify(
+            " {} http://x/ad".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+        )
+        no_browser_debugger.out.log.assert_called_with(
+            "New participant requested: http://x/ad"
+        )
 
     def test_new_recruit_opens_browser_on_proxy_port(
         self, active_config, debugger_unpatched, browser
@@ -2208,6 +2243,53 @@ class TestDebugServer:
         )
 
 
+@pytest.fixture
+def quiet_cli_recruiter(active_config):
+    """Register a CLIRecruiter subclass that opens no browsers, for one test."""
+
+    class QuietCLIRecruiter(recruiters.CLIRecruiter):
+        nickname = "quietcli"
+        opens_participant_browsers = False
+
+        def recruit(self, n=1):
+            return []
+
+    assert isinstance(recruiters.by_name("quietcli"), QuietCLIRecruiter)
+    yield
+    del QuietCLIRecruiter
+    gc.collect()
+
+
+@pytest.mark.usefixtures("quiet_cli_recruiter")
+@pytest.mark.parametrize(
+    "recruiter_config, no_browsers, mentions_browsers",
+    [
+        ({"recruiter": "hotair"}, False, True),
+        ({"recruiter": "hotair"}, True, False),
+        ({"recruiter": "bots"}, False, False),
+        ({"debug_recruiter": "quietcli"}, False, False),
+        ({"recruiter": "multi", "recruiters": "bots: 1, hotair: 1"}, False, True),
+        ({"recruiter": "multi", "recruiters": "bots: 1, hotair: 0"}, False, False),
+    ],
+)
+def test_debug_launch_mentions_browser_windows_only_if_they_will_open(
+    active_config, output, recruiter_config, no_browsers, mentions_browsers
+):
+    from dallinger.deployment import DebugDeployment
+
+    active_config.extend({"mode": "debug", **recruiter_config})
+    debugger = DebugDeployment(output, False, False, None, {}, no_browsers=no_browsers)
+    debugger.display_dashboard_access_details = mock.Mock()
+    debugger.async_open_dashboard = mock.Mock()
+    launch = {"status": "success", "recruitment_msg": "Recruitment is open"}
+    with mock.patch("dallinger.deployment.handle_launch_data", return_value=launch):
+        debugger.execute(mock.Mock())
+
+    logged = [c.args[0] for c in debugger.out.log.call_args_list]
+    assert "Recruitment is open" in logged
+    assert any("open in browser windows" in m for m in logged) == mentions_browsers
+
+
 if os.environ.get("CI"):
     MAX_DOCKER_RERUNS = 5
 else:
@@ -2264,8 +2346,9 @@ class TestDockerServer:
         )
         p.logfile = sys.stdout
         # --verbose also echoes the server's own "New participant requested: <url>"
-        # line, so match only the debugger's double-colon line to see each URL once.
-        new_recruit = r"{}: (http://\S+)".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
+        # line after a prefix, so match only the debugger's line, which starts
+        # the line, to see each URL once.
+        new_recruit = r"(?m)^{} (http://\S+)".format(recruiters.NEW_RECRUIT_LOG_PREFIX)
         try:
             p.expect_exact("Server is running", timeout=180)
             p.expect_exact("Initial recruitment list:", timeout=30)

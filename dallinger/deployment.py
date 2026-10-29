@@ -364,7 +364,7 @@ def deploy_sandbox_shared_setup(
             r = connect_to_redis(url=heroku_app.redis_url)
             r.set("foo", "bar")
             ready = True
-            log("\n✓ connected at {}".format(heroku_app.redis_url), chevrons=False)
+            log("\nConnected at {}.".format(heroku_app.redis_url))
         except (ValueError, redis.exceptions.ConnectionError):
             time.sleep(2)
             log(".", chevrons=False, nl=False)
@@ -590,8 +590,10 @@ class HerokuLocalDeployment:
 
 class DebugDeployment(HerokuLocalDeployment):
     dispatch = {
-        r"[^\"]{} (.*)$".format(recruiters.NEW_RECRUIT_LOG_PREFIX): "new_recruit",
-        r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
+        r"[^\"]{} (.*)$".format(re.escape(recruiters.NEW_RECRUIT_LOG_PREFIX)): (
+            "new_recruit"
+        ),
+        re.escape(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
     }
     #: Seconds between checks of the ``/summary`` route once recruitment closes.
     status_poll_interval = 10
@@ -655,6 +657,14 @@ class DebugDeployment(HerokuLocalDeployment):
         else:
             if result["status"] == "success":
                 self.out.log(result["recruitment_msg"])
+                if (
+                    not self.no_browsers
+                    and recruiters.config_opens_participant_browsers(get_config())
+                ):
+                    self.out.log(
+                        "New participants requested by the experiment will open "
+                        "in browser windows automatically."
+                    )
                 dashboard_url = self.with_proxy_port("{}/dashboard/".format(base_url))
                 self.display_dashboard_access_details(dashboard_url)
                 if not self.no_browsers:
@@ -683,12 +693,11 @@ class DebugDeployment(HerokuLocalDeployment):
         open a browser window for the a new participant (in this case the
         person doing local debugging).
         """
-        self.out.log("new recruitment request!")
-        if self.no_browsers:
-            self.out.log(recruiters.NEW_RECRUIT_LOG_PREFIX + ": " + match.group(1))
-            return
         url = self.with_proxy_port(match.group(1))
-
+        if self.no_browsers:
+            self.out.log(f"{recruiters.NEW_RECRUIT_LOG_PREFIX} {url}")
+            return
+        self.out.log(f"Opening a browser for a new participant: {url}")
         open_browser(url)
 
     def display_dashboard_access_details(self, url):

@@ -2,7 +2,11 @@ import io
 import locale
 import os
 import socket
+import subprocess
+import sys
 import tempfile
+import warnings
+from contextlib import nullcontext
 from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -139,6 +143,79 @@ class TestShowDeprecationWarningsOnce:
         redis_conn.set.assert_called_once_with(warning, "Logged")
 
 
+WARN_SCRIPT = """
+import warnings
+from sqlalchemy.exc import SAWarning
+from dallinger.utils import setup_warning_hooks
+setup_warning_hooks()
+warnings.showwarning = lambda message, *args, **kwargs: print(message)
+for message, category, module in [
+    ("ours", DeprecationWarning, "dallinger.models"),
+    ("theirs", DeprecationWarning, "flask_login"),
+    ("pending", PendingDeprecationWarning, "flask_login"),
+    ("resource", ResourceWarning, "socket"),
+    ("sa", SAWarning, "sqlalchemy.orm"),
+    ("user", UserWarning, "flask_login"),
+]:
+    try:
+        warnings.warn_explicit(message, category, "f.py", 1, module=module)
+    except Warning as error:
+        print("error", error)
+"""
+
+
+@pytest.mark.parametrize(
+    "options, pythonwarnings, expected",
+    [
+        ([], "", ["ours", "user"]),
+        (["-W", "ignore::DeprecationWarning"], "", ["user"]),
+        (
+            ["-W", "error::DeprecationWarning:dallinger.models"],
+            "",
+            ["error ours", "user"],
+        ),
+        ([], "default", ["ours", "theirs", "pending", "resource", "user"]),
+    ],
+)
+def test_setup_warning_hooks_defers_to_user_warning_options(
+    options, pythonwarnings, expected
+):
+    result = subprocess.run(
+        [sys.executable, *options, "-c", WARN_SCRIPT],
+        env={**os.environ, "PYTHONWARNINGS": pythonwarnings, "PYTHONDEVMODE": ""},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.splitlines() == expected
+
+
+def test_setup_warning_hooks_shows_only_our_deprecation_warnings(monkeypatch):
+    deprecations = [
+        ("flask_login", "old in flask_login"),
+        ("dallinger.models", "old in dallinger.models"),
+        ("dallinger_experiment", "old in dallinger_experiment"),
+        ("psynet.page", "old in psynet.page"),
+        ("__main__", "old in __main__"),
+        ("dlgr.demos.chatroom.experiment", "old in dlgr.demos"),
+        (
+            "multiprocessing.popen_fork",
+            "This process (pid=1) is multi-threaded, use of fork() may lead to "
+            "deadlocks in the child.",
+        ),
+    ]
+    monkeypatch.setattr("sys.warnoptions", [])
+    with warnings.catch_warnings():
+        utils.setup_warning_hooks()
+        with warnings.catch_warnings(record=True) as caught:
+            for module, message in deprecations:
+                warnings.warn_explicit(
+                    message, DeprecationWarning, "f.py", 1, module=module
+                )
+
+    assert [str(w.message) for w in caught] == [m for _, m in deprecations[1:]]
+
+
 @pytest.mark.usefixtures("in_tempdir")
 class TestGitClient:
     @pytest.fixture
@@ -193,8 +270,15 @@ class TestGitClient:
 
         assert git.files() == {filename.decode(locale.getpreferredencoding())}
 
-    def test_files_on_non_git_repo(self, git):
+    def test_files_on_non_git_repo(self, git, capfd):
         assert git.files() == set()
+        assert "not a git repository" not in capfd.readouterr().err
+
+    def test_files_warns_about_other_git_errors(self, git, caplog):
+        git.init()
+        Path(".git", "index").write_bytes(b"corrupt")
+        assert git.files() == set()
+        assert "git ls-files failed: " in caplog.text
 
     def test_includes_details_in_exceptions(self, git):
         with pytest.raises(Exception) as ex_info:
@@ -384,15 +468,24 @@ def test_abspath_from_egg_uses_the_imported_tree():
     assert utils.abspath_from_egg("dallinger", "dallinger/missing.txt") is None
 
 
-def test_build_and_place_copies_the_built_wheel(tmp_path, monkeypatch):
-    def fake_build(cmd, cwd):
-        outdir = Path(cmd[cmd.index("--outdir") + 1])
-        (outdir / "dallinger-1-py3-none-any.whl").write_bytes(b"wheel")
-        return b""
-
-    monkeypatch.setattr("dallinger.utils.check_output", fake_build)
-    name = utils.build_and_place(str(tmp_path), str(tmp_path))
-    assert (tmp_path / name).read_bytes() == b"wheel"
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_build_and_place_shows_build_output_only_on_failure(
+    tmp_path, monkeypatch, capfd, exit_code
+):
+    fake_python = tmp_path / "fake-python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        'echo "* Building wheel..." >&2\n'
+        'while [ "$1" != --outdir ]; do shift; done\n'
+        'echo wheel > "$2/dallinger-1-py3-none-any.whl"\n'
+        f"exit {exit_code}\n"
+    )
+    fake_python.chmod(0o755)
+    monkeypatch.setattr(sys, "executable", str(fake_python))
+    with pytest.raises(subprocess.CalledProcessError) if exit_code else nullcontext():
+        name = utils.build_and_place(str(tmp_path), str(tmp_path))
+        assert (tmp_path / name).read_text() == "wheel\n"
+    assert ("Building wheel" in capfd.readouterr().err) == bool(exit_code)
 
 
 def test_replace_dallinger_requirement_handles_git_and_equality_pins():

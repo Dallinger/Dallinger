@@ -264,40 +264,48 @@ gh pr create --base master --head release-X.Y.Z \
     --title "Release X.Y.Z" \
     --label release \
     --body "$(cat <<'EOF'
+## LLM use
+
+<which models prepared the release branch and this description, and how a
+human was involved, or None>
+
 ## Motivation
 
 Cut Dallinger X.Y.Z to PyPI and ghcr.
-
-## Summary of changes
-
-See the [vX.Y.Z CHANGELOG](https://github.com/Dallinger/Dallinger/blob/release-X.Y.Z/CHANGELOG.md#vxYz-YYYY-MM-DD).
-
-<paste Migration Notes / Breaking Changes, or say none>
 
 ## Behavior changes
 
 <user-facing highlights from the CHANGELOG section>
 
+<paste Migration Notes / Breaking Changes, or say none>
+
+## Implementation details
+
+Finalized the `## [vX.Y.Z]` CHANGELOG section (replaced `## [Unreleased]`).
+See the [vX.Y.Z CHANGELOG](https://github.com/Dallinger/Dallinger/blob/release-X.Y.Z/CHANGELOG.md#vxYz-YYYY-MM-DD).
+
+## Known limitations
+
+None.
+
 ## Testing
 
 - [ ] CI green on `release-X.Y.Z`
 - [ ] Demo and `tests/experiment` constraints pin `dallinger==X.Y.Z`
-
-## Changelog
-
-Finalized the `## [vX.Y.Z]` section (replaced `## [Unreleased]`).
+- Nothing to dogfood here; the user-facing changes were dogfooded in their own PRs.
 
 ## Automatic code review
 
-Skipped `/branch-review`. Release PRs are version/CHANGELOG/constraints
+Skipped `/branch-review` and `/branch-review-loop`. Release PRs are version/CHANGELOG/constraints
 bookkeeping; the behavior changes already landed on `master`. See
 [Release PR checks](#release-pr-checks).
 EOF
 )"
 ```
 
-Use [`.github/PULL_REQUEST_TEMPLATE.md`](../../../.github/PULL_REQUEST_TEMPLATE.md).
-Do **not** prompt for `/branch-review` on a release PR. Run the
+This body follows [`.github/PULL_REQUEST_TEMPLATE.md`](../../../.github/PULL_REQUEST_TEMPLATE.md).
+Do **not** run or prompt `/branch-review` or `/branch-review-loop` on a
+release PR. Run the
 [Release PR checks](#release-pr-checks) instead.
 
 ### Release PR checks

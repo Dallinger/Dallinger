@@ -112,26 +112,17 @@ def main():
     from redis import BlockingConnectionPool, StrictRedis
     from rq import Queue
 
-    from dallinger.config import get_config, initialize_experiment_package
+    from dallinger import dev_logging
+    from dallinger.config import LOG_LEVELS, get_config, initialize_experiment_package
     from dallinger.heroku.rq_gevent_worker import GeventWorker as Worker
     from dallinger.utils import attach_json_logger
 
     initialize_experiment_package(os.getcwd())
 
     config = get_config(load=True)
-
-    LOG_LEVELS = [
-        logging.DEBUG,
-        logging.INFO,
-        logging.WARNING,
-        logging.ERROR,
-        logging.CRITICAL,
-    ]
-    LOG_LEVEL = LOG_LEVELS[config.get("loglevel_worker")]
-    logging.basicConfig(
-        format="%(asctime)s %(message)s",
-        level=LOG_LEVEL,
-    )
+    log_level = LOG_LEVELS[config.get("loglevel_worker")]
+    if not dev_logging.configure_from_environment(log_level):
+        logging.basicConfig(format="%(asctime)s %(message)s", level=log_level)
     attach_json_logger(logging.getLogger())
     worker_kwargs, max_connections = worker_options(config)
 
@@ -148,7 +139,7 @@ def main():
         startup_timeout = configured_timeout
         startup_watchdog = _exit_unless_registered_within(startup_timeout, started)
     if startup_watchdog is not None:
-        logging.getLogger(__name__).warning(
+        logging.getLogger(__name__).debug(
             "Worker will exit if it hasn't registered with RQ within %s s",
             startup_timeout,
         )
@@ -179,7 +170,60 @@ def main():
     # Default to log.warn because rq logs extremely verbosely at the info
     # level
     worker.log.info = worker.log.debug
-    worker.work(logging_level=LOG_LEVEL)
+
+    supervisor = start_runner_supervisor()
+    try:
+        worker.work(logging_level=log_level)
+    finally:
+        if supervisor is not None:
+            supervisor.stop()
+            # A container's other processes are killed when its first one
+            # exits, so the runner must give up its sessions first.
+            supervisor.join()
+
+
+def start_runner_supervisor():
+    """Start keeping a real-time runner going, and return its
+    :class:`~dallinger.realtime.supervisor.RunnerSupervisor`, if the
+    experiment has game types. Return ``None`` if it has none.
+
+    ``SIGTERM`` and ``SIGINT`` stop the supervisor and its runner.
+    """
+    if not experiment_has_realtime_games():
+        return None
+
+    import signal
+
+    import gevent
+
+    from dallinger.realtime.supervisor import RunnerSupervisor
+
+    supervisor = RunnerSupervisor()
+    # gevent runs every handler registered for a signal, so these run
+    # beside the ones the worker registers.
+    for signum in (signal.SIGTERM, signal.SIGINT):
+        gevent.signal_handler(signum, supervisor.stop)
+    supervisor.start()
+    return supervisor
+
+
+def experiment_has_realtime_games():
+    """Whether the experiment has game types, so the worker should keep a
+    runner going. An experiment that can't be loaded, or whose game types
+    are invalid, is logged, and has none.
+    """
+    import logging
+
+    from dallinger.realtime.store import experiment_games
+
+    try:
+        return bool(experiment_games())
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Couldn't load the experiment's game types, so no real-time runner "
+            "is started."
+        )
+        return False
 
 
 if __name__ == "__main__":  # pragma: nocover
