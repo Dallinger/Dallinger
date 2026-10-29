@@ -47,10 +47,10 @@ specify the version explicitly with the ``new-version`` option:, e.g.::
 
 2. Push your branch.
 
-3. Using Python 3.14, the version in Dallinger's Docker images, run
-`python3 scripts/update_experiments_constraints.py` to update the constraints.txt
-files in the demos. The script sets each demo's `.python-version` to the Python that
-runs it and compiles constraints.txt for that version. It upgrades dependencies that
+3. Run `python3 scripts/update_experiments_constraints.py` to update the constraints.txt
+files in the demos. The script sets each demo's `.python-version` to the Python version
+in the root `Dockerfile`, the image deployed experiments run on, and compiles
+constraints.txt for that version. It upgrades dependencies that
 are not part of Dallinger's own lock, such as NLTK in the chatroom demos. Packages
 pinned by Dallinger's dev requirements stay put. Commit the changes with::
 

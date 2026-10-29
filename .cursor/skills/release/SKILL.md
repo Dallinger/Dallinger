@@ -216,13 +216,12 @@ This must happen **before** the next step so
 
 ## 6. Regenerate demo constraints
 
-Run the script with Python 3.14, the version in Dallinger's Docker
-images. It rewrites each committed `.python-version` file to the minor
-version of the interpreter that runs it, then compiles `constraints.txt`
-for that version.
+The script sets each committed `.python-version` file to the Python
+minor version in the root `Dockerfile` (`FROM python:X.Y-...`), the
+image deployed experiments run on, then compiles `constraints.txt` for
+that version. Any Python that can import Dallinger can run it.
 
 ```bash
-python3 -c 'import sys; assert sys.version_info[:2] == (3, 14), sys.version'
 python3 scripts/update_experiments_constraints.py
 ```
 
@@ -242,14 +241,15 @@ git status --short
 
 `git status --short` must list only `constraints.txt` and
 `.python-version` under `demos/dlgr/demos/` and `tests/experiment/`.
-Every `.python-version` must read `3.14`; any other value means the pins
-were compiled for the wrong Python. If `requirements.txt` is dirty, the
+Every `.python-version` must match the Python version the script
+printed from the `Dockerfile`. If `requirements.txt` is dirty, the
 script did not restore it. In either case, stop and do not commit.
 
 ```bash
 grep -h . demos/dlgr/demos/*/.python-version \
     tests/experiment/.python-version | sort -u
-# should print a single line: 3.14
+grep -m1 "^FROM python:" Dockerfile
+# the first command should print a single line: the X.Y in the second
 git add demos/dlgr/demos/*/constraints.txt demos/dlgr/demos/*/.python-version \
     tests/experiment/constraints.txt tests/experiment/.python-version
 git commit -m "Update demos' constraints"
@@ -322,8 +322,8 @@ Before asking to merge, verify:
 - CHANGELOG heading, date, section order, and Migration Notes (if any)
   look right.
 - Every demo `constraints.txt` and `tests/experiment/constraints.txt`
-  pins `dallinger==X.Y.Z`, and every committed `.python-version` reads
-  `3.14`.
+  pins `dallinger==X.Y.Z`, and every committed `.python-version` matches
+  the Python version in the root `Dockerfile`.
 - CI on `release-X.Y.Z` is green.
 
 ## 8. Merge

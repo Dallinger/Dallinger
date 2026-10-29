@@ -6,8 +6,10 @@
 
 - The bundled demos and the `tests/experiment` fixture now request Python
   3.14 in `.python-version`, the version in Dallinger's Docker images, and
-  their `constraints.txt` files are compiled for it. The release process
-  now regenerates them with Python 3.14 instead of 3.13.
+  their `constraints.txt` files are compiled for it.
+  `scripts/update_experiments_constraints.py` now takes the Python version
+  from the root `Dockerfile` instead of from the interpreter that runs it,
+  so the demos follow future Docker image upgrades automatically.
 - Before finalizing a feature pull request, agents now ask whether to run
   a single `/branch-review` or the new `branch-review-loop` skill. The loop
   repeats `/branch-review` as a separate agent, preferably with a different
