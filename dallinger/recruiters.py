@@ -16,8 +16,9 @@ import flask
 import requests
 from sqlalchemy import func
 
+from dallinger import dev_logging
 from dallinger.command_line.utils import Output, render_rich_table
-from dallinger.config import get_config
+from dallinger.config import LOG_LEVELS, get_config
 from dallinger.db import get_queue, redis_conn, scoped_session_decorator, session
 from dallinger.experiment_server.utils import crossdomain, success_response
 from dallinger.experiment_server.worker_events import worker_function
@@ -61,15 +62,8 @@ def set_log_level(level):
         - This only affects logging output from this module, not globally.
     """
 
-    loglevels = [
-        logging.DEBUG,
-        logging.INFO,
-        logging.WARNING,
-        logging.ERROR,
-        logging.CRITICAL,
-    ]
     try:
-        new_level = loglevels[level]
+        new_level = LOG_LEVELS[level]
     except IndexError:
         new_level = logging.NOTSET
 
@@ -92,7 +86,10 @@ def handle_and_raise_recruitment_error(ex):
 # These are constants because other components may listen for these
 # messages in logs:
 NEW_RECRUIT_LOG_PREFIX = "New participant requested:"
-CLOSE_RECRUITMENT_LOG_PREFIX = "Close recruitment."
+CLOSE_RECRUITMENT_LOG_PREFIX = "Recruitment closed."
+# The development server's console shows "Recruitment closed." once until
+# recruitment reopens, rather than once for every participant who finishes.
+_RECRUITMENT_TOPIC = {dev_logging.TOPIC: "recruitment"}
 
 
 @scoped_session_decorator
@@ -169,6 +166,10 @@ class Recruiter:
     entry_params = ("hitId", "assignmentId", "workerId")
     external_submission_url = None  # MTurkRecruiter, for one, overides this
     supports_delayed_publishing = False
+    # True if recruit() logs NEW_RECRUIT_LOG_PREFIX lines, which the debug
+    # deployment turns into browser windows. MultiRecruiter leaves this False;
+    # config_opens_participant_browsers() checks the recruiters in its spec.
+    opens_participant_browsers = False
 
     def __call__(self):
         """For backward compatibility with experiments invoking recruiter()
@@ -787,7 +788,11 @@ class ProlificRecruiter(Recruiter):
         we do not automatically end a Prolific Study. This must be done by the
         researcher through the Prolific UI.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + self.nickname)
+        logger.info(
+            CLOSE_RECRUITMENT_LOG_PREFIX
+            + " The Prolific study stays open until you end it on Prolific.",
+            extra=_RECRUITMENT_TOPIC,
+        )
 
     def external_submission_url(self, code_type: str) -> str:
         """On experiment completion, participants are returned to
@@ -1093,6 +1098,10 @@ class DevProlificRecruiter(DevRecruiter, ProlificRecruiter):
         super().__init__(*args, **kwargs)
         self.prolificservice = dev_prolific_service_from_config()
 
+    def close_recruitment(self):
+        """Log that recruitment closed; the simulated study needs no action."""
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX, extra=_RECRUITMENT_TOPIC)
+
     def open_recruitment(self, n: int = 1) -> dict:
         """Create a simulated Study, saying that nothing was created on Prolific."""
         response = super().open_recruitment(n)
@@ -1174,6 +1183,7 @@ class CLIRecruiter(Recruiter):
     """
 
     nickname = "cli"
+    opens_participant_browsers = True
 
     def __init__(self):
         super(CLIRecruiter, self).__init__()
@@ -1207,7 +1217,7 @@ class CLIRecruiter(Recruiter):
         logger.debug("Opening CLI recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
         message = (
-            "\nSingle recruitment link: {}/ad?recruiter={}&generate_tokens=1&mode={}\n\n"
+            "Single recruitment link: {}/ad?recruiter={}&generate_tokens=1&mode={}\n\n"
             'Search for "{}" in the logs for subsequent recruitment URLs.\n'
             "Open the logs for this experiment with "
             '"dallinger logs --app {}"'.format(
@@ -1234,14 +1244,16 @@ class CLIRecruiter(Recruiter):
                 generate_random_id(),
                 self._get_mode(),
             )
-            logger.info("{} {}".format(NEW_RECRUIT_LOG_PREFIX, ad_url))
+            logger.info(
+                "{} {}".format(NEW_RECRUIT_LOG_PREFIX, ad_url), extra=_RECRUITMENT_TOPIC
+            )
             urls.append(ad_url)
 
         return urls
 
     def close_recruitment(self):
         """Talk about closing recruitment."""
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " cli")
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX, extra=_RECRUITMENT_TOPIC)
 
     def approve_hit(self, assignment_id):
         """Approve the HIT."""
@@ -1293,10 +1305,8 @@ class HotAirRecruiter(CLIRecruiter):
         logger.debug("Opening HotAir recruitment for {} participants".format(n))
         recruitments = self.recruit(n)
         message = (
-            "\nSingle recruitment link: {}/ad?recruiter={}&generate_tokens=1&mode={}\n\n"
-            "Recruitment requests will open browser windows automatically.".format(
-                get_base_url(), self.nickname, self._get_mode()
-            )
+            f"Single recruitment link: {get_base_url()}/ad?recruiter={self.nickname}"
+            f"&generate_tokens=1&mode={self._get_mode()}"
         )
 
         return {"items": recruitments, "message": message}
@@ -1875,7 +1885,11 @@ class MTurkRecruiter(Recruiter):
 
         - `Jesse Snyder <https://github.com/jessesnyder/>__` Feb 1 2022
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " mturk")
+        logger.info(
+            CLOSE_RECRUITMENT_LOG_PREFIX
+            + " The MTurk HIT stays open until it expires.",
+            extra=_RECRUITMENT_TOPIC,
+        )
 
     @property
     def is_sandbox(self):
@@ -2210,7 +2224,7 @@ class BotRecruiter(Recruiter):
 
         This does nothing at this time.
         """
-        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX + " bot")
+        logger.info(CLOSE_RECRUITMENT_LOG_PREFIX, extra=_RECRUITMENT_TOPIC)
 
     def notify_duration_exceeded(self, participants, reference_time):
         """The bot participant has been working longer than the time defined in
@@ -2256,13 +2270,12 @@ class MultiRecruiter(Recruiter):
 
         Example: recruiters = bots: 5, mturk: 1
         """
-        recruiters = []
-        spec = get_config().get("recruiters")
-        for match in self.SPEC_RE.finditer(spec):
-            name = match.group(1)
-            count = int(match.group(2))
-            recruiters.append((name, count))
-        return recruiters
+        return self._parse_spec(get_config().get("recruiters"))
+
+    @classmethod
+    def _parse_spec(cls, spec):
+        """Return ``(name, count)`` pairs from a ``recruiters`` spec string."""
+        return [(m.group(1), int(m.group(2))) for m in cls.SPEC_RE.finditer(spec)]
 
     def recruiters(self, n=1):
         """Iterator that provides recruiters along with the participant
@@ -2367,41 +2380,88 @@ def from_config(config) -> Recruiter:
     the bot recruiter, which can be used in debug mode)
     and the MTurkRecruiter in other modes.
     """
+    klass = class_from_config(config)
+    return klass() if klass is not None else None
+
+
+def class_from_config(config):
+    """Return the Recruiter class that :func:`from_config` would instantiate.
+
+    Unlike :func:`from_config`, this does not construct the recruiter, so it
+    has no side effects such as creating API clients.
+
+    Parameters
+    ----------
+    config : dallinger.config.Configuration
+        The loaded experiment configuration.
+
+    Returns
+    -------
+    type or None
+        A Recruiter subclass, or None if ``debug_recruiter`` names an
+        unknown recruiter.
+    """
     debug_mode = config.get("mode") == "debug"
     name = config.get("recruiter", None)
-    recruiter = None
+    klass = None
 
     # Special case 1: Don't use a configured recruiter in replay mode
     if config.get("replay"):
-        return HotAirRecruiter()
+        return HotAirRecruiter
 
     if name is not None:
-        recruiter = by_name(name)
+        klass = _class_by_name(name)
 
         # Special case 2: may run BotRecruiter or MultiRecruiter in any mode
         # (debug or not), so it trumps everything else:
-        if isinstance(recruiter, (BotRecruiter, MultiRecruiter)):
-            return recruiter
+        if klass is not None and issubclass(klass, (BotRecruiter, MultiRecruiter)):
+            return klass
 
     # Special case 3: if we're not using bots and we're in debug mode,
     # if present, use the configured debug_recruiter or else fallback to HotAirRecruiter:
     if debug_mode:
-        if isinstance(recruiter, MockRecruiter):
-            return recruiter
-        if isinstance(recruiter, ProlificRecruiter):
-            return by_name("devprolific")
+        if klass is not None and issubclass(klass, MockRecruiter):
+            return klass
+        if klass is not None and issubclass(klass, ProlificRecruiter):
+            return _class_by_name("devprolific")
 
-        return by_name(config.get("debug_recruiter", "HotAirRecruiter"))
+        return _class_by_name(config.get("debug_recruiter", "HotAirRecruiter"))
 
     # Configured recruiter:
-    if recruiter is not None:
-        return recruiter
+    if klass is not None:
+        return klass
 
-    if name and recruiter is None:
+    if name:
         raise NotImplementedError("No such recruiter {}".format(name))
 
     # Default if we're not in debug mode:
-    return MTurkRecruiter()
+    return MTurkRecruiter
+
+
+def config_opens_participant_browsers(config):
+    """Return whether the configured recruiter opens participant browsers.
+
+    A MultiRecruiter counts if any recruiter in its ``recruiters`` spec with
+    a nonzero count does. No recruiter is constructed.
+
+    Parameters
+    ----------
+    config : dallinger.config.Configuration
+        The loaded experiment configuration.
+
+    Returns
+    -------
+    bool
+        True if recruitment logs new-participant URLs that a debug
+        deployment opens in browser windows.
+    """
+    klass = class_from_config(config)
+    if klass is not None and issubclass(klass, MultiRecruiter):
+        spec = MultiRecruiter._parse_spec(config.get("recruiters", ""))
+        classes = [_class_by_name(name) for name, count in spec if count]
+    else:
+        classes = [klass]
+    return any(c is not None and c.opens_participant_browsers for c in classes)
 
 
 def _descendent_classes(cls):
@@ -2411,11 +2471,8 @@ def _descendent_classes(cls):
             yield cls
 
 
-def by_name(name, **kwargs):
-    """Attempt to return a recruiter class by name.
-
-    Actual class names and known nicknames are both supported.
-    """
+def _class_by_name(name):
+    """Return the most derived recruiter class with this name or nickname."""
     by_name = {}
     for cls in _descendent_classes(Recruiter):
         ids = [cls.nickname, cls.__name__]
@@ -2428,6 +2485,14 @@ def by_name(name, **kwargs):
             if should_overwrite:
                 by_name[id_] = cls
 
-    klass = by_name.get(name)
+    return by_name.get(name)
+
+
+def by_name(name, **kwargs):
+    """Attempt to return a recruiter class by name.
+
+    Actual class names and known nicknames are both supported.
+    """
+    klass = _class_by_name(name)
     if klass is not None:
         return klass(**kwargs)

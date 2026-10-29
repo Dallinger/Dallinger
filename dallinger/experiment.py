@@ -98,6 +98,15 @@ class Experiment:
     #: :func:`~dallinger.experiment.Experiment.publish_to_subscribers` method.
     channel = None
 
+    #: The real-time game types the experiment plays, as a list of
+    #: :class:`~dallinger.realtime.RealtimeGame` subclasses. Runners play
+    #: sessions of these game types, and
+    #: :func:`~dallinger.realtime.create_realtime_session` only starts
+    #: sessions of them. Each needs a channel of its own, which can't be the
+    #: experiment's own ``channel``. When the list isn't empty, each of the
+    #: experiment's worker processes starts a runner beside it.
+    realtime_games = []
+
     #: Constructor for Participant objects. Callable returning an instance of
     #: :attr:`~dallinger.models.Participant` or a sub-class. Used by
     #: :func:`~dallinger.experiment.Experiment.create_participant`.
@@ -560,6 +569,42 @@ class Experiment:
         """
         self.send("{}:{}".format(channel_name, message))
 
+    def accept_websocket_connection(self, participant_id, scope):
+        """Decide whether a ``/experiment-socket`` connection may open.
+
+        Called once per connection, after the participant has been found and
+        before the connection subscribes to anything or joins a real-time
+        session. Return ``False`` to refuse it: the connection is closed with
+        code 1008, and Dallinger's client helpers stop reconnecting. Any
+        falsy return refuses, including ``None``, so remember to return
+        ``True``. The default accepts every connection.
+
+        ``/experiment-socket`` doesn't check who is on the other end, so use
+        this to check something only the participant's page knows, such as a
+        token the server signed when it rendered the page, passed as
+        ``scope``. :doc:`Using WebSockets in Dallinger Experiments
+        <using_websockets>` has an example, and says where the scope is
+        logged and saved. ``/chat`` connections don't call it, and can still
+        join a real-time session as any of its players.
+
+        If this raises, the connection is closed with code 1013 and the
+        browser tries again. Like
+        :func:`~dallinger.experiment.Experiment.handle_websocket_message`, it
+        runs on the one experiment instance that serves every connection on
+        the process, so keep per-participant state off ``self``. It blocks
+        the web process while it waits on the database, and the session is
+        removed after the call, so commit any writes yourself.
+
+        :param participant_id: the id of an existing participant, as a
+            decimal string, so ``int(participant_id)`` is safe
+        :type participant_id: str
+        :param scope: opaque string from the connection's query string
+        :type scope: str or None
+        :returns: whether to accept the connection
+        :rtype: bool
+        """
+        return True
+
     @classmethod
     def handle_recruitment_error(cls, error, **kwargs):
         """Handle errors that occur during recruitment.
@@ -631,8 +676,9 @@ class Experiment:
         :type data: str
         :param channel_name: the name of the channel to publish the data to
         :type channel_name: str
-        :raises ValueError: if ``channel_name`` is ``dallinger_control`` or
-            ``dallinger_direct``, which are reserved for Dallinger's own use
+        :raises ValueError: if ``channel_name`` is ``dallinger_control``,
+            ``dallinger_direct``, ``dallinger_realtime_session`` or
+            ``dallinger_time``, which are reserved for Dallinger's own use
         """
         if channel_name is None:
             channel_name = self.channel
@@ -864,6 +910,14 @@ class Experiment:
         :param entry_information: a JSON serializable data structure containing
                                   additional participant entry information
         :returns: A :attr:`~dallinger.models.Participant` instance
+
+        .. note::
+            This method is called inside a PostgreSQL transaction-level advisory
+            lock (``pg_advisory_xact_lock``). That lock is released automatically
+            when the surrounding transaction commits. Overrides must therefore
+            **not** call ``session.commit()``, since doing so releases the lock
+            early and allows concurrent signup requests to enter the critical
+            section before the current one has finished.
         """
         if not recruiter_name:
             recruiter = self.recruiter
@@ -2385,6 +2439,11 @@ def load():
             return classes[0][1]
     except ImportError:
         logger.error("Could not import experiment.")
+        raise
+    except SyntaxError as e:
+        # Develop directories symlink to the author's files; report the real path.
+        if e.filename and not e.filename.startswith("<"):
+            e.filename = os.path.realpath(e.filename)
         raise
 
 

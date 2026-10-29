@@ -135,8 +135,7 @@ General
 
 ``dallinger_develop_directory`` *unicode*
     The directory on your computer to be used to hold files and symlinks
-    when running ``dallinger develop``. Defaults to ``~/dallinger_develop``
-    (a folder named ``dallinger_develop`` inside your home directory).
+    when running ``dallinger develop``. Defaults to ``/tmp/dallinger_develop``.
 
 ``dashboard_password`` *unicode*
     An optional password for accessing the Dallinger Dashboard interface. If not

@@ -42,6 +42,16 @@ marker = object()
 LOCAL_CONFIG = "config.txt"
 SENSITIVE_KEY_NAMES = ("access_id", "access_key", "password", "secret", "token")
 
+#: The logging level for each value, 0 to 4, of the ``loglevel`` and
+#: ``loglevel_worker`` settings.
+LOG_LEVELS = (
+    logging.DEBUG,
+    logging.INFO,
+    logging.WARNING,
+    logging.ERROR,
+    logging.CRITICAL,
+)
+
 
 def is_valid_json(value):
     json.loads(value)
@@ -750,5 +760,10 @@ DEPRECATED_KEYS = {
         "The 'docker_worker_cpu_shares' config variable has no effect. "
         "Docker deployments now give the web server priority over the workers "
         "when CPU is short."
+    ),
+    "lock_table_when_creating_participant": (
+        "The 'lock_table_when_creating_participant' config variable is deprecated "
+        "and has no effect. Participant signup now always uses a PostgreSQL "
+        "transaction-level advisory lock."
     ),
 }

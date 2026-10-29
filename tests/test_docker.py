@@ -1,9 +1,12 @@
 import importlib
+import io
 import os
 import re
 import sys
+import tempfile
 import time
 import warnings
+from contextlib import nullcontext
 from pathlib import Path
 from unittest import mock
 
@@ -331,7 +334,7 @@ def test_postgres_services_disable_jit(tmp_path, stub_config):
         wrapper.copy_docker_compose_files()
     composes = [
         get_yaml({}, ingress="cloudflare"),
-        yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base="")),
+        yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render()),
         yaml.safe_load((tmp_path / "docker-compose.yml").read_text()),
     ]
     for compose in composes:
@@ -574,10 +577,11 @@ def test_custom_dockerfile_reinstalls_a_staged_local_wheel_without_base_image(
     client = mock.Mock()
     client.api.inspect_image.side_effect = docker.errors.ImageNotFound("missing")
     with (
-        mock.patch("docker.client.from_env", return_value=client),
+        mock.patch("docker.client.from_env", return_value=client) as from_env,
         mock.patch.object(tools, "check_output") as check_output,
     ):
         tools.build_image(tmp_path, "exp", mock.Mock(), image_tag="t")
+    from_env.assert_called_once_with(use_ssh_client=True)
     assert "Could not determine Dallinger version" not in capsys.readouterr().out
     build_args = check_output.call_args.args[0]
     assert f"{tools.RUNS_AS_SSH_USER_LABEL}=1" in build_args
@@ -586,9 +590,177 @@ def test_custom_dockerfile_reinstalls_a_staged_local_wheel_without_base_image(
     assert "--force-reinstall --no-deps" in tools.LOCAL_DALLINGER_WHEEL_SNIPPET
 
 
+def _quiet_build(
+    tmp_path, monkeypatch, fake_docker_script, raises=nullcontext(), stdout=None
+):
+    """Run a quiet ``build_image`` with a fake ``docker``; return its messages."""
+    import docker
+
+    from dallinger.command_line.utils import Output
+    from dallinger.docker import tools
+
+    fake_docker = tmp_path / "docker"
+    fake_docker.write_text("#!/bin/sh\n" + fake_docker_script)
+    fake_docker.chmod(0o755)
+    monkeypatch.setattr(tools, "which", lambda name: str(fake_docker))
+    monkeypatch.setattr(tools, "_BUILD_POLL_SECONDS", 0.05)
+    # Redirected output unless a terminal is given, also under `pytest -s`.
+    monkeypatch.setattr(sys, "stdout", io.StringIO() if stdout is None else stdout)
+    (tmp_path / "Dockerfile").write_text("FROM python:3.12\n")
+    messages = []
+    client = mock.Mock()
+    client.api.inspect_image.side_effect = docker.errors.ImageNotFound("missing")
+    with (
+        mock.patch("docker.client.from_env", return_value=client),
+        mock.patch.object(tools, "get_base_image", return_value="base"),
+        raises,
+    ):
+        tools.build_image(
+            tmp_path,
+            "exp",
+            Output(blather=messages.append),
+            image_tag="t",
+            quiet=True,
+        )
+    return messages
+
+
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_quiet_build_keeps_docker_output_in_log_file(tmp_path, monkeypatch, exit_code):
+    import click
+
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(log_dir))
+    # A ClickException makes Click print "Error: …" rather than "Aborted!".
+    failure = pytest.raises(
+        click.ClickException, match="^The image build failed; the log above is saved"
+    )
+    messages = _quiet_build(
+        tmp_path,
+        monkeypatch,
+        f"echo '#14 + ansi2html' >&2\nexit {exit_code}\n",
+        failure if exit_code else nullcontext(),
+    )
+    output = "".join(messages)
+    assert messages[0] == (
+        "Building image exp:t (custom Dockerfile; "
+        "set DALLINGER_VERBOSE_BUILD=1 to show docker's output)...\n"
+    )
+    assert ("+ ansi2html" in output) == bool(exit_code)
+    assert ("Built image: exp:" in output) == (not exit_code)
+    if not exit_code:
+        assert len(messages) == 2
+    assert all(message.endswith("\n") for message in messages)
+    kept_logs = list(log_dir.iterdir())
+    assert len(kept_logs) == exit_code
+    assert all("+ ansi2html" in log.read_text() for log in kept_logs)
+
+
+def test_quiet_build_reports_slow_steps_and_duration(tmp_path, monkeypatch):
+    from dallinger.docker import tools
+
+    monkeypatch.setattr(tools, "SLOW_BUILD_STEP_SECONDS", 0.3)
+    monkeypatch.setattr(tools, "SLOW_BUILD_STEP_REPEAT_SECONDS", 0.3)
+    # The headers arrive 0.5 s into the build, just before docker exits. The
+    # step's unterminated output line dates its start back to the build's
+    # start (not 31 s back), so it gets a notice despite the later step. A
+    # slow runner can poll long enough for repeats and a later-step notice.
+    messages = _quiet_build(
+        tmp_path,
+        monkeypatch,
+        "sleep 0.5\necho '#5 [2/3] COPY . /experiment'\necho '#5 DONE 0.1s'\n"
+        "echo '#6 [ 3/3] RUN pip install     -r requirements.txt'\n"
+        "echo '#7 [internal] load build context'\n"
+        "printf '#6 31.0 Collecting psynet'\n",
+    )
+    output = "".join(messages)
+    notices = re.findall(r"Still on step 3/3 after (\d+) s: (.*)\n", output)
+    assert notices
+    assert all(
+        int(seconds) < 10 and command == "RUN pip install -r requirements.txt"
+        for seconds, command in notices
+    )
+    assert re.fullmatch(r"Built image: exp:t \(\d+ s\)\.\n", messages[-1])
+    assert "\r" not in output
+
+
+def test_quiet_build_redraws_one_line_in_a_terminal(tmp_path, monkeypatch):
+    class Terminal(io.StringIO):
+        def isatty(self):
+            return True
+
+    monkeypatch.setenv("TERM", "xterm")
+    monkeypatch.setenv("COLUMNS", "40")
+    # Step 4/9 starts 2.5 s into the build; its clock counts from then.
+    messages = _quiet_build(
+        tmp_path,
+        monkeypatch,
+        "sleep 2.5\n"
+        "echo '#5 [4/9] RUN uv pip install -r requirements.txt'\nsleep 0.3\n"
+        "echo '#5 DONE 0.3s'\necho '#6 [5/9] RUN ls'\nsleep 0.3\n",
+        stdout=Terminal(),
+    )
+    output = "".join(messages)
+    frames = [frame for line in output.split("\n") for frame in line.split("\r")]
+    assert any(re.fullmatch(r"Building: starting \(0:0[12]\)", f) for f in frames)
+    assert "Building: step 4/9: RUN uv pip … (0:00)" in frames
+    assert any(
+        frame.startswith("Building: step 5/9: RUN ls (0:00)") for frame in frames
+    )
+    assert all(len(frame) <= 39 for frame in frames if "Building:" in frame)
+    screen = []
+    for line in output.split("\n"):
+        shown = ""
+        for frame in line.split("\r"):
+            shown = frame + shown[len(frame) :]
+        screen.append(shown.rstrip())
+    assert screen[1:] == [re.sub(r"\.\n$", ".", messages[-1]), ""]
+
+
+def test_verbose_rebuild_streams_docker_output(tmp_path, monkeypatch):
+    from dallinger.command_line.utils import Output
+    from dallinger.docker import tools
+
+    monkeypatch.setenv("DALLINGER_VERBOSE_BUILD", "1")
+    messages = []
+    with (
+        mock.patch("docker.client.from_env"),
+        mock.patch.object(tools, "get_base_image", return_value="base"),
+        mock.patch.object(tools, "check_output") as check_output,
+    ):
+        tools.build_image(
+            tmp_path, "exp", Output(blather=messages.append), image_tag="t", quiet=True
+        )
+    check_output.assert_called_once()
+    assert messages[0] == "Rebuilding image exp:t...\n"
+    assert re.fullmatch(r"Built image: exp:t \([12] s\)\.\n", messages[1])
+    assert len(messages) == 2
+
+
+def test_failed_verbose_build_is_an_error(tmp_path, monkeypatch):
+    import click
+
+    from dallinger.docker import tools
+
+    monkeypatch.setenv("DALLINGER_VERBOSE_BUILD", "1")
+    failed = tools.CalledProcessError(1, "docker build")
+    with (
+        mock.patch("docker.client.from_env"),
+        mock.patch.object(tools, "get_base_image", return_value="base"),
+        mock.patch.object(tools, "check_output", side_effect=failed),
+        pytest.raises(click.ClickException, match="^The image build failed; docker"),
+    ):
+        tools.build_image(tmp_path, "exp", mock.Mock(), image_tag="t", quiet=True)
+
+
 @pytest.mark.parametrize(
     "requirements, tag, message",
-    [("dallinger==12.0.0\n", "12.0.0", ""), ("psynet\n", "latest", "Using latest")],
+    [
+        ("dallinger==12.0.0\n", "12.0.0", ""),
+        ("psynet\n", "latest", "Using latest"),
+        ("dallinger==12.5.0a1\n", "latest", "12.5.0a1 is a pre-release"),
+    ],
 )
 def test_generated_dockerfile_uses_the_pinned_base_image(
     tmp_path, capsys, requirements, tag, message
@@ -615,18 +787,25 @@ def test_generated_dockerfile_uses_the_pinned_base_image(
 def test_build_image_reuses_an_existing_image_without_resolving_the_base_image(
     tmp_path,
 ):
+    from dallinger.command_line.utils import Output
     from dallinger.docker import tools
 
     client = mock.Mock()
+    messages = []
     with (
         mock.patch("docker.client.from_env", return_value=client),
         mock.patch.object(tools, "get_base_image") as get_base_image,
         mock.patch.object(tools, "check_output") as check_output,
     ):
         name = tools.build_image(
-            tmp_path, "exp", mock.Mock(), force_build=False, image_tag="t"
+            tmp_path,
+            "exp",
+            Output(blather=messages.append),
+            force_build=False,
+            image_tag="t",
         )
     assert name == "exp:t"
+    assert messages == ["Image exp:t found\n"]
     get_base_image.assert_not_called()
     check_output.assert_not_called()
 
@@ -689,7 +868,9 @@ def test_is_loopback_host():
     assert not is_loopback_host("example.com")
 
 
-def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypatch):
+def test_get_connected_ssh_client_reuses_one_quiet_connection(
+    tmp_path, monkeypatch, capsys
+):
     import importlib
 
     docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
@@ -699,28 +880,14 @@ def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypa
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: key_path)
 
-    class DummySpinner:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, traceback):
-            return False
-
-        def ok(self, *_):
-            pass
-
-        def fail(self, *_):
-            pass
-
-        def stop(self):
-            pass
-
-        def start(self):
-            pass
-
-    monkeypatch.setattr(docker_ssh, "yaspin", lambda *args, **kwargs: DummySpinner())
-
     class DummyClient:
+        def __init__(self):
+            self.transport = mock.Mock()
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
         def load_host_keys(self, filename):
             if not Path(filename).exists():
                 raise IOError("missing")
@@ -735,7 +902,7 @@ def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypa
             pass
 
         def get_transport(self):
-            return mock.Mock()
+            return self.transport
 
         def save_host_keys(self, filename):
             assert Path(filename).exists()
@@ -745,6 +912,111 @@ def test_get_connected_ssh_client_creates_missing_known_hosts(tmp_path, monkeypa
     client = docker_ssh.get_connected_ssh_client("localhost:2222", user="root")
     assert isinstance(client, DummyClient)
     assert (tmp_path / ".ssh" / "known_hosts").exists()
+    assert docker_ssh.get_connected_ssh_client("localhost:2222", user="root") is client
+    assert capsys.readouterr().out == "Connecting to localhost:2222...\nConnected.\n"
+
+    local = docker_ssh.get_connected_ssh_client("localhost")
+    assert local is not client
+    assert docker_ssh.get_connected_ssh_client(
+        "localhost:22", docker_ssh.getuser()
+    ) is (local)
+
+    executor = docker_ssh.Executor("localhost:2222", user="root")
+    client.transport.is_active.return_value = False
+    assert executor.client is not client
+    assert client.closed
+    assert executor.client is docker_ssh.get_connected_ssh_client(
+        "localhost:2222", "root"
+    )
+
+
+def _client_refusing_sessions(docker_ssh, error, connection_dies):
+    """A client whose open_session fails, optionally taking the connection down."""
+    client = mock.Mock()
+    transport = client.get_transport.return_value
+
+    def open_session():
+        transport.is_active.return_value = not connection_dies
+        raise error
+
+    transport.open_session.side_effect = open_session
+    return client
+
+
+def test_run_with_status_reconnects_once_when_connection_died(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    SSHException = docker_ssh.paramiko.SSHException
+    dead = _client_refusing_sessions(docker_ssh, SSHException("dropped"), True)
+    clients = [dead, mock.Mock()]
+    monkeypatch.setattr(docker_ssh, "_connect_ssh_client", lambda *a: clients.pop(0))
+    monkeypatch.setattr(
+        docker_ssh.Executor, "_drain_channel", staticmethod(lambda ch: (0, "ok", ""))
+    )
+
+    assert docker_ssh.Executor("example.com").run_with_status("true") == (0, "ok", "")
+    dead.close.assert_called_once()
+
+
+def test_forgetting_a_stale_client_keeps_its_replacement_until_close(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    old, new = mock.Mock(), mock.Mock()
+    connect = mock.Mock(side_effect=[old, new])
+    monkeypatch.setattr(docker_ssh, "_connect_ssh_client", connect)
+    executor = docker_ssh.Executor("example.com")
+    old.get_transport.return_value.is_active.return_value = False
+    assert executor.client is new
+
+    docker_ssh._forget_ssh_client("example.com", None, old)
+    assert executor.client is new
+    new.close.assert_not_called()
+
+    executor.close()
+    new.close.assert_called_once()
+    assert connect.call_count == 2
+
+
+def test_run_with_status_keeps_a_live_connection_that_refuses_a_channel(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    refused = docker_ssh.paramiko.ChannelException(2, "MaxSessions")
+    busy = _client_refusing_sessions(docker_ssh, refused, False)
+    connect = mock.Mock(return_value=busy)
+    monkeypatch.setattr(docker_ssh, "_connect_ssh_client", connect)
+
+    with pytest.raises(docker_ssh.paramiko.ChannelException):
+        docker_ssh.Executor("example.com").run_with_status("true")
+    busy.close.assert_not_called()
+    connect.assert_called_once()
+
+
+def test_run_with_status_does_not_retry_a_failed_reconnect(monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    closed = mock.Mock()
+    login_failed = docker_ssh.paramiko.AuthenticationException("denied")
+    connect = mock.Mock(side_effect=[closed, login_failed])
+    monkeypatch.setattr(docker_ssh, "_connect_ssh_client", connect)
+    executor = docker_ssh.Executor("example.com")
+    closed.get_transport.return_value.is_active.return_value = False
+
+    with pytest.raises(docker_ssh.paramiko.AuthenticationException):
+        executor.run_with_status("true")
+    assert connect.call_count == 2
+
+
+def test_failing_remote_command_stops_spinner_before_error(monkeypatch, capsys):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    spinner = mock.MagicMock()
+    spinner.stop.side_effect = lambda: print("<spinner cleared>")
+    monkeypatch.setattr(docker_ssh, "yaspin", lambda **kwargs: spinner)
+    monkeypatch.setattr(docker_ssh, "get_connected_ssh_client", mock.Mock())
+    executor = docker_ssh.Executor("example.com")
+    monkeypatch.setattr(executor, "run_with_status", lambda cmd: (1, "", "boom"))
+
+    with pytest.raises(docker_ssh.ExecuteException):
+        with docker_ssh._spinner(text="Restarting Dozzle"):
+            executor.run("docker compose restart dozzle")
+    assert capsys.readouterr().out.startswith("<spinner cleared>\nError: exit code")
 
 
 @pytest.mark.parametrize("key_format", ["TraditionalOpenSSL", "OpenSSH"])
@@ -776,6 +1048,140 @@ def test_get_connected_ssh_client_rejects_dsa_key(tmp_path, monkeypatch, key_for
     assert not docker_ssh._is_dsa_key(
         write_key(ed25519.Ed25519PrivateKey.generate(), "ed25519.pem", "OpenSSH")
     )
+
+
+def _docker_connection_error():
+    """Return the error docker-py raises when its SSH connection breaks."""
+    import docker.errors
+    import requests
+    import urllib3.exceptions
+
+    try:
+        try:
+            raise requests.exceptions.ConnectionError(
+                urllib3.exceptions.ProtocolError(
+                    "Connection aborted.", BrokenPipeError(32, "Broken pipe")
+                )
+            )
+        except requests.exceptions.ConnectionError as exc:
+            raise docker.errors.DockerException(
+                f"Error while fetching server API version: {exc}"
+            ) from exc
+    except docker.errors.DockerException as exc:
+        return exc
+
+
+def _unknown_host(**kwargs):
+    import socket
+
+    import paramiko
+
+    no_such_host = socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+    with mock.patch("socket.getaddrinfo", side_effect=no_such_host):
+        paramiko.SSHClient().connect("host.example", timeout=1)
+
+
+def _refused_connection(**kwargs):
+    import socket
+
+    import paramiko
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    paramiko.SSHClient().connect("127.0.0.1", port=port, timeout=5)
+
+
+@pytest.mark.parametrize(
+    "error, expected",
+    [
+        (
+            "auth",
+            "Error: Couldn't log in to host.example:2200 over SSH as alice. Check "
+            "that `ssh -i /keys/lab.pem -p 2200 alice@host.example` works without "
+            "asking for a password, with the key in the server_pem setting.",
+        ),
+        (
+            "unknown",
+            "Error: Couldn't connect to host.example:2200 over SSH: can't find a "
+            "host called host.example.",
+        ),
+        (
+            "docker",
+            "Error: Couldn't reach Docker on host.example:2200 over SSH "
+            "(Broken pipe; see any message from ssh above).",
+        ),
+        ("local-docker", None),
+        (
+            "refused",
+            "Error: Couldn't connect to host.example:2200 over SSH: nothing "
+            "accepted the connection on port 2200.",
+        ),
+        ("other", None),
+    ],
+)
+def test_deploy_reports_ssh_failures_in_one_line(monkeypatch, error, expected):
+    import paramiko
+    from click.testing import CliRunner
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    failures = {
+        "auth": paramiko.AuthenticationException("Authentication failed."),
+        "docker": _docker_connection_error(),
+        "refused": _refused_connection,
+        "unknown": _unknown_host,
+        "other": paramiko.SSHException("Channel closed."),
+    }
+    failures["local-docker"] = failures["docker"]
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: "/keys/lab.pem")
+    args = ["--local_build"] if error == "local-docker" else []
+    server = {"host": "host.example:2200", "user": "alice"}
+    monkeypatch.setattr(docker_ssh, "CONFIGURED_HOSTS", {"host.example:2200": server})
+    monkeypatch.setattr(
+        docker_ssh, "get_configured_hosts", lambda: {"host.example:2200": server}
+    )
+    monkeypatch.setattr(
+        docker_ssh, "_deploy_in_mode", mock.Mock(side_effect=failures[error])
+    )
+
+    result = CliRunner().invoke(
+        docker_ssh.deploy, ["--server", "host.example:2200", *args]
+    )
+
+    assert result.exit_code == 1
+    if expected is None:
+        assert result.exception is failures[error]
+    else:
+        assert expected in result.output
+        assert "Traceback" not in result.output
+
+
+def test_first_ssh_login_failure_is_one_error_line(monkeypatch):
+    import click
+    import paramiko
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    denied = mock.Mock(side_effect=paramiko.AuthenticationException("denied"))
+    monkeypatch.setattr(docker_ssh, "get_connected_ssh_client", denied)
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: "/keys/lab.pem")
+
+    with pytest.raises(click.ClickException) as error:
+        docker_ssh.ensure_remote_host_in_known_hosts("pc.example", "ab1@uni.example")
+
+    assert error.value.message == (
+        "Couldn't log in to pc.example over SSH as ab1@uni.example. Check that "
+        "`ssh -i /keys/lab.pem -l ab1@uni.example pc.example` works without "
+        "asking for a password, with the key in the server_pem setting."
+    )
+
+
+def test_nip_io_dns_host_of_an_unknown_server_is_one_error_line():
+    import click
+
+    from dallinger.command_line.docker_ssh import get_dns_host
+
+    with pytest.raises(click.ClickException, match="Can't find the IP address"):
+        get_dns_host("no-such-server.invalid")
 
 
 def test_option_update_parses_as_boolean():
@@ -1079,7 +1485,7 @@ def test_push_image_retries_connection_error_and_succeeds():
     ):
         result = push_image("registry/exp:tag")
 
-    from_env.assert_called_once_with(timeout=DOCKER_PUSH_TIMEOUT)
+    from_env.assert_called_once_with(timeout=DOCKER_PUSH_TIMEOUT, use_ssh_client=True)
     assert fake_client.images.push.call_count == 2
     assert result == f"registry/exp@{fake_digest}"
 
@@ -1116,7 +1522,7 @@ def test_push_image_retries_urllib3_read_timeout_and_succeeds():
     ):
         result = push_image("registry/exp:tag")
 
-    from_env.assert_called_once_with(timeout=DOCKER_PUSH_TIMEOUT)
+    from_env.assert_called_once_with(timeout=DOCKER_PUSH_TIMEOUT, use_ssh_client=True)
     assert fake_client.images.push.call_count == 2
     assert result == f"registry/exp@{fake_digest}"
 
