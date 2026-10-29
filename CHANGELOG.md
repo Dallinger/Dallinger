@@ -488,6 +488,88 @@
 
 ### Changed
 
+- Classic-ingress `dallinger docker-ssh deploy`, `sandbox` and `destroy` no
+  longer rewrite a server's shared files (`Caddyfile`, `docker-compose.yml`,
+  `dozzle-users.yml`) or restart its shared Caddy, Postgres and Dozzle, which
+  briefly took every other app on a shared server offline. A deploy now only
+  adds its own Caddy route and reloads Caddy. A root-domain app's route goes
+  in `~/dallinger/root.d/<app>`; an `--update` of such an app is checked and
+  served at the server's host, so `<app>.<host>` need not resolve. `servers add` sets up the shared services on
+  a server without `~/dallinger/docker-compose.yml`; for that, it needs a
+  contact email and, for a server registered by IP address, a `--dns-host`.
+  `dallinger ec2 provision` does the same on the new instance (saving
+  `--dns-host <public ip>.nip.io` when no `--dns-host` is given, as Let's
+  Encrypt does not certify AWS hostnames). It saves the server under its AWS
+  hostname and, with `--dns-host`, under that name too. Before booting an
+  instance, it stops if `contact_email_on_error` is not an email address,
+  if `dashboard_password` (or `dashboard_user`) is not set, or if
+  `server_pem` is not the unencrypted private key in the local
+  `ec2_default_pem` key file (a mismatch used to fail after boot with
+  `SSHException: Invalid key`). It, and `ec2 start --dns-host`, no longer connect through the new
+  `--dns-host` name, so a resolver that still caches a negative answer for
+  it can't stop them; if Route 53 can't create the DNS records, provision
+  warns and sets the server up anyway. If anything fails once the instance
+  is launched, including Ctrl-C, it prints how to remove the instance
+  (`ec2 teardown --name <name> [--region <region>] [--dns-host <dns-host>]`,
+  or the EC2 console while it is still starting). If the setup had started,
+  it also prints the `servers add` commands that would finish it instead.
+  It explains a key that the instance rejected. It prints its total time in whole seconds.
+  It names the region boto actually uses (rather than `None` without
+  `--region`), and its pre-boot errors say that a setting can be in
+  `~/.dallingerconfig` or the environment; it and `ec2 list instances` no
+  longer show a pandas 3.1 deprecation warning.
+  The new `dallinger docker-ssh servers upgrade --host <server>` command sets
+  them up or rewrites them. It lists the files it replaces and the routes it
+  adds, asks first unless given `--yes`, keeps a `.bak` copy of each replaced
+  file, and keeps a root-domain app deployed by an older Dallinger at its
+  address. It refuses, before changing anything, a server with an app called
+  `root.d` (which older Dallinger allowed) and asks to destroy that app
+  first, since its directory is where the routes go. A deploy to a server that lacks the setup it needs stops before
+  the image build and names that command: for example a root-domain app on a
+  server set up by an older Dallinger, or any app on a server whose last
+  classic deploy by an older Dallinger was a root-domain one. The server's
+  DNS host and the email that Caddy gives Let's Encrypt come from the server
+  record: `servers add` saves `--dns-host` and `--contact-email`, and
+  `servers upgrade` also takes `--contact-email`. Re-running `servers add`
+  keeps every saved field it isn't given, including the SSH user and default
+  ingress, which it used to reset to the local user name and `classic`, so
+  the `servers add --host <server> …` commands that errors suggest work as
+  printed. Without one, both save
+  `contact_email_on_error` from `~/.dallingerconfig` or the environment, not
+  from an experiment's `config.txt` or class, and print the saved address and
+  where it came from. A `--contact-email` that is not a bare email address is
+  rejected, and a saved or configured email that is not one (such as the
+  default `???` or the placeholder `XXX@gmail.com`) is ignored and not
+  saved, so setting `contact_email_on_error` later takes effect. A deploy to
+  a server saved without a contact email, such as one registered by an older
+  Dallinger, now stops before the build if its only `contact_email_on_error`
+  is a placeholder such as PsyNet's template `XXX@gmail.com`; save an email
+  with `servers add --contact-email`. A deploy's `--dns-host` now
+  only names the app's own site, except on a server registered by IP address
+  without a saved DNS host, where it also stays the server's own host as
+  before. A deploy without
+  `--app` only replaces the server's other experiments when it takes the
+  server's own DNS host; any other deploy to a hostname that another app or
+  the server's log viewer already serves stops before the image build and
+  names that app or the log viewer. `servers add` and `servers upgrade` no
+  longer fail when `~/.dallingerconfig` has keys that only an extension such
+  as PsyNet registers. The Dozzle log viewer is always `https://logs.<server
+  DNS host>`, so the printed URL is right when a deploy uses a different
+  `--dns-host`; a server that served it at `<host>/logs` needs `logs.<host>`
+  to resolve to it after `servers upgrade`. After `servers upgrade`, Caddy
+  keeps its certificates on a `caddy_data` volume, so recreating it later does
+  not request new ones. If a new deploy, with or without `--app`, fails after
+  building an image, the image is removed unless a container or another app
+  uses it. `servers upgrade`, and
+  `servers add` when it sets up a server, leave the shared files, plus
+  `.env.json`, read-only (mode 0444), so a classic deploy or
+  `set-dozzle-password` by an older Dallinger, which rewrites them, fails with
+  `PermissionError: [Errno 13] Permission denied` before it changes the
+  shared files; update Dallinger to deploy there. If an older Dallinger did
+  rewrite them (before they were read-only, or as `root`), which takes a
+  root-domain app offline and can make Caddy request new certificates, a
+  deploy stops before the image build and asks for `servers upgrade`;
+  `destroy` warns and carries on.
 - The HotAir recruiter's launch message is now just the single recruitment
   link, and the CLI and HotAir messages no longer start with a blank line.
   `dallinger debug` says that new participants will open in browser windows
