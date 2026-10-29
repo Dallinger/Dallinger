@@ -1381,30 +1381,12 @@ def has_route_53_zone(dns_host):
     return bool(filter_zone_ids(get_domain(dns_host), get_53_client()))
 
 
-def teardown(region_name, instance_id, public_dns_name, dns_host):
-    """Delete an instance's DNS records, terminate it, and remove its server entries.
+def remove_instance_dns_records(dns_host, public_dns_name):
+    """Delete ``dns_host``'s records that point at ``public_dns_name``, best-effort.
 
-    An entry belongs to the instance if it has the instance id saved at
-    provisioning or, for entries without one (older versions), if it is named
-    after ``public_dns_name`` or ``dns_host``. Without ``dns_host``, the DNS
-    host saved in an entry with this instance id is used. Only DNS records
-    pointing at ``public_dns_name`` are deleted. A Route 53 failure is reported
-    as a warning so that the instance is still terminated.
+    A Route 53 failure is reported as a warning, so that the caller can still
+    stop or terminate the instance.
     """
-    hosts = get_configured_hosts()
-    owned = [
-        host
-        for host, info in hosts.items()
-        if (
-            info["ec2_instance_id"] == instance_id
-            if info.get("ec2_instance_id")
-            else host in (public_dns_name, dns_host)
-        )
-    ]
-    saved = [
-        route_53_dns_host(hosts[h]) for h in owned if hosts[h].get("ec2_instance_id")
-    ]
-    dns_host = dns_host or next(filter(None, saved), None)
     try:
         remove_dns_record(dns_host, remove_dallinger_host=False, target=public_dns_name)
     except (BotoCoreError, ClientError, click.ClickException) as e:
@@ -1412,8 +1394,49 @@ def teardown(region_name, instance_id, public_dns_name, dns_host):
             f"Could not delete the Route 53 records for {dns_host} ({e}). Delete "
             f"{dns_host} and *.{dns_host} by hand if they point at {public_dns_name}."
         )
-    logger.info(f"Terminating {instance_id} ({public_dns_name})...")
-    get_ec2_client(region_name).terminate_instances(InstanceIds=[instance_id])
+
+
+def teardown(region_name, instance_id, public_dns_name, dns_host):
+    """Delete an instance's DNS records, terminate it, and remove its server entries.
+
+    An entry belongs to the instance if it has the instance id saved at
+    provisioning or, for entries without one (older versions), if it is named
+    after ``public_dns_name`` or ``dns_host``. Without ``dns_host``, the DNS
+    host saved in an entry with this instance id is used. Only DNS records
+    pointing at ``public_dns_name`` are deleted. Unreadable server records and
+    Route 53 failures are reported as warnings, and the instance is terminated
+    whatever happens before.
+    """
+    owned = []
+    try:
+        try:
+            hosts = get_configured_hosts()
+            owned = [
+                host
+                for host, info in hosts.items()
+                if (
+                    info["ec2_instance_id"] == instance_id
+                    if info.get("ec2_instance_id")
+                    else host in (public_dns_name, dns_host)
+                )
+            ]
+            saved = [
+                route_53_dns_host(hosts[h])
+                for h in owned
+                if hosts[h].get("ec2_instance_id")
+            ]
+            dns_host = dns_host or next(filter(None, saved), None)
+        except Exception as e:
+            owned = []
+            logger.warning(
+                f"Could not read the saved docker-ssh server records ({e!r}), so "
+                f"they are left in place. Remove {instance_id}'s records with "
+                "`dallinger docker-ssh servers remove`."
+            )
+        remove_instance_dns_records(dns_host, public_dns_name)
+    finally:
+        logger.info(f"Terminating {instance_id} ({public_dns_name})...")
+        get_ec2_client(region_name).terminate_instances(InstanceIds=[instance_id])
     for host in owned:
         dallinger_remove_host(host)
     logger.info(f"Termination of {instance_id} complete!")

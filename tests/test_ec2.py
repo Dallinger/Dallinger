@@ -1,4 +1,5 @@
 import importlib
+import json
 import socket
 from unittest import mock
 
@@ -693,7 +694,11 @@ def _teardown(instance_id, dns_host, records, hosts=HOSTS, dns_error=None):
     with (
         mock.patch.object(ec2, "get_ec2_client", return_value=ec2_client),
         mock.patch.object(ec2, "get_53_client", return_value=route_53),
-        mock.patch.object(ec2, "get_configured_hosts", return_value=hosts),
+        mock.patch.object(
+            ec2,
+            "get_configured_hosts",
+            side_effect=hosts if isinstance(hosts, Exception) else lambda: hosts,
+        ),
         mock.patch.object(
             ec2, "dallinger_remove_host", side_effect=lambda h: events.append(h)
         ),
@@ -735,6 +740,14 @@ def test_teardown_still_terminates_when_dns_cleanup_fails(records, dns_error, ca
     _, _, events = _teardown("i-123", None, records, dns_error=dns_error)
     assert events == ["ec2", AWS_HOSTNAME, "alice.example.org"]
     assert "alice.example.org and *.alice.example.org" in caplog.text
+
+
+def test_teardown_still_terminates_when_server_records_are_unreadable(caplog):
+    error = json.JSONDecodeError("Expecting value", "", 0)
+    _, deleted, events = _teardown("i-123", "alice.example.org", ALICE_RECORDS, error)
+    assert deleted == ["alice.example.org.", "*.alice.example.org."]
+    assert events == ["dns", "dns", "ec2"]
+    assert "Could not read the saved docker-ssh server records" in caplog.text
 
 
 def test_teardown_leaves_a_saved_nip_io_host_alone(capsys):
@@ -787,6 +800,7 @@ def test_ec2_start_and_stop_use_the_saved_dns_host(command, zone):
     }
     row = {"instance_id": "i-123", "name": "alice", "public_dns_name": AWS_HOSTNAME}
     stopped, running = {**row, "state": "stopped"}, {**row, "state": "running"}
+    selector = ["--name", "alice"] if command == "stop" else ["--dns", AWS_HOSTNAME]
     with (
         mock.patch.object(ec2, "get_configured_hosts", return_value=hosts),
         mock.patch(
@@ -796,25 +810,64 @@ def test_ec2_start_and_stop_use_the_saved_dns_host(command, zone):
         mock.patch.object(ec2_cli, "_get_instance_row_from", return_value=stopped),
         mock.patch.object(
             ec2_cli, "wait_for_instance_state_change", side_effect=[stopped, running]
-        ),
+        ) as wait,
         mock.patch.object(ec2_cli, "start"),
         mock.patch.object(ec2_cli, "stop"),
         mock.patch.object(ec2_cli, "create_dns_records") as create_dns_records,
-        mock.patch.object(ec2_cli, "remove_dns_record") as remove_dns_record,
+        mock.patch.object(ec2_cli, "remove_instance_dns_records") as remove_records,
     ):
-        result = CliRunner().invoke(ec2_cli.ec2, [command, "--name", "alice"])
+        result = CliRunner().invoke(ec2_cli.ec2, [command, *selector])
     assert result.exit_code == 0, result.output
     if command == "stop":
-        remove_dns_record.assert_called_once_with(
-            "alice.example.org", remove_dallinger_host=False, target=AWS_HOSTNAME
-        )
-    elif zone:
+        remove_records.assert_called_once_with("alice.example.org", AWS_HOSTNAME)
+        return
+    assert [call.args[1] for call in wait.call_args_list] == ["alice", "alice"]
+    if zone:
         create_dns_records.assert_called_once_with(
             "alice.example.org", "alice", AWS_HOSTNAME
         )
     else:
         create_dns_records.assert_called_once_with(None, "alice", AWS_HOSTNAME)
         assert "No Route 53 hosted zone found" in result.output
+
+
+@pytest.mark.parametrize(
+    "dns_error", [None, ClientError({"Error": {"Code": "Throttling"}}, "Change")]
+)
+def test_ec2_stop_deletes_only_this_instances_records_and_still_stops(
+    dns_error, caplog
+):
+    import importlib
+
+    from click.testing import CliRunner
+
+    from dallinger.command_line.lib import ec2
+
+    ec2_cli = importlib.import_module("dallinger.command_line.ec2")
+    route_53 = _route_53_client(
+        [
+            _record("bob.example.org.", AWS_HOSTNAME),
+            _record("*.bob.example.org.", "ec2-5-6-7-8.compute.amazonaws.com"),
+        ]
+    )
+    route_53.list_hosted_zones_by_name.return_value = {
+        "HostedZones": [{"Id": "Z1", "Name": "example.org."}]
+    }
+    route_53.change_resource_record_sets.side_effect = dns_error
+    row = {"instance_id": "i-123", "name": "bob", "public_dns_name": AWS_HOSTNAME}
+    with (
+        mock.patch.object(ec2, "get_53_client", return_value=route_53),
+        mock.patch.object(ec2_cli, "_get_instance_row_from", return_value=row),
+        mock.patch.object(ec2_cli, "stop") as stop,
+    ):
+        result = CliRunner().invoke(
+            ec2_cli.ec2, ["stop", "--name", "bob", "--dns-host", "bob.example.org"]
+        )
+    assert result.exit_code == 0, result.output
+    stop.assert_called_once_with(None, "i-123")
+    # *.bob.example.org points at another instance, so it is kept.
+    assert _deleted_names(route_53) == ["bob.example.org."]
+    assert ("Could not delete the Route 53 records" in caplog.text) == bool(dns_error)
 
 
 @pytest.mark.parametrize(

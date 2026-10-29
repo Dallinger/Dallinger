@@ -498,11 +498,15 @@
   versions under the AWS hostname or an explicit `--dns-host`. Teardown
   deletes only the Route 53 records that point at the instance, warns about
   records that point elsewhere, and deletes them before terminating the
-  instance. If Route 53 cleanup fails (including a missing hosted zone), it
-  warns and still terminates the instance. `ec2 stop` and `ec2 start` also
-  use the saved DNS host when `--dns-host` is omitted: `stop` deletes its
-  records if they point at the instance, and `start` points them at the
-  instance's new AWS hostname. A saved `<ip>.nip.io` name is left alone.
+  instance. If Route 53 cleanup fails (including a missing hosted zone), or
+  the saved server records can't be read, it warns and still terminates the
+  instance. `ec2 stop` and `ec2 start` also use the saved DNS host when
+  `--dns-host` is omitted. `stop` deletes only records that point at the
+  instance, with or without `--dns-host`, and still stops the instance if
+  Route 53 cleanup fails. `start` points the records at the instance's new
+  AWS hostname. A saved `<ip>.nip.io` name is left alone. `ec2 start --dns`
+  no longer fails while waiting for the instance; the docs now recommend
+  `ec2 start --name`, since a stopped instance usually has no AWS hostname.
 - A classic-ingress deploy to a server registered by an IPv6 address without
   a saved DNS host now says that classic ingress needs IPv4 and suggests
   `--ingress cloudflare`, instead of suggesting nip.io. The private-network

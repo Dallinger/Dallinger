@@ -16,7 +16,7 @@ from .lib.ec2 import (
     list_instances,
     list_regions,
     provision,
-    remove_dns_record,
+    remove_instance_dns_records,
     restart,
     route_53_dns_host,
     saved_server,
@@ -247,13 +247,9 @@ def ec2__stop(ctx, dns, name, region, dns_host):
         region_name=region, instance_name=name, public_dns_name=dns
     )
     instance_id = instance_row["instance_id"]
-    target = None
-    if not dns_host:
-        # Only delete saved-host records that still point at this instance.
-        dns_host = route_53_dns_host(saved_server(instance_id))
-        target = instance_row["public_dns_name"]
+    dns_host = dns_host or route_53_dns_host(saved_server(instance_id))
     # Remove old DNS records, but keep the dallinger host
-    remove_dns_record(dns_host, remove_dallinger_host=False, target=target)
+    remove_instance_dns_records(dns_host, instance_row["public_dns_name"])
     stop(region, instance_id)
 
 
@@ -283,6 +279,7 @@ def ec2__start(ctx, dns, name, region, dns_host):
         public_dns_name=dns,
         filter_by=None,
     )
+    name = instance_row["name"]
     instance_row = wait_for_instance_state_change(region, name, "stopped")
     assert instance_row["state"] == "stopped", (
         f"Instance '{name}' is not stopped, but in state '{instance_row['state']}'"

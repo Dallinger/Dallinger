@@ -214,19 +214,21 @@ costs (while retaining its stored data)::
     dallinger ec2 stop --name <server_name> --region <region>
     dallinger ec2 stop --dns <aws_hostname> --region <region>
 
-Similarly you can start a stopped instance::
+Similarly you can start a stopped instance by server name::
 
     dallinger ec2 start --name <server_name> --region <region>
-    dallinger ec2 start --dns <aws_hostname> --region <region>
+
+A stopped instance usually loses its AWS hostname, so ``ec2 start --dns``
+rarely finds it; use ``--name``.
 
 ``stop`` deletes the instance's ``<subdomain>.my-experiments.org`` and
 ``*.<subdomain>.my-experiments.org`` records, and ``start`` points them at the
 instance's new AWS hostname. Both use the DNS host saved when the instance was
 provisioned with ``--dns-host``; for an instance provisioned without one, or
 by an older Dallinger, pass ``--dns-host <subdomain>.my-experiments.org``.
-With the saved DNS host, ``stop`` deletes only records that point at the
-instance, and ``start`` skips it with a warning if it is not in a Route 53
-hosted zone.
+``stop`` deletes only records that point at the instance, and if Route 53
+cleanup fails, it warns and still stops the instance. ``start`` skips a saved
+DNS host with a warning if it is not in a Route 53 hosted zone.
 
 Or restart a running instance::
 
