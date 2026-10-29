@@ -3,8 +3,12 @@ import locale
 import os
 import socket
 import subprocess
+import sys
 import tempfile
+import warnings
+from contextlib import nullcontext
 from datetime import datetime, timedelta
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from unittest import mock
 
@@ -92,19 +96,6 @@ class TestSubprocessWrapper:
         sys.stderr.write.assert_called_once_with(b"Output")
 
 
-class TestStreamSubprocessOutput:
-    def test_output_arrives_line_by_line_while_running(self, capsys):
-        utils.stream_subprocess_output(
-            ["sh", "-c", "echo first; echo second >&2"],
-        )
-
-        assert capsys.readouterr().out.split() == ["first", "second"]
-
-    def test_a_failing_command_raises(self):
-        with pytest.raises(subprocess.CalledProcessError):
-            utils.stream_subprocess_output(["sh", "-c", "exit 3"])
-
-
 class TestShowDeprecationWarningsOnce:
     @pytest.fixture
     def redis_conn(self):
@@ -150,6 +141,79 @@ class TestShowDeprecationWarningsOnce:
         utils.show_warnings_once(warning, category, filename, lineno)
         redis_conn.exists.assert_called_once_with(warning)
         redis_conn.set.assert_called_once_with(warning, "Logged")
+
+
+WARN_SCRIPT = """
+import warnings
+from sqlalchemy.exc import SAWarning
+from dallinger.utils import setup_warning_hooks
+setup_warning_hooks()
+warnings.showwarning = lambda message, *args, **kwargs: print(message)
+for message, category, module in [
+    ("ours", DeprecationWarning, "dallinger.models"),
+    ("theirs", DeprecationWarning, "flask_login"),
+    ("pending", PendingDeprecationWarning, "flask_login"),
+    ("resource", ResourceWarning, "socket"),
+    ("sa", SAWarning, "sqlalchemy.orm"),
+    ("user", UserWarning, "flask_login"),
+]:
+    try:
+        warnings.warn_explicit(message, category, "f.py", 1, module=module)
+    except Warning as error:
+        print("error", error)
+"""
+
+
+@pytest.mark.parametrize(
+    "options, pythonwarnings, expected",
+    [
+        ([], "", ["ours", "user"]),
+        (["-W", "ignore::DeprecationWarning"], "", ["user"]),
+        (
+            ["-W", "error::DeprecationWarning:dallinger.models"],
+            "",
+            ["error ours", "user"],
+        ),
+        ([], "default", ["ours", "theirs", "pending", "resource", "user"]),
+    ],
+)
+def test_setup_warning_hooks_defers_to_user_warning_options(
+    options, pythonwarnings, expected
+):
+    result = subprocess.run(
+        [sys.executable, *options, "-c", WARN_SCRIPT],
+        env={**os.environ, "PYTHONWARNINGS": pythonwarnings, "PYTHONDEVMODE": ""},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.splitlines() == expected
+
+
+def test_setup_warning_hooks_shows_only_our_deprecation_warnings(monkeypatch):
+    deprecations = [
+        ("flask_login", "old in flask_login"),
+        ("dallinger.models", "old in dallinger.models"),
+        ("dallinger_experiment", "old in dallinger_experiment"),
+        ("psynet.page", "old in psynet.page"),
+        ("__main__", "old in __main__"),
+        ("dlgr.demos.chatroom.experiment", "old in dlgr.demos"),
+        (
+            "multiprocessing.popen_fork",
+            "This process (pid=1) is multi-threaded, use of fork() may lead to "
+            "deadlocks in the child.",
+        ),
+    ]
+    monkeypatch.setattr("sys.warnoptions", [])
+    with warnings.catch_warnings():
+        utils.setup_warning_hooks()
+        with warnings.catch_warnings(record=True) as caught:
+            for module, message in deprecations:
+                warnings.warn_explicit(
+                    message, DeprecationWarning, "f.py", 1, module=module
+                )
+
+    assert [str(w.message) for w in caught] == [m for _, m in deprecations[1:]]
 
 
 @pytest.mark.usefixtures("in_tempdir")
@@ -206,8 +270,15 @@ class TestGitClient:
 
         assert git.files() == {filename.decode(locale.getpreferredencoding())}
 
-    def test_files_on_non_git_repo(self, git):
+    def test_files_on_non_git_repo(self, git, capfd):
         assert git.files() == set()
+        assert "not a git repository" not in capfd.readouterr().err
+
+    def test_files_warns_about_other_git_errors(self, git, caplog):
+        git.init()
+        Path(".git", "index").write_bytes(b"corrupt")
+        assert git.files() == set()
+        assert "git ls-files failed: " in caplog.text
 
     def test_includes_details_in_exceptions(self, git):
         with pytest.raises(Exception) as ex_info:
@@ -391,18 +462,72 @@ class TestIsBrokenSymlink:
         assert not utils.is_broken_symlink(path)
 
 
-@pytest.mark.parametrize("metadata", [[], None])
-def test_abspath_from_egg_falls_back_to_source_tree(metadata):
-    with mock.patch("dallinger.utils.files_metadata", return_value=metadata):
-        path = utils.abspath_from_egg("dallinger", "dallinger/utils.py")
-
-    assert path.is_file()
-    assert path.name == "utils.py"
+def test_abspath_from_egg_uses_the_imported_tree():
+    path = utils.abspath_from_egg("dallinger", "dallinger/utils.py")
+    assert path == Path(utils.__file__).resolve()
+    assert utils.abspath_from_egg("dallinger", "dallinger/missing.txt") is None
 
 
-def test_abspath_from_egg_returns_none_when_missing():
-    with mock.patch("dallinger.utils.files_metadata", return_value=[]):
-        assert utils.abspath_from_egg("dallinger", "dallinger/missing.txt") is None
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_build_and_place_shows_build_output_only_on_failure(
+    tmp_path, monkeypatch, capfd, exit_code
+):
+    fake_python = tmp_path / "fake-python"
+    fake_python.write_text(
+        "#!/bin/sh\n"
+        'echo "* Building wheel..." >&2\n'
+        'while [ "$1" != --outdir ]; do shift; done\n'
+        'echo wheel > "$2/dallinger-1-py3-none-any.whl"\n'
+        f"exit {exit_code}\n"
+    )
+    fake_python.chmod(0o755)
+    monkeypatch.setattr(sys, "executable", str(fake_python))
+    with pytest.raises(subprocess.CalledProcessError) if exit_code else nullcontext():
+        name = utils.build_and_place(str(tmp_path), str(tmp_path))
+        assert (tmp_path / name).read_text() == "wheel\n"
+    assert ("Building wheel" in capfd.readouterr().err) == bool(exit_code)
+
+
+def test_replace_dallinger_requirement_handles_git_and_equality_pins():
+    text = (
+        "psynet==13.4.0\n"
+        "dallinger[docker] @ git+https://github.com/Dallinger/Dallinger.git@9e51dae\n"
+        "pandas\n"
+    )
+    out = utils.replace_dallinger_requirement(text, "dallinger-local.whl")
+    assert "file:dallinger-local.whl" in out
+    assert "9e51dae" not in out
+    assert "psynet==13.4.0" in out
+    compact = utils.replace_dallinger_requirement(
+        "dallinger[docker]@git+https://github.com/Dallinger/Dallinger.git@abc123\n",
+        "dallinger-local.whl",
+    )
+    assert compact == "dallinger[docker] @ file:dallinger-local.whl\n"
+    assert "abc123" not in compact
+    unpinned = "psynet\n"
+    assert (
+        utils.replace_dallinger_requirement(unpinned, "dallinger-local.whl") == unpinned
+    )
+
+
+def test_replace_dallinger_requirement_preserves_extras():
+    out = utils.replace_dallinger_requirement(
+        "dallinger[docker] @ git+https://github.com/Dallinger/Dallinger.git@abc123\n",
+        "dallinger-local.whl",
+    )
+    assert out == "dallinger[docker] @ file:dallinger-local.whl\n"
+
+    out_multi = utils.replace_dallinger_requirement(
+        "dallinger[docker,test] @ git+https://github.com/Dallinger/Dallinger.git@abc123\n",
+        "dallinger-local.whl",
+    )
+    assert out_multi == "dallinger[docker,test] @ file:dallinger-local.whl\n"
+
+    out_no_extras = utils.replace_dallinger_requirement(
+        "dallinger @ git+https://github.com/Dallinger/Dallinger.git@abc123\n",
+        "dallinger-local.whl",
+    )
+    assert out_no_extras == "file:dallinger-local.whl\n"
 
 
 def test_check_experiment_dependencies_successful():

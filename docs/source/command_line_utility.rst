@@ -80,7 +80,9 @@ CSV format. A required ``--app <app>`` parameter specifies the experiment by its
 id. Use the optional ``--local`` flag if exporting a local experiment data.
 An optional ``--no-scrub`` flag will stop the scrubbing of personally
 identifiable information in the export. The scrubbing of PII is enabled by
-default.
+default. It rewrites only ``participant.csv``. The other tables are exported as
+they are, including the messages participants sent in real-time game sessions,
+in ``realtime_event.csv``.
 
 email-test
 ~~~~~~~~~~

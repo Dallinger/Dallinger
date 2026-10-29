@@ -4,6 +4,7 @@ from importlib.metadata import distribution
 
 import pytest
 
+from dallinger import config as config_module
 from dallinger import experiments
 from dallinger.command_line.utils import verify_package
 from dallinger.experiment import load
@@ -14,7 +15,7 @@ class TestDemos:
     """Verify all the built-in demos."""
 
     @pytest.fixture
-    def iter_demos(self):
+    def iter_demos(self, monkeypatch):
         def _clean_sys_modules():
             to_clear = [k for k in sys.modules if k.startswith("dallinger_experiment")]
             for key in to_clear:
@@ -29,6 +30,8 @@ class TestDemos:
                 if not f.startswith("_")
             ]
             for demo_path in demo_paths:
+                # A config loaded for one demo lacks the next one's settings
+                monkeypatch.setattr(config_module, "config", None)
                 os.chdir(demo_path)
                 yield demo_path
                 _clean_sys_modules()
@@ -98,13 +101,16 @@ class TestEntryPointImport:
 
     def test_registered_demo_entry_point_names(self):
         expected = {
+            "Bargaining",
             "Bartlett1932",
             "TwentyFortyEight",
             "CoordinationChatroom",
+            "CoinCollection",
             "ConcentrationGame",
             "FunctionLearning",
             "IteratedDrawing",
             "MCMCP",
+            "PartnerEcho",
             "RogersExperiment",
             "SheepMarket",
             "SnakeGame",

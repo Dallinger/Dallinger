@@ -1,12 +1,13 @@
 import json
 import os
+import sys
 from datetime import datetime
 from unittest import mock
 
 import pytest
 from tzlocal import get_localzone
 
-pytest_plugins = ["pytest_dallinger"]
+pytest_plugins = ["pytest_dallinger", "dallinger.pytest_docker_ssh"]
 
 
 @pytest.fixture(scope="module")
@@ -89,6 +90,15 @@ def reset_config():
     import dallinger.config
 
     dallinger.config.config = None
+
+
+@pytest.fixture(autouse=True)
+def reset_shared_ssh_clients():
+    """Keep docker-ssh's shared SSH clients from leaking between tests."""
+    yield
+    docker_ssh = sys.modules.get("dallinger.command_line.docker_ssh")
+    if docker_ssh is not None:
+        docker_ssh._ssh_clients.clear()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -303,19 +313,36 @@ def pytest_addoption(parser):
         default=False,
         help="Run tests which create S3 buckets",
     )
+    parser.addoption(
+        "--docker-ssh-smoke",
+        action="store_true",
+        default=False,
+        help="Run docker-ssh smoke integration tests",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
-    run_slow = run_docker = False
+    run_slow = run_docker = run_docker_ssh_smoke = False
     if config.getoption("--runslow"):
         # --runslow given in cli: do not skip slow tests
         run_slow = True
     if os.environ.get("RUN_DOCKER"):
         # RUN_DOCKER environment variable set: do not skip docker tests
         run_docker = True
+    if config.getoption("--docker-ssh-smoke"):
+        run_docker_ssh_smoke = True
     skip_slow = pytest.mark.skip(reason="need --runslow option to run")
     skip_docker = pytest.mark.skip(reason="need RUN_DOCKER environment variable")
+    skip_docker_ssh_smoke = pytest.mark.skip(
+        reason="need --docker-ssh-smoke option to run"
+    )
     for item in items:
+        if "docker_ssh_smoke" in item.keywords:
+            if not run_docker_ssh_smoke:
+                item.add_marker(skip_docker_ssh_smoke)
+            # docker-ssh smoke tests are gated only by --docker-ssh-smoke.
+            # They should not additionally require --runslow or RUN_DOCKER.
+            continue
         if "slow" in item.keywords and not run_slow:
             item.add_marker(skip_slow)
         if "docker" in item.keywords and not run_docker:

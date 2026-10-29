@@ -40,8 +40,8 @@ Instead, we recommend one of the following approaches:
    ::
 
        brew install pyenv
-       pyenv install 3.12
-       pyenv local 3.12
+       pyenv install 3.14
+       pyenv local 3.14
 
    For setup instructions, follow the `pyenv installation guide <https://github.com/pyenv/pyenv#installation>`__.
 
@@ -111,9 +111,9 @@ then postgres is not running. Start postgres as described in the Install Postgre
 Install Heroku
 ~~~~~~~~~~~~~~
 
-To run experiments locally or on the internet, you will need the Heroku Command
-Line Interface installed, version 3.28.0 or better. If you want to launch experiments on the internet, then
-you will also need a Heroku.com account, however this is not needed for local debugging.
+You only need the Heroku Command Line Interface (version 3.28.0 or better) and a
+Heroku.com account if you want to deploy experiments to Heroku. Local debugging
+(``dallinger debug``) does not need the Heroku CLI.
 
 To check which version of the Heroku CLI you have installed, run:
 ::
@@ -132,8 +132,8 @@ More information on the Heroku CLI is available at `heroku.com <https://devcente
 Install Redis
 ~~~~~~~~~~~~~
 
-Debugging experiments requires you to have Redis installed and the Redis
-server running.
+Debugging experiments requires you to have Redis 7.0 or later installed and
+the Redis server running.
 ::
 
     brew install redis
@@ -231,7 +231,7 @@ If you're already familiar with `virtualenv` and `virtualenvwrapper`, you can st
     pip3 install virtualenvwrapper
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.14)
     source $(which virtualenvwrapper.sh)
 
 
@@ -246,7 +246,7 @@ Example:
 ::
 
 
-    mkvirtualenv dlgr_env --python /usr/local/bin/python3.12
+    mkvirtualenv dlgr_env --python /usr/local/bin/python3.14
 
 Virtualenvwrapper provides an easy way to switch between virtual environments
 by simply typing: ``workon [virtual environment name]``.
@@ -275,7 +275,7 @@ The how-to:
 In the future, you can work on your virtual environment by running:
 ::
 
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.14)
     source $(which virtualenvwrapper.sh)
     workon dlgr_env
 
@@ -289,7 +289,7 @@ execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
 do that type:
 ::
 
-    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)" >> ~/.bash_profile
+    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.14)" >> ~/.bash_profile
     echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
 
 
@@ -435,8 +435,8 @@ Instead, use one of the following approaches:
    ::
 
        curl -fsSL https://pyenv.run | bash
-       pyenv install 3.12
-       pyenv local 3.12
+       pyenv install 3.14
+       pyenv local 3.14
 
    For setup instructions, follow the `pyenv installation guide <https://github.com/pyenv/pyenv#installation>`__.
 
@@ -500,9 +500,9 @@ Finally restart postgresql:
 Install Heroku
 ~~~~~~~~~~~~~~
 
-To run experiments locally or on the internet, you will need the Heroku Command
-Line Interface installed, version 3.28.0 or better. If you want to launch experiments on the internet, then
-you will also need a Heroku.com account, however this is not needed for local debugging.
+You only need the Heroku Command Line Interface (version 3.28.0 or better) and a
+Heroku.com account if you want to deploy experiments to Heroku. Local debugging
+(``dallinger debug``) does not need the Heroku CLI.
 
 To check which version of the Heroku CLI you have installed, run:
 ::
@@ -522,8 +522,8 @@ More information on the Heroku CLI is available at `heroku.com <https://devcente
 Install Redis
 ~~~~~~~~~~~~~
 
-Debugging experiments requires you to have Redis installed and the Redis
-server running.
+Debugging experiments requires you to have Redis 7.0 or later installed and
+the Redis server running.
 
 ::
 
@@ -533,6 +533,9 @@ Start Redis on Ubuntu with:
 ::
 
     sudo service redis-server start
+
+Ubuntu's ``redis-server`` package is older than 7.0 before Ubuntu 24.04. On an
+older release, install Redis from Redis's own packages instead.
 
 You can find more details and other installation instructions at `redis.com <https://redis.io/topics/quickstart>`__.
 
@@ -620,7 +623,7 @@ If you're already familiar with `virtualenv` and `virtualenvwrapper`, you can st
     pip3 install virtualenvwrapper
     export WORKON_HOME=$HOME/.virtualenvs
     mkdir -p $WORKON_HOME
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.14)
     source $(which virtualenvwrapper.sh)
 
 
@@ -635,7 +638,7 @@ Example:
 ::
 
 
-    mkvirtualenv dlgr_env --python /usr/local/bin/python3.12
+    mkvirtualenv dlgr_env --python /usr/local/bin/python3.14
 
 Virtualenvwrapper provides an easy way to switch between virtual environments
 by simply typing: ``workon [virtual environment name]``.
@@ -664,7 +667,7 @@ The how-to:
 In the future, you can work on your virtual environment by running:
 ::
 
-    export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)
+    export VIRTUALENVWRAPPER_PYTHON=$(which python3.14)
     source $(which virtualenvwrapper.sh)
     workon dlgr_env
 
@@ -678,7 +681,7 @@ execute the ``virtualenvwrapper.sh`` script everytime you open a terminal. To
 do that type:
 ::
 
-    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.12)" >> ~/.bash_profile
+    echo "export VIRTUALENVWRAPPER_PYTHON=$(which python3.14)" >> ~/.bash_profile
     echo "source $(which virtualenvwrapper.sh)" >> ~/.bash_profile
 
 

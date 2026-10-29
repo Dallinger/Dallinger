@@ -1,0 +1,74 @@
+name: realtime-benchmark
+on:
+  workflow_dispatch:
+    inputs:
+      args:
+        description: "Arguments for benchmarks/realtime.py"
+        default: "--sessions 10"
+      repeats:
+        description: "How many times to run it"
+        default: "3"
+      default_load:
+        description: "Also run it once at the script's default load"
+        type: boolean
+        default: true
+  push:
+    branches:
+      - "realtime-benchmark/**"
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:12
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: dallinger
+          POSTGRES_PASSWORD: dallinger
+          POSTGRES_DB: dallinger
+    env:
+      ARGS: ${{ inputs.args || '--sessions 10' }}
+      REPEATS: ${{ inputs.repeats || '3' }}
+    steps:
+      - name: Checkout Dallinger repository
+        uses: actions/checkout@v5
+      - name: Install redis
+        # The script starts redis-server itself, on a port of its own.
+        run: |
+          sudo apt-get --yes install redis-server
+          sudo systemctl stop redis-server
+          redis-server --version
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Install Dallinger
+        run: pip install -e . -c constraints.txt
+      - name: Keep the experiments' directories and logs
+        run: |
+          mkdir -p "$RUNNER_TEMP/benchmark" results
+          echo "TMPDIR=$RUNNER_TEMP/benchmark" >> "$GITHUB_ENV"
+      - name: Run the benchmark
+        run: |
+          for run in $(seq "$REPEATS"); do
+            python benchmarks/realtime.py $ARGS --output "results/realtime-$run.json"
+          done
+      - name: Run the benchmark at its default load
+        if: github.event_name == 'push' || inputs.default_load
+        run: python benchmarks/realtime.py --output results/realtime-default.json
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: realtime-benchmark
+          path: |
+            results/
+            ${{ runner.temp }}/benchmark/

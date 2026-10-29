@@ -13,6 +13,8 @@ from shlex import quote
 
 import click
 import requests
+import tenacity
+import urllib3.exceptions
 from heroku3.core import Heroku as Heroku3Client
 
 from dallinger import heroku, registration
@@ -37,6 +39,12 @@ from dallinger.utils import (
 )
 
 HEROKU_YML = abspath_from_egg("dallinger", "dallinger/docker/heroku.yml").read_text()
+
+# The Docker SDK default read timeout (60 s) is too short for large image
+# layers on slow connections. This timeout applies to how long the SDK will
+# wait for the next chunk of data from the daemon, not the total push duration.
+DOCKER_PUSH_TIMEOUT = 180
+DOCKER_PUSH_MAX_ATTEMPTS = 2
 
 
 @click.group()
@@ -96,7 +104,7 @@ def start_services():
         "docker run --rm -d --name dallinger_redis -p 6379:6379 -v dallinger_redis:/data redis redis-server --appendonly yes"
     )
     os.system(
-        "docker run --rm -d --name dallinger_postgres -p 5432:5432 -e POSTGRES_USER=dallinger -e POSTGRES_PASSWORD=dallinger -e POSTGRES_DB=dallinger -v dallinger_postgres:/var/lib/postgresql/data postgres:12"
+        "docker run --rm -d --name dallinger_postgres -p 5432:5432 -e POSTGRES_USER=dallinger -e POSTGRES_PASSWORD=dallinger -e POSTGRES_DB=dallinger -v dallinger_postgres:/var/lib/postgresql/data postgres:12 postgres -c jit=off"
     )
 
 
@@ -175,28 +183,46 @@ def push_image(image_name_with_tag: str) -> str:
     """Push a local image to its registry and return the digest name."""
     from docker import client
 
-    docker_client = client.from_env()
-    for line in docker_client.images.push(
-        image_name_with_tag, stream=True, decode=True
+    # Over SSH, use the ssh command rather than Paramiko, like build_image().
+    docker_client = client.from_env(timeout=DOCKER_PUSH_TIMEOUT, use_ssh_client=True)
+    for attempt in tenacity.Retrying(
+        retry=tenacity.retry_if_exception_type(
+            (
+                requests.exceptions.ReadTimeout,
+                requests.exceptions.ConnectionError,
+                urllib3.exceptions.ReadTimeoutError,
+            )
+        ),
+        stop=tenacity.stop_after_attempt(DOCKER_PUSH_MAX_ATTEMPTS),
+        wait=tenacity.wait_fixed(5),
+        before_sleep=lambda s: print(
+            f"Push attempt {s.attempt_number} failed ({s.outcome.exception()}); "
+            f"retrying in {s.next_action.sleep:.0f}s..."
+        ),
+        reraise=True,
     ):
-        if "status" in line:
-            print(line["status"], end="")
-            print(line.get("progress", ""))
-        if "error" in line:
-            print(line.get("error", "") + "\n")
-            if "unauthenticated" in line["error"]:
-                registry_name = image_name_with_tag.split("/")[0]
-                for help_line in REGISTRY_UNAUTHORIZED_HELP_TEXTS.get(
-                    registry_name, REGISTRY_UNAUTHORIZED_HELP_TEXT
-                ):
-                    print(help_line.format(**locals()))
-            if "denied" in line["error"]:
-                print(
-                    f"Your current account does not have permission to push to {image_name_with_tag}"
-                )
-            raise click.Abort
-        if "aux" in line:
-            print(f"Pushed image: {line['aux']['Digest']}\n")
+        with attempt:
+            for line in docker_client.images.push(
+                image_name_with_tag, stream=True, decode=True
+            ):
+                if "status" in line:
+                    print(line["status"], end="")
+                    print(line.get("progress", ""))
+                if "error" in line:
+                    print(line.get("error", "") + "\n")
+                    if "unauthenticated" in line["error"]:
+                        registry_name = image_name_with_tag.split("/")[0]
+                        for help_line in REGISTRY_UNAUTHORIZED_HELP_TEXTS.get(
+                            registry_name, REGISTRY_UNAUTHORIZED_HELP_TEXT
+                        ):
+                            print(help_line.format(**locals()))
+                    if "denied" in line["error"]:
+                        print(
+                            f"Your current account does not have permission to push to {image_name_with_tag}"
+                        )
+                    raise click.Abort
+                if "aux" in line:
+                    print(f"Pushed image: {line['aux']['Digest']}\n")
     pushed_image = docker_client.images.get(image_name_with_tag).attrs["RepoDigests"][0]
     print(f"Image {pushed_image} built and pushed.\n")
     return pushed_image
@@ -314,7 +340,7 @@ def deploy_image(image_name, mode, config_options):
         data=app._h._resource_serialize(payload),
     )
 
-    print_status("Launching experiment.")
+    print("Launching the experiment...")
     app_url = f"https://{app_hostname}"
     launch_data = handle_launch_data(
         f"{app_url}/launch", print_status, context="heroku"
@@ -451,7 +477,10 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     addons_text = previous_addons_text = ""
     while not ready:
         addons_text = heroku_app._result(heroku_addons_cmd(heroku_app.name)).strip()
-        log("\033[F" * (len(previous_addons_text.split("\n")) + 2), chevrons=False)
+        # Move up over the previous addons list and total time, plus the line
+        # that this log() call's newline adds.
+        shown = len(previous_addons_text.split("\n")) + 1 if previous_addons_text else 0
+        log("\033[F" * (shown + 1), chevrons=False)
         log(addons_text, chevrons=False)
         log(
             f"Total time waiting for addons to be ready: {datetime.now().astimezone().replace(microsecond=0) - addons_t0}",

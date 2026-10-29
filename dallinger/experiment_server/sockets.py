@@ -1,32 +1,147 @@
 """Handles relaying websocket messages between processes using redis."""
 
 import json
+import numbers
 import os
 import socket
+import time
+import uuid
+from contextlib import contextmanager
+from datetime import datetime
 
 import gevent
 from flask import request
 from flask_sock import Sock
+from gevent.event import Event
 from gevent.lock import Semaphore
-from redis import ConnectionError
+from redis import ConnectionError, RedisError
+from redis import TimeoutError as RedisTimeoutError
 from simple_websocket import ConnectionClosed
+from sqlalchemy.exc import SQLAlchemyError
 
-from dallinger.db import redis_conn
+from dallinger.db import (
+    CONTROL_CHANNEL,
+    DIRECT_CHANNEL,
+    REALTIME_SESSION_CHANNEL,
+    RESERVED_CHANNELS,
+    TIME_CHANNEL,
+    channel_frame,
+    direct_envelope,
+    redis_conn,
+    session,
+)
+from dallinger.realtime import session_sockets, store
+from dallinger.redis_utils import connect_to_redis
+from dallinger.utils import normalized_participant_id
 
+from . import socket_admission
 from .experiment_server import app
+from .utils import date_handler
 
 sock = Sock(app)
+
+#: Channel listeners hold a connection each for as long as their channel has
+#: clients, so they get their own pool. Otherwise enough busy channels would
+#: make every other Redis call in the process wait for a free connection.
+#: It is built independently of ``dallinger.db.redis_conn``, so replacing that
+#: client redirects publishes but not subscriptions; replace both together.
+pubsub_conn = connect_to_redis()
 
 # Send a ping on the websocket channel every 25 seconds
 app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
 
-CONTROL_CHANNEL = "dallinger_control"
+#: Every field a directed send carries. ``deliver_direct`` indexes all three.
+SEND_FIELDS = frozenset({"participant_ids", "scope", "payload"})
+
+#: Seconds a connection waits for redis to confirm its subscriptions before it
+#: starts relaying. Only an outage reaches it; a healthy subscription is
+#: confirmed in well under a millisecond.
+SUBSCRIPTION_TIMEOUT_SECS = 2.0
+
+_process_token = None
+_process_token_pid = None
+
+
+def process_token():
+    """Marks the envelopes this process publishes, so its own listener does not
+    deliver a second copy of what ``publish_to_participants`` has already handed
+    to local clients.
+
+    Generated on first use and again whenever the pid changes, rather than at
+    import. ``StandaloneServer`` inherits gunicorn's ``load_config``, which
+    reads ``gunicorn.conf.py`` from the working directory and
+    ``GUNICORN_CMD_ARGS`` after Dallinger's own settings, so an experiment can
+    turn on ``preload_app`` without touching Dallinger. This module is then
+    imported before the fork, and a token fixed there would be shared by every
+    worker, each discarding the others' envelopes as its own. A pid alone would
+    collide between hosts.
+    """
+    global _process_token, _process_token_pid
+    pid = os.getpid()
+    if _process_token_pid != pid:
+        _process_token = uuid.uuid4().hex
+        _process_token_pid = pid
+    return _process_token
+
+
+#: RFC 6455 going away. Sent to every connection when the web process shuts
+#: down, so the browser reconnects to another one.
+GOING_AWAY_CLOSE_CODE = 1001
+
+#: RFC 6455 policy violation, reported to the browser as ``event.code`` on
+#: ``onclose``. Dallinger's bundled ``ReconnectingWebSocket`` stops retrying on
+#: it.
+REFUSED_CLOSE_CODE = 1008
+
+#: IANA "try again later". Unlike a refusal, a client should reconnect.
+UNAVAILABLE_CLOSE_CODE = 1013
+
+#: RFC 6455 unsupported data. Sent when a client frames something this
+#: protocol has no way to route.
+UNSUPPORTED_DATA_CLOSE_CODE = 1003
+
+# redis-py reconnects and resubscribes the pubsub before re-raising these,
+# so a later read resumes the stream. Other RedisErrors are protocol-level,
+# and redis-py leaves the connection as it was, so a retry on it would hit the
+# same thing.
+RETRYABLE_REDIS_ERRORS = (ConnectionError, RedisTimeoutError)
 
 
 def log(msg, level="info"):
     # Log including pid and greenlet id
     logfunc = getattr(app.logger, level)
     logfunc("{}/{}: {}".format(os.getpid(), id(gevent.hub.getcurrent()), msg))
+
+
+_process_games = None
+
+
+def process_games():
+    """The experiment's game types, as
+    :func:`~dallinger.realtime.store.experiment_games` returns them, loaded
+    once per process, when its gunicorn worker or the ``dallinger develop``
+    server starts.
+    """
+    global _process_games
+    if _process_games is None:
+        _process_games = store.experiment_games()
+    return _process_games
+
+
+def publish_control_event(payload):
+    """Publish one control event, logging instead of raising if redis is down.
+
+    Control events are notifications, and every caller is in the middle of
+    bookkeeping it must finish. Raising would abort a teardown partway and
+    leave a client registered on a channel whose listener retries forever.
+    """
+    json_payload = json.dumps(payload)
+    try:
+        redis_conn.publish(CONTROL_CHANNEL, json_payload)
+    except RedisError:
+        app.logger.exception(
+            "Could not publish {} control event.".format(payload.get("event"))
+        )
 
 
 class Channel:
@@ -36,12 +151,33 @@ class Channel:
     on the specified channel name.
 
     When a message is received, it is relayed to all clients that have subscribed.
+
+    A channel is stopped when its last client leaves, and a new one is started
+    when a client joins again. Until the new channel's ``SUBSCRIBE`` reaches
+    Redis, messages published to that name are not relayed, so a message sent
+    straight after a client (re)joins an empty channel can be lost.
     """
+
+    #: Seconds to wait before re-reading after a lost redis connection,
+    #: doubling on each consecutive failure up to the maximum.
+    RECONNECT_DELAY_SECS = 0.5
+    MAX_RECONNECT_DELAY_SECS = 10
+
+    #: Whether a redis error other than a lost connection or a timeout starts
+    #: the listener over even before redis has accepted the channel name. A
+    #: listener that ends is dropped by ``ChatBackend.forget``, and its next
+    #: subscriber builds another.
+    rebuilds_on_protocol_error = False
 
     def __init__(self, name):
         self.name = name
         self.clients = []
         self.greenlet = None
+        #: Set once redis has confirmed the subscription. A connection waits
+        #: for this before it relays anything, because redis does not order a
+        #: publish arriving on one connection behind a SUBSCRIBE it has not
+        #: read yet on another.
+        self.listening = Event()
 
     def subscribe(self, client):
         """Subscribe a client to the channel."""
@@ -50,16 +186,13 @@ class Channel:
             "Subscribed client {} to channel {}".format(client, self.name),
             level="debug",
         )
-        redis_conn.publish(
-            CONTROL_CHANNEL,
-            json.dumps(
-                {
-                    "type": "channel",
-                    "event": "subscribed",
-                    "channel": self.name,
-                    "client": client.client_info(),
-                }
-            ),
+        publish_control_event(
+            {
+                "type": "channel",
+                "event": "subscribed",
+                "channel": self.name,
+                "client": client.client_info(),
+            }
         )
 
     def unsubscribe(self, client):
@@ -70,40 +203,148 @@ class Channel:
                 "Unsubscribed client {} from channel {}".format(client, self.name),
                 level="debug",
             )
-            redis_conn.publish(
-                CONTROL_CHANNEL,
-                json.dumps(
-                    {
-                        "type": "channel",
-                        "event": "unsubscribed",
-                        "channel": self.name,
-                        "client": client.client_info(),
-                    }
-                ),
+            publish_control_event(
+                {
+                    "type": "channel",
+                    "event": "unsubscribed",
+                    "channel": self.name,
+                    "client": client.client_info(),
+                }
             )
+
+    def relay(self, message):
+        """Send one pubsub message to every subscribed client."""
+        if message["type"] != "message":
+            return
+        # Only redis errors are caught by ``listen``, so a decode error raised
+        # here would end the listener and leave this channel's clients deaf.
+        try:
+            channel = message["channel"].decode("utf-8")
+            data = message["data"].decode("utf-8")
+        except UnicodeDecodeError:
+            log(
+                "Dropped a message on channel {} that is not UTF-8.".format(self.name),
+                level="warning",
+            )
+            return
+        payload = channel_frame(channel, data)
+        for client in self.clients:
+            gevent.spawn(self._relay, client, payload)
 
     def listen(self):
         """Relay messages from a redis pubsub to all subscribed clients.
 
         This is run continuously in a separate greenlet.
+
+        A lost redis connection is retried without limit, and so is the
+        first subscription. ``launch`` subscribes the experiment to its own
+        channel and to the control channel and never unsubscribes either, so
+        giving up would leave an experiment deaf until its worker restarts.
+        Every other channel is bounded by ``ChatBackend.unsubscribe``, which
+        stops the greenlet once the last client leaves. The full traceback is
+        logged once per outage and a single line per attempt after that,
+        because at the ceiling an outage otherwise writes six tracebacks a
+        minute for every channel.
+
+        A redis error that is not a lost connection starts the listener over
+        on a fresh pubsub once redis has accepted the channel name, because
+        nothing moves the clients already on this channel to the one its next
+        subscriber would build. A name redis has never accepted may be what it
+        refused, so the listener ends and ``ChatBackend.forget`` drops the
+        channel. ``rebuilds_on_protocol_error`` rebuilds even then.
         """
-        pubsub = redis_conn.pubsub()
+        pubsub = pubsub_conn.pubsub()
         name = self.name
         if isinstance(name, str):
             name = name.encode("utf-8")
         try:
-            pubsub.subscribe([name])
-        except ConnectionError:
-            app.logger.exception("Could not connect to redis.")
-        log("Listening on channel {}".format(self.name))
-        for message in pubsub.listen():
-            data = message.get("data")
-            if message["type"] == "message" and data != "None":
-                channel = message["channel"]
-                payload = "{}:{}".format(channel.decode("utf-8"), data.decode("utf-8"))
-                for client in self.clients:
-                    gevent.spawn(client.send, payload)
-            gevent.sleep(0.001)
+            delay = self.RECONNECT_DELAY_SECS
+            reported = False
+            subscribed = False
+            ever_subscribed = False
+            while True:
+                try:
+                    if not subscribed:
+                        # redis-py records the subscription only once the
+                        # command succeeds, and replays it itself on every
+                        # later reconnect.
+                        pubsub.subscribe([name])
+                        subscribed = ever_subscribed = True
+                        log("Listening on channel {}".format(self.name))
+                    for message in pubsub.listen():
+                        self.relay(message)
+                        if message["type"] == "message":
+                            # redis-py resubscribes on every reconnect, so a
+                            # confirmation frame arrives while the connection
+                            # is still flapping. Only traffic proves recovery.
+                            delay = self.RECONNECT_DELAY_SECS
+                            reported = False
+                        elif message["type"] == "subscribe":
+                            self.listening.set()
+                        # ``relay`` only spawns senders, and messages already
+                        # in the socket buffer are read without blocking, so
+                        # nothing else here hands the hub back.
+                        gevent.sleep(0)
+                except RedisError as error:
+                    retryable = isinstance(error, RETRYABLE_REDIS_ERRORS)
+                    if not (
+                        retryable or ever_subscribed or self.rebuilds_on_protocol_error
+                    ):
+                        app.logger.exception(
+                            "Unrecoverable redis error on channel {}.".format(self.name)
+                        )
+                        return
+                    template = (
+                        "Lost redis connection on channel {}, retrying in {}s."
+                        if subscribed
+                        else "Could not subscribe to channel {}, retrying in {}s."
+                    )
+                    # A read that failed proves nothing is arriving. redis-py
+                    # replays the SUBSCRIBE on reconnect, so the confirmation
+                    # it reads back sets this again.
+                    self.listening.clear()
+                    if not retryable:
+                        # ``close()`` disconnects, so the new pubsub starts on
+                        # a fresh stream.
+                        self._close(pubsub)
+                        pubsub = pubsub_conn.pubsub()
+                        subscribed = False
+                    if reported:
+                        app.logger.warning(template.format(self.name, delay))
+                    else:
+                        app.logger.exception(template.format(self.name, delay))
+                        reported = True
+                    gevent.sleep(delay)
+                    delay = min(delay * 2, self.MAX_RECONNECT_DELAY_SECS)
+                else:
+                    return
+        finally:
+            # Returns the connection to the redis pool. ``stop()`` reaches this
+            # too, because killing a greenlet raises inside it.
+            self._close(pubsub)
+            chat_backend.forget(self)
+
+    def _close(self, pubsub):
+        """Close a pubsub without letting a close error replace ``GreenletExit``
+        or skip ``ChatBackend.forget``."""
+        try:
+            pubsub.close()
+        except Exception as error:
+            log(
+                "Could not close redis channel {}: {!r}".format(self.name, error),
+                level="warning",
+            )
+
+    @staticmethod
+    def _relay(client, payload):
+        """Send a relayed message, ignoring a client that has just disconnected.
+
+        ``Client.send`` already unsubscribes a closed client before raising.
+        """
+        try:
+            client.send(payload)
+        except ConnectionClosed:
+            log("Dropped message for a disconnected client", level="debug")
 
     def start(self):
         """Start relaying messages."""
@@ -116,24 +357,239 @@ class Channel:
             self.greenlet = None
 
 
+class DirectChannel(Channel):
+    """Relays directed sends published by other processes to local clients.
+
+    A process starts one of these on :data:`~dallinger.db.DIRECT_CHANNEL` with
+    its first connection that names a participant, and one on
+    :data:`~dallinger.db.REALTIME_SESSION_CHANNEL` with its first connection
+    that joins or waits for a real-time session, and keeps each running after
+    those connections leave. It has no subscribers of its own: an envelope
+    names participants, and the backend looks up their connections, so a
+    client is addressable without having subscribed to anything.
+    """
+
+    #: Registrations live on the backend rather than here, so a listener that
+    #: ended would leave every one of them unreachable from other processes
+    #: until the next connection that needs the listener starts another.
+    rebuilds_on_protocol_error = True
+
+    def __init__(self, backend, name):
+        super().__init__(name)
+        self.backend = backend
+
+    def relay(self, message):
+        """Hand an envelope's sends to the backend, unless this process
+        published it.
+        """
+        if message["type"] != "message":
+            return
+        envelope = parsed_envelope(message.get("data"))
+        if envelope is None:
+            log(
+                "Discarding an unreadable envelope on the {} channel.".format(
+                    self.name
+                ),
+                level="warning",
+            )
+            return
+        if envelope["origin"] == process_token():
+            return
+        for send in envelope["items"]:
+            self.backend.deliver_direct(self.name, send)
+
+
+def parsed_envelope(data):
+    """The envelope ``data`` carries, or ``None`` if it carries no envelope.
+
+    An envelope holds the ``origin`` that published it and its ``items``, a
+    list of directed sends: one from
+    :func:`publish_to_participants`, or every view of a step from a real-time
+    runner (:func:`dallinger.realtime.delivery.view_batch`). An item that
+    isn't a send is logged and dropped, and the rest are kept.
+
+    Every field ``deliver_direct`` reads is checked here, because this is where
+    an envelope enters the process. Neither clients nor
+    :func:`~dallinger.experiment.Experiment.publish_to_subscribers` can publish
+    to the channels of directed sends, but anything else holding the redis
+    credentials can. An exception raised in a relay unwinds
+    ``Channel.listen``, which catches redis errors only, and the process is
+    then left without that listener until its next connection that needs it.
+    """
+    try:
+        envelope = json.loads(data)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(envelope, dict) or not isinstance(envelope.get("origin"), str):
+        return None
+    if not isinstance(envelope.get("items"), list):
+        return None
+    sends = []
+    for item in envelope["items"]:
+        if _is_send(item):
+            sends.append(item)
+        else:
+            log("Discarding an unreadable directed send.", level="warning")
+    return {"origin": envelope["origin"], "items": sends}
+
+
+def _is_send(value):
+    """Whether ``value`` holds every field of a send that ``deliver_direct``
+    reads.
+
+    A participant id has to be a string because it is looked up as a dict key,
+    and an unhashable one raises rather than missing.
+    """
+    return (
+        isinstance(value, dict)
+        and SEND_FIELDS <= value.keys()
+        and isinstance(value["payload"], str)
+        and (value["scope"] is None or isinstance(value["scope"], str))
+        and isinstance(value["participant_ids"], list)
+        and all(isinstance(each, str) for each in value["participant_ids"])
+    )
+
+
 class ChatBackend:
     """Manages subscriptions of clients to multiple channels."""
 
     def __init__(self):
         self.channels = {}
+        #: Addressable participant id -> the clients on this process that
+        #: named it. A participant can hold several at once: a page that opens
+        #: both websocket routes, or a reload that connects before the old
+        #: socket times out.
+        self.clients_by_participant = {}
+        #: The listener for each channel of directed sends, by its name.
+        self.direct_channels = {}
+        #: Every client connected to this process, to close when it shuts
+        #: down.
+        self.open_clients = set()
+        #: Set by :meth:`close_all`, after which every connection is closed.
+        self.closing = False
 
     def subscribe(self, client, channel_name):
-        """Register a new client to receive messages on a channel."""
+        """Register a new client to receive messages on a channel.
+
+        Returns the channel, so that a caller can wait for redis to confirm
+        its subscription.
+        """
         if channel_name not in self.channels:
             self.channels[channel_name] = channel = Channel(channel_name)
             channel.start()
 
-        self.channels[channel_name].subscribe(client)
+        channel = self.channels[channel_name]
+        channel.subscribe(client)
+        return channel
 
     def unsubscribe(self, client):
-        """Unsubscribe a client from all channels."""
-        for channel in self.channels.values():
+        """Unsubscribe a client from all channels and stop addressing it.
+
+        A channel left with no clients stops listening and is dropped.
+        """
+        self.deregister(client)
+        for name, channel in list(self.channels.items()):
             channel.unsubscribe(client)
+            # Remove the channel before stopping it so a concurrent subscribe
+            # doesn't re-attach to a channel that is in the middle of shutting down.
+            if not channel.clients and self.channels.get(name) is channel:
+                del self.channels[name]
+                channel.stop()
+
+    def register(self, client):
+        """Make a client reachable by the participant id it named.
+
+        A connection that named no usable id is left unaddressable rather
+        than refused: it can still subscribe, send, and receive broadcasts.
+        Returns the listeners for directed sends that the client's frames
+        arrive through: none for a connection which is not addressable, and
+        the session listener as well for one that joins or waits for a
+        real-time session.
+        """
+        addressable_id = getattr(client, "addressable_id", None)
+        if addressable_id is None:
+            return []
+        self.clients_by_participant.setdefault(addressable_id, set()).add(client)
+        names = [DIRECT_CHANNEL]
+        if client.session.uses_session_listener:
+            names.append(REALTIME_SESSION_CHANNEL)
+        return [self.direct_listener(name) for name in names]
+
+    def direct_listener(self, name):
+        """Return the running listener for directed sends on the channel
+        ``name``, starting one if there is none.
+        """
+        listener = self.direct_channels.get(name)
+        if listener is None:
+            listener = self.direct_channels[name] = DirectChannel(self, name)
+            listener.start()
+        return listener
+
+    def deregister(self, client):
+        """Stop addressing a client.
+
+        Each listener is left running once started. Stopping it with the last
+        addressable client and starting it again with the next costs a window,
+        during ``Greenlet.kill``, in which a registration either attaches to a
+        dying listener and is never reached, or starts a second one that
+        delivers the same envelope twice. One idle subscription is cheaper than
+        either.
+        """
+        addressable_id = getattr(client, "addressable_id", None)
+        clients = self.clients_by_participant.get(addressable_id)
+        if clients is None:
+            return
+        clients.discard(client)
+        if not clients:
+            del self.clients_by_participant[addressable_id]
+
+    def deliver_direct(self, channel, send):
+        """Deliver one directed send to this process's matching connections,
+        in a frame on ``channel``.
+
+        A send carrying a ``scope`` reaches only the connections opened with
+        that same scope. One without reaches every connection of the
+        participants it names, whatever their scopes, so a real-time view for
+        a page opened without a scope reaches every page that participant
+        has open. Every process sees every envelope, so naming participants
+        who are connected elsewhere, or nowhere, is ordinary.
+        """
+        scope = send["scope"]
+        frame = channel_frame(channel, send["payload"])
+        for participant_id in send["participant_ids"]:
+            for client in list(self.clients_by_participant.get(participant_id, ())):
+                if scope is not None and client.scope != scope:
+                    continue
+                gevent.spawn(Channel._relay, client, frame)
+
+    def close_all(self):
+        """Close every connection this process holds, and every one it
+        accepts from now on, as it shuts down.
+
+        Each connection's handler then finishes, so its session gets its
+        leave, and the browser reconnects to another web process. Gunicorn's
+        worker goes on accepting connections for up to a second after
+        SIGTERM.
+        """
+        self.closing = True
+        for client in list(self.open_clients):
+            # A relay blocked on a browser that stopped reading holds that
+            # client's send lock, which its close waits for.
+            gevent.spawn(client.close_going_away)
+
+    def forget(self, channel):
+        """Drop a channel whose listener has stopped.
+
+        The listening greenlet calls this as it exits, so a later subscriber
+        builds a channel with a live listener instead of attaching to a dead
+        one. The identity check keeps a replacement already registered under
+        the same name.
+        """
+        if self.direct_channels.get(channel.name) is channel:
+            del self.direct_channels[channel.name]
+            return
+        if self.channels.get(channel.name) is channel:
+            del self.channels[channel.name]
 
 
 # There is one chat backend per process.
@@ -141,13 +597,34 @@ chat_backend = ChatBackend()
 
 
 class Client:
-    """Represents a single websocket client."""
+    """Represents a single websocket client.
 
-    def __init__(self, ws, lag_tolerance_secs=0.1, worker_id=None, participant_id=None):
+    A frame on one of the experiment's game channels goes to the client's
+    real-time session, if it has one. Otherwise a client holding an
+    ``experiment`` hands it each inbound message, and one without publishes to
+    redis for a subscriber to pick up.
+    """
+
+    def __init__(
+        self,
+        ws,
+        worker_id=None,
+        participant_id=None,
+        scope=None,
+        experiment=None,
+        games=None,
+    ):
         self.ws = ws
-        self.lag_tolerance_secs = lag_tolerance_secs
         self.worker_id = worker_id
         self.participant_id = participant_id
+        self.addressable_id = normalized_participant_id(participant_id)
+        self.scope = scope
+        self.experiment = experiment
+        #: The experiment's game types, a dict from each channel to its game
+        #: type's instance.
+        self.games = games or {}
+        #: Takes the connection's frames on game channels and the time channel.
+        self.session = session_sockets.NoSession(self.client_info())
 
         # This lock is used to make sure that multiple greenlets
         # cannot send to the same socket concurrently.
@@ -158,6 +635,7 @@ class Client:
             "class": self.__class__.__module__ + "." + self.__class__.__name__,
             "worker_id": self.worker_id,
             "participant_id": self.participant_id,
+            "scope": self.scope,
         }
 
     def send(self, message):
@@ -169,78 +647,375 @@ class Client:
             try:
                 self.ws.send(message)
             except (socket.error, ConnectionClosed) as e:
-                chat_backend.unsubscribe(self)
-                redis_conn.publish(
-                    CONTROL_CHANNEL,
-                    json.dumps(
-                        {
-                            "type": "websocket",
-                            "event": "disconnected",
-                            "reason": self.ws.close_reason or "",
-                            "message": self.ws.close_message or "",
-                            "client": self.client_info(),
-                        }
-                    ),
+                self.publish_disconnected(
+                    self.ws.close_reason or "", self.ws.close_message or ""
                 )
                 if isinstance(e, ConnectionClosed):
                     raise
                 raise ConnectionClosed(self.ws.close_reason, self.ws.close_message)
             # log('Sent to {}: {}'.format(self, message), level='debug')
 
+    def close_going_away(self):
+        """Close the connection because the web process is shutting down."""
+        try:
+            with self.send_lock:
+                self.ws.close(GOING_AWAY_CLOSE_CODE, "server shutting down")
+        except ConnectionClosed:
+            return
+        # receive() waits on this event, and simple_websocket's reader thread
+        # sets it only once the browser answers the close.
+        self.ws.event.set()
+
     def subscribe(self, channel):
-        """Start listening to messages on the specified channel."""
-        chat_backend.subscribe(self, channel)
+        """Start listening to messages on ``channel``, if there is one.
+
+        A connection may name no channel, in which case it receives nothing
+        and only sends. Subscribing to the empty name would build a channel
+        redis refuses to subscribe to. A name in ``RESERVED_CHANNELS`` is
+        refused.
+
+        Returns the channel subscribed to, or ``None``.
+        """
+        if not channel:
+            return None
+        if channel in RESERVED_CHANNELS:
+            log(
+                "Client {} may not subscribe to the reserved channel {}.".format(
+                    self.client_info(), channel
+                ),
+                level="warning",
+            )
+            return None
+        return chat_backend.subscribe(self, channel)
 
     def publish(self):
-        """Relay messages from client to redis."""
-        redis_conn.publish(
-            CONTROL_CHANNEL,
-            json.dumps(
+        """Read messages from the client until the connection closes."""
+        try:
+            # Inside the ``finally`` below: ``_serve()`` has already subscribed
+            # the client, so everything from here on needs teardown.
+            publish_control_event(
                 {
                     "type": "websocket",
                     "event": "connected",
                     "client": self.client_info(),
                 }
-            ),
+            )
+            while self.ws.connected:
+                try:
+                    # ``receive()`` waits on a ``threading.Event``, which gevent
+                    # patches, so this loop yields to the hub here.
+                    message = self.ws.receive()
+                except ConnectionClosed:
+                    self.publish_disconnected(
+                        self.ws.close_reason or "", self.ws.close_message or ""
+                    )
+                    raise
+                if message is None:
+                    continue
+                if not isinstance(message, str):
+                    # A binary frame has no channel prefix to split on, so
+                    # there is nowhere to route it.
+                    log(
+                        "Closing connection from {} after a binary frame.".format(
+                            self.client_info()
+                        ),
+                        level="warning",
+                    )
+                    with self.send_lock:
+                        self.ws.close(UNSUPPORTED_DATA_CLOSE_CODE, "text frames only")
+                    self.publish_disconnected(
+                        UNSUPPORTED_DATA_CLOSE_CODE, "text frames only"
+                    )
+                    return
+                channel_name, separator, data = message.partition(":")
+                if not separator or not channel_name:
+                    log(
+                        "Discarding message with no channel prefix: {}".format(message),
+                        level="warning",
+                    )
+                    continue
+                if channel_name == TIME_CHANNEL or channel_name in self.games:
+                    answer = self.session.handle_frame(channel_name, data)
+                    if answer is not None:
+                        self.send(answer)
+                elif channel_name in RESERVED_CHANNELS:
+                    log(
+                        "Client {} may not publish to the reserved channel {}.".format(
+                            self.client_info(), channel_name
+                        ),
+                        level="warning",
+                    )
+                elif self.experiment is not None:
+                    self.handle(channel_name, data)
+                else:
+                    redis_conn.publish(channel_name, data)
+        finally:
+            chat_backend.unsubscribe(self)
+
+    def publish_disconnected(self, reason, message=""):
+        """Unsubscribe and announce that this connection is over.
+
+        ``reason`` is the numeric close code and ``message`` the text, matching
+        ``simple_websocket``, where ``close_reason`` holds ``event.code``
+        despite its name.
+
+        Unsubscribing first puts the "unsubscribed" control message ahead of
+        the "disconnected" one; subscribers rely on that order. ``publish()``
+        unsubscribes again in its ``finally``, which is a no-op by then.
+        """
+        chat_backend.unsubscribe(self)
+        publish_control_event(
+            {
+                "type": "websocket",
+                "event": "disconnected",
+                "reason": reason,
+                "message": message,
+                "client": self.client_info(),
+            }
         )
-        while self.ws.connected:
-            # Sleep to prevent *constant* context-switches.
-            gevent.sleep(self.lag_tolerance_secs)
-            try:
-                message = self.ws.receive()
-            except ConnectionClosed:
-                chat_backend.unsubscribe(self)
-                redis_conn.publish(
-                    CONTROL_CHANNEL,
-                    json.dumps(
-                        {
-                            "type": "websocket",
-                            "event": "disconnected",
-                            "reason": self.ws.close_reason or "",
-                            "message": self.ws.close_message or "",
-                            "client": self.client_info(),
-                        }
-                    ),
-                )
-                raise
-            if message is not None:
-                channel_name, data = message.split(":", 1)
-                redis_conn.publish(channel_name, data)
+
+    def handle(self, channel_name, data):
+        """Pass one frame to the experiment running in this process.
+
+        The session is removed afterwards so the next frame starts with an
+        empty identity map and no open transaction. Experiment code owns its
+        own commits.
+
+        Letting a handler's exception propagate would unwind ``publish()``
+        and close a connection the participant's browser expects to stay open.
+        """
+        try:
+            self.experiment.handle_websocket_message(
+                data,
+                channel_name=channel_name,
+                participant_id=self.participant_id,
+                scope=self.scope,
+                # Naive local, like models.timenow(). Every Dallinger DateTime
+                # column is naive, so an aware value stored in one loses its
+                # offset and reads back as local.
+                receive_time=datetime.now(),
+            )
+        except Exception:
+            app.logger.exception(
+                "Error handling websocket message from {}.".format(self.client_info())
+            )
+        finally:
+            session.remove()
+
+
+def publish_to_participants(payload, participant_ids, scope=None):
+    """Send ``payload`` to every connection naming one of ``participant_ids``.
+
+    Delivery is to connections, not to participants: each of a participant's
+    open sockets receives a copy, wherever in the deployment it is held. The
+    connections on this process are sent theirs directly, and an envelope goes
+    to redis for the processes holding the rest.
+
+    A redis failure raises, having delivered to nobody, so the caller can
+    retry the whole send rather than guess which half of it landed.
+    """
+    if isinstance(participant_ids, (str, bytes, numbers.Integral)):
+        participant_ids = [participant_ids]
+    addressable_ids = []
+    for participant_id in participant_ids:
+        addressable_id = normalized_participant_id(participant_id)
+        if addressable_id is None:
+            log(
+                "Cannot address a directed send to {!r}.".format(participant_id),
+                level="warning",
+            )
+        elif addressable_id not in addressable_ids:
+            addressable_ids.append(addressable_id)
+    if not addressable_ids:
+        return
+    send = {
+        "participant_ids": addressable_ids,
+        # A connection names its scope in a query string, so the value it is
+        # compared against is text on that side whatever the caller passed.
+        "scope": None if scope is None else str(scope),
+        # Serialized here so that every recipient of one send is delivered the
+        # same bytes.
+        "payload": json.dumps(payload, default=date_handler),
+    }
+    # Published first: ``deliver_direct`` only spawns senders, so the order
+    # costs nothing, and a redis failure then reaches nobody rather than
+    # leaving this process's connections served and every other process's not.
+    redis_conn.publish(DIRECT_CHANNEL, direct_envelope(process_token(), [send]))
+    chat_backend.deliver_direct(DIRECT_CHANNEL, send)
+
+
+def wait_until_listening(*channels):
+    """Wait for redis to confirm the subscription of each channel.
+
+    A client which publishes as soon as its socket opens would otherwise race
+    its own subscription. The publish travels on a different redis connection,
+    and redis does not order it behind a SUBSCRIBE it has not read yet, so the
+    message reaches every other subscriber and not the sender. The wait is
+    bounded: a channel which cannot subscribe delays a connection rather than
+    holding it open until redis recovers.
+    """
+    deadline = time.monotonic() + SUBSCRIPTION_TIMEOUT_SECS
+    for channel in channels:
+        if channel is None:
+            continue
+        if not channel.listening.wait(max(0.0, deadline - time.monotonic())):
+            log(
+                "Relaying for channel {} before redis confirmed its "
+                "subscription.".format(channel.name),
+                level="warning",
+            )
+
+
+def _serve(ws, participant_id=None, experiment=None):
+    """Subscribe a connection to its channel and relay until it closes.
+
+    A connection that asks for a real-time ``session`` is refused unless its
+    participant is one of the session's players. Its session gets a join
+    once the process's listener for session frames is confirmed, so the view
+    the runner answers with can't miss it, and a leave when it closes. A session
+    that has ended gets no join, and the connection gets its ending instead.
+    One whose keys expired after the check is refused like a non-member. A
+    connection waiting for a session of a game type is sent the newest one, if
+    there is one, once the same listener is confirmed, so a session started
+    in between is found or announced. A connection that closes while it waits
+    for its subscriptions, with or without a session, isn't served.
+    """
+    try:
+        client = _open_client(ws, participant_id, experiment)
+    except socket_admission.Refused as refusal:
+        _refuse(ws, refusal)
+        return
+    with _registered(client, request.args.get("channel")) as listeners:
+        # Checked only once the client is registered, so a shutdown that
+        # began while the connection was being set up closes it either way.
+        if chat_backend.closing:
+            client.close_going_away()
+            return
+        wait_until_listening(*listeners)
+        if not ws.connected:
+            # Closed during the wait, by the browser or by a shutdown.
+            return
+        try:
+            frame = _join_session(client)
+        except socket_admission.Refused as refusal:
+            _refuse(ws, refusal)
+            return
+        if frame is not None:
+            client.send(frame)
+        client.publish()
+
+
+def _refuse(ws, refusal):
+    code = UNAVAILABLE_CLOSE_CODE if refusal.retry else REFUSED_CLOSE_CODE
+    ws.close(code, refusal.reason)
+
+
+def _open_client(ws, participant_id, experiment):
+    """Return the :class:`Client` for a new connection, with its place in
+    the real-time session it asked for, or the game type it waits for a
+    session of, if any.
+
+    :raises ~dallinger.experiment_server.socket_admission.Refused: if the
+        game types can't be loaded, or as
+        :func:`~dallinger.realtime.session_sockets.open_connection_session`
+        refuses
+    """
+    try:
+        games = process_games()
+    except Exception:
+        log("Could not load the experiment's game types.", level="exception")
+        raise socket_admission.Refused("experiment unavailable", retry=True)
+    client = Client(
+        ws,
+        worker_id=request.args.get("worker_id"),
+        participant_id=participant_id,
+        scope=request.args.get("scope"),
+        experiment=experiment,
+        games=games,
+    )
+    try:
+        client.session = session_sockets.open_connection_session(
+            request.args,
+            client.addressable_id,
+            client.scope,
+            games,
+            checked=experiment is not None,
+            describe=client.client_info(),
+        )
+    except session_sockets.Refusal as refusal:
+        raise socket_admission.Refused(refusal.reason, retry=refusal.retry)
+    return client
+
+
+@contextmanager
+def _registered(client, channel):
+    """Subscribe ``client`` to ``channel``, register it for directed sends
+    and add it to the open clients. Yield the channels to wait for.
+
+    Afterwards, unsubscribe and deregister it, remove it from the open
+    clients, and add its leave to its session if it joined.
+    """
+    subscribed = client.subscribe(channel)
+    listeners = chat_backend.register(client)
+    chat_backend.open_clients.add(client)
+    try:
+        yield [subscribed, *listeners]
+    finally:
+        # The caller's wait for the subscriptions hands control to the hub, so
+        # a greenlet killed during it would otherwise leave the registrations
+        # behind. ``unsubscribe`` also runs in ``publish``, and tolerates being
+        # called twice.
+        chat_backend.unsubscribe(client)
+        chat_backend.open_clients.discard(client)
+        try:
+            client.session.leave()
+        except RedisError:
+            log(
+                "Could not add the leave of {}.".format(client.client_info()),
+                level="exception",
+            )
+
+
+def _join_session(client):
+    """Add the client's join to its session, if it has one, and return the
+    frame the page is sent first, or ``None``: how the session ended, if it
+    has, or for a client waiting for a session, the session it found.
+
+    :raises ~dallinger.experiment_server.socket_admission.Refused: if the
+        session's keys have expired, or redis or Postgres refuses the join
+    """
+    try:
+        return client.session.join()
+    except session_sockets.SessionExpired:
+        raise socket_admission.Refused("not a player in this session")
+    except (RedisError, SQLAlchemyError):
+        log(
+            "Could not join {} to its session or find it one.".format(
+                client.client_info()
+            ),
+            level="exception",
+        )
+        raise socket_admission.Refused("session join failed", retry=True)
 
 
 def chat(ws):
-    """Relay chat messages to and from clients."""
-    lag_tolerance_secs = float(request.args.get("tolerance", 0.1))
-    client = Client(
-        ws,
-        lag_tolerance_secs=lag_tolerance_secs,
-        worker_id=request.args.get("worker_id"),
-        participant_id=request.args.get("participant_id"),
-    )
-    client.subscribe(request.args.get("channel"))
-    client.publish()
+    """Relay messages between a client and redis."""
+    _serve(ws, participant_id=request.args.get("participant_id"))
 
 
-# We need to keep the function around for tests, so we apply the decorator
+def experiment_socket(ws):
+    """Hand each inbound message to the experiment running in this process."""
+    try:
+        participant_id, experiment = socket_admission.admit(
+            request.args.get("participant_id"), request.args.get("scope")
+        )
+    except socket_admission.Refused as refusal:
+        _refuse(ws, refusal)
+        return
+    _serve(ws, participant_id=participant_id, experiment=experiment)
+
+
+# We need to keep the functions around for tests, so we apply the decorators
 # manually
 sock.route("/chat")(chat)
+sock.route("/experiment-socket")(experiment_socket)

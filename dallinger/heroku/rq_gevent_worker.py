@@ -8,16 +8,19 @@ from gevent.hub import LoopExit
 
 monkey.patch_all()
 
+import psycogreen.gevent
+
+psycogreen.gevent.patch_psycopg()
+
 import logging
 import signal
 
 import gevent
 import gevent.pool
 from rq import Worker
-from rq.cli.helpers import green
 from rq.exceptions import DequeueTimeout, StopRequested
 from rq.job import JobStatus
-from rq.logutils import setup_loghandlers
+from rq.logutils import green, setup_loghandlers
 from rq.timeouts import BaseDeathPenalty, JobTimeoutException
 from rq.version import VERSION
 from rq.worker import WorkerStatus
@@ -46,10 +49,13 @@ class GeventWorker(Worker):
         self.gevent_pool = gevent.pool.Pool(pool_size)
         self.children = []
         self.gevent_worker = None
+        self.startup_watchdog = kwargs.pop("startup_watchdog", None)
         super(GeventWorker, self).__init__(*args, **kwargs)
 
     def register_birth(self):
         super(GeventWorker, self).register_birth()
+        if self.startup_watchdog is not None:
+            self.startup_watchdog.kill(block=False)
         self.connection.hset(self.key, "pool_size", self.gevent_pool.size)
 
     def heartbeat(self, timeout=0, pipeline=None):
@@ -216,19 +222,3 @@ class GeventWorker(Worker):
 
         self.heartbeat()
         return result
-
-
-def main():
-    import sys
-
-    from rq.cli import worker as rq_main
-
-    if "-w" in sys.argv or "--worker-class" in sys.argv:
-        print(
-            "You cannot specify worker class when using this script,"
-            "use the official rqworker instead"
-        )
-        sys.exit(1)
-
-    sys.argv.extend(["-w", "rq_gevent_worker.GeventWorker"])
-    rq_main()

@@ -217,6 +217,35 @@ class TestVerify:
         active_config.extend({"base_payment": -1.99})
         assert v_package() is False
 
+    def test_summary_is_one_line_when_checks_pass(self, v_package, capsys):
+        assert v_package(verify_experiment=False, summary=True) is True
+        out = capsys.readouterr().out
+        assert out.startswith("Experiment files OK (")
+        assert out.count("\n") == 1
+
+    def test_summary_shows_every_check_when_one_fails(
+        self, active_config, v_package, capsys
+    ):
+        active_config.extend({"base_payment": -1.99})
+        assert v_package(verify_experiment=False, summary=True) is False
+        out = capsys.readouterr().out
+        assert "✓ config.txt is PRESENT" in out
+        assert "✗ base_payment must be greater than or equal to zero" in out
+        assert "Experiment files OK" not in out
+
+    def test_summary_shows_every_check_when_one_warns(
+        self, v_package, capsys, tmp_path, monkeypatch
+    ):
+        shutil.copytree(Path.cwd(), tmp_path / "exp")
+        monkeypatch.chdir(tmp_path / "exp")
+        Path("templates").mkdir(exist_ok=True)
+        Path("templates", "launch.html").write_text("")
+        assert v_package(verify_experiment=False, summary=True) is True
+        out = capsys.readouterr().out
+        assert "launch.html OVERWRITES shared frontend files" in out
+        assert "✓ config.txt is PRESENT" in out
+        assert "Experiment files OK" not in out
+
     def test_verify_package_imports_experiment_by_default(self, v_package):
         assert v_package() is True
         assert "dallinger_experiment" in sys.modules
@@ -271,6 +300,15 @@ class TestVerify:
         verify_directory.assert_called_once_with(True, source)
         verify_experiment.assert_called_once_with(True, source)
 
+    def test_module_verification_checks_the_game_types(self, v_package):
+        with mock.patch(
+            "dallinger.command_line.utils.verify_realtime_games", return_value=False
+        ) as check:
+            assert v_package() is False
+
+        exp_class, verbose = check.call_args.args
+        assert (exp_class.__name__, verbose) == ("Bartlett1932", True)
+
     def test_policy_membership_controls_verified_size(
         self, v_directory, tmp_path, monkeypatch
     ):
@@ -290,6 +328,75 @@ class TestVerify:
         )
         with mock.patch.dict(os.environ, {"EXP_MAX_SIZE_MB": "1"}):
             assert v_directory(verbose=False) is True
+
+
+class TestVerifyRealtimeGames:
+    @pytest.fixture
+    def verify(self):
+        from dallinger.command_line.utils import verify_realtime_games
+
+        return verify_realtime_games
+
+    @staticmethod
+    def experiment(game_types, channel=None):
+        return type("Exp", (), {"realtime_games": game_types, "channel": channel})
+
+    def test_an_experiment_without_game_types_passes_quietly(self, verify, capsys):
+        assert verify(self.experiment([])) is True
+        assert capsys.readouterr().out == ""
+
+    def test_valid_game_types_pass(self, verify, active_config, capsys):
+        from tests.realtime.helpers import Tally
+
+        assert verify(self.experiment([Tally])) is True
+        assert "✓ realtime_games are valid" in capsys.readouterr().out
+
+    def test_invalid_game_types_fail_with_the_reason(
+        self, verify, active_config, capsys
+    ):
+        assert verify(self.experiment([object])) is False
+        assert (
+            "✗ experiment.py has invalid realtime_games: <class 'object'> is not a "
+            "RealtimeGame subclass." in capsys.readouterr().out
+        )
+
+    def test_the_config_is_loaded_for_game_types_that_read_it(self, verify):
+        from tests.realtime.helpers import Tally
+
+        config = mock.Mock(ready=False)
+
+        class ReadsConfig(Tally):
+            def __init__(self):
+                if not config.load.called:
+                    raise RuntimeError("Config not loaded")
+
+        with mock.patch("dallinger.command_line.utils.get_config", return_value=config):
+            assert verify(self.experiment([ReadsConfig])) is True
+
+    def test_a_config_that_will_not_load_is_left_to_verify_config(self, verify, capsys):
+        config = mock.Mock(ready=False)
+        config.load.side_effect = ValueError("bad config")
+
+        with mock.patch("dallinger.command_line.utils.get_config", return_value=config):
+            assert verify(self.experiment([object])) is True
+        assert capsys.readouterr().out == ""
+
+    def test_a_loaded_config_is_not_loaded_again(self, verify):
+        from tests.realtime.helpers import Tally
+
+        config = mock.Mock(ready=True)
+
+        with mock.patch("dallinger.command_line.utils.get_config", return_value=config):
+            assert verify(self.experiment([Tally])) is True
+        config.load.assert_not_called()
+
+    def test_a_game_type_on_the_experiments_channel_fails(
+        self, verify, active_config, capsys
+    ):
+        from tests.realtime.helpers import Tally
+
+        assert verify(self.experiment([Tally], channel="tally")) is False
+        assert "is the experiment's channel" in capsys.readouterr().out
 
 
 @pytest.mark.slow
@@ -355,16 +462,17 @@ class TestReportAfterIdleDecorator:
 
 @pytest.mark.slow
 class TestOutput:
-    @pytest.fixture
-    def output(self):
+    def test_outs(self, capsys):
         from dallinger.command_line import Output
 
-        return Output()
-
-    def test_outs(self, output):
+        # Output() binds sys.stdout.write, which capsys replaces during the test.
+        output = Output()
         output.log("logging")
         output.error("an error")
         output.blather("blah blah blah")
+        captured = capsys.readouterr()
+        assert captured.out == "logging\nblah blah blah"
+        assert captured.err == "an error\n"
 
 
 class TestHeader:
@@ -426,6 +534,158 @@ class TestDevelopCommand:
             result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
 
         assert result.exit_code == 0, result.output
+        assert "Experiment files OK (" in result.output
+        assert "is PRESENT" not in result.output
+        assert "Experiment UID" not in result.output
+        assert "Laboratory automation" not in result.output
+
+    @pytest.mark.parametrize("args, port", [([], 5123), (["--port", "5124"], 5124)])
+    def test_debug_serves_and_launches_on_base_port(
+        self, active_config, develop, monkeypatch, args, port
+    ):
+        active_config.extend({"base_port": 5123})
+        monkeypatch.setenv("FLASK_RUN_PORT", "5999")
+        monkeypatch.setenv("base_port", "5998")
+        with (
+            mock.patch("dallinger.command_line.develop.Queue") as queue,
+            mock.patch("dallinger.command_line.develop._run_dev_server") as server,
+        ):
+            result = CliRunner().invoke(develop, ["debug", "--no-browsers", *args])
+
+        assert result.exit_code == 0, result.output
+        assert queue.return_value.enqueue_call.call_args.kwargs["kwargs"] == {
+            "port": port
+        }
+        assert server.call_args.kwargs["env"]["FLASK_RUN_PORT"] == str(port)
+        assert server.call_args.kwargs["env"]["base_port"] == str(port)
+        assert active_config.get("base_port") == port
+
+    def test_browser_defaults_to_base_port(self, active_config, develop):
+        active_config.extend({"base_port": 5123})
+        with mock.patch("dallinger.command_line.develop._browser") as browser:
+            result = CliRunner().invoke(develop, ["browser", "--route", "ad"])
+
+        assert result.exit_code == 0, result.output
+        browser.assert_called_once_with(route="ad", port=5123)
+
+    @pytest.mark.parametrize(
+        "name, problem",
+        [("not-an-identifier", "letters, numbers"), ("file/sub", "Not a directory")],
+    )
+    def test_debug_reports_unusable_develop_directory(
+        self, active_config, develop, tmp_path, name, problem
+    ):
+        (tmp_path / "file").touch()
+        directory = tmp_path / name
+        active_config.extend({"dallinger_develop_directory": str(directory)})
+
+        result = CliRunner().invoke(develop, ["debug", "--skip-flask"])
+
+        assert result.exit_code == 1
+        assert f'Error: The dallinger_develop_directory setting "{directory}"' in (
+            result.output
+        )
+        assert problem in result.output
+        assert "Traceback" not in result.output
+
+    def test_debug_no_browsers_logs_launch_details(
+        self, active_config, develop, capsys
+    ):
+        develop_module = sys.modules["dallinger.command_line.develop"]
+        active_config.extend({"dashboard_user": "admin", "dashboard_password": "pw"})
+        with mock.patch("dallinger.command_line.develop.Queue") as queue:
+            result = CliRunner().invoke(
+                develop, ["debug", "--skip-flask", "--no-browsers"]
+            )
+        assert result.exit_code == 0, result.output
+        job = queue.return_value.enqueue_call.call_args.args[0]
+        assert job is develop_module.launch_app_without_browsers
+
+        with (
+            mock.patch.object(
+                develop_module,
+                "handle_launch_data",
+                return_value={
+                    "recruitment_msg": "Initial recruitment list:\nhttp://x/ad?a=1\n"
+                    "Additional details:\nSingle recruitment link: http://x/ad?t=1"
+                },
+            ),
+            mock.patch.object(develop_module, "open_browser") as open_browser,
+        ):
+            job(port=5001)
+        out = capsys.readouterr().out.splitlines()
+        assert out[:3] == [
+            "",
+            "Ready.",
+            "  Participant link: http://x/ad?t=1",
+        ]
+        assert out[3] == (
+            "  Dashboard:        http://127.0.0.1:5001/dashboard/develop "
+            "(user admin, password pw)"
+        )
+        assert out[4].startswith("  Full log:         ")
+        assert out[4].endswith("logs.jsonl")
+        assert out[5:] == ["Press Ctrl+C to stop."]
+        open_browser.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "message, rows",
+        [
+            (
+                "Initial recruitment list:\nhttp://x/ad?p=1\n"
+                "Additional details:\nA simulated study.",
+                [
+                    ("Participant link", "http://x/ad?p=1"),
+                    ("Recruitment", "A simulated study."),
+                ],
+            ),
+            (
+                "Additional details:\nOpen the study.",
+                [("Recruitment", "Open the study.")],
+            ),
+            (
+                "Recruitment hasn't started.",
+                [("Recruitment", "Recruitment hasn't started.")],
+            ),
+            (
+                "Additional details:\nSingle recruitment link: http://x/ad?t=1",
+                [("Participant link", "http://x/ad?t=1")],
+            ),
+            (None, []),
+        ],
+    )
+    def test_launch_message_rows_drop_the_headings(self, message, rows):
+        from dallinger.command_line.develop import launch_message_rows
+
+        assert launch_message_rows(message) == rows
+
+    def test_echo_ready_shows_after_rows_below_the_full_log(
+        self, active_config, capsys, tmp_path
+    ):
+        from dallinger.command_line.develop import echo_ready
+
+        active_config.extend({"dallinger_develop_directory": str(tmp_path)})
+        echo_ready([("Link", "http://x")], after=[("Other terminals", "export A=1")])
+        labels = [
+            line.split(":")[0].strip() for line in capsys.readouterr().out.splitlines()
+        ]
+        assert labels == [
+            "",
+            "Ready.",
+            "Link",
+            "Full log",
+            "Other terminals",
+            "Press Ctrl+C to stop.",
+        ]
+
+    def test_debug_verbose_shows_full_server_output(self, develop):
+        with (
+            mock.patch("dallinger.command_line.develop.Queue"),
+            mock.patch("dallinger.command_line.develop._run_dev_server") as server,
+        ):
+            result = CliRunner().invoke(develop, ["debug", "--verbose"])
+        assert result.exit_code == 0, result.output
+        assert server.call_args.kwargs["env"]["DALLINGER_DEV_LOG"] == "full"
 
     def test_debug_surfaces_invalid_policy(self, develop, tmp_path, monkeypatch):
         (tmp_path / "deploy.toml").write_text("version = 2\nexclude = []\n")
@@ -472,6 +732,96 @@ class TestDevelopCommand:
 
         assert result.exit_code == 0, result.output
         assert builder.call_count == 1
+
+
+def test_dev_server_failure_raises(tmp_path):
+    from dallinger.command_line.develop import _run_dev_server
+
+    with pytest.raises(click.ClickException, match="exited with status 2"):
+        _run_dev_server([sys.executable, "-c", "raise SystemExit(2)"], str(tmp_path))
+
+
+def test_cancel_pending_job_skips_expired_and_cancels_queued():
+    from rq import Queue
+    from rq.job import JobStatus
+
+    from dallinger.command_line.develop import _cancel_pending_job
+    from dallinger.db import redis_conn
+
+    queue = Queue("test_cancel_pending_job", connection=redis_conn)
+    try:
+        expired = queue.enqueue(print)
+        redis_conn.delete(expired.key)
+        _cancel_pending_job(expired)
+
+        queued = queue.enqueue(print)
+        _cancel_pending_job(queued)
+        assert queued.get_status() == JobStatus.CANCELED
+    finally:
+        queue.delete(delete_jobs=True)
+
+
+def test_dev_server_stops_quietly_on_ctrl_c(tmp_path):
+    import signal
+
+    pid_file = tmp_path / "grandchild.pid"
+    grandchild = (
+        "import os, signal, time\n"
+        "def report(signum, frame):\n"
+        "    print('got', signal.Signals(signum).name, flush=True)\n"
+        "signal.signal(signal.SIGINT, report)\n"
+        "signal.signal(signal.SIGTERM, report)\n"
+        f"open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
+        "time.sleep(60)\n"
+    )
+    server = [
+        sys.executable,
+        "-c",
+        f"import subprocess, sys; subprocess.run([sys.executable, '-c', {grandchild!r}])",
+    ]
+    parent = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            # Pytest may run with SIGINT ignored (e.g. under nohup), which children inherit.
+            "import signal\n"
+            "signal.signal(signal.SIGINT, signal.default_int_handler)\n"
+            "from dallinger.command_line.develop import _run_dev_server\n"
+            f"_run_dev_server({server!r}, {str(tmp_path)!r}, stop_timeout=0.5)",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        for _ in range(300):
+            if pid_file.exists() and pid_file.read_text():
+                break
+            sleep(0.1)
+        else:
+            pytest.fail("server did not start")
+        os.killpg(parent.pid, signal.SIGINT)
+        output = parent.communicate(timeout=30)[0]
+
+        assert parent.returncode == 0, output
+        assert "got SIGTERM" in output
+        for unwanted in ("Traceback", "Aborted!", "got SIGINT"):
+            assert unwanted not in output
+        with pytest.raises(ProcessLookupError):
+            os.kill(int(pid_file.read_text()), 0)
+    finally:
+        pgids = [parent.pid]
+        try:
+            pgids.append(os.getpgid(int(pid_file.read_text())))
+        except (OSError, ValueError):
+            pass
+        for pgid in pgids:
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+        parent.communicate(timeout=10)
 
 
 @pytest.mark.usefixtures("bartlett_dir", "reset_sys_modules")
@@ -1589,3 +1939,27 @@ def test_get_editable_dallinger_path():
             ]
             result = get_editable_dallinger_path()
             assert result == "/a path/where many/directories/have/a/space/in them"
+
+
+def test_get_editable_dallinger_path_pep660(tmp_path, monkeypatch):
+    from dallinger.utils import get_editable_dallinger_path
+
+    monkeypatch.setattr("dallinger.utils.sys.path", [])
+
+    source_root = tmp_path / "workspace"
+    source_root.mkdir()
+    direct_url_path = tmp_path / "direct_url.json"
+    direct_url_path.write_text(
+        '{"dir_info": {"editable": true}, "url": "file://%s"}' % source_root
+    )
+
+    class FakeDist:
+        @staticmethod
+        def read_text(filename):
+            return (
+                direct_url_path.read_text() if filename == "direct_url.json" else None
+            )
+
+    monkeypatch.setattr("dallinger.utils.get_distribution", lambda _: FakeDist())
+
+    assert get_editable_dallinger_path() == str(source_root.resolve())

@@ -1,0 +1,32 @@
+{% extends "layout.html" %}
+
+{% block body %}
+    <div class="main_div">
+        <h1>Instructions</h1>
+        <hr>
+        {% set others = experiment.players_per_group - 1 %}
+        {% set cents = "%g"|format(experiment.bonus_per_coin * 100) %}
+        <p>You will play with {{ others }} other player{{ "s" if others > 1 }}, in an arena with coins in it. Move around it with the arrow keys, or with W, A, S and D, and collect a coin by running into it. More coins appear as the game goes on.</p>
+        {% if experiment.stealing %}
+        <p>Run into another player to take one of their coins. A player who has just been robbed can't be robbed again for two seconds.</p>
+        {% endif %}
+        {% if experiment.bouncing %}
+        <p>Run into another player to knock them away. If you run into each other, you both bounce off.</p>
+        {% endif %}
+        <p>The game lasts one minute, and each coin you collect earns you {{ cents }} cent{{ "s" if cents != "1" }}.</p>
+        <hr>
+        <div>
+            <div class="row">
+                <div class="col-12">
+                    <button type="button" id="begin" class="btn btn-success btn-lg">Begin</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        $('#begin').on('click', joinGroup);
+    </script>
+{% endblock %}

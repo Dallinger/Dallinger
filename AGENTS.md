@@ -41,17 +41,26 @@ unreleased section of `CHANGELOG.md`. Do not create separate changelog fragment
 files for Dallinger. Keep the changelog entry and the pull request description
 up to date as the PR evolves.
 
+## Releases
+
+To cut a Dallinger release, use the repo-local Cursor command `/release`.
+That command invokes the `release` skill at `.cursor/skills/release/SKILL.md`.
+Do not improvise a release flow; wait at every human checkpoint in that
+skill (release-branch push, release PR, GitHub Release).
+
 ## Automatic code review
 
-Before finalizing a Dallinger pull request, prompt the user to run an automatic
-code review. Suggest the repo-local Cursor command `/branch-review`, which
-invokes the `branch-review` skill at `.cursor/skills/branch-review/SKILL.md`.
-This specific command name avoids ambiguity with generic Cursor-provided review
-commands.
+Before finalizing a **feature** pull request, ask the user whether to run
+an automatic code review: a single pass with the `branch-review` skill
+(`.cursor/skills/branch-review/SKILL.md`), or repeated reviews with the
+`branch-review-loop` skill (`.cursor/skills/branch-review-loop/SKILL.md`).
 
-If the user runs an automatic review, address any actionable findings before
-finalizing the pull request. If the user declines or the review is not run,
-record that explicitly in the pull request description.
+Address actionable findings before finalizing the pull request, and record
+in the pull request description which reviews ran. If none did, say why.
+
+Do **not** run or offer either review for a `/release` PR. Those diffs are
+version, CHANGELOG, and demo-constraint bookkeeping; follow the release
+skill's Release PR checks instead.
 
 ## Pull request descriptions
 
@@ -74,3 +83,12 @@ For the full matrix used in CI, run:
 ```bash
 tox
 ```
+
+Automated tests aren't enough on their own. Before finalizing a change,
+dogfood it: use it the way a user would (run the command, run a demo locally,
+open the page) and check the result. Prefer local runs such as `dallinger debug`,
+and ask before anything that costs money, recruits real participants, or
+leaves resources running. Record who did this, what was run and what was
+seen in the pull request's **Testing** section. If the change has nothing a
+user could run (e.g. CI or a private helper), or dogfooding isn't possible,
+for example because it needs credentials you don't have, say so there.

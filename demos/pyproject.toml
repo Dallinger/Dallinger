@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dlgr.demos"
-version = "12.4.0a1"
+version = "12.5.0a1"
 description = "Demonstration experiments for Dallinger"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -31,13 +31,16 @@ Issues = "https://github.com/Dallinger/Dallinger/issues"
 Repository = "https://github.com/Dallinger/Dallinger"
 
 [project.entry-points."dallinger.experiments"]
+Bargaining = "dlgr.demos.bargaining.experiment:Bargaining"
 Bartlett1932 = "dlgr.demos.bartlett1932.experiment:Bartlett1932"
 TwentyFortyEight = "dlgr.demos.twentyfortyeight.experiment:TwentyFortyEight"
 CoordinationChatroom = "dlgr.demos.chatroom.experiment:CoordinationChatroom"
+CoinCollection = "dlgr.demos.coins.experiment:CoinCollection"
 ConcentrationGame = "dlgr.demos.concentration.experiment:ConcentrationGame"
 FunctionLearning = "dlgr.demos.function_learning.experiment:FunctionLearning"
 IteratedDrawing = "dlgr.demos.iterated_drawing.experiment:IteratedDrawing"
 MCMCP = "dlgr.demos.mcmcp.experiment:MCMCP"
+PartnerEcho = "dlgr.demos.partner_echo.experiment:PartnerEcho"
 RogersExperiment = "dlgr.demos.rogers.experiment:RogersExperiment"
 SheepMarket = "dlgr.demos.sheep_market.experiment:SheepMarket"
 SnakeGame = "dlgr.demos.snake.experiment:SnakeGame"

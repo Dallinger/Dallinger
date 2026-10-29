@@ -1,3 +1,5 @@
+import json
+import os
 import warnings
 from datetime import datetime
 from unittest import mock
@@ -347,6 +349,13 @@ class TestExperimentBaseClass:
             exp.publish_to_subscribers("A plain message!", "surprise")
             mock_redis.publish.assert_called_once_with("surprise", "A plain message!")
 
+    @pytest.mark.parametrize("channel", sorted(db.RESERVED_CHANNELS))
+    def test_publish_to_subscribers_cannot_target_reserved_channel(self, exp, channel):
+        with mock.patch("dallinger.db.redis_conn") as mock_redis:
+            with pytest.raises(ValueError, match=channel):
+                exp.publish_to_subscribers("data", channel)
+        mock_redis.publish.assert_not_called()
+
     def test_publish_to_subscribers_no_channel_name(self, exp):
         with mock.patch("dallinger.db.redis_conn") as mock_redis:
             exp.channel = "exp_default"
@@ -354,6 +363,25 @@ class TestExperimentBaseClass:
             mock_redis.publish.assert_called_once_with(
                 "exp_default", "A plain message!"
             )
+
+    def test_publish_to_participants(self, exp):
+        with mock.patch("dallinger.experiment_server.sockets.redis_conn") as mock_redis:
+            exp.publish_to_participants({"type": "wake"}, [12, 13], scope="page-7")
+
+        channel, envelope = mock_redis.publish.mock_calls[0].args
+        [send] = json.loads(envelope)["items"]
+        assert channel == "dallinger_direct"
+        assert send["participant_ids"] == ["12", "13"]
+        assert send["scope"] == "page-7"
+        assert json.loads(send["payload"]) == {"type": "wake"}
+
+    def test_publish_to_participants_defaults_to_every_connection(self, exp):
+        with mock.patch("dallinger.experiment_server.sockets.redis_conn") as mock_redis:
+            exp.publish_to_participants({"type": "wake"}, 12)
+
+        [send] = json.loads(mock_redis.publish.mock_calls[0].args[1])["items"]
+        assert send["participant_ids"] == ["12"]
+        assert send["scope"] is None
 
     def test_send_enqueues_worker_function(self, exp):
         from dallinger.experiment_server.worker_events import worker_function
@@ -390,6 +418,25 @@ class TestExperimentBaseClass:
                 channel_name="exp_default",
                 receive_time=mock.ANY,
             )
+
+    def test_default_websocket_handler_reaches_send_intact(self, exp):
+        # The default handler rebuilds the prefixed string send() expects, so
+        # an experiment socket queues the same work an ordinary connection does.
+        # What send() then enqueues is test_send_enqueues_worker_function.
+        with mock.patch("dallinger.experiment.db.get_queue") as mock_get_queue:
+            mock_queue = mock_get_queue.return_value = mock.Mock()
+            exp.channel = "exp_default"
+            exp.handle_websocket_message(
+                '{"key":"value","sender":1}',
+                channel_name="exp_default",
+                participant_id="1",
+                scope="page-7",
+            )
+
+        assert mock_queue.enqueue.mock_calls[0].kwargs["details"] == {
+            "message": '{"key":"value","sender":1}',
+            "channel_name": "exp_default",
+        }
 
     def test_session_arg_deprecation_warning(self, klass):
         with warnings.catch_warnings(record=True) as w:
@@ -482,3 +529,22 @@ class TestRouteRegistration:
             "func_name": "fake_route",
             "name": "fake_route",
         }
+
+
+def test_load_reports_syntax_errors_at_the_real_experiment_path(tmp_path, monkeypatch):
+    from dallinger.experiment import load
+
+    author_dir = tmp_path / "author"
+    author_dir.mkdir()
+    (author_dir / "experiment.py").write_text("def broken(:\n")
+    # The TEST_EXPERIMENT_UID prefix lets reset_sys_modules unload this package.
+    develop_dir = tmp_path / "TEST_EXPERIMENT_UID_develop"
+    develop_dir.mkdir()
+    (develop_dir / "__init__.py").touch()
+    (develop_dir / "experiment.py").symlink_to(author_dir / "experiment.py")
+    monkeypatch.chdir(develop_dir)
+
+    with pytest.raises(SyntaxError) as excinfo:
+        load()
+
+    assert excinfo.value.filename == os.path.realpath(author_dir / "experiment.py")

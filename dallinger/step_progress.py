@@ -13,9 +13,10 @@ Design constraints for maintainers
 ----------------------------------
 - **One owner of the terminal.** A terminal has one cursor, so at most one
   :class:`StepProgress` may be live per process. While one is live,
-  :func:`active_steps` returns it, and anything else that would animate
-  (the launch wait bar, ``yaspin`` spinners) must report through it with
-  :meth:`StepProgress.set_detail` instead of drawing on its own.
+  :func:`active_steps` returns it and ``sys.stdout.isatty()`` is false, so
+  code that animates only on a terminal (``yaspin`` spinners) prints plain
+  lines instead. Code that redraws a status line, such as the docker build
+  progress, reports it through :meth:`StepProgress.set_detail`.
 - **Ownership is taken, not assumed.** Diverting ``sys.stdout`` only
   redirects code that writes through Python; child processes inherit the
   file descriptors and would draw straight over the panel. So the panel
@@ -29,8 +30,12 @@ Design constraints for maintainers
   running step's detail, so a slow step still reports progress. The full
   text goes to a log file whose path is printed when the run ends, and a
   failed step replays its own output below the panel. Facts worth copying,
-  such as URLs and passwords, are printed by the caller through
-  :meth:`StepProgress.add_epilogue` after the panel closes.
+  such as URLs and passwords, go through :func:`print_fact`, which holds
+  them back until the panel closes.
+- **Linear code stays linear.** A long deploy function can call
+  :meth:`StepProgress.advance` at each phase instead of nesting every phase
+  in :meth:`StepProgress.step`; leaving the ``with`` block marks the step
+  in progress failed or done.
 - **Non-interactive output stays a log.** Without a terminal there is no
   live region and nothing is captured: each step start and outcome prints
   one plain line, and other output appears between them, so CI logs and
@@ -278,6 +283,17 @@ def active_steps():
     return _active
 
 
+def print_fact(message, *, bold=False):
+    """Print a fact worth copying, after the live checklist if there is one."""
+    steps = active_steps()
+    if steps is not None:
+        steps.add_epilogue(message, bold=bold)
+        return
+    from dallinger.utils import print_bold, print_status
+
+    (print_bold if bold else print_status)(message)
+
+
 def _logging_handlers():
     """Every stream handler reachable from the logging hierarchy."""
     managed = [logging.getLogger()] + [
@@ -346,8 +362,8 @@ class StepProgress:
     """A panel of declared steps, with a spinner on the one in progress.
 
     Use it as a context manager, then wrap each unit of work in
-    :meth:`step`. A step that raises is marked failed and the panel is
-    closed so the error prints below it.
+    :meth:`step` or start it with :meth:`advance`. A step that raises is
+    marked failed and the panel is closed so the error prints below it.
     """
 
     def __init__(self, title, steps, subtitle=None, console=None):
@@ -359,6 +375,7 @@ class StepProgress:
             raise ValueError("Step keys must be unique.")
         self._title = title
         self._subtitle = subtitle
+        self._own_console = console is None
         self._console = console or Console(highlight=False)
         self._live = None
         self._announced_details = set()
@@ -367,7 +384,7 @@ class StepProgress:
         self._transcript = None
         self._fd_capture = None
         self._replay_offset = None
-        self._replayed = False
+        self._current = None
         self._saved_stdout = None
         self._saved_stderr = None
         self._saved_console_file = None
@@ -381,16 +398,35 @@ class StepProgress:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if exc_type is not None and not self._replayed:
-            # Something failed between steps, so no step could replay it.
+        if exc_type is None:
+            self._finish_current()
+        else:
+            step = self._current
+            if step is not None and step.state == RUNNING:
+                self._set_state(step, FAILED)
+            # Close the panel so the error is not overwritten by a refresh.
             self._stop_live()
-            self._replay(self._replay_offset)
+            self._replay(self._replay_offset, step=step)
         self.stop()
         return False
 
+    def _is_interactive(self):
+        """Whether to draw a live panel rather than log plain lines.
+
+        Rich counts any ``FORCE_COLOR`` as a terminal, and CI often sets it
+        for colored logs, where a live region would log every redraw. So
+        our own console also needs ``sys.stdout`` to be a real terminal.
+        """
+        if not self._console.is_terminal:
+            return False
+        if not self._own_console:
+            return True
+        isatty = getattr(sys.stdout, "isatty", None)
+        return bool(isatty and isatty())
+
     def _start_live(self):
         """Take over the terminal and divert all other output into the panel."""
-        if not self._console.is_terminal:
+        if not self._is_interactive():
             return
         terminal_streams = {sys.stdout, sys.stderr, sys.__stdout__, sys.__stderr__}
         if self._transcript is None:
@@ -481,19 +517,35 @@ class StepProgress:
     @contextmanager
     def step(self, key):
         """Run a declared step, ticking it on success and marking failure."""
-        step = self._by_key[key]
-        self._replay_offset = self._mark()
-        self._set_state(step, RUNNING)
+        step = self._start(key)
         try:
             yield step
         except BaseException:
             self._set_state(step, FAILED)
-            # Close the panel so the error is not overwritten by a refresh.
-            self._stop_live()
-            self._replay(self._replay_offset, step=step)
-            self.stop()
             raise
-        self._set_state(step, DONE)
+        self._finish_current()
+
+    def advance(self, key):
+        """Tick the step in progress, if any, and start ``key``.
+
+        For a long linear function, where wrapping each phase in
+        :meth:`step` would reindent it. If the work raises, leaving the
+        ``with`` block marks the step in progress failed.
+        """
+        self._finish_current()
+        return self._start(key)
+
+    def _start(self, key):
+        step = self._by_key[key]
+        self._replay_offset = self._mark()
+        self._current = step
+        self._set_state(step, RUNNING)
+        return step
+
+    def _finish_current(self):
+        if self._current is not None and self._current.state == RUNNING:
+            self._set_state(self._current, DONE)
+        self._current = None
         self._replay_offset = self._mark()
 
     def _mark(self):
@@ -506,7 +558,6 @@ class StepProgress:
         The panel only had room for one line at a time, so on failure we
         show the whole thing rather than make the operator go find the log.
         """
-        self._replayed = True
         if offset is None or self._transcript is None:
             return
         captured = self._transcript.read_from(offset).strip()
@@ -521,7 +572,12 @@ class StepProgress:
         print_status(captured)
 
     def skip(self, key, detail=None):
-        """Mark a declared step as not needed for this run."""
+        """Mark a declared step as not needed for this run.
+
+        A step started with :meth:`advance` is ticked first, because the run
+        has moved past it.
+        """
+        self._finish_current()
         step = self._by_key[key]
         step.detail = detail
         self._set_state(step, SKIPPED)

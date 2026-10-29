@@ -76,6 +76,35 @@ def test_failed_step_is_marked_and_releases_the_terminal():
     assert active_steps() is None
 
 
+def test_advance_ticks_the_previous_step_and_a_failure_marks_the_current(capsys):
+    steps = StepProgress("Deploying", STEPS, console=terminal_console())
+
+    with pytest.raises(RuntimeError):
+        with steps:
+            steps.advance("first")
+            steps.advance("second")
+            print("launch request refused")
+            raise RuntimeError("launch failed")
+
+    assert [step.state for step in steps._steps] == [DONE, FAILED]
+    printed = capsys.readouterr().out
+    assert "Output from the failed step (Launch the experiment)" in printed
+    assert "launch request refused" in printed
+
+
+def test_force_color_without_a_terminal_still_logs_plain_lines(monkeypatch, capsys):
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+
+    with StepProgress("Deploying", STEPS) as steps:
+        with steps.step("first"):
+            pass
+
+    printed = capsys.readouterr().out
+    assert "Check the server" in printed
+    assert "┌" not in printed
+
+
 def test_skipped_step_keeps_its_place_with_a_reason():
     steps = StepProgress("Updating", STEPS, console=plain_console())
 

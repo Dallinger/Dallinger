@@ -5,17 +5,260 @@ import pandas as pd
 import paramiko
 import pytest
 import requests
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError
 
 from dallinger.command_line.lib.ec2 import (
     DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
     _get_instance_row_from,
     get_all_instances,
+    get_ec2_client,
     get_image_id,
     get_instance_details,
+    get_keys,
     get_pem_path,
     register_key_pair,
+    remove_dns_records,
 )
+
+
+def _route_53_client(*pages):
+    """Return a mock Route 53 client whose paginator yields the given record pages."""
+    route_53 = mock.Mock()
+    route_53.get_paginator.return_value.paginate.return_value = [
+        {"ResourceRecordSets": page} for page in pages
+    ]
+    return route_53
+
+
+def _record(name, value="ec2-1-2-3-4.compute.amazonaws.com"):
+    return {
+        "Name": name,
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [{"Value": value}],
+    }
+
+
+def _deleted_names(route_53):
+    return [
+        call.kwargs["ChangeBatch"]["Changes"][0]["ResourceRecordSet"]["Name"]
+        for call in route_53.change_resource_record_sets.call_args_list
+    ]
+
+
+@pytest.mark.parametrize("key_id", ["", "YourAccessKeyId"])
+def test_region_applies_without_dallinger_aws_keys(active_config, monkeypatch, key_id):
+    """--region applies, and boto finds the credentials, when Dallinger's keys
+    are unset or still the placeholder defaults"""
+    active_config.extend(
+        {"aws_access_key_id": key_id, "aws_secret_access_key": "YourSecretAccessKey"}
+    )
+    monkeypatch.delenv("AWS_REGION", raising=False)
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
+
+    assert get_keys("eu-west-2") == {"region_name": "eu-west-2"}
+    assert get_ec2_client("eu-west-2").meta.region_name == "eu-west-2"
+
+
+def test_dallinger_aws_keys_are_passed_with_region(active_config):
+    active_config.extend(
+        {
+            "aws_access_key_id": "AKIAREAL",
+            "aws_secret_access_key": "real-secret",
+            "aws_region": "eu-west-1",
+        }
+    )
+    keys = {"aws_access_key_id": "AKIAREAL", "aws_secret_access_key": "real-secret"}
+
+    assert get_keys() == {**keys, "region_name": "eu-west-1"}
+    assert get_keys("eu-west-2") == {**keys, "region_name": "eu-west-2"}
+
+
+def test_exported_temporary_credentials_keep_their_session_token(
+    active_config, monkeypatch
+):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "ASIATEMP")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "temp-secret")
+    monkeypatch.setenv("AWS_SESSION_TOKEN", "temp-token")
+    active_config.extend(
+        {"aws_access_key_id": "ASIATEMP", "aws_secret_access_key": "temp-secret"}
+    )
+    assert get_keys()["aws_session_token"] == "temp-token"
+
+    active_config.extend({"aws_access_key_id": "AKIAREAL"})
+    assert "aws_session_token" not in get_keys()
+
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIAREAL")
+    assert "aws_session_token" not in get_keys()
+
+
+@pytest.mark.parametrize(
+    "code, skipped",
+    [
+        ("AuthFailure", True),
+        ("UnauthorizedOperation", True),
+        ("OptInRequired", True),
+        ("RequestExpired", False),
+        ("unreachable", True),
+    ],
+)
+def test_all_regions_skips_regions_the_account_cannot_use(
+    active_config, capsys, code, skipped
+):
+    active_config.extend({"aws_access_key_id": ""})
+    denied = set()
+
+    def boto_client(service, region_name=None, **kwargs):
+        client = mock.Mock()
+        client.describe_regions.return_value = {
+            "Regions": [{"RegionName": "us-east-1"}, {"RegionName": "me-south-1"}]
+        }
+        if region_name in denied and code == "unreachable":
+            client.describe_instances.side_effect = EndpointConnectionError(
+                endpoint_url=f"https://ec2.{region_name}.amazonaws.com"
+            )
+        elif region_name in denied:
+            client.describe_instances.side_effect = ClientError(
+                {"Error": {"Code": code}}, "DescribeInstances"
+            )
+        else:
+            client.describe_instances.return_value = {"Reservations": [reservation]}
+        return client
+
+    reservation = {
+        "Instances": [
+            {
+                "Tags": [{"Value": "kept"}],
+                "InstanceId": "i-1",
+                "InstanceType": "t3.micro",
+                "State": {"Name": "running"},
+                "PublicDnsName": "",
+                "KeyName": "",
+                "LaunchTime": pd.Timestamp.now(tz="UTC"),
+            }
+        ]
+    }
+    with (
+        mock.patch(
+            "dallinger.command_line.lib.ec2.boto3.client", side_effect=boto_client
+        ),
+        mock.patch(
+            "dallinger.command_line.lib.ec2.requests.get",
+            side_effect=requests.RequestException,
+        ),
+    ):
+        denied.add("me-south-1")
+        if not skipped:
+            with pytest.raises(click.ClickException, match="authentication failed"):
+                get_all_instances()
+            return
+        assert list(get_all_instances()["name"]) == ["kept"]
+        output = capsys.readouterr()
+        assert "me-south-1" in output.err and code in output.err
+        assert "1 of 2 regions" in output.out
+
+        denied.add("us-east-1")
+        with pytest.raises(click.ClickException, match="any region") as excinfo:
+            get_all_instances()
+        auth_hint = "authentication failed" in str(excinfo.value)
+        assert auth_hint == (code == "AuthFailure")
+        assert "Warning: skipped" not in capsys.readouterr().err
+
+
+class TestRemoveDnsRecords:
+    """Tests that record selection targets only the names Dallinger manages"""
+
+    def test_removes_exact_name_and_wildcard(self):
+        route_53 = _route_53_client(
+            [
+                _record("exp.example.com."),
+                _record("\\052.exp.example.com."),
+            ]
+        )
+
+        remove_dns_records("ZONE", "exp.example.com", route_53=route_53)
+
+        assert _deleted_names(route_53) == [
+            "exp.example.com.",
+            "\\052.exp.example.com.",
+        ]
+
+    def test_leaves_unrelated_records_with_matching_suffix(self):
+        route_53 = _route_53_client(
+            [
+                _record(
+                    "staging-exp.example.com.", value="other.compute.amazonaws.com"
+                ),
+                _record("exp.example.com."),
+            ]
+        )
+
+        remove_dns_records("ZONE", "exp.example.com", route_53=route_53)
+
+        assert _deleted_names(route_53) == ["exp.example.com."]
+
+    @pytest.mark.parametrize(
+        "dns_host, types, error",
+        [
+            ("example.com", ["SOA", "NS", "MX"], "for example exp.example.com"),
+            ("exp.example.com", ["NS"], "neither delegated"),
+        ],
+        ids=["zone-apex", "delegated-subdomain"],
+    )
+    def test_refuses_apex_and_delegations_without_deleting(
+        self, dns_host, types, error
+    ):
+        route_53 = _route_53_client(
+            [{"Name": f"{dns_host}.", "Type": type_, "TTL": 300} for type_ in types]
+            + [_record(f"other.{dns_host}.")]
+        )
+
+        with pytest.raises(click.ClickException, match=error):
+            remove_dns_records("ZONE", dns_host, route_53=route_53)
+
+        route_53.change_resource_record_sets.assert_not_called()
+
+    def test_replaces_a_record_left_at_the_managed_name(self):
+        route_53 = _route_53_client(
+            [{"Name": "exp.example.com.", "Type": "A", "TTL": 300}]
+        )
+
+        remove_dns_records("ZONE", "exp.example.com", route_53=route_53)
+
+        assert _deleted_names(route_53) == ["exp.example.com."]
+
+    def test_finds_records_beyond_the_first_page(self):
+        route_53 = _route_53_client(
+            [_record("other.example.com.")],
+            [_record("exp.example.com.")],
+        )
+
+        remove_dns_records("ZONE", "exp.example.com", route_53=route_53)
+
+        assert _deleted_names(route_53) == ["exp.example.com."]
+
+    def test_confirm_declined_aborts_without_deleting(self, monkeypatch):
+        route_53 = _route_53_client([_record("exp.example.com.")])
+        monkeypatch.setattr(click, "confirm", lambda msg: False)
+
+        with pytest.raises(SystemExit):
+            remove_dns_records(
+                "ZONE", "exp.example.com", route_53=route_53, confirm=True
+            )
+
+        route_53.change_resource_record_sets.assert_not_called()
+
+    def test_alias_records_without_targets_do_not_crash(self, monkeypatch):
+        route_53 = _route_53_client(
+            [{"Name": "exp.example.com.", "Type": "A", "AliasTarget": {}}]
+        )
+        confirmed = []
+        monkeypatch.setattr(click, "confirm", lambda msg: confirmed.append(msg) or True)
+
+        remove_dns_records("ZONE", "exp.example.com", route_53=route_53, confirm=True)
+
+        assert "an unknown target" in confirmed[0]
+        assert _deleted_names(route_53) == ["exp.example.com."]
 
 
 class TestGetInstanceDetails:
@@ -193,13 +436,16 @@ class TestGetInstanceRowFrom:
         assert "us-east-1" in str(excinfo.value)
         assert "name 'missing'" in str(excinfo.value)
 
-    def test_no_instances_without_region_mentions_region_hint(self, monkeypatch):
-        """Test that missing region in lookup is explicitly called out."""
-        mock_ec2 = mock.Mock()
-        mock_ec2.describe_instances.return_value = {"Reservations": []}
+    def test_no_instances_without_region_mentions_region_hint(
+        self, active_config, monkeypatch
+    ):
+        """Test that missing region names the region boto actually uses."""
+        active_config.extend({"aws_access_key_id": ""})
+        monkeypatch.delenv("AWS_REGION", raising=False)
+        monkeypatch.setenv("AWS_DEFAULT_REGION", "eu-west-2")
         monkeypatch.setattr(
-            "dallinger.command_line.lib.ec2.get_ec2_client",
-            lambda *args, **kwargs: mock_ec2,
+            "dallinger.command_line.lib.ec2.get_instances",
+            lambda *args, **kwargs: pd.DataFrame(columns=["name", "state"]),
         )
 
         with pytest.raises(click.ClickException) as excinfo:
@@ -207,7 +453,7 @@ class TestGetInstanceRowFrom:
 
         message = str(excinfo.value)
         assert "No EC2 instance found" in message
-        assert "default AWS region" in message
+        assert "default AWS region 'eu-west-2'" in message
         assert "no `--region` was provided" in message
 
 

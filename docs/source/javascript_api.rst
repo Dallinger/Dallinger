@@ -90,6 +90,67 @@ these explicitly:
 .. js:autofunction:: dallinger.waitForQuorum
 
 
+WebSocket connections
+~~~~~~~~~~~~~~~~~~~~~
+
+These functions open a WebSocket connection to one of the experiment server's
+WebSocket routes, as described in
+:doc:`Using WebSockets in Dallinger Experiments <using_websockets>`:
+
+.. js:autofunction:: dallinger.openChatSocket
+
+.. js:autofunction:: dallinger.openExperimentSocket
+
+.. js:autoclass:: dallinger.Socket
+   :members: send, onBroadcast, onDirect, onOpen, onRefused, close
+
+.. js:autoattribute:: dallinger.pageScope
+
+.. js:autoattribute:: dallinger.DIRECT_CHANNEL
+
+
+.. _realtime-sessions-label:
+
+Real-Time Sessions
+~~~~~~~~~~~~~~~~~~
+
+A socket opened with a ``session`` joins a session of one of the experiment's
+:doc:`real-time games <realtime_games>`, and has the methods below. A page
+usually joins its session with ``dallinger.joinRealtimeSession``, which waits
+for the session and resolves with the socket. The two functions below, the
+methods and ``dallinger.browserTime`` are defined in ``dallinger-realtime.js``.
+The base layout loads that script after ``dallinger2.js`` when the
+experiment's ``realtime_games`` property lists any game types. A page that
+replaces the layout's ``libs`` block, or doesn't use the layout, loads it
+itself.
+
+.. js:autofunction:: dallinger.joinRealtimeSession
+
+.. js:autofunction:: dallinger.waitForRealtimeSession
+
+.. js:autofunction:: dallinger.Socket#onView
+
+.. js:autofunction:: dallinger.Socket#onRejected
+
+.. js:autofunction:: dallinger.Socket#onEnded
+
+.. js:autofunction:: dallinger.Socket#onResultSaved
+
+.. js:autofunction:: dallinger.Socket#resultSaved
+
+.. js:autofunction:: dallinger.Socket#onClock
+
+.. js:autofunction:: dallinger.Socket#serverTime
+
+.. js:autofunction:: dallinger.Socket#sessionTime
+
+.. js:autofunction:: dallinger.Socket#predictedView
+
+.. js:autofunction:: dallinger.Socket#interpolatedView
+
+.. js:autofunction:: dallinger.browserTime
+
+
 Helper functions and properties
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -100,4 +161,8 @@ which are useful when writing a custom experiment:
 
 .. js:autofunction:: dallinger.goToPage
 
+.. js:autofunction:: dallinger.stopReconnectingIfRefused
+
 .. js:autoattribute:: dallinger.identity
+
+.. js:autoattribute:: dallinger.WEBSOCKET_REFUSED

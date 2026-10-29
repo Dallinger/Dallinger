@@ -15,7 +15,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from dallinger import db, information, models, networks, nodes
-from dallinger.bots import BotBase
+from dallinger.bots import BotBase, webdriver_options
 from dallinger.recruiters import CLOSE_RECRUITMENT_LOG_PREFIX, NEW_RECRUIT_LOG_PREFIX
 
 
@@ -62,16 +62,20 @@ def reset_sys_modules():
 
 @pytest.fixture
 def clear_workers():
-    import subprocess
+    """Stop leftover local Dallinger processes that use this test run's database."""
+    import psutil
+
+    from dallinger.heroku.tools import local_worker_processes
 
     def _zap():
-        kills = [["pkill", "-f", "heroku"]]
-        for kill in kills:
+        for process in local_worker_processes():
+            if process.pid == os.getpid():
+                continue
             try:
-                subprocess.check_call(kill)
-            except Exception as e:
-                if e.returncode != 1:
-                    raise
+                # When one of its processes exits, the Procfile runner stops the rest.
+                process.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
 
     _zap()
     yield
@@ -159,7 +163,6 @@ def stub_config():
         "id": "TEST_EXPERIMENT_UID",  # This is a significant value; change with caution.
         "keywords": "kw1, kw2, kw3",
         "lifetime": 1,
-        "lock_table_when_creating_participant": True,
         "logfile": "-",
         "loglevel": 0,
         "loglevel_worker": 2,
@@ -173,13 +176,14 @@ def stub_config():
         "smtp_host": "smtp.fakehost.com:587",
         "smtp_username": "fake email username",
         "smtp_password": "fake email password",
-        "threads": "1",
         "title": "fake experiment title",
         "us_only": True,
         "webdriver_type": "chrome_headless",
+        "web_processes": "1",
         "whimsical": True,
+        "worker_greenlets_per_process": 20,
+        "worker_processes": 1,
         "replay": False,
-        "worker_multiplier": 1.5,
     }
     from dallinger.config import ConfigSource, Configuration, default_keys
 
@@ -468,7 +472,7 @@ def debug_experiment(request, env, clear_workers):
         yield p
         if request.node.rep_setup.passed and request.node.rep_call.passed:
             p.expect_exact("Experiment completed", timeout=timeout)
-            p.expect_exact("Local Heroku process terminated", timeout=timeout)
+            p.expect_exact("Local server processes terminated", timeout=timeout)
     finally:
         try:
             flush_output(p, timeout=0.1)
@@ -504,8 +508,12 @@ def recruitment_loop(request, debug_experiment):
         while True:
             index = debug_experiment.expect(
                 [
-                    "{}: (.*&mode=debug)".format(NEW_RECRUIT_LOG_PREFIX),
-                    "{}".format(CLOSE_RECRUITMENT_LOG_PREFIX),
+                    # The debugger's own line, which starts the line;
+                    # --verbose also shows the server's, after a prefix.
+                    r"(?m)^{} (.*&mode=debug)".format(
+                        re.escape(NEW_RECRUIT_LOG_PREFIX)
+                    ),
+                    re.escape(CLOSE_RECRUITMENT_LOG_PREFIX),
                 ],
                 timeout=timeout,
             )
@@ -562,15 +570,8 @@ def pytest_generate_tests(metafunc):
 def selenium_recruits(request, recruitment_loop):
     def recruits():
         for url in recruitment_loop:
-            kwargs = {}
             driver_class = DRIVER_MAP.get(request.param, webdriver.Chrome)
-            if request.param == "chrome_headless":
-                from selenium.webdriver.chrome.options import Options
-
-                chrome_options = Options()
-                chrome_options.add_argument("--headless")
-                kwargs = {"options": chrome_options}
-            driver = driver_class(**kwargs)
+            driver = driver_class(options=webdriver_options(request.param))
             driver.get(url)
             try:
                 yield driver

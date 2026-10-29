@@ -1,17 +1,22 @@
 import logging
 import multiprocessing
 import os
+import signal
 
+import gevent
 from gunicorn import util
 from gunicorn.app.base import Application
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from dallinger.config import get_config
+from dallinger.config import LOG_LEVELS, get_config
 from dallinger.utils import attach_json_logger, get_exp_klass
 
 logger = logging.getLogger(__name__)
 
 WORKER_CLASS = "gevent"
+# Web processes per CPU when ``web_processes = auto``, unless the deprecated
+# ``worker_multiplier`` is set.
+DEFAULT_WEB_PROCESSES_PER_CPU = 1.5
 
 
 def experiment_hook(func_name, *args, **kwargs):
@@ -36,7 +41,43 @@ def worker_exit(server, worker):
 
 
 def post_worker_init(worker):
+    # Make psycopg2 socket waits gevent-cooperative so that advisory-lock
+    # and FOR UPDATE waits do not park the entire OS thread.
+    import psycogreen.gevent
+
+    psycogreen.gevent.patch_psycopg()
+
+    from dallinger.experiment_server import sockets
+
+    # Raises for invalid game types, so the worker doesn't start.
+    sockets.process_games()
+    close_sockets_on_sigterm()
     return experiment_hook("gunicorn_post_worker_init", worker)
+
+
+def close_sockets_on_sigterm():
+    """Make SIGTERM close the worker's websockets, after running the handler
+    already installed for it.
+
+    Gunicorn's worker waits for its handlers to finish before it exits, and a
+    websocket handler never finishes by itself. Heroku and Docker kill the
+    process before gunicorn's wait runs out, so without this no handler would
+    finish and no real-time session would get its leaves.
+    """
+    from dallinger.experiment_server import sockets
+
+    previous = signal.getsignal(signal.SIGTERM)
+
+    def handle_sigterm(signum, frame):
+        if callable(previous):
+            previous(signum, frame)
+        # A signal handler interrupts whatever greenlet was running.
+        gevent.spawn(sockets.chat_backend.close_all)
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+    # signal.signal clears this, and gunicorn sets it so that system calls
+    # SIGTERM interrupts are restarted.
+    signal.siginterrupt(signal.SIGTERM, False)
 
 
 class StandaloneServer(Application):
@@ -83,9 +124,9 @@ class StandaloneServer(Application):
 
     def load_user_config(self):
         config = get_config()
-        workers = config.get("threads")
+        workers = config.get("web_processes")
         if workers == "auto":
-            multiplier = config.get("worker_multiplier")
+            multiplier = config.get("worker_multiplier", DEFAULT_WEB_PROCESSES_PER_CPU)
             workers = str(int(round(multiprocessing.cpu_count() * multiplier)) + 1)
 
         host = config.get("host")
@@ -111,15 +152,9 @@ class StandaloneServer(Application):
 
 def launch():
     config = get_config(load=True)
-    LOG_LEVELS = [
-        logging.DEBUG,
-        logging.INFO,
-        logging.WARNING,
-        logging.ERROR,
-        logging.CRITICAL,
-    ]
-    LOG_LEVEL = LOG_LEVELS[config.get("loglevel")]
-    logging.basicConfig(format="%(asctime)s %(message)s", level=LOG_LEVEL)
+    logging.basicConfig(
+        format="%(asctime)s %(message)s", level=LOG_LEVELS[config.get("loglevel")]
+    )
     # Avoid duplicate logging to stderr
     error_logger = logging.getLogger("gunicorn.error")
     error_logger.propagate = False

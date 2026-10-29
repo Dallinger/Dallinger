@@ -35,6 +35,12 @@ Check for:
 - regressions
 - breaking API behavior
 - hidden side effects such as I/O, DB, network, or CLI changes
+- neighbouring cases: for each behavior the change adds or fixes, list the
+  similar inputs, callers and paths, and check that each is handled. For
+  example: other reserved names, other credential or config sources, other
+  entry points such as `ctx.invoke` callers and PsyNet's wrappers, other
+  modes such as ingress types, and other docs, skills or commands that state
+  the same rule.
 
 ## 3) Validate test coverage
 
@@ -71,7 +77,12 @@ Flag:
 
 ## 6) Report format
 
-Present findings first, ordered by severity.
+Present findings first, ordered by severity. Tag each finding, missing test
+and refactoring item high, medium or low: high for serious correctness,
+data-loss or security problems; medium for other likely bugs, misleading
+behavior or docs, and
+missing tests for changed behavior; low for wording, style and optional
+refactors.
 
 Use this structure:
 
@@ -90,7 +101,8 @@ branch diff. Do this even if the current title or description looks close.
 - Find the PR: `gh pr view --json number,title,url,body`
 - Title: a concise, accurate summary of the committed change
 - Description: follow `.github/PULL_REQUEST_TEMPLATE.md` and keep every section
-  current (motivation, summary, behavior, testing, changelog, automatic review)
+  current (LLM use, motivation, behavior, implementation details, known
+  limitations, testing, automatic review)
 - Record that `/branch-review` was run in **Automatic code review**
 - If `gh pr edit` fails (classic Projects GraphQL deprecation), use
   `gh api repos/Dallinger/Dallinger/pulls/<n> -X PATCH` instead

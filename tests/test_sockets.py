@@ -1,38 +1,76 @@
 import json
+import numbers
+import re
 import socket
-from unittest.mock import Mock
+import time
+from datetime import datetime
+from decimal import Decimal
+from pathlib import Path
+from unittest.mock import Mock, patch
 
 import gevent
 import pytest
+from gevent.event import Event
 from simple_websocket import ConnectionClosed
+
+#: The frame redis sends to confirm a subscription, before any traffic.
+#: ``Channel.listen`` never reads the channel name, because a channel owns a
+#: pubsub with one subscription on it.
+SUBSCRIBE_CONFIRMATION = {
+    "type": "subscribe",
+    "pattern": None,
+    "channel": b"",
+    "data": 1,
+}
+
+
+def parking_listen():
+    """A pubsub stream that confirms the subscription and then blocks forever,
+    as a real socket read does."""
+    yield SUBSCRIBE_CONFIRMATION
+    Event().wait()
+    yield {}
 
 
 @pytest.fixture
 def pubsub():
     pubsub = Mock()
-    pubsub.listen.return_value = []
+    pubsub.listen.return_value = [SUBSCRIBE_CONFIRMATION]
     return pubsub
 
 
 @pytest.fixture
 def redis(pubsub):
+    """The client channels subscribe with (``sockets.pubsub_conn``)."""
     conn = Mock()
     conn.pubsub.return_value = pubsub
     return conn
 
 
 @pytest.fixture
-def sockets(redis):
+def sockets(redis, monkeypatch):
     from dallinger.experiment_server import sockets
 
-    sockets.redis_conn = redis
+    general = Mock()
+    general.pubsub.side_effect = AssertionError("subscribe with pubsub_conn")
+    monkeypatch.setattr(sockets, "redis_conn", general)
+    monkeypatch.setattr(sockets, "pubsub_conn", redis)
     # use a separate ChatBackend for each test
     sockets.chat_backend = sockets.ChatBackend()
+    sockets._process_games = {}
 
     yield sockets
 
     # make sure all greenlets complete
     gevent.wait()
+
+
+@pytest.fixture
+def admission(sockets):
+    from dallinger.experiment_server import socket_admission
+
+    socket_admission._process_experiment = None
+    return socket_admission
 
 
 @pytest.fixture
@@ -45,7 +83,7 @@ def channel(sockets):
     sockets.chat_backend.channels["test"] = channel = sockets.Channel("test")
     yield channel
     channel.stop()
-    del sockets.chat_backend.channels["test"]
+    sockets.chat_backend.channels.pop("test", None)
 
 
 @pytest.fixture
@@ -57,6 +95,25 @@ def client(sockets):
 
 
 @pytest.fixture
+def registered(sockets):
+    """Build a connection for a participant and make it addressable."""
+
+    from dallinger.realtime import session_sockets
+
+    def build(participant_id, scope=None, in_session=False):
+        ws = Mock()
+        ws.close_reason = None
+        ws.close_message = None
+        client = sockets.Client(ws, participant_id=participant_id, scope=scope)
+        if in_session:
+            client.session = Mock(spec=session_sockets.SessionSocket)
+        sockets.chat_backend.register(client)
+        return client
+
+    return build
+
+
+@pytest.fixture
 def mockclient():
     client = Mock()
     client.client_info.return_value = '{"class": "MockClient"}'
@@ -64,25 +121,70 @@ def mockclient():
 
 
 @pytest.fixture
-def mocksocket():
-    class MockSocket(Mock):
-        """We need a property that returns True the first time
-        and False after that. Doesn't seem possible with Mock.
+def yielding_socket():
+    class YieldingSocket:
+        """Parks in ``receive()`` on a gevent ``Event``.
+
+        Under gunicorn's gevent worker ``simple_websocket`` builds its
+        ``threading.Event`` after monkeypatching, so production ``receive()``
+        waits on this same cooperative primitive.
         """
 
-        calls = []
+        def __init__(self):
+            self.message_ready = Event()
+            self.connected = True
+            self.close_reason = None
+            self.close_message = None
+
+        def receive(self):
+            self.message_ready.wait()
+            self.connected = False
+            return "custom:delivered"
+
+    return YieldingSocket()
+
+
+@pytest.fixture
+def scripted_socket():
+    def build(*frames):
+        ws = Mock()
+        ws.close_reason = None
+        ws.close_message = None
+        ws.connected = True
+        remaining = list(frames)
+
+        def receive():
+            if not remaining:
+                ws.connected = False
+                return None
+            return remaining.pop(0)
+
+        ws.receive = Mock(side_effect=receive)
+        return ws
+
+    return build
+
+
+@pytest.fixture
+def mocksocket():
+    class MockSocket(Mock):
+        """A socket that closes after its first ``receive()``."""
 
         receive = Mock()
         receive.return_value = None
 
         @property
         def connected(self):
-            if self.calls:
-                return False
-            self.calls.append("called")
-            return True
+            return not self.receive.called
 
     return MockSocket()
+
+
+def test_channels_subscribe_from_their_own_pool():
+    from dallinger.db import redis_conn
+    from dallinger.experiment_server import sockets
+
+    assert sockets.pubsub_conn.connection_pool is not redis_conn.connection_pool
 
 
 class TestChannel:
@@ -92,7 +194,7 @@ class TestChannel:
         pubsub.subscribe.assert_called_once_with([b"custom"])
 
     def test_listen(self, sockets, mockclient):
-        sockets.redis_conn.pubsub.return_value = pubsub = Mock()
+        sockets.pubsub_conn.pubsub.return_value = pubsub = Mock()
         pubsub.listen.return_value = [
             {"type": "message", "channel": b"quorum", "data": b"Calloo! Callay!"}
         ]
@@ -103,6 +205,292 @@ class TestChannel:
         gevent.wait()  # wait for event loop
 
         mockclient.send.assert_called_once_with("quorum:Calloo! Callay!")
+
+    @pytest.mark.timeout(10)
+    def test_failed_subscribe_is_retried(self, sockets, pubsub, mockclient):
+        pubsub.subscribe.side_effect = [sockets.ConnectionError("no redis"), None]
+        pubsub.listen.return_value = [
+            {"type": "message", "channel": b"custom", "data": b"after retry"}
+        ]
+        channel = sockets.Channel("custom")
+        channel.RECONNECT_DELAY_SECS = 0
+        channel.subscribe(mockclient)
+
+        channel.start()
+        gevent.wait(timeout=1)
+
+        assert pubsub.subscribe.call_count == 2
+        mockclient.send.assert_called_once_with("custom:after retry")
+
+    def test_listen_closes_pubsub(self, sockets, pubsub):
+        sockets.Channel("custom").start()
+        gevent.wait()
+        pubsub.close.assert_called_once_with()
+
+    @pytest.mark.timeout(10)
+    def test_relay_resumes_after_lost_connection(self, sockets, pubsub, mockclient):
+        pubsub.listen.side_effect = [
+            sockets.ConnectionError("dropped"),
+            iter(
+                [{"type": "message", "channel": b"custom", "data": b"after reconnect"}]
+            ),
+        ]
+        channel = sockets.Channel("custom")
+        channel.RECONNECT_DELAY_SECS = 0
+        channel.subscribe(mockclient)
+
+        channel.start()
+        gevent.wait(timeout=1)
+
+        mockclient.send.assert_called_once_with("custom:after reconnect")
+
+    def test_reconnect_delay_doubles_up_to_the_cap(self, sockets, pubsub):
+        pubsub.listen.side_effect = [
+            sockets.ConnectionError("one"),
+            sockets.ConnectionError("two"),
+            sockets.ConnectionError("three"),
+            iter([]),
+        ]
+        channel = sockets.Channel("custom")
+        channel.RECONNECT_DELAY_SECS = 1
+        channel.MAX_RECONNECT_DELAY_SECS = 2
+        delays = []
+
+        with patch.object(sockets.gevent, "sleep", delays.append):
+            channel.listen()
+
+        assert delays == [1, 2, 2]
+
+    @pytest.mark.timeout(10)
+    def test_timeout_is_retried_like_a_lost_connection(
+        self, sockets, pubsub, mockclient
+    ):
+        pubsub.listen.side_effect = [
+            sockets.RedisTimeoutError("slow"),
+            iter([{"type": "message", "channel": b"custom", "data": b"after retry"}]),
+        ]
+        channel = sockets.Channel("custom")
+        channel.RECONNECT_DELAY_SECS = 0
+        channel.subscribe(mockclient)
+
+        channel.start()
+        gevent.wait(timeout=1)
+
+        mockclient.send.assert_called_once_with("custom:after retry")
+
+    def test_a_protocol_error_after_subscribing_starts_over(
+        self, sockets, redis, mockclient
+    ):
+        from redis.exceptions import ResponseError
+
+        broken = Mock()
+        broken.listen.side_effect = ResponseError("bad reply")
+        healthy = Mock()
+
+        def healthy_listen():
+            yield {"type": "message", "channel": b"custom", "data": b"after rebuild"}
+            Event().wait()
+
+        healthy.listen.side_effect = healthy_listen
+        redis.pubsub.side_effect = [broken, healthy]
+        channel = sockets.Channel("custom")
+        channel.RECONNECT_DELAY_SECS = 0
+        channel.subscribe(mockclient)
+
+        channel.start()
+        gevent.wait(timeout=1)
+
+        # Nothing moves a client already on the channel to the one a later
+        # subscriber would build, so the listener rebuilds instead of ending.
+        broken.close.assert_called_once_with()
+        healthy.subscribe.assert_called_once_with([b"custom"])
+        mockclient.send.assert_called_once_with("custom:after rebuild")
+
+    @pytest.mark.timeout(10)
+    def test_stop_closes_pubsub(self, sockets, pubsub, mockclient):
+        pubsub.listen.side_effect = parking_listen
+        channel = sockets.Channel("custom")
+        channel.subscribe(mockclient)
+        channel.start()
+        gevent.sleep(0)
+
+        channel.stop()
+
+        pubsub.close.assert_called_once_with()
+
+    @pytest.mark.timeout(10)
+    def test_stop_tolerates_a_failing_close(self, sockets, chat, pubsub, mockclient):
+        errors = []
+        with patch.object(
+            gevent.get_hub(), "handle_error", lambda *args: errors.append(args)
+        ):
+            pubsub.listen.side_effect = parking_listen
+            pubsub.close.side_effect = OSError("already gone")
+            channel = chat.subscribe(mockclient, "custom")
+            gevent.sleep(0)
+            greenlet = channel.greenlet
+
+            chat.unsubscribe(mockclient)
+            gevent.sleep(0)
+
+        assert greenlet.dead and errors == []
+        assert "custom" not in chat.channels
+
+    @pytest.mark.timeout(10)
+    def test_listen_skips_messages_that_are_not_utf8(self, sockets, pubsub, mockclient):
+        pubsub.listen.return_value = [
+            {"type": "message", "channel": b"custom", "data": b"\xff"},
+            {"type": "message", "channel": b"custom", "data": b"after"},
+        ]
+        channel = sockets.Channel("custom")
+        channel.subscribe(mockclient)
+
+        channel.start()
+        gevent.wait(timeout=1)
+
+        mockclient.send.assert_called_once_with("custom:after")
+
+    def test_one_traceback_per_outage(self, sockets, pubsub, mockclient):
+        def flaky_stream():
+            yield {"type": "message", "channel": b"custom", "data": b"back"}
+            raise sockets.ConnectionError("dropped again")
+
+        pubsub.listen.side_effect = [
+            sockets.ConnectionError("one"),
+            sockets.ConnectionError("two"),
+            flaky_stream(),
+            iter([]),
+        ]
+        channel = sockets.Channel("custom")
+        channel.subscribe(mockclient)
+
+        logger = sockets.app.logger
+        with (
+            patch.object(logger, "exception") as traceback,
+            patch.object(logger, "warning") as oneliner,
+            patch.object(sockets.gevent, "sleep"),
+        ):
+            channel.listen()
+
+        # Two outages, so two tracebacks; the repeat inside the first is a
+        # single line, and a delivered message resets the count.
+        assert traceback.call_count == 2
+        assert oneliner.call_count == 1
+
+    def test_resubscribe_confirmation_does_not_reset_the_backoff(self, sockets, pubsub):
+        def flapping_stream():
+            yield {"type": "subscribe", "channel": b"custom", "data": 1}
+            raise sockets.ConnectionError("dropped again")
+
+        pubsub.listen.side_effect = [
+            sockets.ConnectionError("one"),
+            flapping_stream(),
+            iter([]),
+        ]
+        channel = sockets.Channel("custom")
+        channel.RECONNECT_DELAY_SECS = 1
+        channel.MAX_RECONNECT_DELAY_SECS = 8
+        delays = []
+
+        logger = sockets.app.logger
+        with (
+            patch.object(logger, "exception") as traceback,
+            patch.object(logger, "warning") as oneliner,
+            patch.object(sockets.gevent, "sleep", delays.append),
+        ):
+            channel.listen()
+
+        # The zeroes are the loop's cooperative yields, not retry waits.
+        assert [d for d in delays if d] == [1, 2]
+        assert traceback.call_count == 1
+        assert oneliner.call_count == 1
+
+    @pytest.mark.timeout(10)
+    def test_relay_loop_yields_between_buffered_messages(
+        self, sockets, pubsub, mockclient
+    ):
+        order = []
+
+        def buffered_stream():
+            for payload in (b"one", b"two"):
+                order.append("read {}".format(payload.decode("utf-8")))
+                yield {"type": "message", "channel": b"custom", "data": payload}
+
+        pubsub.listen.side_effect = buffered_stream
+        mockclient.send.side_effect = order.append
+        channel = sockets.Channel("custom")
+        channel.subscribe(mockclient)
+
+        channel.start()
+        gevent.wait([channel.greenlet], timeout=1)
+
+        # ``relay`` only spawns senders, and a burst already in the socket
+        # buffer reads without blocking, so the sends run only if the loop
+        # hands the hub back between messages.
+        assert order == ["read one", "custom:one", "read two", "custom:two"]
+
+    def test_protocol_error_on_subscribe_stops_the_relay(self, sockets, pubsub):
+        from redis.exceptions import ResponseError
+
+        pubsub.subscribe.side_effect = ResponseError("bad channel")
+
+        # Redis never accepted the name, so the relay gives up rather than
+        # retrying it. A sleep that raises fails the test instead of letting
+        # a retrying loop spin.
+        with patch.object(sockets.gevent, "sleep", side_effect=AssertionError):
+            sockets.Channel("custom").listen()
+
+        pubsub.listen.assert_not_called()
+        pubsub.close.assert_called_once_with()
+
+    @pytest.mark.timeout(10)
+    def test_relay_loop_yields_while_waiting(self, sockets, pubsub, mockclient):
+        message_ready = Event()
+
+        def blocking_listen():
+            message_ready.wait()
+            yield {"type": "message", "channel": b"custom", "data": b"payload"}
+
+        pubsub.listen.side_effect = blocking_listen
+        channel = sockets.Channel("custom")
+        channel.subscribe(mockclient)
+        order = []
+
+        channel.start()
+        gevent.spawn(order.append, "other greenlet")
+        gevent.sleep(0)
+
+        # The relay is parked inside ``pubsub.listen()``, so the hub was free
+        # to run another greenlet without an explicit sleep in the loop.
+        assert order == ["other greenlet"]
+        assert not channel.greenlet.ready()
+
+        message_ready.set()
+        gevent.wait([channel.greenlet], timeout=1)
+
+        assert channel.greenlet.ready()
+        mockclient.send.assert_called_once_with("custom:payload")
+
+    def test_listen_tolerates_client_that_disconnected(
+        self, sockets, mockclient, monkeypatch
+    ):
+        errors = []
+        monkeypatch.setattr(
+            gevent.get_hub(), "handle_error", lambda *args: errors.append(args)
+        )
+        sockets.pubsub_conn.pubsub.return_value = pubsub = Mock()
+        pubsub.listen.return_value = [
+            {"type": "message", "channel": b"quorum", "data": b"Calloo! Callay!"}
+        ]
+        mockclient.send.side_effect = ConnectionClosed(1000, "")
+
+        channel = sockets.Channel("custom")
+        channel.subscribe(mockclient)
+        channel.start()
+        gevent.wait()
+
+        mockclient.send.assert_called_once_with("quorum:Calloo! Callay!")
+        assert errors == []
 
     def test_stop(self, channel):
         channel.start()
@@ -147,10 +535,133 @@ class TestChatBackend:
         chat.subscribe(mockclient, channel.name)
         pubsub.subscribe.assert_not_called()
 
-    def test_unsubscribe(self, chat, mockclient):
+    def test_unsubscribe_drops_emptied_channel(self, chat, mockclient):
         chat.subscribe(mockclient, "quorum")
         chat.unsubscribe(mockclient)
-        assert mockclient not in chat.channels["quorum"].clients
+        assert "quorum" not in chat.channels
+
+    @pytest.mark.timeout(10)
+    def test_concurrent_unsubscribe_does_not_raise(
+        self, sockets, chat, pubsub, mockclient
+    ):
+        other = Mock()
+        other.client_info.return_value = '{"class": "MockClient"}'
+        pubsub.listen.side_effect = parking_listen
+        # A real publish is a socket write, so it reaches the hub.
+        sockets.redis_conn.publish.side_effect = lambda *args: gevent.sleep(0)
+        chat.subscribe(mockclient, "quorum")
+        chat.subscribe(other, "quorum")
+        gevent.sleep(0)
+
+        unsubscribes = [
+            gevent.spawn(chat.unsubscribe, mockclient),
+            gevent.spawn(chat.unsubscribe, other),
+        ]
+        gevent.joinall(unsubscribes, timeout=5)
+
+        assert [g.exception for g in unsubscribes] == [None, None]
+        assert "quorum" not in chat.channels
+
+    @pytest.mark.timeout(10)
+    def test_subscribe_during_unsubscribe_gets_a_live_channel(
+        self, sockets, chat, pubsub, mockclient
+    ):
+        late = Mock()
+        late.client_info.return_value = '{"class": "MockClient"}'
+        pubsub.listen.side_effect = parking_listen
+        chat.subscribe(mockclient, "quorum")
+        doomed = chat.channels["quorum"]
+        gevent.sleep(0)
+
+        racers = [
+            gevent.spawn(chat.unsubscribe, mockclient),
+            gevent.spawn(chat.subscribe, late, "quorum"),
+        ]
+        gevent.joinall(racers, timeout=5)
+
+        assert late not in doomed.clients
+        assert chat.channels["quorum"].clients == [late]
+        assert chat.channels["quorum"].greenlet is not None
+
+        chat.channels["quorum"].stop()
+
+    @pytest.mark.timeout(10)
+    def test_unsubscribe_drops_channel_when_control_publish_fails(
+        self, sockets, chat, pubsub, mockclient
+    ):
+        pubsub.listen.side_effect = parking_listen
+        chat.subscribe(mockclient, "quorum")
+        gevent.sleep(0)
+        channel = chat.channels["quorum"]
+        sockets.redis_conn.publish.side_effect = sockets.ConnectionError("no redis")
+
+        chat.unsubscribe(mockclient)
+
+        assert "quorum" not in chat.channels
+        assert channel.greenlet is None
+
+    def test_unsubscribe_keeps_channel_with_remaining_clients(self, chat, mockclient):
+        other = Mock()
+        other.client_info.return_value = '{"class": "MockClient"}'
+        chat.subscribe(mockclient, "quorum")
+        chat.subscribe(other, "quorum")
+
+        chat.unsubscribe(mockclient)
+
+        assert chat.channels["quorum"].clients == [other]
+
+    def test_channel_that_stops_listening_is_dropped(self, chat, sockets, pubsub):
+        from redis.exceptions import ResponseError
+
+        pubsub.subscribe.side_effect = ResponseError("bad channel")
+        chat.channels["quorum"] = channel = sockets.Channel("quorum")
+
+        with patch.object(sockets.gevent, "sleep", side_effect=AssertionError):
+            channel.listen()
+
+        assert "quorum" not in chat.channels
+
+    def test_forget_keeps_a_channel_replaced_under_the_same_name(self, chat, sockets):
+        dead = sockets.Channel("quorum")
+        chat.channels["quorum"] = live = sockets.Channel("quorum")
+
+        chat.forget(dead)
+
+        assert chat.channels["quorum"] is live
+
+    @pytest.mark.timeout(10)
+    def test_subscribe_after_a_dead_listener_gets_a_live_one(
+        self, chat, sockets, pubsub, mockclient
+    ):
+        from redis.exceptions import ResponseError
+
+        pubsub.subscribe.side_effect = ResponseError("bad channel")
+        chat.subscribe(mockclient, "quorum")
+        gevent.wait(timeout=1)
+
+        pubsub.subscribe.side_effect = None
+        pubsub.listen.return_value = [
+            {"type": "message", "channel": b"quorum", "data": b"back"}
+        ]
+        late = Mock()
+        late.client_info.return_value = '{"class": "MockClient"}'
+        chat.subscribe(late, "quorum")
+        gevent.wait(timeout=1)
+
+        # The dead channel is gone, so this client is relaying on a new one.
+        late.send.assert_called_once_with("quorum:back")
+        mockclient.send.assert_not_called()
+
+    def test_unsubscribe_tolerates_channel_added_meanwhile(
+        self, sockets, chat, mockclient
+    ):
+        chat.subscribe(mockclient, "quorum")
+        # Publishing yields to other greenlets, which may open new channels.
+        sockets.redis_conn.publish.side_effect = lambda *args: chat.channels.setdefault(
+            "late", sockets.Channel("late")
+        )
+        chat.unsubscribe(mockclient)
+        assert "quorum" not in chat.channels
 
 
 @pytest.mark.slow
@@ -170,6 +681,25 @@ class TestClient:
         msg_data = json.loads(sockets.redis_conn.publish.mock_calls[0].args[1])
         assert msg_data["type"] == "websocket"
         assert msg_data["event"] == "connected"
+
+    def test_teardown_covers_the_connected_event(self, sockets, chat, mocksocket):
+        client = sockets.Client(mocksocket)
+        chat.subscribe(client, "special")
+        events = []
+
+        def fail_on_connect(payload):
+            events.append(payload["event"])
+            if payload["event"] == "connected":
+                raise RuntimeError("boom")
+
+        with patch.object(sockets, "publish_control_event", fail_on_connect):
+            with pytest.raises(RuntimeError):
+                client.publish()
+
+        # ``chat()`` subscribes before calling ``publish()``, so a failure
+        # anywhere inside it still has to unsubscribe.
+        assert events == ["connected", "unsubscribed"]
+        assert "special" not in chat.channels
 
     def test_send_exception_unsubscribes_client(self, client, channel):
         client.ws.send.side_effect = socket.error()
@@ -215,6 +745,68 @@ class TestClient:
         msg_data = json.loads(sockets.redis_conn.publish.mock_calls[2].args[1])
         assert msg_data["type"] == "websocket"
         assert msg_data["event"] == "disconnected"
+        assert msg_data["reason"] == "Unexpected"
+        assert msg_data["message"] == "Mock message"
+
+    def test_closed_socket_unsubscribes_client(self, client, channel):
+        channel.subscribe(client)
+        client.ws.connected = False
+
+        client.publish()
+
+        assert client not in channel.clients
+
+    def test_message_without_channel_prefix_is_discarded(self, sockets, mocksocket):
+        mocksocket.receive.return_value = "no separator here"
+
+        sockets.Client(mocksocket).publish()
+
+        # Only the "connected" control message; the malformed frame is dropped.
+        assert sockets.redis_conn.publish.call_count == 1
+
+    @pytest.mark.timeout(10)
+    def test_message_with_empty_channel_prefix_is_discarded(self, sockets, mocksocket):
+        mocksocket.receive.return_value = ":payload"
+
+        sockets.Client(mocksocket).publish()
+
+        # Only the "connected" control message; redis would accept a publish
+        # to "" and no one would ever read it.
+        assert sockets.redis_conn.publish.call_count == 1
+
+    def test_client_may_not_publish_to_the_control_channel(self, sockets, mocksocket):
+        mocksocket.receive.return_value = 'dallinger_control:{"event": "forged"}'
+
+        sockets.Client(mocksocket).publish()
+
+        # The only control-channel publish is the server's own "connected"
+        # event; the client's frame was dropped.
+        assert sockets.redis_conn.publish.call_count == 1
+        sent = json.loads(sockets.redis_conn.publish.mock_calls[0].args[1])
+        assert sent["event"] == "connected"
+
+    @pytest.mark.timeout(10)
+    def test_receive_loop_yields_while_waiting(self, sockets, yielding_socket):
+        client = sockets.Client(yielding_socket)
+        order = []
+
+        publisher = gevent.spawn(client.publish)
+        gevent.spawn(order.append, "other greenlet")
+        gevent.sleep(0)
+
+        # The loop is parked inside ``receive()``, so the hub was free to run
+        # another greenlet without an explicit sleep before each read.
+        assert order == ["other greenlet"]
+        assert not publisher.ready()
+
+        yielding_socket.message_ready.set()
+        publisher.join(timeout=1)
+
+        assert publisher.successful()
+        assert sockets.redis_conn.publish.mock_calls[-1].args == (
+            "custom",
+            "delivered",
+        )
 
     def test_receive_exception_unsubscribes_client(self, client, channel):
         closed_error = ConnectionClosed("Closed Error", "Closed")
@@ -256,46 +848,1513 @@ class TestClient:
 
 
 class TestChatEndpoint:
-    def test_chat_subscribes_to_requested_channel(self, sockets):
-        ws = Mock()
-        ws.connected = False
-        ws.receive.return_value = None
+    def test_chat_subscribes_to_requested_channel(self, sockets, pubsub, mocksocket):
+        pubsub.listen.side_effect = parking_listen
+        ws = mocksocket
+        subscribed = []
+
+        def record_subscription():
+            subscribed.extend(
+                c
+                for c in sockets.chat_backend.channels["special"].clients
+                if c.ws is ws
+            )
+            return None
+
+        ws.receive = Mock(side_effect=record_subscription)
         sockets.request = Mock()
         sockets.request.args = {"channel": "special"}
         sockets.chat(ws)
 
-        clients = [
-            c for c in sockets.chat_backend.channels["special"].clients if c.ws is ws
-        ]
-        assert len(clients) == 1
+        assert len(subscribed) == 1
+
+    def test_chat_unsubscribes_when_socket_closes(self, sockets, mocksocket):
+        ws = mocksocket
+        ws.receive.return_value = None
+        sockets.request = Mock()
+        sockets.request.args = {"channel": "special"}
+
+        sockets.chat(ws)
+
+        assert "special" not in sockets.chat_backend.channels
 
     def test_chat_publishes_message_to_requested_channel(self, sockets, mocksocket):
         ws = mocksocket
         ws.receive.return_value = "special:incoming message!"
         sockets.request = Mock()
-        sockets.request.args = {"tolerance": ".5"}
+        sockets.request.args = {"channel": "special"}
         sockets.chat(ws)
 
-        # We should have three calls publishing messages on redis
-        #
-        # 1. The subscribe message on the control channel from
-        #    ``TestChannel.test_subscribe_sends_control_message``
-        # 2. A websocket connected message on the control channel sent before
-        #    entering the receive loop in `client.publish()`
-        # 3. The plain text message received from `ws.receive()` on the
-        #    `special` channel.
+        relayed = [
+            call.args
+            for call in sockets.redis_conn.publish.mock_calls
+            if call.args[0] != sockets.CONTROL_CHANNEL
+        ]
+        assert relayed == [("special", "incoming message!")]
 
-        assert sockets.redis_conn.publish.call_count == 3
 
-        # Let's look for that `special` message
-        assert sockets.redis_conn.publish.mock_calls[2].args[0] == "special"
-        assert sockets.redis_conn.publish.mock_calls[2].args[1] == "incoming message!"
+class TestExperimentSocket:
+    def sync_client(self, sockets, ws, experiment, **kwargs):
+        return sockets.Client(ws, experiment=experiment, **kwargs)
 
-    def test_sleeps_for_requested_time(self, sockets, mocksocket):
-        ws = mocksocket
-        ws.receive.return_value = "somechannel:incoming message!"
-        sockets.request = Mock()
-        sockets.request.args.get.return_value = ".5"
-        sockets.gevent = Mock()
-        sockets.chat(ws)
-        sockets.gevent.sleep.assert_called_once_with(0.5)
+    def relayed(self, sockets):
+        """Everything published to redis but the connect/disconnect events."""
+        return [
+            call.args
+            for call in sockets.redis_conn.publish.mock_calls
+            if call.args[0] != sockets.CONTROL_CHANNEL
+        ]
+
+    def test_frame_reaches_the_experiment_and_not_redis(self, sockets, scripted_socket):
+        exp = Mock()
+        client = self.sync_client(
+            sockets,
+            scripted_socket('game:{"action": "rock"}'),
+            exp,
+            participant_id="42",
+            scope="page-7",
+        )
+
+        client.publish()
+
+        call = exp.handle_websocket_message.mock_calls[0]
+        assert call.args == ('{"action": "rock"}',)
+        assert call.kwargs["channel_name"] == "game"
+        assert call.kwargs["participant_id"] == "42"
+        assert call.kwargs["scope"] == "page-7"
+        # Comparable with a Dallinger DateTime column, which is naive.
+        assert call.kwargs["receive_time"].tzinfo is None
+        assert self.relayed(sockets) == []
+
+    def test_session_is_removed_after_every_frame(self, sockets, scripted_socket):
+        exp = Mock()
+        client = self.sync_client(sockets, scripted_socket("game:one", "game:two"), exp)
+
+        with patch.object(sockets, "session") as session:
+            client.publish()
+
+        assert exp.handle_websocket_message.call_count == 2
+        assert session.remove.call_count == 2
+
+    def test_failing_handler_keeps_the_connection_open(self, sockets, scripted_socket):
+        exp = Mock()
+        exp.handle_websocket_message.side_effect = [ValueError("boom"), None]
+        client = self.sync_client(sockets, scripted_socket("game:one", "game:two"), exp)
+
+        with patch.object(sockets, "session") as session:
+            with patch.object(sockets.app, "logger") as logger:
+                client.publish()
+
+        assert exp.handle_websocket_message.call_count == 2
+        assert session.remove.call_count == 2
+        logger.exception.assert_called_once()
+
+    def test_binary_frame_closes_the_connection(self, sockets, scripted_socket):
+        exp = Mock()
+        ws = scripted_socket(b'game:{"action": "rock"}', "game:never read")
+        client = self.sync_client(sockets, ws, exp)
+
+        client.publish()
+
+        ws.close.assert_called_once_with(
+            sockets.UNSUPPORTED_DATA_CLOSE_CODE, "text frames only"
+        )
+        exp.handle_websocket_message.assert_not_called()
+        assert ws.receive.call_count == 1
+
+    def test_binary_frame_announces_the_disconnect(self, sockets, scripted_socket):
+        client = self.sync_client(sockets, scripted_socket(b"game:payload"), Mock())
+
+        client.publish()
+
+        events = [
+            json.loads(call.args[1])
+            for call in sockets.redis_conn.publish.mock_calls
+            if call.args[0] == sockets.CONTROL_CHANNEL
+        ]
+        assert [event["event"] for event in events] == ["connected", "disconnected"]
+        assert events[-1]["reason"] == sockets.UNSUPPORTED_DATA_CLOSE_CODE
+        assert events[-1]["message"] == "text frames only"
+
+    def test_binary_frame_closes_under_the_send_lock(self, sockets, scripted_socket):
+        # ``send`` and ``close`` write to the same socket with no coordination
+        # of their own inside simple_websocket, and a relay greenlet spawned by
+        # ``Channel.relay`` can be inside ``send`` when this close runs.
+        ws = scripted_socket(b"game:payload")
+        client = sockets.Client(ws)
+        held = []
+        ws.close.side_effect = lambda *args: held.append(client.send_lock.locked())
+
+        client.publish()
+
+        assert held == [True]
+
+    def test_control_channel_frame_never_reaches_the_handler(
+        self, sockets, scripted_socket
+    ):
+        exp = Mock()
+        client = self.sync_client(
+            sockets, scripted_socket('dallinger_control:{"event": "forged"}'), exp
+        )
+
+        client.publish()
+
+        exp.handle_websocket_message.assert_not_called()
+
+    def test_malformed_frame_never_reaches_the_handler(self, sockets, scripted_socket):
+        exp = Mock()
+        client = self.sync_client(sockets, scripted_socket("no separator"), exp)
+
+        client.publish()
+
+        exp.handle_websocket_message.assert_not_called()
+
+    def test_handler_can_restore_the_broadcast(self, sockets, scripted_socket):
+        from dallinger import db
+        from dallinger.experiment import Experiment
+
+        class Republishing(Experiment):
+            def __init__(self):
+                # Experiment.__init__ wants a database; only the publish path
+                # is under test here.
+                pass
+
+            def handle_websocket_message(self, message, *, channel_name, **kwargs):
+                self.publish_to_subscribers(message, "chat_broadcast")
+
+        frame = 'chat:{"text": "hi"}'
+
+        sockets.Client(scripted_socket(frame)).publish()
+        relayed_payload = self.relayed(sockets)[0][1]
+        sockets.redis_conn.publish.reset_mock()
+
+        client = self.sync_client(sockets, scripted_socket(frame), Republishing())
+        with patch.object(db, "redis_conn", sockets.redis_conn):
+            client.publish()
+
+        # Subscribers get the payload the relay would have sent them, on a
+        # channel the experiment is not itself subscribed to.
+        assert self.relayed(sockets) == [("chat_broadcast", relayed_payload)]
+
+    def test_a_client_without_an_experiment_relays_to_redis(
+        self, sockets, scripted_socket
+    ):
+        client = sockets.Client(scripted_socket("game:payload"))
+
+        client.publish()
+
+        assert sockets.redis_conn.publish.mock_calls[-1].args == ("game", "payload")
+
+
+class TestClientInfo:
+    def test_reports_the_connection_scope(self, sockets):
+        client = sockets.Client(
+            Mock(), worker_id="w1", participant_id="42", scope="page-7"
+        )
+
+        assert client.client_info() == {
+            "class": "dallinger.experiment_server.sockets.Client",
+            "worker_id": "w1",
+            "participant_id": "42",
+            "scope": "page-7",
+        }
+
+    def test_control_events_carry_the_scope(self, sockets, scripted_socket):
+        # An experiment tracking connections sees the scope at connect time,
+        # not only once that connection sends a frame.
+        with patch.object(
+            sockets, "request", Mock(args={"channel": "special", "scope": "page-7"})
+        ):
+            sockets.chat(scripted_socket())
+
+        events = [
+            json.loads(call.args[1])
+            for call in sockets.redis_conn.publish.mock_calls
+            if call.args[0] == sockets.CONTROL_CHANNEL
+        ]
+        assert events
+        assert all(event["client"]["scope"] == "page-7" for event in events)
+
+
+def channel_events(sockets):
+    """The subscribe/unsubscribe bookkeeping a channel announces."""
+    return [
+        json.loads(call.args[1])["event"]
+        for call in sockets.redis_conn.publish.mock_calls
+        if call.args[0] == sockets.CONTROL_CHANNEL
+        and json.loads(call.args[1])["type"] == "channel"
+    ]
+
+
+class TestChannellessConnection:
+    """A connection that names no channel sends without receiving."""
+
+    def connect(self, sockets, ws, **args):
+        with patch.object(sockets, "request", Mock(args=args)):
+            sockets.chat(ws)
+
+    @pytest.mark.parametrize("args", [{}, {"channel": ""}], ids=["absent", "empty"])
+    def test_no_channel_builds_no_channel(self, sockets, scripted_socket, args):
+        self.connect(sockets, scripted_socket("game:payload"), **args)
+
+        assert channel_events(sockets) == []
+
+    def test_a_named_channel_still_builds_one(self, sockets, scripted_socket):
+        self.connect(sockets, scripted_socket("game:payload"), channel="special")
+
+        assert channel_events(sockets) == ["subscribed", "unsubscribed"]
+
+    def test_frames_are_still_relayed(self, sockets, scripted_socket):
+        self.connect(sockets, scripted_socket("game:payload"))
+
+        relayed = [
+            call.args
+            for call in sockets.redis_conn.publish.mock_calls
+            if call.args[0] != sockets.CONTROL_CHANNEL
+        ]
+        assert relayed == [("game", "payload")]
+
+
+class TestExperimentSocketConnection:
+    def connect(self, sockets, ws, **args):
+        with patch.object(sockets, "request", Mock(args=args)):
+            sockets.experiment_socket(ws)
+
+    def connect_chat(self, sockets, ws, **args):
+        with patch.object(sockets, "request", Mock(args=args)):
+            sockets.chat(ws)
+
+    def test_unknown_participant_is_refused(self, sockets, admission, mocksocket):
+        with patch.object(admission, "resolve_participant_id", return_value=None):
+            with patch.object(admission, "Experiment") as experiment_factory:
+                self.connect(
+                    sockets,
+                    mocksocket,
+                    channel="special",
+                    participant_id="999",
+                )
+
+        mocksocket.close.assert_called_once_with(
+            sockets.REFUSED_CLOSE_CODE, "unknown participant"
+        )
+        experiment_factory.assert_not_called()
+        assert "special" not in sockets.chat_backend.channels
+
+    def test_the_chat_route_still_relays(self, sockets, scripted_socket):
+        ws = scripted_socket("special:payload")
+        self.connect_chat(sockets, ws, channel="special")
+
+        ws.close.assert_not_called()
+        relayed = [
+            call.args
+            for call in sockets.redis_conn.publish.mock_calls
+            if call.args[0] != sockets.CONTROL_CHANNEL
+        ]
+        assert relayed == [("special", "payload")]
+
+    def test_lookup_failure_asks_the_client_to_retry(
+        self, sockets, admission, mocksocket
+    ):
+        from sqlalchemy.exc import OperationalError
+
+        failure = OperationalError("SELECT 1", {}, Exception("no server"))
+        with patch.object(admission, "resolve_participant_id", side_effect=failure):
+            with patch.object(admission, "Experiment") as experiment_factory:
+                self.connect(
+                    sockets,
+                    mocksocket,
+                    channel="special",
+                    participant_id="42",
+                )
+
+        mocksocket.close.assert_called_once_with(
+            sockets.UNAVAILABLE_CLOSE_CODE, "participant lookup failed"
+        )
+        experiment_factory.assert_not_called()
+
+    def test_known_participant_gets_an_experiment(
+        self, sockets, admission, scripted_socket
+    ):
+        ws = scripted_socket("special:payload")
+        with patch.object(admission, "resolve_participant_id", return_value="42"):
+            with patch.object(admission, "Experiment") as experiment_factory:
+                self.connect(
+                    sockets,
+                    ws,
+                    channel="special",
+                    participant_id="42",
+                    scope="page-7",
+                )
+
+        ws.close.assert_not_called()
+        experiment_factory.assert_called_once_with()
+        exp = experiment_factory.return_value
+        call = exp.handle_websocket_message.mock_calls[0]
+        assert call.kwargs["scope"] == "page-7"
+        # The parsed id rendered back, not the query string it came from.
+        assert call.kwargs["participant_id"] == "42"
+
+    def test_connections_share_one_experiment(
+        self, sockets, admission, scripted_socket
+    ):
+        with patch.object(admission, "resolve_participant_id", return_value="42"):
+            with patch.object(admission, "Experiment") as experiment_factory:
+                for _ in range(3):
+                    self.connect(
+                        sockets,
+                        scripted_socket("special:payload"),
+                        channel="special",
+                        participant_id="42",
+                    )
+
+        experiment_factory.assert_called_once_with()
+        exp = experiment_factory.return_value
+        assert exp.handle_websocket_message.call_count == 3
+
+    def test_two_greenlets_build_one_experiment(self, admission):
+        built = []
+
+        def build():
+            # Experiment.__init__ runs configure(), which is experiment code
+            # and may query, so the constructor can yield here.
+            gevent.sleep(0)
+            built.append(Mock())
+            return built[-1]
+
+        with patch.object(admission, "Experiment", side_effect=build):
+            greenlets = [gevent.spawn(admission.process_experiment) for _ in range(2)]
+            gevent.joinall(greenlets)
+
+        assert len(built) == 1
+        assert [g.value for g in greenlets] == [built[0], built[0]]
+
+    def test_a_experiment_socket_still_subscribes_to_its_channel(
+        self, sockets, admission, scripted_socket
+    ):
+        # A experiment socket changes the inbound direction only, so broadcasts to
+        # ``channel`` still have to reach the browser.
+        with patch.object(admission, "resolve_participant_id", return_value="42"):
+            with patch.object(admission, "Experiment"):
+                self.connect(
+                    sockets,
+                    scripted_socket("special:payload"),
+                    channel="special",
+                    participant_id="42",
+                )
+
+        assert channel_events(sockets) == ["subscribed", "unsubscribed"]
+
+    def test_a_failed_experiment_releases_the_session(
+        self, sockets, admission, mocksocket
+    ):
+        with patch.object(admission, "resolve_participant_id", return_value="42"):
+            with patch.object(admission, "Experiment", side_effect=ValueError("boom")):
+                with patch.object(admission, "session") as session:
+                    self.connect(
+                        sockets,
+                        mocksocket,
+                        channel="special",
+                        participant_id="42",
+                    )
+
+        # configure() may have queried before raising.
+        session.remove.assert_called_once_with()
+
+    def test_a_failed_experiment_is_not_cached(self, sockets, admission, mocksocket):
+        with patch.object(admission, "resolve_participant_id", return_value="42"):
+            with patch.object(admission, "Experiment", side_effect=ValueError("boom")):
+                self.connect(
+                    sockets,
+                    mocksocket,
+                    channel="special",
+                    participant_id="42",
+                )
+
+        mocksocket.close.assert_called_once_with(
+            sockets.UNAVAILABLE_CLOSE_CODE, "experiment unavailable"
+        )
+        assert admission._process_experiment is None
+        assert "special" not in sockets.chat_backend.channels
+
+    def test_the_chat_route_does_not_look_up_the_participant(
+        self, sockets, admission, mocksocket
+    ):
+        with patch.object(admission, "resolve_participant_id") as lookup:
+            self.connect_chat(
+                sockets, mocksocket, channel="special", participant_id="nonsense"
+            )
+
+        lookup.assert_not_called()
+
+
+class TestAcceptWebsocketConnection:
+    def connect(self, sockets, admission, ws, hook, **args):
+        args = {"channel": "special", "participant_id": "42", **args}
+        with patch.object(admission, "resolve_participant_id", return_value="42"):
+            with patch.object(admission, "Experiment") as experiment_factory:
+                with patch.object(sockets, "request", Mock(args=args)):
+                    exp = experiment_factory.return_value
+                    exp.accept_websocket_connection.side_effect = hook
+                    sockets.experiment_socket(ws)
+        return exp
+
+    def test_the_hook_is_asked_about_the_connection(
+        self, sockets, admission, scripted_socket
+    ):
+        exp = self.connect(
+            sockets, admission, scripted_socket(), lambda *args: True, scope="page-7"
+        )
+
+        exp.accept_websocket_connection.assert_called_once_with("42", "page-7")
+
+    @pytest.mark.parametrize("refusal", [False, None])
+    def test_a_falsy_answer_refuses_before_subscribing(
+        self, sockets, admission, mocksocket, refusal
+    ):
+        exp = self.connect(sockets, admission, mocksocket, lambda *args: refusal)
+
+        mocksocket.close.assert_called_once_with(
+            sockets.REFUSED_CLOSE_CODE, "refused by the experiment"
+        )
+        assert "special" not in sockets.chat_backend.channels
+        assert sockets.chat_backend.open_clients == set()
+        exp.handle_websocket_message.assert_not_called()
+
+    def test_a_refused_session_socket_never_joins(self, sockets, admission, mocksocket):
+        with patch.object(sockets.session_sockets, "open_session_socket") as opened:
+            self.connect(
+                sockets, admission, mocksocket, lambda *args: False, session="s1"
+            )
+
+        opened.assert_not_called()
+
+    def test_a_failing_hook_asks_the_client_to_retry(
+        self, sockets, admission, mocksocket
+    ):
+        def hook(*args):
+            raise ValueError("boom")
+
+        self.connect(sockets, admission, mocksocket, hook)
+
+        mocksocket.close.assert_called_once_with(
+            sockets.UNAVAILABLE_CLOSE_CODE, "connection check failed"
+        )
+        assert "special" not in sockets.chat_backend.channels
+
+    @pytest.mark.parametrize(
+        "answer, expected",
+        [
+            (True, ["remove", "hook", "remove", "serve"]),
+            (ValueError("boom"), ["remove", "hook", "remove"]),
+        ],
+        ids=["accepted", "raised"],
+    )
+    def test_the_session_is_released_around_the_hook(
+        self, sockets, admission, mocksocket, answer, expected
+    ):
+        # The first removal is building the experiment's; the second must come
+        # before _serve, where an accepted connection idles in receive().
+        events = []
+
+        def hook(*args):
+            events.append("hook")
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+        with patch.object(admission, "session") as session:
+            session.remove.side_effect = lambda: events.append("remove")
+            with patch.object(sockets, "_serve") as serve:
+                serve.side_effect = lambda *args, **kwargs: events.append("serve")
+                self.connect(sockets, admission, mocksocket, hook)
+
+        assert events == expected
+
+    def test_the_default_accepts(self):
+        from dallinger.experiment import Experiment
+
+        assert Experiment.accept_websocket_connection(Mock(), "42", None) is True
+
+
+class TestNormalizedParticipantId:
+    @pytest.mark.parametrize(
+        "given, expected",
+        [
+            ("42", "42"),
+            (42, "42"),
+            (b"42", "42"),
+            ("  42  ", "42"),
+            ("042", "42"),
+            ("+42", "42"),
+            ("-42", "-42"),
+            ("\u0664\u0662", "42"),
+        ],
+    )
+    def test_a_whole_number_is_its_parsed_form(self, sockets, given, expected):
+        assert sockets.normalized_participant_id(given) == expected
+
+    @pytest.mark.parametrize("given", [12.7, 12.0, float("inf"), Decimal("12")])
+    def test_a_number_that_is_not_an_integer_is_refused(self, sockets, given):
+        # int() reads 12.7 as 12, and raises OverflowError rather than
+        # ValueError on an infinity.
+        assert sockets.normalized_participant_id(given) is None
+
+    def test_a_boolean_is_refused(self, sockets):
+        # bool is an int subclass, so int(True) is 1.
+        assert sockets.normalized_participant_id(True) is None
+
+    @pytest.mark.parametrize(
+        "given", ["", "not-a-number", "12.7", None, [42], object()]
+    )
+    def test_an_unparseable_value_is_refused(self, sockets, given):
+        assert sockets.normalized_participant_id(given) is None
+
+    def test_an_integer_that_is_not_an_int_is_parsed(self, sockets):
+        """A numpy integer out of a dataframe column takes this path."""
+
+        class Counted:
+            def __int__(self):
+                return 42
+
+        numbers.Integral.register(Counted)
+
+        assert sockets.normalized_participant_id(Counted()) == "42"
+
+
+class TestResolveParticipantId:
+    def test_a_number_that_is_not_an_integer_is_not_a_lookup(self, sockets, admission):
+        with patch.object(admission, "session") as session:
+            assert admission.resolve_participant_id(12.7) is None
+
+        session.query.assert_not_called()
+
+    def test_non_numeric_id_is_not_a_lookup(self, sockets, admission):
+        with patch.object(admission, "session") as session:
+            assert admission.resolve_participant_id("not-a-number") is None
+
+        session.query.assert_not_called()
+
+    def test_missing_id_is_not_a_lookup(self, sockets, admission):
+        with patch.object(admission, "session") as session:
+            assert admission.resolve_participant_id(None) is None
+
+        session.query.assert_not_called()
+
+    def test_a_failed_query_still_releases_the_session(self, sockets, admission):
+        from sqlalchemy.exc import OperationalError
+
+        with patch.object(admission, "session") as session:
+            session.query.side_effect = OperationalError(
+                "SELECT 1", {}, Exception("no server")
+            )
+
+            with pytest.raises(OperationalError):
+                admission.resolve_participant_id("42")
+
+        session.remove.assert_called_once_with()
+
+
+class TestResolveParticipantIdAgainstTheDatabase:
+    """The lookup against a real participant table, not a mocked session."""
+
+    def test_finds_a_real_participant(self, sockets, admission, a):
+        # resolve_participant_id calls session.remove(), which detaches
+        # anything built here, so read the id before the lookup.
+        participant_id = a.participant().id
+
+        assert admission.resolve_participant_id(str(participant_id)) == str(
+            participant_id
+        )
+
+    def test_absent_id_is_unknown(self, sockets, admission, a):
+        participant_id = a.participant().id
+
+        assert admission.resolve_participant_id(str(participant_id + 1000)) is None
+
+    def test_non_ascii_digits_yield_the_parsed_id(self, sockets, admission, a):
+        participant_id = a.participant().id
+        arabic_indic = str(participant_id).translate(
+            str.maketrans(
+                "0123456789",
+                "\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669",
+            )
+        )
+
+        # int() accepts these. The raw string reaching the column instead
+        # would raise DataError on every query made with it.
+        assert admission.resolve_participant_id(arabic_indic) == str(participant_id)
+
+
+def published_envelopes(sockets):
+    """Every directed-send envelope published to redis, as JSON strings."""
+    return [
+        call.args[1]
+        for call in sockets.redis_conn.publish.mock_calls
+        if call.args[0] == sockets.DIRECT_CHANNEL
+    ]
+
+
+def published_sends(sockets):
+    """Every directed send published to redis, from all their envelopes."""
+    return [
+        send
+        for envelope in published_envelopes(sockets)
+        for send in json.loads(envelope)["items"]
+    ]
+
+
+#: A well formed send, for tests that vary one field.
+DIRECT_SEND = {
+    "participant_ids": ["42"],
+    "scope": None,
+    "payload": '{"type": "wake"}',
+}
+
+
+def envelope_of(*sends):
+    """An envelope from another process carrying ``sends``."""
+    return {"origin": "another process", "items": list(sends)}
+
+
+DIRECT_ENVELOPE = envelope_of(DIRECT_SEND)
+
+
+def envelope_message(sockets, envelope):
+    """The pubsub frame another process reads for a published envelope."""
+    return {
+        "type": "message",
+        "channel": sockets.DIRECT_CHANNEL.encode("utf-8"),
+        "data": envelope.encode("utf-8"),
+    }
+
+
+class TestParticipantRegistry:
+    def test_a_chat_connection_is_addressable(self, sockets, mocksocket):
+        addressed = []
+        mocksocket.receive = Mock(
+            side_effect=lambda: addressed.append(
+                dict(sockets.chat_backend.clients_by_participant)
+            )
+        )
+
+        with patch.object(sockets, "request", Mock(args={"participant_id": "42"})):
+            sockets.chat(mocksocket)
+
+        assert list(addressed[0]) == ["42"]
+
+    def test_a_connection_without_a_participant_is_not_addressable(
+        self, sockets, mocksocket
+    ):
+        addressed = []
+        mocksocket.receive = Mock(
+            side_effect=lambda: addressed.append(
+                dict(sockets.chat_backend.clients_by_participant)
+            )
+        )
+
+        with patch.object(sockets, "request", Mock(args={"channel": "special"})):
+            sockets.chat(mocksocket)
+
+        assert addressed == [{}]
+        assert sockets.chat_backend.direct_channels == {}
+
+    def test_an_experiment_socket_is_addressable(self, sockets, admission, mocksocket):
+        addressed = []
+        mocksocket.receive = Mock(
+            side_effect=lambda: addressed.append(
+                dict(sockets.chat_backend.clients_by_participant)
+            )
+        )
+
+        with (
+            patch.object(admission, "resolve_participant_id", return_value="42"),
+            patch.object(admission, "process_experiment", return_value=Mock()),
+            patch.object(sockets, "request", Mock(args={"participant_id": "42"})),
+        ):
+            sockets.experiment_socket(mocksocket)
+
+        assert list(addressed[0]) == ["42"]
+
+    def test_a_closed_connection_is_no_longer_addressable(self, sockets, mocksocket):
+        with patch.object(sockets, "request", Mock(args={"participant_id": "42"})):
+            sockets.chat(mocksocket)
+
+        assert sockets.chat_backend.clients_by_participant == {}
+
+    def test_a_failed_send_stops_addressing_the_connection(self, sockets, registered):
+        client = registered("42")
+        client.ws.send.side_effect = socket.error("broken pipe")
+
+        with pytest.raises(ConnectionClosed):
+            client.send("dallinger_direct:{}")
+
+        assert sockets.chat_backend.clients_by_participant == {}
+
+    @pytest.mark.parametrize(
+        "named", ["012", " 42 ", "42"], ids=["padded", "spaced", "plain"]
+    )
+    def test_an_id_is_addressed_by_its_parsed_value(self, sockets, registered, named):
+        registered(named)
+
+        assert list(sockets.chat_backend.clients_by_participant) == [str(int(named))]
+
+    def test_an_unparseable_id_is_not_addressable(self, sockets, registered):
+        registered("not-a-number")
+
+        assert sockets.chat_backend.clients_by_participant == {}
+
+    def test_every_connection_of_one_participant_is_kept(self, sockets, registered):
+        first = registered("42")
+        second = registered("42")
+
+        assert sockets.chat_backend.clients_by_participant["42"] == {first, second}
+
+    def test_deregistering_one_connection_keeps_the_others(self, sockets, registered):
+        first = registered("42")
+        second = registered("42")
+
+        sockets.chat_backend.deregister(first)
+
+        assert sockets.chat_backend.clients_by_participant["42"] == {second}
+
+    def test_a_subscriber_that_is_not_a_connection_is_not_addressable(self, sockets):
+        # ``on_launch`` subscribes the experiment to its own channels through
+        # the same backend, and an ``Experiment`` has no ``addressable_id``.
+        experiment = Mock(spec=["client_info", "send"])
+
+        sockets.chat_backend.register(experiment)
+        sockets.chat_backend.unsubscribe(experiment)
+
+        assert sockets.chat_backend.clients_by_participant == {}
+
+    def test_the_listener_starts_with_the_first_addressable_client(
+        self, sockets, registered, pubsub
+    ):
+        pubsub.listen.side_effect = parking_listen
+        registered("42")
+
+        # The session listener waits for a connection that joins a session.
+        assert list(sockets.chat_backend.direct_channels) == ["dallinger_direct"]
+        assert isinstance(
+            sockets.chat_backend.direct_channels["dallinger_direct"],
+            sockets.DirectChannel,
+        )
+
+    def test_a_second_client_joins_the_running_listener(
+        self, sockets, registered, pubsub
+    ):
+        pubsub.listen.side_effect = parking_listen
+        registered("42")
+        listener = sockets.chat_backend.direct_channels.get("dallinger_direct")
+
+        registered("43")
+
+        # A listener per registration would relay every envelope once per
+        # listener.
+        assert sockets.chat_backend.direct_channels.get("dallinger_direct") is listener
+
+    def test_the_listener_outlives_the_last_one(self, sockets, registered, pubsub):
+        pubsub.listen.side_effect = parking_listen
+        client = registered("42")
+        listener = sockets.chat_backend.direct_channels.get("dallinger_direct")
+
+        sockets.chat_backend.deregister(client)
+
+        # Stopping here would leave a registration during ``Greenlet.kill``
+        # either attached to a dying listener or served by a second one.
+        assert sockets.chat_backend.direct_channels.get("dallinger_direct") is listener
+
+    @pytest.mark.parametrize(
+        "channel", ["dallinger_direct", "dallinger_realtime_session"]
+    )
+    def test_a_client_arriving_after_a_dead_listener_gets_a_live_one(
+        self, sockets, registered, channel
+    ):
+        registered("42", in_session=True)
+        first = sockets.chat_backend.direct_channels.get(channel)
+        gevent.wait(timeout=1)
+
+        assert sockets.chat_backend.direct_channels.get(channel) is None
+
+        registered("43", in_session=True)
+
+        assert sockets.chat_backend.direct_channels.get(channel) is not first
+
+
+class TestDirectedSend:
+    def test_the_named_participant_receives_the_payload(self, sockets, registered):
+        client = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        client.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+
+    def test_other_participants_receive_nothing(self, sockets, registered):
+        other = registered("43")
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        other.ws.send.assert_not_called()
+
+    def test_every_connection_of_the_participant_receives_it(self, sockets, registered):
+        first = registered("42")
+        second = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        assert first.ws.send.call_count == 1
+        assert second.ws.send.call_count == 1
+
+    def test_an_id_is_matched_by_its_parsed_value(self, sockets, registered):
+        client = registered("012")
+
+        sockets.publish_to_participants({"type": "wake"}, ["12"])
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+
+    def test_a_single_id_needs_no_list(self, sockets, registered):
+        client = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, 42)
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+
+    def test_a_single_integer_that_is_not_an_int_needs_no_list(
+        self, sockets, registered
+    ):
+        """A numpy integer is an ``Integral`` without being an ``int``."""
+
+        class Counted:
+            def __int__(self):
+                return 42
+
+        numbers.Integral.register(Counted)
+        client = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, Counted())
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+
+    def test_a_repeated_id_delivers_once(self, sockets, registered):
+        client = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [42, "42", "042"])
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+
+    def test_a_connection_that_just_closed_raises_no_greenlet_error(
+        self, sockets, registered, monkeypatch
+    ):
+        errors = []
+        monkeypatch.setattr(
+            gevent.get_hub(), "handle_error", lambda *args: errors.append(args)
+        )
+        client = registered("42")
+        client.ws.send.side_effect = ConnectionClosed(1000, "")
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+        assert errors == []
+
+    def test_a_scope_reaches_only_connections_opened_with_it(self, sockets, registered):
+        current = registered("42", scope="page-7")
+        stale = registered("42", scope="page-6")
+
+        sockets.publish_to_participants({"type": "wake"}, [42], scope="page-7")
+        gevent.wait(timeout=1)
+
+        assert current.ws.send.call_count == 1
+        stale.ws.send.assert_not_called()
+
+    def test_a_scope_does_not_reach_a_connection_opened_without_one(
+        self, sockets, registered
+    ):
+        unscoped = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [42], scope="page-7")
+        gevent.wait(timeout=1)
+
+        # No scope is a scope of its own, not a wildcard.
+        unscoped.ws.send.assert_not_called()
+
+    def test_a_scope_that_is_not_text_is_compared_as_text(self, sockets, registered):
+        # A connection names its scope in a query string, so it holds "7".
+        client = registered("42", scope="7")
+
+        sockets.publish_to_participants({"type": "wake"}, [42], scope=7)
+        gevent.wait(timeout=1)
+
+        client.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+
+    def test_the_envelope_carries_a_scope_as_text(self, sockets, registered):
+        registered("42", scope="7")
+
+        sockets.publish_to_participants({"type": "wake"}, [42], scope=7)
+
+        assert published_sends(sockets)[0]["scope"] == "7"
+
+    def test_no_scope_reaches_every_connection(self, sockets, registered):
+        scoped = registered("42", scope="page-7")
+        unscoped = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        assert scoped.ws.send.call_count == 1
+        assert unscoped.ws.send.call_count == 1
+
+    def test_the_envelope_reaches_the_other_processes(self, sockets, registered):
+        registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [42, 43], scope="page-7")
+
+        envelope = json.loads(published_envelopes(sockets)[0])
+        assert envelope["origin"] == sockets.process_token()
+        [send] = envelope["items"]
+        assert send["participant_ids"] == ["42", "43"]
+        assert send["scope"] == "page-7"
+        assert json.loads(send["payload"]) == {"type": "wake"}
+
+    def test_a_failed_publish_reaches_nobody(self, sockets, registered):
+        client = registered("42")
+        sockets.redis_conn.publish.side_effect = sockets.RedisError("no redis")
+
+        with pytest.raises(sockets.RedisError):
+            sockets.publish_to_participants({"type": "wake"}, [42])
+        gevent.wait(timeout=1)
+
+        # Delivering locally first would serve this process and no other, and
+        # a retry would then send to these connections twice.
+        client.ws.send.assert_not_called()
+
+    def test_the_payload_is_serialized_once(self, sockets, registered):
+        client = registered("42")
+
+        sockets.publish_to_participants({"type": "wake", "token": "abc"}, [42])
+        gevent.wait(timeout=1)
+
+        [send] = published_sends(sockets)
+        frame = client.ws.send.mock_calls[0].args[0]
+        assert frame == "{}:{}".format(sockets.DIRECT_CHANNEL, send["payload"])
+
+    def test_a_datetime_in_the_payload_is_serialized(self, sockets, registered):
+        client = registered("42")
+
+        sockets.publish_to_participants({"at": datetime(2026, 9, 17, 12, 30)}, [42])
+        gevent.wait(timeout=1)
+
+        frame = client.ws.send.mock_calls[0].args[0]
+        assert json.loads(frame.split(":", 1)[1]) == {"at": "2026-09-17T12:30:00"}
+
+    def test_an_unaddressable_id_is_skipped(self, sockets, registered):
+        client = registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, ["not-a-number", 42])
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+        assert published_sends(sockets)[0]["participant_ids"] == ["42"]
+
+    def test_a_send_no_one_can_receive_publishes_nothing(self, sockets, registered):
+        registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [None])
+
+        assert published_envelopes(sockets) == []
+
+    def test_naming_a_participant_who_is_elsewhere_still_publishes(
+        self, sockets, registered
+    ):
+        registered("42")
+
+        sockets.publish_to_participants({"type": "wake"}, [43])
+        gevent.wait(timeout=1)
+
+        assert published_sends(sockets)[0]["participant_ids"] == ["43"]
+
+
+class TestDirectChannelListener:
+    def listener(self, sockets, backend=None):
+        return sockets.DirectChannel(
+            backend or sockets.chat_backend, "dallinger_direct"
+        )
+
+    def test_an_envelope_from_another_process_is_delivered(self, sockets, registered):
+        client = registered("42")
+        envelope = json.dumps(DIRECT_ENVELOPE)
+
+        self.listener(sockets).relay(envelope_message(sockets, envelope))
+        gevent.wait(timeout=1)
+
+        client.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+
+    def test_this_process_does_not_deliver_its_own_envelope_twice(
+        self, sockets, registered
+    ):
+        client = registered("42")
+        sockets.publish_to_participants({"type": "wake"}, [42])
+
+        for envelope in published_envelopes(sockets):
+            self.listener(sockets).relay(envelope_message(sockets, envelope))
+        gevent.wait(timeout=1)
+
+        assert client.ws.send.call_count == 1
+
+    def test_a_scope_is_honoured_across_processes(self, sockets, registered):
+        stale = registered("42", scope="page-6")
+        envelope = json.dumps(envelope_of(dict(DIRECT_SEND, scope="page-7")))
+
+        self.listener(sockets).relay(envelope_message(sockets, envelope))
+        gevent.wait(timeout=1)
+
+        stale.ws.send.assert_not_called()
+
+    def test_an_unreadable_envelope_is_discarded(self, sockets, registered):
+        client = registered("42")
+
+        self.listener(sockets).relay(envelope_message(sockets, "not json"))
+        gevent.wait(timeout=1)
+
+        client.ws.send.assert_not_called()
+
+    def test_an_envelope_naming_its_ids_as_text_is_discarded(self, sockets, registered):
+        # Iterating "42" yields "4", which is a participant the send did not
+        # name and this process holds a connection for.
+        client = registered("4")
+        envelope = envelope_of(dict(DIRECT_SEND, participant_ids="42"))
+
+        self.listener(sockets).relay(envelope_message(sockets, json.dumps(envelope)))
+        gevent.wait(timeout=1)
+
+        client.ws.send.assert_not_called()
+
+    def test_a_send_whose_payload_is_not_text_reaches_nobody(self, sockets, registered):
+        client = registered("42")
+        envelope = envelope_of(dict(DIRECT_SEND, payload={"type": "wake"}))
+
+        self.listener(sockets).relay(envelope_message(sockets, json.dumps(envelope)))
+        gevent.wait(timeout=1)
+
+        client.ws.send.assert_not_called()
+
+    def test_a_frame_carrying_no_envelope_leaves_the_listener_reading(
+        self, sockets, pubsub, registered
+    ):
+        pubsub.listen.return_value = [
+            envelope_message(sockets, "[]"),
+            envelope_message(sockets, json.dumps(DIRECT_ENVELOPE)),
+        ]
+
+        client = registered("42")
+        gevent.wait(timeout=1)
+
+        # The envelope behind the bad frame still arrived, so the greenlet
+        # that reads them did not unwind on the first one.
+        client.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+
+    def test_each_send_in_a_batch_reaches_its_own_pages(self, sockets, registered):
+        current = registered("42", scope="page-7")
+        stale = registered("42", scope="page-6")
+        other = registered("43", scope="page-2")
+        batch = envelope_of(
+            dict(DIRECT_SEND, scope="page-7", payload="for 42"),
+            dict(DIRECT_SEND, participant_ids=["43"], payload="for 43"),
+        )
+
+        self.listener(sockets).relay(envelope_message(sockets, json.dumps(batch)))
+        gevent.wait(timeout=1)
+
+        current.ws.send.assert_called_once_with("dallinger_direct:for 42")
+        stale.ws.send.assert_not_called()
+        other.ws.send.assert_called_once_with("dallinger_direct:for 43")
+
+    def test_an_unreadable_send_in_a_batch_leaves_the_listener_reading(
+        self, sockets, pubsub, registered
+    ):
+        batch = envelope_of(
+            dict(DIRECT_SEND, participant_ids=[["42"]]),
+            dict(DIRECT_SEND, payload='{"type": "view"}'),
+        )
+        pubsub.listen.return_value = [
+            envelope_message(sockets, json.dumps(batch)),
+            envelope_message(sockets, json.dumps(DIRECT_ENVELOPE)),
+        ]
+
+        client = registered("42")
+        gevent.wait(timeout=1)
+
+        assert [call.args[0] for call in client.ws.send.mock_calls] == [
+            'dallinger_direct:{"type": "view"}',
+            'dallinger_direct:{"type": "wake"}',
+        ]
+
+    def test_a_subscribe_confirmation_is_not_an_envelope(self, sockets, registered):
+        client = registered("42")
+
+        with patch.object(sockets, "log") as log:
+            self.listener(sockets).relay(
+                {"type": "subscribe", "channel": b"dallinger_direct", "data": 1}
+            )
+        gevent.wait(timeout=1)
+
+        # Read as an envelope a confirmation is unreadable, so dropping the
+        # type check costs a warning for every subscription rather than a
+        # delivery.
+        log.assert_not_called()
+        client.ws.send.assert_not_called()
+
+    def test_each_process_delivers_to_its_own_clients(self, sockets, registered):
+        here = registered("42")
+        there_backend = sockets.ChatBackend()
+        there = sockets.Client(Mock(), participant_id="42")
+        there_backend.register(there)
+        here_listener = self.listener(sockets)
+        there_listener = self.listener(sockets, there_backend)
+
+        sockets.publish_to_participants({"type": "wake"}, [42])
+        for envelope in published_envelopes(sockets):
+            here_listener.relay(envelope_message(sockets, envelope))
+            # The second backend stands in for a second process, which reads
+            # the same envelope holding a token of its own.
+            with patch.object(sockets, "process_token", return_value="another process"):
+                there_listener.relay(envelope_message(sockets, envelope))
+        gevent.wait(timeout=1)
+
+        # One copy each: the sending process delivered to ``here`` directly and
+        # skipped its own envelope, and the other process delivered from it.
+        here.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+        there.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+
+    @pytest.mark.timeout(10)
+    @pytest.mark.parametrize("failing", ["subscribe", "listen"])
+    def test_a_protocol_error_starts_over_on_a_new_pubsub(
+        self, sockets, redis, registered, failing
+    ):
+        from redis.exceptions import ResponseError
+
+        errors = [ResponseError("bad reply")]
+
+        def fail_once(*args):
+            if errors:
+                raise errors.pop()
+            return parking_listen()
+
+        # Only the first call fails, so a listener that retried on this pubsub
+        # would sit reading it rather than reach the healthy one.
+        broken = Mock()
+        broken.listen.side_effect = parking_listen
+        getattr(broken, failing).side_effect = fail_once
+        healthy = Mock()
+
+        def healthy_listen():
+            yield envelope_message(sockets, json.dumps(DIRECT_ENVELOPE))
+            Event().wait()
+
+        healthy.listen.side_effect = healthy_listen
+        redis.pubsub.side_effect = [broken, healthy]
+
+        with patch.object(sockets.DirectChannel, "RECONNECT_DELAY_SECS", 0):
+            client = registered("42")
+            listener = sockets.chat_backend.direct_channels.get("dallinger_direct")
+            gevent.wait(timeout=1)
+
+        # redis-py leaves the broken connection as it was, so the listener
+        # drops it and subscribes again on a fresh one.
+        broken.close.assert_called_once_with()
+        healthy.subscribe.assert_called_once_with([b"dallinger_direct"])
+        client.ws.send.assert_called_once_with('dallinger_direct:{"type": "wake"}')
+        assert sockets.chat_backend.direct_channels.get("dallinger_direct") is listener
+
+
+class TestProcessToken:
+    def test_the_token_is_stable_within_a_process(self, sockets):
+        assert sockets.process_token() == sockets.process_token()
+
+    def test_a_forked_worker_gets_a_token_of_its_own(self, sockets):
+        # With preload_app this module is imported before the fork, so a token
+        # fixed at import would be shared and every worker would discard the
+        # others' envelopes as its own.
+        before = sockets.process_token()
+
+        with patch.object(sockets.os, "getpid", return_value=-1):
+            assert sockets.process_token() != before
+
+
+class TestParsedEnvelope:
+    def test_a_well_formed_envelope_comes_back(self, sockets):
+        envelope = envelope_of(DIRECT_SEND, dict(DIRECT_SEND, scope="page-7"))
+
+        assert sockets.parsed_envelope(json.dumps(envelope)) == envelope
+
+    def test_unreadable_sends_are_dropped_and_the_rest_kept(self, sockets):
+        first = dict(DIRECT_SEND, scope="page-7")
+        second = dict(DIRECT_SEND, participant_ids=["43"])
+        items = [first, dict(DIRECT_SEND, scope=7), second, "not a send", {}]
+
+        with patch.object(sockets, "log") as log:
+            parsed = sockets.parsed_envelope(json.dumps(envelope_of(*items)))
+
+        assert parsed == envelope_of(first, second)
+        assert log.call_count == 3
+
+    @pytest.mark.parametrize(
+        "envelope",
+        [
+            pytest.param({"items": [DIRECT_SEND]}, id="no-origin"),
+            pytest.param(dict(DIRECT_ENVELOPE, origin=7), id="origin-not-text"),
+            pytest.param({"origin": "another process"}, id="no-items"),
+            pytest.param(dict(DIRECT_ENVELOPE, items=DIRECT_SEND), id="not-a-list"),
+        ],
+    )
+    def test_an_envelope_needs_an_origin_and_a_list_of_items(self, sockets, envelope):
+        assert sockets.parsed_envelope(json.dumps(envelope)) is None
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            pytest.param("not json", id="not-json"),
+            pytest.param("[]", id="a-json-array"),
+            pytest.param('"text"', id="a-json-string"),
+            pytest.param("12", id="a-json-number"),
+            pytest.param("null", id="json-null"),
+            pytest.param(None, id="no-data"),
+        ],
+    )
+    def test_a_frame_carrying_no_envelope_is_refused(self, sockets, data):
+        assert sockets.parsed_envelope(data) is None
+
+    @pytest.mark.parametrize("field", ["participant_ids", "payload", "scope"])
+    def test_a_send_missing_a_field_is_dropped(self, sockets, field):
+        send = dict(DIRECT_SEND)
+        del send[field]
+
+        assert sockets.parsed_envelope(json.dumps(envelope_of(send)))["items"] == []
+
+    @pytest.mark.parametrize(
+        "field, value",
+        [
+            pytest.param("participant_ids", "42", id="ids-not-a-list"),
+            pytest.param("participant_ids", [42], id="an-id-not-text"),
+            pytest.param("payload", {"type": "wake"}, id="payload-not-text"),
+            pytest.param("payload", None, id="payload-null"),
+            pytest.param("scope", 7, id="scope-not-text"),
+        ],
+    )
+    def test_a_send_with_a_field_of_the_wrong_type_is_dropped(
+        self, sockets, field, value
+    ):
+        envelope = envelope_of(dict(DIRECT_SEND, **{field: value}))
+
+        assert sockets.parsed_envelope(json.dumps(envelope))["items"] == []
+
+
+class TestReservedChannels:
+    def test_a_client_may_not_subscribe_to_the_direct_channel(
+        self, sockets, mocksocket
+    ):
+        with patch.object(sockets.chat_backend, "subscribe") as subscribe:
+            with patch.object(
+                sockets, "request", Mock(args={"channel": sockets.DIRECT_CHANNEL})
+            ):
+                sockets.chat(mocksocket)
+
+        # The connection drops its channels as it closes, so the channel map
+        # is empty afterwards whether or not the name was refused.
+        subscribe.assert_not_called()
+
+    def test_a_client_may_not_subscribe_to_the_control_channel(
+        self, sockets, mocksocket
+    ):
+        with patch.object(sockets.chat_backend, "subscribe") as subscribe:
+            with patch.object(
+                sockets, "request", Mock(args={"channel": sockets.CONTROL_CHANNEL})
+            ):
+                sockets.chat(mocksocket)
+
+        # The connection drops its channels as it closes, so the channel map
+        # is empty afterwards whether or not the name was refused.
+        subscribe.assert_not_called()
+
+    def test_a_client_may_not_publish_to_the_direct_channel(self, sockets, mocksocket):
+        mocksocket.receive.return_value = (
+            'dallinger_direct:{"participant_ids": ["42"], "payload": "{}"}'
+        )
+
+        sockets.Client(mocksocket).publish()
+
+        assert published_envelopes(sockets) == []
+
+    def test_the_browser_reserves_the_same_channels(self):
+        from dallinger import db
+
+        script = (
+            Path(db.__file__).parent / "frontend/static/scripts/dallinger2.js"
+        ).read_text()
+        constants = dict(re.findall(r'dlgr\.(\w+_CHANNEL) = "([^"]+)";', script))
+        listed = re.search(r"var RESERVED_CHANNELS = \[(.*?)\];", script, re.S)
+        reserved = {
+            literal or constants[name]
+            for literal, name in re.findall(r'"([^"]+)"|dlgr\.(\w+)', listed.group(1))
+        }
+
+        assert reserved == db.RESERVED_CHANNELS
+
+
+class TestSubscriptionHandshake:
+    """A connection relays only once redis has confirmed its subscription."""
+
+    def connect(self, sockets, ws, **args):
+        with patch.object(sockets, "request", Mock(args=args)):
+            sockets.chat(ws)
+
+    @pytest.mark.timeout(10)
+    def test_reading_waits_for_the_confirmation(self, sockets, pubsub, scripted_socket):
+        confirm = Event()
+
+        def withheld_listen():
+            confirm.wait()
+            yield SUBSCRIBE_CONFIRMATION
+            Event().wait()
+            yield {}
+
+        pubsub.listen.side_effect = withheld_listen
+        ws = scripted_socket("special:payload")
+
+        with patch.object(sockets, "SUBSCRIPTION_TIMEOUT_SECS", 30):
+            serving = gevent.spawn(self.connect, sockets, ws, channel="special")
+            gevent.sleep(0.05)
+
+            # Publishing now would reach every other subscriber and not this
+            # connection, so nothing is read from it yet.
+            assert ws.receive.call_count == 0
+
+            confirm.set()
+            serving.join(timeout=5)
+
+        assert ws.receive.call_count > 0
+
+    @pytest.mark.timeout(10)
+    def test_an_addressable_connection_waits_for_the_direct_listener(
+        self, sockets, pubsub, scripted_socket
+    ):
+        confirm = Event()
+
+        def withheld_listen():
+            confirm.wait()
+            yield SUBSCRIBE_CONFIRMATION
+            Event().wait()
+            yield {}
+
+        pubsub.listen.side_effect = withheld_listen
+        ws = scripted_socket("game:payload")
+
+        with patch.object(sockets, "SUBSCRIPTION_TIMEOUT_SECS", 30):
+            serving = gevent.spawn(self.connect, sockets, ws, participant_id="42")
+            gevent.sleep(0.05)
+
+            # A directed send published now would find no listener here.
+            assert ws.receive.call_count == 0
+
+            confirm.set()
+            serving.join(timeout=5)
+
+        assert ws.receive.call_count > 0
+
+    @pytest.mark.timeout(10)
+    def test_the_wait_is_bounded(self, sockets, pubsub, scripted_socket):
+        def silent_listen():
+            Event().wait()
+            yield {}
+
+        pubsub.listen.side_effect = silent_listen
+        ws = scripted_socket("special:payload")
+        timeout = 0.5
+
+        logger = sockets.app.logger
+        with (
+            patch.object(sockets, "SUBSCRIPTION_TIMEOUT_SECS", timeout),
+            patch.object(logger, "warning") as warning,
+        ):
+            started = time.monotonic()
+            self.connect(sockets, ws, channel="special", participant_id="42")
+            elapsed = time.monotonic() - started
+
+        # A subscription that never confirms delays the connection rather than
+        # holding it open until redis recovers. The channel and the direct
+        # listener share one budget instead of taking one each.
+        assert ws.receive.call_count > 0
+        assert elapsed < 1.5 * timeout
+        warned = [call.args[0] for call in warning.call_args_list]
+        assert any("special" in message for message in warned)
+        assert any(sockets.DIRECT_CHANNEL in message for message in warned)
+
+    @pytest.mark.timeout(10)
+    def test_a_lost_connection_clears_the_confirmation(self, sockets, pubsub):
+        def confirm_then_drop():
+            yield SUBSCRIBE_CONFIRMATION
+            raise sockets.ConnectionError("dropped")
+
+        pubsub.listen.side_effect = [confirm_then_drop(), iter([])]
+        channel = sockets.Channel("custom")
+
+        with patch.object(sockets.gevent, "sleep"):
+            channel.listen()
+
+        # redis-py resubscribes on the next connection, so nothing is arriving
+        # on this channel until a fresh confirmation says so.
+        assert not channel.listening.is_set()
+
+    @pytest.mark.timeout(10)
+    def test_a_connection_killed_while_waiting_is_torn_down(
+        self, sockets, pubsub, scripted_socket
+    ):
+        def silent_listen():
+            Event().wait()
+            yield {}
+
+        pubsub.listen.side_effect = silent_listen
+        ws = scripted_socket("special:payload")
+
+        with patch.object(sockets, "SUBSCRIPTION_TIMEOUT_SECS", 30):
+            serving = gevent.spawn(self.connect, sockets, ws, channel="special")
+            gevent.sleep(0.05)
+            serving.kill()
+
+        # The wait hands control to the hub, so the client is subscribed while
+        # a kill can reach it.
+        assert "special" not in sockets.chat_backend.channels
+
+    @pytest.mark.timeout(10)
+    def test_a_rebuilt_subscription_confirms_again(self, sockets, redis):
+        from redis.exceptions import ResponseError
+
+        def confirm_then_fail():
+            yield SUBSCRIBE_CONFIRMATION
+            raise ResponseError("bad reply")
+
+        first = Mock()
+        first.listen.side_effect = confirm_then_fail
+        second = Mock()
+        second.listen.side_effect = lambda: iter([SUBSCRIBE_CONFIRMATION])
+        redis.pubsub.side_effect = [first, second]
+        channel = sockets.Channel("custom")
+
+        with (
+            patch.object(sockets.Channel, "rebuilds_on_protocol_error", True),
+            patch.object(sockets.gevent, "sleep"),
+        ):
+            channel.listen()
+
+        # A rebuild subscribes the replacement pubsub, whose own confirmation
+        # is what makes the channel relayable again.
+        second.subscribe.assert_called_once_with([b"custom"])
+        assert channel.listening.is_set()
