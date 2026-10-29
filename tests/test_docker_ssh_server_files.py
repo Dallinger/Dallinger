@@ -800,6 +800,18 @@ MANIFEST = docker_ssh.DeploymentManifest(
         ),
         (OLD_CADDYFILE, {SITE: APP_SITE}, "https://exp.example.org"),
         (
+            docker_ssh.CADDYFILE_SERVER.format(host="lab.example.org", tls="tls x"),
+            {SITE: APP_SITE},
+            "https://exp.example.org",
+        ),
+        # Caddy serves no caddy.d site without a Caddyfile that imports caddy.d.
+        (
+            RELEASED_ROOT_CADDYFILE.replace("dlgr-abcd1234_web", "other_web"),
+            {SITE: APP_SITE},
+            None,
+        ),
+        (None, {SITE: APP_SITE}, None),
+        (
             OLD_CADDYFILE,
             {SITE: APP_SITE, "dlgr-abcd1234/deployment.json": MANIFEST.to_json()},
             "https://manifest.example.org",
@@ -810,7 +822,7 @@ MANIFEST = docker_ssh.DeploymentManifest(
                 "reverse_proxy dlgr", "# reverse_proxy dlgr"
             ),
             {SITE: APP_SITE},
-            "https://exp.example.org",
+            None,
         ),
     ],
     ids=[
@@ -818,6 +830,9 @@ MANIFEST = docker_ssh.DeploymentManifest(
         "leftover-site",
         "root.d",
         "caddy.d",
+        "current-caddy.d",
+        "released-root-other-app",
+        "no-caddyfile",
         "manifest",
         "none",
         "commented-root-route",
@@ -826,8 +841,11 @@ MANIFEST = docker_ssh.DeploymentManifest(
 def test_get_apps_finds_the_address_of_apps_without_a_manifest(
     server, caddyfile, files, origin
 ):
+    (server / "dallinger/Caddyfile").unlink()
     files = {"Caddyfile": caddyfile, "dlgr-abcd1234/docker-compose.yml": "", **files}
     for name, text in files.items():
+        if text is None:
+            continue
         path = server / "dallinger" / name
         path.parent.mkdir(exist_ok=True)
         path.write_text(text)

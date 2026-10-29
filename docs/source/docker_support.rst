@@ -175,8 +175,9 @@ ingress mode, and the monitoring kind and path. ``apps`` shows the recorded
 ingress and origin. For a classic app without this file, such as one
 deployed by Dallinger 12.4 or earlier, ``apps`` reads the origin from the
 app's Caddy route: the server's own site for a root-domain app, otherwise the
-app's ``caddy.d/<app>`` site. Host records reject fields whose names look like
-tokens or passwords.
+app's ``caddy.d/<app>`` site if the server's ``Caddyfile`` imports
+``caddy.d``. An app with neither route has no origin. Host records reject
+fields whose names look like tokens or passwords.
 
 A deploy without ``--app`` names the app ``dlgr-`` followed by the first eight
 characters of the experiment UUID (for example ``dlgr-d5543ddd``). With

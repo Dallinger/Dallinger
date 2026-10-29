@@ -1385,8 +1385,9 @@ def _load_remote_manifests(executor, app_names):
 # For each app, prints "<app>\t<deployment.json on one line>" and
 # "<app>\tsite\t<line>", the first site line of the Caddy file that routes it:
 # the Caddyfile for an app on the server's own host (root.d/<app>, or an older
-# Dallinger's Caddyfile route to the app), otherwise caddy.d/<app>. Older root
-# Caddyfiles don't import caddy.d, so the root route wins over a leftover site.
+# Dallinger's Caddyfile route to the app), otherwise caddy.d/<app> if the
+# Caddyfile imports caddy.d. Older root Caddyfiles don't, so Caddy serves no
+# caddy.d site there, and without a Caddyfile it serves nothing.
 # Matches an active "reverse_proxy <app>_web:5000" line in $d/Caddyfile, not a
 # comment. App names may contain ".", which is escaped for the regex.
 _CADDYFILE_ROUTE_GREP = (
@@ -1394,14 +1395,21 @@ _CADDYFILE_ROUTE_GREP = (
     r'$(printf %s "$app" | sed "s/[.]/\\\\./g")_web:5000([[:space:]]|\$)" "$d/Caddyfile"'
 )
 _ROOT_ROUTE_TEST = f'[ -f "$d/root.d/$app" ] || {_CADDYFILE_ROUTE_GREP} 2>/dev/null'
+_CADDYFILE_IMPORTS_CADDY_D = (
+    r'grep -qE "^[[:space:]]*import[[:space:]]+caddy\\.d/\\*([[:space:]]|\$)" '
+    '"$d/Caddyfile" 2>/dev/null'
+)
 _APP_RECORDS_SCRIPT = (
     """for app in {apps}; do d=~/dallinger
   f=$d/$app/deployment.json
   [ -f "$f" ] && printf '%s\\t' "$app" && tr -d '\\n' < "$f" && echo
-  f=$d/caddy.d/$app
+  f=
   if """
     + _ROOT_ROUTE_TEST.replace("{", "{{").replace("}", "}}")
-    + """; then f=$d/Caddyfile; fi
+    + """; then f=$d/Caddyfile
+  elif """
+    + _CADDYFILE_IMPORTS_CADDY_D
+    + """; then f=$d/caddy.d/$app; fi
   [ -f "$f" ] && printf '%s\\tsite\\t%s\\n' "$app" "$(grep -m1 -E '^[^#[:space:]{{(@][^{{#]*[{{]' "$f")"
 done; true"""
 )
