@@ -113,7 +113,11 @@ var dallinger = (function () {
       this.hitId = dlgr.getUrlParameter('hitId');
       this.workerId = dlgr.getUrlParameter('workerId');
       this.assignmentId = dlgr.getUrlParameter('assignmentId');
-      this.uniqueId = dlgr.getUrlParameter('workerId') + ":" + dlgr.getUrlParameter('assignmentId');
+      var workerId = dlgr.getUrlParameter('workerId'),
+          assignmentId = dlgr.getUrlParameter('assignmentId');
+      if (workerId !== undefined && assignmentId !== undefined) {
+        this.uniqueId = workerId + ":" + assignmentId;
+      }
       this.mode = dlgr.getUrlParameter('mode');
       // Store all url parameters as entry information.
       // This won't work in IE, but should work in Edge.
@@ -404,6 +408,21 @@ var dallinger = (function () {
   };
 
   /**
+   * The URL of the participant's ``/recruiter-exit`` page. It carries the
+   * participant's ``unique_id`` as well as their ``participant_id``, so an
+   * experiment can check that the visitor is that participant.
+   *
+   * @returns {string} The exit page's path and query string.
+   */
+  dlgr.recruiterExitRoute = function() {
+    var params = {participant_id: dlgr.identity.participantId};
+    if (dlgr.identity.uniqueId) {
+      params.unique_id = dlgr.identity.uniqueId;
+    }
+    return "/recruiter-exit?" + $.param(params);
+  };
+
+  /**
    * Notify the experiment that the participant's assignment is complete.
    * Performs a ``POST`` request to the experiment's ``/worker_complete`` route,
    * then redirects the main/parent window to the ``/recruiter-exit`` route and
@@ -421,7 +440,7 @@ var dallinger = (function () {
   dlgr.submitAssignment = function() {
     var deferred = $.Deferred(),
         participantId = dlgr.identity.participantId,
-        exitRoute = "/recruiter-exit?participant_id=" + participantId;
+        exitRoute = dlgr.recruiterExitRoute();
 
     dlgr.post('/worker_complete', {
         'participant_id': participantId

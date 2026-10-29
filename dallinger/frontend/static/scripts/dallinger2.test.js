@@ -180,3 +180,43 @@ describe('identity', function () {
   });
 
 });
+
+describe('recruiterExitRoute', function () {
+  var dlgr;
+
+  beforeEach(function () {
+    global.$ = global.jQuery = require('./jquery-4.0.0.min');
+    window.history.pushState({}, 'Test Title',
+      'test.html?recruiter=hotair&hitId=HHH&assignmentId=AAA&workerId=WWW&mode=debug'
+    );
+    dlgr = require('./dallinger2').dallinger;
+  });
+
+  afterEach(function () {
+    store.clear();
+  });
+
+  test('carries the unique_id along with the participant_id', () => {
+    dlgr.identity.participantId = 7;
+    expect(dlgr.recruiterExitRoute()).toBe(
+      '/recruiter-exit?participant_id=7&unique_id=WWW%3AAAA'
+    );
+  });
+
+  test('keeps the unique_id on a page reached by goToPage', () => {
+    dlgr.identity.participantId = 7;
+    window.history.pushState({}, 'Test Title', 'questionnaire?participant_id=7');
+    jest.resetModules();
+    dlgr = require('./dallinger2').dallinger;
+    expect(dlgr.recruiterExitRoute()).toBe(
+      '/recruiter-exit?participant_id=7&unique_id=WWW%3AAAA'
+    );
+  });
+
+  test('is where submitAssignment sends the participant', () => {
+    var route = jest.spyOn(dlgr, 'recruiterExitRoute');
+    dlgr.post = jest.fn(() => $.Deferred().resolve().promise());
+    dlgr.submitAssignment();
+    expect(route).toHaveBeenCalled();
+  });
+});

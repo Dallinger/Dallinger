@@ -4,6 +4,10 @@
 
 ### Changed
 
+- `dallinger.submitAssignment()` adds the participant's `unique_id` to the
+  `/recruiter-exit` link, so an experiment's exit page can check that the
+  visitor is that participant. The new `dallinger.recruiterExitRoute()`
+  returns the link. Dallinger's own exit page ignores the extra parameter.
 - Cloudflare Tunnel deployments now use cloudflared 2026.10.4, including the
   eMudhra certificate-compromise mitigation. Existing connectors require a
   separate image update and restart.
@@ -470,6 +474,9 @@
 
 ### Fixed
 
+- `dallinger.identity.uniqueId` keeps the participant's value on pages whose
+  URL has no `workerId` and `assignmentId`, such as the ones `goToPage()`
+  opens. It was set to `"undefined:undefined"` there.
 - Fixed a race condition in `POST /participant` where two concurrent signup
   requests could both be recorded as `"working"` when only one should be
   (write-skew at the occupancy count). Also fixed the related issue where a
