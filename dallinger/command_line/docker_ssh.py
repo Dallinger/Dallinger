@@ -1387,10 +1387,13 @@ def _load_remote_manifests(executor, app_names):
 # the Caddyfile for an app on the server's own host (root.d/<app>, or an older
 # Dallinger's Caddyfile route to the app), otherwise caddy.d/<app>. Older root
 # Caddyfiles don't import caddy.d, so the root route wins over a leftover site.
-_ROOT_ROUTE_TEST = (
-    '[ -f "$d/root.d/$app" ] || '
-    'grep -qF "reverse_proxy ${app}_web:5000" "$d/Caddyfile" 2>/dev/null'
+# Matches an active "reverse_proxy <app>_web:5000" line in $d/Caddyfile, not a
+# comment. App names may contain ".", which is escaped for the regex.
+_CADDYFILE_ROUTE_GREP = (
+    r'grep -qE "^[[:space:]]*reverse_proxy[[:space:]]+'
+    r'$(printf %s "$app" | sed "s/[.]/\\\\./g")_web:5000([[:space:]]|\$)" "$d/Caddyfile"'
 )
+_ROOT_ROUTE_TEST = f'[ -f "$d/root.d/$app" ] || {_CADDYFILE_ROUTE_GREP} 2>/dev/null'
 _APP_RECORDS_SCRIPT = (
     """for app in {apps}; do d=~/dallinger
   f=$d/$app/deployment.json
@@ -1417,8 +1420,7 @@ def _served_at_server_host(executor, app):
         '[ -f "$d/$app/docker-compose.yml" ] || exit 1; '
         '[ -f "$d/root.d/$app" ] && exit 0; '
         '[ -x "$d/root.d" ] || [ ! -e "$d/root.d" ] || exit 2; '
-        '[ -e "$d/Caddyfile" ] || exit 1; '
-        'grep -qF "reverse_proxy ${app}_web:5000" "$d/Caddyfile"'
+        '[ -e "$d/Caddyfile" ] || exit 1; ' + _CADDYFILE_ROUTE_GREP
     )
     if status not in (0, 1):
         raise click.ClickException(

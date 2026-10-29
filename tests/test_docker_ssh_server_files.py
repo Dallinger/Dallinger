@@ -805,8 +805,23 @@ MANIFEST = docker_ssh.DeploymentManifest(
             "https://manifest.example.org",
         ),
         (OLD_CADDYFILE, {}, None),
+        (
+            RELEASED_ROOT_CADDYFILE.replace(
+                "reverse_proxy dlgr", "# reverse_proxy dlgr"
+            ),
+            {SITE: APP_SITE},
+            "https://exp.example.org",
+        ),
     ],
-    ids=["released-root", "leftover-site", "root.d", "caddy.d", "manifest", "none"],
+    ids=[
+        "released-root",
+        "leftover-site",
+        "root.d",
+        "caddy.d",
+        "manifest",
+        "none",
+        "commented-root-route",
+    ],
 )
 def test_get_apps_finds_the_address_of_apps_without_a_manifest(
     server, caddyfile, files, origin
@@ -824,6 +839,10 @@ def test_get_apps_finds_the_address_of_apps_without_a_manifest(
         "classic",
         origin,
     )
+    on_server_host = docker_ssh._served_at_server_host(
+        docker_ssh._executor_for_server("lab"), "dlgr-abcd1234"
+    )
+    assert on_server_host == (origin == "https://lab.example.org")
 
 
 def test_existing_app_commands_accept_generated_names(server, monkeypatch):
