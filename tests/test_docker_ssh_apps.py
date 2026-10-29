@@ -888,26 +888,33 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "build_option, image_name",
+    "build_option, image_name, in_registry",
     [
-        ("push_build", None),
-        ("local_build", None),
-        (None, None),
-        ("push_build", "registry.example/exp:1"),
+        ("push_build", None, None),
+        ("local_build", None, None),
+        (None, None, None),
+        ("local_build", "registry.example/exp:1", True),
+        ("local_build", "registry.example/exp:1", False),
     ],
 )
 def test_only_pushed_deploys_need_image_base_name(
-    monkeypatch, build_option, image_name
+    monkeypatch, build_option, image_name, in_registry
 ):
     """Pushed deploys stop before side effects; others reach the build.
 
-    A configured ``docker_image_name`` is reused, so it needs no base name.
+    A configured ``docker_image_name`` the registry has is reused, so it needs
+    no base name. If the registry can't be checked, the deploy would rebuild
+    and push the image, so it stops before the root-domain cleanup.
     """
     config = Configuration()
     config._reset(register_defaults=True)
     config.ready = True
     root_domain = mock.Mock()
     build = mock.Mock(side_effect=click.Abort)
+    docker_client = mock.Mock()
+    if not in_registry:
+        docker_client.images.get_registry_data.side_effect = RuntimeError("down")
+    monkeypatch.setattr("docker.from_env", lambda **kwargs: docker_client)
     monkeypatch.setattr(
         docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example.org"}}
     )
@@ -933,15 +940,16 @@ def test_only_pushed_deploys_need_image_base_name(
         **({build_option: True} if build_option else {}),
     )
 
-    if build_option is None or image_name:
+    if build_option is None or in_registry:
         with pytest.raises(click.Abort):
             docker_ssh_module._deploy_in_mode(**kwargs)
         pre_launch_checks.assert_called_once()
+        root_domain.assert_called_once()
         build.assert_called_once()
         return
     with pytest.raises(click.ClickException, match="docker_image_base_name"):
         docker_ssh_module._deploy_in_mode(**kwargs)
-    pre_launch_checks.assert_not_called()
+    assert pre_launch_checks.called == bool(image_name)
     root_domain.assert_not_called()
     build.assert_not_called()
 

@@ -2366,37 +2366,13 @@ def _build_and_push_image(
 
 
 @contextmanager
-def _built_image(
-    config,
-    experiment_files,
-    app_name,
-    server,
-    local_build,
-    push_build,
-    *,
-    app=None,
-    remove_for_app=None,
-):
-    """Yield the experiment image to deploy, building and pushing it if needed.
+def _image_docker_client(server, local_build):
+    """Yield a client for the Docker daemon that builds the image.
 
-    Reuses ``docker_image_name`` when the registry has it. Otherwise
-    assembles the experiment and builds the image, on the server unless
-    ``local_build`` is set, and pushes it for a local build or with
-    ``push_build``. ``app`` is the deployed app name, which names the image
-    when ``docker_image_base_name`` is unset; it defaults to ``app_name``,
-    then to the launch id. With ``remove_for_app``, the id of the new app the
-    image is for, an image built here is removed again if the block raises
-    (see ``_remove_aborted_build``).
+    That is the local daemon with ``local_build``, otherwise the server's
+    daemon over SSH.
     """
     import docker
-
-    from dallinger.command_line.docker import push_image
-    from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
-
-    image_name = config.get("docker_image_name", None)
-
-    # If we build locally we have to push the image to the registry
-    push_build = push_build or local_build
 
     # Save any current values from environment so we can restore them
     original_docker_host = os.environ.get("DOCKER_HOST")
@@ -2423,8 +2399,59 @@ def _built_image(
         _ignore_docker_ssh_resource_warnings()
         # Avoid Paramiko by using the system ssh client
         docker_client = docker.from_env(use_ssh_client=True)
+        yield docker_client
+    finally:
+        # Close client first so the SSH connection tears down cleanly
+        if docker_client is not None:
+            try:
+                docker_client.close()
+            except Exception:
+                pass
 
-        if image_name and _image_usable_from_registry(docker_client, image_name):
+        # Restore DOCKER_HOST
+        if original_docker_host is None:
+            os.environ.pop("DOCKER_HOST", None)
+        else:
+            os.environ["DOCKER_HOST"] = original_docker_host
+
+
+@contextmanager
+def _built_image(
+    config,
+    experiment_files,
+    app_name,
+    server,
+    local_build,
+    push_build,
+    *,
+    app=None,
+    remove_for_app=None,
+    image_usable=False,
+):
+    """Yield the experiment image to deploy, building and pushing it if needed.
+
+    Reuses ``docker_image_name`` when the registry has it, or without
+    checking when ``image_usable`` says the caller already found it there.
+    Otherwise assembles the experiment and builds the image, on the server
+    unless ``local_build`` is set, and pushes it for a local build or with
+    ``push_build``. ``app`` is the deployed app name, which names the image
+    when ``docker_image_base_name`` is unset; it defaults to ``app_name``,
+    then to the launch id. With ``remove_for_app``, the id of the new app the
+    image is for, an image built here is removed again if the block raises
+    (see ``_remove_aborted_build``).
+    """
+    from dallinger.command_line.docker import push_image
+    from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
+
+    image_name = config.get("docker_image_name", None)
+
+    # If we build locally we have to push the image to the registry
+    push_build = push_build or local_build
+
+    with _image_docker_client(server, local_build) as docker_client:
+        if image_name and (
+            image_usable or _image_usable_from_registry(docker_client, image_name)
+        ):
             yield image_name
             return
 
@@ -2466,19 +2493,6 @@ def _built_image(
                     docker_client, built_image, server, local_build, remove_for_app
                 )
             raise
-    finally:
-        # Close client first so the SSH connection tears down cleanly
-        if docker_client is not None:
-            try:
-                docker_client.close()
-            except Exception:
-                pass
-
-        # Restore DOCKER_HOST
-        if original_docker_host is None:
-            os.environ.pop("DOCKER_HOST", None)
-        else:
-            os.environ["DOCKER_HOST"] = original_docker_host
 
 
 def _remove_aborted_build(docker_client, image_name, server, local_build, app):
@@ -2893,6 +2907,20 @@ def _deploy_in_mode(
 
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
     _check_compose_project_free(slot_executor, experiment_id, update)
+    image_usable = False
+    if (
+        (push_build or local_build)
+        and config.get("docker_image_name", None)
+        and not config.get("docker_image_base_name", None)
+    ):
+        # Rebuilding an unusable configured image would need the base name,
+        # so find out before the root-domain cleanup.
+        with _image_docker_client(server, local_build) as docker_client:
+            image_usable = _image_usable_from_registry(
+                docker_client, config.get("docker_image_name")
+            )
+        if not image_usable:
+            _image_base_name(config, None, push=True)
     if takes_root_domain:
         ensure_root_domain_ready(
             server=server,
@@ -2912,6 +2940,7 @@ def _deploy_in_mode(
         push_build,
         app=experiment_id,
         remove_for_app=None if update else experiment_id,
+        image_usable=image_usable,
     ) as image_name:
         # Read after the build, which sets a dashboard password if config has none.
         dashboard_user = config.get("dashboard_user", "admin")

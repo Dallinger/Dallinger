@@ -10,7 +10,9 @@
   named after the app, lowercased, with separators that Docker rejects
   (such as `..` or `._`) replaced by `-` (e.g. `my-study:<launch id>`). Deploys
   that push the image still need the setting and now stop with an `Error:`
-  line naming it before building or changing anything on the server.
+  line naming it before building or changing anything on the server,
+  including when a configured `docker_image_name` can't be reused from the
+  registry and would have to be rebuilt.
   Previously every docker-ssh build stopped with a `KeyError` after
   assembling the experiment when the setting was unset. When such an image
   (any name without a `/`) is already on the server, docker-ssh no longer
