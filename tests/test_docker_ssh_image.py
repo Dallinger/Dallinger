@@ -78,6 +78,23 @@ def test_registry_image_is_deployed_without_building(monkeypatch):
     setup.assert_not_called()
 
 
+def test_image_found_by_the_caller_is_reused_without_a_docker_client(monkeypatch):
+    from_env = mock.Mock()
+    monkeypatch.setattr(docker, "from_env", from_env)
+
+    with docker_ssh_module._built_image(
+        {"docker_image_name": "img:1"},
+        [],
+        "app",
+        "lab",
+        False,
+        False,
+        image_usable=True,
+    ) as image_name:
+        assert image_name == "img:1"
+    from_env.assert_not_called()
+
+
 class TestImageBaseName:
     @pytest.mark.parametrize(
         "app, expected",

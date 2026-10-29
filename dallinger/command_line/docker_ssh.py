@@ -2448,10 +2448,12 @@ def _built_image(
     # If we build locally we have to push the image to the registry
     push_build = push_build or local_build
 
+    if image_usable:
+        yield image_name
+        return
+
     with _image_docker_client(server, local_build) as docker_client:
-        if image_name and (
-            image_usable or _image_usable_from_registry(docker_client, image_name)
-        ):
+        if image_name and _image_usable_from_registry(docker_client, image_name):
             yield image_name
             return
 
@@ -2842,9 +2844,12 @@ def _deploy_in_mode(
 
     Building the image can take minutes, so every check that does not need
     the image runs first. The root-domain cleanup, which can destroy apps,
-    follows the other checks. Only the app-name check comes after it, since
-    the cleanup can free that name; the Compose project check comes before
-    it, since the cleanup keeps the data that a clashing name would share.
+    follows the other checks. Just before it, a configured
+    ``docker_image_name`` is looked up in the registry, so a missing image,
+    or a rebuild with no base name to push to, stops the deploy first. Only
+    the app-name check comes after the cleanup, since the cleanup can free
+    that name; the Compose project check comes before it, since the cleanup
+    keeps the data that a clashing name would share.
     """
     if app_name:
         _check_app_name_not_reserved(app_name)
@@ -2908,20 +2913,14 @@ def _deploy_in_mode(
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
     _check_compose_project_free(slot_executor, experiment_id, update)
     image_usable = False
-    if (
-        (push_build or local_build)
-        and config.get("docker_image_name", None)
-        and not config.get("docker_image_base_name", None)
-    ):
-        # Rebuilding an unusable configured image would need the base name,
-        # so find out before the root-domain cleanup.
-        with _image_docker_client(server, local_build) as docker_client:
-            image_usable = _image_usable_from_registry(
-                docker_client, config.get("docker_image_name")
-            )
-        if not image_usable:
-            _image_base_name(config, None, push=True)
     if takes_root_domain:
+        if config.get("docker_image_name", None):
+            with _image_docker_client(server, local_build) as docker_client:
+                image_usable = _image_usable_from_registry(
+                    docker_client, config.get("docker_image_name")
+                )
+            if not image_usable:
+                _image_base_name(config, experiment_id, push_build or local_build)
         ensure_root_domain_ready(
             server=server,
             update=update,
