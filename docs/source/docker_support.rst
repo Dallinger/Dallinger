@@ -172,8 +172,25 @@ experiments deployed this way can be found under the `dallinger docker-ssh` comm
 Each ``docker-ssh`` deploy writes ``~/dallinger/<app>/deployment.json`` on the
 server. The file records non-secret metadata: the public HTTPS origin, the
 ingress mode, and the monitoring kind and path. ``apps`` shows the recorded
-ingress and origin. Host records reject fields whose names look like tokens
-or passwords.
+ingress and origin. For a classic app without this file, such as one
+deployed by Dallinger 12.4 or earlier, ``apps`` reads the origin from the
+app's Caddy route: the server's own site for a root-domain app, otherwise the
+app's ``caddy.d/<app>`` site if the server's ``Caddyfile`` imports
+``caddy.d``. An app with neither route has no origin. Host records reject
+fields whose names look like tokens or passwords.
+
+A deploy without ``--app`` names the app ``dlgr-`` followed by the first eight
+characters of the experiment UUID (for example ``dlgr-d5543ddd``). With
+classic ingress, the app is served at the server's own host, or at the
+deploy's ``--dns-host``. ``apps`` lists it under that name, which
+``destroy``, ``export``, ``hibernate`` and ``awaken`` accept with ``--app``.
+To update an app on the server's own host in place, run the deploy with
+``--update --app dlgr-d5543ddd``. Without ``--update``, a deploy whose
+``--app`` names an app already deployed on the server's own host is
+refused, because ``--app`` would move it to a subdomain. A new ``--app``
+name starting with ``dlgr-`` deploys to a subdomain like any other name;
+leave out ``--app`` and ``--dns-host`` to deploy a new app to the server's own
+host.
 
 The app's database password lives in ``~/dallinger/<app>/.env`` (mode
 ``0600``), which Compose reads, so ``docker-compose.yml`` no longer holds it.
@@ -275,7 +292,9 @@ it stops with an error that lists the
 ``dallinger docker-ssh destroy … --keep-data`` commands to run. An
 ``--update`` of an app on the server's root domain needs ``--app``, but is
 checked and served at the server's own host, so ``<app>.<host>`` need not
-resolve. Any other
+resolve. If the server has a saved DNS host, such an update keeps it, and
+ignores a different ``--dns-host`` with a note; on a server registered by IP
+address without one, ``--dns-host`` still names the server's host. Any other
 classic deploy to a hostname that another app
 already serves, for example a second deploy without ``--app`` under the same
 ``--dns-host``, stops before the image build and names that app, since Caddy
@@ -608,16 +627,16 @@ The output looks like this (abridged; details vary between versions):
     To display the logs for this experiment you can run:
     ssh -i ~/.ssh/server.pem debian@0.0.0.0 "docker compose -f ~/dallinger/dlgr-d5543ddd/docker-compose.yml logs -f"
     Or you can head to https://logs.0.0.0.0.nip.io (user = dallinger)
-    You can now log in to the console at https://dlgr-d5543ddd.0.0.0.0.nip.io/dashboard (user = admin)
+    You can now log in to the console at https://0.0.0.0.nip.io/dashboard (user = admin)
     Dashboard password: foobar
     The experiment server is up.
     Waiting for <public URL> to become reachable before launching (up to 7 min).
     <public URL> is reachable.
     Launching the experiment...
     Initial recruitment list:
-    https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&assignmentId=F2Q19C&hitId=BE9BWB&workerId=YC30TJ&mode=debug
+    https://0.0.0.0.nip.io/ad?recruiter=hotair&assignmentId=F2Q19C&hitId=BE9BWB&workerId=YC30TJ&mode=debug
     Additional details:
-    Single recruitment link: https://dlgr-d5543ddd.0.0.0.0.nip.io/ad?recruiter=hotair&generate_tokens=1&mode=debug
+    Single recruitment link: https://0.0.0.0.nip.io/ad?recruiter=hotair&generate_tokens=1&mode=debug
 
 If your SSH config has a short alias for the server (``Host lab`` with
 ``HostName lab.example.org``, the same user and the ``server_pem`` key), the
@@ -639,7 +658,8 @@ public URL wait or the launch fails, the notes and dashboard password are printe
 before the error, because there is no returned dict.
 
 Dallinger uses the free service [nip.io](https://nip.io/) to provide a URL for the experiment to get an SSL certificate from Let's Encrypt.
-The experiment URL is a combination of the app id and the server IP. In this case the id of the deployed experiment is ``dlgr-d5543ddd``.
+A deploy without ``--app`` is served at the server's own host, here its IP address followed by ``.nip.io``.
+In this case the id of the deployed experiment is ``dlgr-d5543ddd``; with ``--app experiment1`` the experiment URL would be ``https://experiment1.0.0.0.0.nip.io``.
 
 If you need to run an experiment on Amazon Mechanical Turk in sandbox mode you can set the mode to ``sandbox`` using the `-c` option like this:
 
