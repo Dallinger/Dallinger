@@ -9,7 +9,8 @@
   default, without `--push-build` or `--local_build`). The image is then
   named after the app, lowercased, with separators that Docker rejects
   (such as `..` or `._`) replaced by `-` (e.g. `my-study:<launch id>`). Deploys
-  that push the image still need the setting and now stop with an `Error:`
+  that build and push a new image (rather than reuse a configured
+  `docker_image_name`) still need the setting and now stop with an `Error:`
   line naming it before building or changing anything on the server. A
   configured `docker_image_name` that can't be found now also stops the
   deploy before the root-domain cleanup.

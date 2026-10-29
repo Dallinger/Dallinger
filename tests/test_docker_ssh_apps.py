@@ -922,15 +922,18 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         (None, "registry.example/exp:1", "missing"),
     ],
 )
-def test_only_pushed_deploys_need_image_base_name(
+def test_image_base_name_and_configured_image_are_checked_before_cleanup(
     monkeypatch, capsys, build_option, image_name, registry
 ):
-    """Pushed deploys stop before side effects; others reach the build.
+    """Deploys that can't get an image stop before the root-domain cleanup.
 
-    A configured ``docker_image_name`` the registry has is reused, so it needs
-    no base name. If the registry can't be checked, the deploy would rebuild
-    and push the image, so it stops before the root-domain cleanup, as does
-    a configured image that can't be found at all.
+    Without ``docker_image_name``, a pushed build with no base name stops
+    before the pre-launch checks, and a server-only build reaches the
+    cleanup and the build. With ``docker_image_name``, the registry is
+    consulted before the cleanup destroys anything: an image it has is
+    reused without a base name; if it can't be checked, a pushed rebuild
+    stops for the missing base name; and an image that can't be found at
+    all aborts.
     """
     import docker
 

@@ -56,11 +56,12 @@ Examples:
 Image creation
 **************
 
-To push images to a registry (``dallinger docker push``, or a Heroku Docker deploy with
-``dallinger docker deploy`` or ``sandbox``), make sure your experiment specifies a
-``docker_image_base_name`` for your image in its ``config.txt``. A ``dallinger docker-ssh deploy``
-or ``sandbox`` that builds the image on the server without ``--push-build`` or ``--local_build``
-doesn't need it: the image is then named after the app, lowercased, with separators that Docker
+To push newly built images to a registry (``dallinger docker push``, a Heroku Docker deploy with
+``dallinger docker deploy`` or ``sandbox``, or a docker-ssh deploy with ``--push-build`` or
+``--local_build``), make sure your experiment specifies a ``docker_image_base_name`` for your
+image in its ``config.txt``. Reusing a configured ``docker_image_name`` doesn't need it.
+A ``dallinger docker-ssh deploy`` or ``sandbox`` that builds the image on the server without
+``--push-build`` or ``--local_build`` doesn't need it either: the image is then named after the app, lowercased, with separators that Docker
 rejects (such as ``..``) replaced by ``-``. ``dallinger docker build`` doesn't need it either; it
 names the image after the experiment directory in the same way, also replacing spaces and other
 characters that Docker rejects (``My Study`` becomes ``my-study``).

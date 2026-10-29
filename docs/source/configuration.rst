@@ -709,7 +709,8 @@ Docker Deployment Configuration
     To this end the registry needs to be specified in the ``docker_image_base_name``.
     ``dallinger docker push`` and Heroku Docker deploys
     (``dallinger docker deploy/sandbox``) require it, and so does docker-ssh when it
-    pushes the image (``--push-build`` or ``--local_build``).
+    pushes an image it builds (``--push-build`` or ``--local_build``). Reusing a
+    configured ``docker_image_name`` doesn't need it.
     For example:
 
         * ``ghcr.io/<GITHUB_USERNAME>/<GITHUB_REPOSITORY>/<EXPERIMENT_NAME>``
