@@ -2177,7 +2177,9 @@ def _manual_removal_commands(name):
     ]
 
 
-def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=None):
+def ensure_root_domain_ready(
+    server, update, new_app=None, delete_data_command=None, before_destroy=None
+):
     """Offer to destroy the server's classic apps before a root-domain deploy.
 
     Without a terminal, refuses with the destroy commands to run first. The
@@ -2191,7 +2193,9 @@ def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=N
     data, with ``{app}`` standing for the app name; it defaults to
     ``dallinger docker-ssh destroy … --remove-data``. If an app's name is not
     a valid app name, nothing is destroyed and the error says how to remove
-    that app by hand.
+    that app by hand. ``before_destroy``, if given, is called with no
+    arguments once the user agrees and before any app is destroyed; it can
+    raise to stop the deploy.
     """
     if update:
         return True
@@ -2246,6 +2250,8 @@ def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=N
         default=False,
     ):
         raise click.Abort()
+    if before_destroy is not None:
+        before_destroy()
 
     for name in conflicts:
         print_bold(f"Destroying {name} on server {server}")
@@ -2426,13 +2432,13 @@ def _built_image(
     *,
     app=None,
     remove_for_app=None,
-    image_usable=False,
+    image_usable=None,
 ):
     """Yield the experiment image to deploy, building and pushing it if needed.
 
-    Reuses ``docker_image_name`` when the registry has it, or without
-    checking when ``image_usable`` says the caller already found it there.
-    Otherwise assembles the experiment and builds the image, on the server
+    Reuses ``docker_image_name`` when the registry has it. ``image_usable``
+    is the result of a lookup the caller already made: ``True`` reuses the
+    image and ``False`` builds without looking it up again. Otherwise assembles the experiment and builds the image, on the server
     unless ``local_build`` is set, and pushes it for a local build or with
     ``push_build``. ``app`` is the deployed app name, which names the image
     when ``docker_image_base_name`` is unset; it defaults to ``app_name``,
@@ -2453,7 +2459,11 @@ def _built_image(
         return
 
     with _image_docker_client(server, local_build) as docker_client:
-        if image_name and _image_usable_from_registry(docker_client, image_name):
+        if (
+            image_name
+            and image_usable is None
+            and _image_usable_from_registry(docker_client, image_name)
+        ):
             yield image_name
             return
 
@@ -2844,9 +2854,10 @@ def _deploy_in_mode(
 
     Building the image can take minutes, so every check that does not need
     the image runs first. The root-domain cleanup, which can destroy apps,
-    follows the other checks. Just before it, a configured
-    ``docker_image_name`` is looked up in the registry, so a missing image,
-    or a rebuild with no base name to push to, stops the deploy first. Only
+    follows the other checks. Once the user agrees to the cleanup and before
+    it destroys anything, a configured ``docker_image_name`` is looked up in
+    the registry, which pushes a local-only copy, so a missing image, or a
+    rebuild with no base name to push to, stops the deploy first. Only
     the app-name check comes after the cleanup, since the cleanup can free
     that name; the Compose project check comes before it, since the cleanup
     keeps the data that a clashing name would share.
@@ -2912,20 +2923,28 @@ def _deploy_in_mode(
 
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
     _check_compose_project_free(slot_executor, experiment_id, update)
-    image_usable = False
+    image_usable = None
+
+    def check_configured_image():
+        nonlocal image_usable
+        with _image_docker_client(server, local_build) as docker_client:
+            image_usable = _image_usable_from_registry(
+                docker_client, config.get("docker_image_name")
+            )
+        if not image_usable:
+            _image_base_name(config, experiment_id, push_build or local_build)
+
     if takes_root_domain:
-        if config.get("docker_image_name", None):
-            with _image_docker_client(server, local_build) as docker_client:
-                image_usable = _image_usable_from_registry(
-                    docker_client, config.get("docker_image_name")
-                )
-            if not image_usable:
-                _image_base_name(config, experiment_id, push_build or local_build)
         ensure_root_domain_ready(
             server=server,
             update=update,
             new_app=experiment_id,
             delete_data_command=delete_data_command,
+            before_destroy=(
+                check_configured_image
+                if config.get("docker_image_name", None)
+                else None
+            ),
         )
     _check_app_slot(slot_executor, experiment_id, update, resolved_ingress)
 

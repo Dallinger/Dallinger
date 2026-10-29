@@ -704,11 +704,8 @@ def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatc
     )
     monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
     monkeypatch.setattr(docker_ssh_module, "Executor", mock.MagicMock())
-    monkeypatch.setattr(
-        docker_ssh_module,
-        "_image_docker_client",
-        lambda *args: contextlib.nullcontext(mock.MagicMock()),
-    )
+    image_client = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "_image_docker_client", image_client)
     monkeypatch.setattr(
         docker_ssh_module, "_host_caddy_apps", lambda executor: ["old", "older"]
     )
@@ -731,6 +728,8 @@ def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatc
         )
     assert "Aborted!" not in result.output
     destroy.assert_not_called()
+    # The configured image is neither looked up nor pushed.
+    image_client.assert_not_called()
 
 
 def test_get_apps_raises_for_unknown_server(monkeypatch):
@@ -857,9 +856,16 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
     monkeypatch.setattr(
         docker_ssh_module, "_check_compose_project_free", step("compose-project")
     )
-    root_domain = mock.Mock(side_effect=step("root-domain", True))
+    root_domain = mock.Mock(wraps=docker_ssh_module.ensure_root_domain_ready)
     app_slot = mock.Mock(side_effect=step("app-slot"))
     monkeypatch.setattr(docker_ssh_module, "ensure_root_domain_ready", root_domain)
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "_host_caddy_apps", mock.Mock(side_effect=[["old"], []])
+    )
+    monkeypatch.setattr(docker_ssh_module, "_stdin_is_tty", lambda: True)
+    monkeypatch.setattr(docker_ssh_module.click, "confirm", step("confirm", True))
+    monkeypatch.setattr(docker_ssh_module.destroy, "callback", step("destroy"))
     monkeypatch.setattr(docker_ssh_module, "_check_app_slot", app_slot)
     executor = mock.Mock()
     monkeypatch.setattr(docker_ssh_module, "Executor", executor)
@@ -893,8 +899,9 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         "tls",
         "dns-and-server-check",
         "compose-project",
+        "confirm",
         "registry-image",
-        "root-domain",
+        "destroy",
         "app-slot",
         "build",
     ]
@@ -930,7 +937,13 @@ def test_only_pushed_deploys_need_image_base_name(
     config = Configuration()
     config._reset(register_defaults=True)
     config.ready = True
-    root_domain = mock.Mock()
+    destroyed = mock.Mock()
+
+    def root_domain(before_destroy, **kwargs):
+        if before_destroy:
+            before_destroy()
+        destroyed()
+
     build = mock.Mock(side_effect=click.Abort)
     docker_client = mock.Mock()
     if registry == "down":
@@ -974,19 +987,21 @@ def test_only_pushed_deploys_need_image_base_name(
         with pytest.raises(click.Abort):
             docker_ssh_module._deploy_in_mode(**kwargs)
         assert "Could not find image" in capsys.readouterr().out
-        root_domain.assert_not_called()
+        destroyed.assert_not_called()
         return
     if build_option is None or registry == "found":
         with pytest.raises(click.Abort):
             docker_ssh_module._deploy_in_mode(**kwargs)
         pre_launch_checks.assert_called_once()
-        root_domain.assert_called_once()
-        assert build.call_args.kwargs["image_usable"] == (registry == "found")
+        destroyed.assert_called_once()
+        assert build.call_args.kwargs["image_usable"] == (
+            True if registry == "found" else None
+        )
         return
     with pytest.raises(click.ClickException, match="docker_image_base_name"):
         docker_ssh_module._deploy_in_mode(**kwargs)
     assert pre_launch_checks.called == bool(image_name)
-    root_domain.assert_not_called()
+    destroyed.assert_not_called()
     build.assert_not_called()
 
 
@@ -1432,6 +1447,23 @@ def test_root_domain_teardown_keeps_data_without_asking(
     )
     assert "  - the folder ~/dallinger-data/myapp (3.4G)" in out
     assert f"To delete it, run: {printed}\n" in out
+
+
+def test_declined_root_domain_teardown_skips_before_destroy(monkeypatch):
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example"}}
+    )
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "_host_caddy_apps", lambda e: ["old"])
+    monkeypatch.setattr(docker_ssh_module, "_stdin_is_tty", lambda: True)
+    monkeypatch.setattr(docker_ssh_module.click, "confirm", lambda *a, **k: False)
+    before_destroy = mock.Mock()
+
+    with pytest.raises(click.Abort):
+        docker_ssh_module.ensure_root_domain_ready(
+            "lab", update=False, before_destroy=before_destroy
+        )
+    before_destroy.assert_not_called()
 
 
 def test_root_domain_teardown_destroys_nothing_if_an_app_name_is_invalid(
