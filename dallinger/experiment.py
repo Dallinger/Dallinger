@@ -393,6 +393,24 @@ class Experiment:
         """
         return None
 
+    def check_recruiter_exit(self, participant):
+        """Return a response to send instead of the participant's exit page.
+
+        ``/recruiter-exit`` calls this after loading the participant named by
+        its ``participant_id`` parameter. ``dallinger.submitAssignment()`` also
+        adds the participant's ``unique_id`` to the link, which an experiment
+        can require::
+
+            def check_recruiter_exit(self, participant):
+                if flask.request.args.get("unique_id") != participant.unique_id:
+                    return "Not your exit page", 403
+
+        :param participant: the ``Participant`` named by ``participant_id``
+        :returns: ``None`` to show the recruiter's exit page, or anything a
+            Flask view can return, sent instead. The default returns ``None``.
+        """
+        return None
+
     def calculate_qualifications(self, participant):
         """All the qualifications we want to assign to a worker.
 

@@ -440,6 +440,25 @@ class TestRecruiterExit:
 
         assert resp.status_code == 200
 
+    def test_experiment_can_refuse_with_its_own_response(self, a, webapp):
+        participant = a.participant()
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as Experiment:
+            Experiment.return_value.check_recruiter_exit.return_value = (
+                "Refused by the experiment",
+                403,
+            )
+            resp = webapp.get(
+                "/recruiter-exit?participant_id={}".format(participant.id)
+            )
+
+        Experiment.return_value.check_recruiter_exit.assert_called_once_with(
+            participant
+        )
+        assert resp.status_code == 403
+        assert resp.data == b"Refused by the experiment"
+
     def test_debug_mode_renders_exit_page_for_hotair_recruiter(self, a, webapp):
         participant = a.participant()
         resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))

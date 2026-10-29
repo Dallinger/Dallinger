@@ -734,6 +734,10 @@ def recruiter_exit():
             status=404,
         )
 
+    refusal = exp.check_recruiter_exit(participant)
+    if refusal is not None:
+        return refusal
+
     # Get the recruiter from the participant rather than config, to support
     # MultiRecruiter experiments
     recruiter = recruiters.by_name(participant.recruiter_id)

@@ -194,6 +194,10 @@
 
 ### Added
 
+- `Experiment.check_recruiter_exit(participant)` lets an experiment refuse a
+  `/recruiter-exit` request, for example when its `unique_id` parameter
+  doesn't match the participant, by returning a response to send instead of
+  the exit page. The default returns `None`, which shows the exit page.
 - `dallinger docker-ssh destroy` now makes you choose what happens to the
   experiment's data: its database (with its Postgres user for classic
   ingress), its Redis volume and its data folder `~/dallinger-data/<app>`.
