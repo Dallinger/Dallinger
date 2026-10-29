@@ -72,12 +72,10 @@ description so they match the committed branch diff.
 
 ## Backward compatibility
 
-Keep compatibility with what final Dallinger releases produced or
-documented, such as experiments, configuration, servers they set up and
-APIs, unless a documented breaking change removes it. Behavior that never
-reached a final release (only on `master`, an alpha or a release candidate)
-needs no compatibility code: change or remove it, and if users of those
-versions must act, say so in the `CHANGELOG.md` entry.
+Behavior that never reached a final Dallinger release (only on `master`, an
+alpha or a release candidate) needs no backward-compatibility code: change
+or remove it, and if users of those versions must act, say so in the
+`CHANGELOG.md` entry.
 
 ## Tests
 
