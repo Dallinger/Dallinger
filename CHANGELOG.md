@@ -585,8 +585,10 @@
   (or, on a server that needs it, `servers upgrade` first), instead of
   failing later on the DNS check for `<app>.<host>` or the existing app.
   `--update --app dlgr-…` updates such an app in place, and its
-  DNS check before the build now checks the server's own host; a
-  `--dns-host` passed to such an update is ignored, with a one-line note.
+  DNS check before the build now checks the server's own host. On a server
+  with a saved DNS host, a different `--dns-host` passed to such an update
+  is ignored, with a one-line note; on a server registered by IP address
+  without one, `--dns-host` still names the server's host.
   If the server can't say whether an app is on its own host, the deploy
   stops with an error rather than moving it to a subdomain. New `dlgr-…`
   names still deploy to a subdomain, and `destroy`, `export`, `hibernate` and
