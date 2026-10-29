@@ -4,9 +4,9 @@
 
 ### Changed
 
-- `AGENTS.md` now says that backward compatibility is kept with released
-  Dallinger versions, not with behavior that only existed on `master`
-  between releases.
+- `AGENTS.md` now says that backward compatibility is kept with what final
+  Dallinger releases produced or documented, not with behavior that only
+  reached `master`, an alpha or a release candidate.
 - Before finalizing a feature pull request, agents now ask whether to run
   a single `/branch-review` or the new `branch-review-loop` skill. The loop
   repeats `/branch-review` as a separate agent, preferably with a different
