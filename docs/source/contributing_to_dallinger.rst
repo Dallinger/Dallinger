@@ -50,9 +50,9 @@ specify the version explicitly with the ``new-version`` option:, e.g.::
 3. Run `python3 scripts/update_experiments_constraints.py` to update the constraints.txt
 files in the demos. The script sets each demo's `.python-version` to the Python version
 in the root `Dockerfile`, the image deployed experiments run on, and compiles
-constraints.txt for that version. It upgrades dependencies that
-are not part of Dallinger's own lock, such as NLTK in the chatroom demos. Packages
-pinned by Dallinger's dev requirements stay put. Commit the changes with::
+constraints.txt for that version. It upgrades dependencies that are not part of
+Dallinger's own lock, such as NLTK in the chatroom demos. Packages pinned by
+Dallinger's dev requirements stay put. Commit the changes with::
 
     git add demos/dlgr/demos/*/constraints.txt demos/dlgr/demos/*/.python-version \
         tests/experiment/constraints.txt tests/experiment/.python-version

@@ -55,15 +55,22 @@ DEMOS_DIR = REPO_ROOT / "demos" / "dlgr" / "demos"
 TEST_EXPERIMENT_DIR = REPO_ROOT / "tests" / "experiment"
 
 
-def get_docker_python_version():
-    """Return the Python minor version (e.g. ``3.14``) of Dallinger's Docker image."""
-    dockerfile = REPO_ROOT / "Dockerfile"
-    match = re.search(
-        r"^FROM python:(\d+\.\d+)\b", dockerfile.read_text(), flags=re.MULTILINE
+def get_docker_python_version(dockerfile=REPO_ROOT / "Dockerfile"):
+    """Return the Python minor version (e.g. ``3.14``) of Dallinger's Docker image.
+
+    Every ``FROM python:X.Y`` stage must use the same minor version.
+    """
+    versions = set(
+        re.findall(
+            r"^FROM python:(\d+\.\d+)\b", dockerfile.read_text(), flags=re.MULTILINE
+        )
     )
-    if match is None:
-        raise RuntimeError(f"Could not find a 'FROM python:X.Y' line in {dockerfile}")
-    return match.group(1)
+    if len(versions) != 1:
+        raise RuntimeError(
+            f"Expected one Python version in the 'FROM python:X.Y' lines of "
+            f"{dockerfile}, found {sorted(versions) or 'none'}"
+        )
+    return versions.pop()
 
 
 def write_python_version_file(demo_dir, python_version):
