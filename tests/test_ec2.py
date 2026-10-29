@@ -779,56 +779,93 @@ def test_teardown_without_instance_id_or_hosted_zone_does_not_guess(capsys):
     )
 
 
-@pytest.mark.parametrize(
-    "command, zone", [("start", True), ("start", False), ("stop", True)]
-)
-def test_ec2_start_and_stop_use_the_saved_dns_host(command, zone):
-    import importlib
+SAVED_ALICE = {
+    "alice.example.org": {
+        "host": "alice.example.org",
+        "user": "alice",
+        "dns_host": "alice.example.org",
+        "ec2_instance_id": "i-123",
+    }
+}
 
+
+def _run_start_or_stop(command, zone=True, hosts=SAVED_ALICE, dns_error=None):
+    """Run ``ec2 start`` (by ``--dns``) or ``ec2 stop`` (by ``--name``) with fakes.
+
+    ``hosts`` may be an exception that reading the saved server records raises.
+    Returns the CLI result and a dict of the mocks.
+    """
     from click.testing import CliRunner
 
     from dallinger.command_line.lib import ec2
 
     ec2_cli = importlib.import_module("dallinger.command_line.ec2")
-    hosts = {
-        "alice.example.org": {
-            "host": "alice.example.org",
-            "user": "alice",
-            "dns_host": "alice.example.org",
-            "ec2_instance_id": "i-123",
-        }
-    }
     row = {"instance_id": "i-123", "name": "alice", "public_dns_name": AWS_HOSTNAME}
     stopped, running = {**row, "state": "stopped"}, {**row, "state": "running"}
     selector = ["--name", "alice"] if command == "stop" else ["--dns", AWS_HOSTNAME]
+    read_hosts = hosts if isinstance(hosts, Exception) else lambda: hosts
+    mocks = {}
     with (
-        mock.patch.object(ec2, "get_configured_hosts", return_value=hosts),
+        mock.patch.object(ec2, "get_configured_hosts", side_effect=read_hosts),
         mock.patch(
-            "dallinger.command_line.config.get_configured_hosts", return_value=hosts
+            "dallinger.command_line.config.get_configured_hosts", return_value={}
         ),
         mock.patch.object(ec2_cli, "has_route_53_zone", return_value=zone),
         mock.patch.object(ec2_cli, "_get_instance_row_from", return_value=stopped),
         mock.patch.object(
             ec2_cli, "wait_for_instance_state_change", side_effect=[stopped, running]
-        ) as wait,
+        ) as mocks["wait"],
         mock.patch.object(ec2_cli, "start"),
-        mock.patch.object(ec2_cli, "stop"),
-        mock.patch.object(ec2_cli, "create_dns_records") as create_dns_records,
-        mock.patch.object(ec2_cli, "remove_instance_dns_records") as remove_records,
+        mock.patch.object(ec2_cli, "stop") as mocks["stop"],
+        mock.patch.object(
+            ec2_cli, "create_dns_records", side_effect=dns_error
+        ) as mocks["create_dns_records"],
+        mock.patch.object(ec2_cli, "remove_instance_dns_records") as mocks[
+            "remove_records"
+        ],
     ):
         result = CliRunner().invoke(ec2_cli.ec2, [command, *selector])
     assert result.exit_code == 0, result.output
+    return result, mocks
+
+
+@pytest.mark.parametrize("zone", [True, False])
+def test_ec2_start_uses_the_saved_dns_host(zone):
+    result, mocks = _run_start_or_stop("start", zone)
+    assert [call.args[1] for call in mocks["wait"].call_args_list] == ["alice"] * 2
+    mocks["create_dns_records"].assert_called_once_with(
+        "alice.example.org" if zone else None, "alice", AWS_HOSTNAME
+    )
+    assert ("No Route 53 hosted zone found" in result.output) != zone
+
+
+def test_ec2_stop_uses_the_saved_dns_host():
+    _, mocks = _run_start_or_stop("stop")
+    mocks["remove_records"].assert_called_once_with("alice.example.org", AWS_HOSTNAME)
+
+
+def test_ec2_start_says_what_to_repoint_when_route_53_fails():
+    error = EndpointConnectionError(endpoint_url="https://route53")
+    result, _ = _run_start_or_stop("start", dns_error=error)
+    assert (
+        "Point alice.example.org and *.alice.example.org at "
+        f"{AWS_HOSTNAME} by hand." in result.output
+    )
+
+
+@pytest.mark.parametrize("command", ["start", "stop"])
+def test_ec2_start_and_stop_run_when_server_records_are_unreadable(command, caplog):
+    error = json.JSONDecodeError("Expecting value", "", 0)
+    _, mocks = _run_start_or_stop(command, hosts=error)
+    assert "Could not read the saved docker-ssh server records" in caplog.text
+    assert "i-123" in caplog.text
     if command == "stop":
-        remove_records.assert_called_once_with("alice.example.org", AWS_HOSTNAME)
-        return
-    assert [call.args[1] for call in wait.call_args_list] == ["alice", "alice"]
-    if zone:
-        create_dns_records.assert_called_once_with(
-            "alice.example.org", "alice", AWS_HOSTNAME
-        )
+        mocks["stop"].assert_called_once()
+        mocks["remove_records"].assert_called_once_with(None, AWS_HOSTNAME)
     else:
-        create_dns_records.assert_called_once_with(None, "alice", AWS_HOSTNAME)
-        assert "No Route 53 hosted zone found" in result.output
+        mocks["create_dns_records"].assert_called_once_with(
+            None, "ubuntu", AWS_HOSTNAME
+        )
 
 
 @pytest.mark.parametrize(

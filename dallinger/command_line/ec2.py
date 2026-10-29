@@ -4,6 +4,7 @@ import click
 
 from .lib.ec2 import (
     DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
+    ROUTE_53_ERRORS,
     _get_instance_id_from,
     _get_instance_row_from,
     check_server_pem_matches_key_pair,
@@ -292,21 +293,28 @@ def ec2__start(ctx, dns, name, region, dns_host):
     start(region, instance_id)
 
     saved = saved_server(instance_id)
-    saved_dns_host = route_53_dns_host(saved)
-    if not dns_host and saved_dns_host:
-        if has_route_53_zone(saved_dns_host):
-            dns_host = saved_dns_host
-        else:
-            print(
-                f"Warning: No Route 53 hosted zone found for {saved_dns_host}; "
-                "its DNS records were not updated."
-            )
     old_dns_host = CONFIGURED_HOSTS.get(dns) or saved
     user = old_dns_host.get("user", "ubuntu")
 
     instance_row = wait_for_instance_state_change(region, name, "running")
-
-    create_dns_records(dns_host, user, instance_row["public_dns_name"])
+    host = instance_row["public_dns_name"]
+    saved_dns_host = route_53_dns_host(saved)
+    try:
+        if not dns_host and saved_dns_host:
+            if has_route_53_zone(saved_dns_host):
+                dns_host = saved_dns_host
+            else:
+                print(
+                    f"Warning: No Route 53 hosted zone found for {saved_dns_host}; "
+                    "its DNS records were not updated."
+                )
+        create_dns_records(dns_host, user, host)
+    except ROUTE_53_ERRORS as e:
+        dns_host = dns_host or saved_dns_host
+        print(
+            f"Warning: Could not update the Route 53 records for {dns_host} ({e}). "
+            f"Point {dns_host} and *.{dns_host} at {host} by hand."
+        )
 
 
 @ec2.command("restart")

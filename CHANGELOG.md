@@ -504,7 +504,9 @@
   `--dns-host` is omitted. `stop` deletes only records that point at the
   instance, with or without `--dns-host`, and still stops the instance if
   Route 53 cleanup fails. `start` points the records at the instance's new
-  AWS hostname. A saved `<ip>.nip.io` name is left alone. `ec2 start --dns`
+  AWS hostname; if Route 53 fails, it warns which records to point there by
+  hand. Both still run, without the saved DNS host, if the saved server
+  records can't be read. A saved `<ip>.nip.io` name is left alone. `ec2 start --dns`
   no longer fails while waiting for the instance; the docs now recommend
   `ec2 start --name`, since a stopped instance usually has no AWS hostname.
 - A classic-ingress deploy to a server registered by an IPv6 address without

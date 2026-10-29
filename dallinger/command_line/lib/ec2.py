@@ -1353,15 +1353,26 @@ def stop(region_name, instance_id):
 
 
 def saved_server(instance_id):
-    """Return a server entry that provisioning saved for ``instance_id``, or ``{}``."""
-    return next(
-        (
-            info
-            for info in get_configured_hosts().values()
-            if instance_id and info.get("ec2_instance_id") == instance_id
-        ),
-        {},
-    )
+    """Return a server entry that provisioning saved for ``instance_id``, or ``{}``.
+
+    Unreadable server records are reported as a warning and give ``{}``, so
+    that ``ec2 stop`` and ``start`` still run.
+    """
+    try:
+        return next(
+            (
+                info
+                for info in get_configured_hosts().values()
+                if instance_id and info.get("ec2_instance_id") == instance_id
+            ),
+            {},
+        )
+    except Exception as e:
+        logger.warning(
+            f"Could not read the saved docker-ssh server records ({e!r}), so the "
+            f"DNS host saved for {instance_id} is not used."
+        )
+        return {}
 
 
 def route_53_dns_host(server_info):
@@ -1381,6 +1392,9 @@ def has_route_53_zone(dns_host):
     return bool(filter_zone_ids(get_domain(dns_host), get_53_client()))
 
 
+ROUTE_53_ERRORS = (BotoCoreError, ClientError, click.ClickException)
+
+
 def remove_instance_dns_records(dns_host, public_dns_name):
     """Delete ``dns_host``'s records that point at ``public_dns_name``, best-effort.
 
@@ -1389,7 +1403,7 @@ def remove_instance_dns_records(dns_host, public_dns_name):
     """
     try:
         remove_dns_record(dns_host, remove_dallinger_host=False, target=public_dns_name)
-    except (BotoCoreError, ClientError, click.ClickException) as e:
+    except ROUTE_53_ERRORS as e:
         logger.warning(
             f"Could not delete the Route 53 records for {dns_host} ({e}). Delete "
             f"{dns_host} and *.{dns_host} by hand if they point at {public_dns_name}."
