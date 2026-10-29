@@ -27,6 +27,9 @@
   same way before the recruiter pre-launch checks; previously an unset setting failed with
   a `KeyError` after assembling (and, for live deploys, registering) the
   experiment, and an empty one tried to push the bare directory name.
+- Cloudflare Tunnel deployments now use cloudflared 2026.10.4, including the
+  eMudhra certificate-compromise mitigation. Existing connectors require a
+  separate image update and restart.
 - `AGENTS.md` now says that behavior that never reached a final Dallinger
   release, such as behavior only on `master`, needs no
   backward-compatibility code.
@@ -593,6 +596,29 @@
   root-domain app offline and can make Caddy request new certificates, a
   deploy stops before the image build and asks for `servers upgrade`;
   `destroy` warns and carries on.
+- `dallinger docker-ssh apps` and `get_apps()` now report the public origin
+  of every classic-ingress app, including apps without
+  `~/dallinger/<app>/deployment.json`, such as those deployed by Dallinger
+  12.4 or earlier. The origin comes from the app's Caddy route, read in the
+  same SSH command as the manifests: the server's own site for a root-domain
+  app (a `root.d/<app>` route, or an older Dallinger's `Caddyfile` route to
+  the app), otherwise the app's `caddy.d/<app>` site if the `Caddyfile`
+  imports `caddy.d`; an app with neither has no origin. `deployment.json` still
+  takes priority. A classic `docker-ssh deploy` or `sandbox` without
+  `--update` whose `--app` names an existing app on the server's own host
+  (such as `dlgr-…`, the name Dallinger generates for an app deployed without
+  `--app`) now stops before the build and suggests `--update --app <app>`
+  (or, on a server that needs it, `servers upgrade` first), instead of
+  failing later on the DNS check for `<app>.<host>` or the existing app.
+  `--update --app dlgr-…` updates such an app in place, and its
+  DNS check before the build now checks the server's own host. On a server
+  with a saved DNS host, a different `--dns-host` passed to such an update
+  is ignored, with a one-line note; on a server registered by IP address
+  without one, `--dns-host` still names the server's host.
+  If the server can't say whether an app is on its own host, the deploy
+  stops with an error rather than moving it to a subdomain. New `dlgr-…`
+  names still deploy to a subdomain, and `destroy`, `export`, `hibernate` and
+  `awaken` accept these names.
 - The HotAir recruiter's launch message is now just the single recruitment
   link, and the CLI and HotAir messages no longer start with a blank line.
   `dallinger debug` says that new participants will open in browser windows
@@ -890,6 +916,11 @@
 
 ### Fixed
 
+- Local launches (``dallinger develop debug``, and tools such as PsyNet that
+  launch a local server the same way) no longer draw the "Waiting for the
+  experiment URL to become reachable" progress bar, which the local server's
+  own log lines were written onto. They print that message as one plain line
+  instead, and only if the first launch attempt fails. Deploys keep the bar.
 - `HighPerformanceBotBase` bots can sign up again. `sign_up` subscribes the
   bot to the `quorum` channel, which has raised `AttributeError` since the
   control events added in v9.10.0 asked each subscriber for its

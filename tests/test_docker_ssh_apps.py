@@ -50,7 +50,7 @@ def test_docker_host_uri_omits_at_sign_usernames(
 
 
 class FakeExecutor:
-    """Answer remote commands by the first matching substring, in any order."""
+    """Answer remote commands by the first matching substring, in ``replies`` order."""
 
     def __init__(self, replies):
         self.replies = replies
@@ -97,9 +97,9 @@ class LocalExecutor:
 def _mock_executor(manifest_lines=""):
     return FakeExecutor(
         {
+            "for app in ": manifest_lines,
             "caddy.d": "alpha\n/home/test/dallinger/beta/docker-compose.yml\n",
             "docker ps": "beta\n",
-            "deployment.json": manifest_lines,
         }
     )
 
@@ -2354,6 +2354,7 @@ def test_awaken_skips_an_app_that_is_already_awake(monkeypatch, capsys):
 def test_get_apps_reports_hibernation_from_markers():
     executor = FakeExecutor(
         {
+            "for app in ": "",
             "caddy.d": "alpha\nbeta\n",
             "state/hibernating": "/home/test/dallinger/alpha/state/hibernating\n",
         }
