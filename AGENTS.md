@@ -70,6 +70,14 @@ format.
 When running `/branch-review`, always update the pull request title and
 description so they match the committed branch diff.
 
+## Backward compatibility
+
+Keep compatibility with released Dallinger versions, such as experiments,
+configuration, servers they set up and APIs that a release produced or
+documented. Behavior that only existed on `master` between releases needs no
+compatibility code: change or remove it, and if `master` users must act, say
+so in the `CHANGELOG.md` entry.
+
 ## Tests
 
 Run tests locally before finalizing a contribution:
