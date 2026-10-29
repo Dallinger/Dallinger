@@ -176,7 +176,9 @@ def test_add_image_name(tempdir):
     )
 
 
-def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
+@pytest.mark.parametrize("in_exp_config", [False, True])
+def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path, in_exp_config):
+    """The base name can come from the config or from ``exp_config``."""
     from dallinger.docker.tools import image_base_name
 
     docker_cli = importlib.import_module("dallinger.command_line.docker")
@@ -184,11 +186,12 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
     class StopAfterPush(Exception):
         pass
 
+    base_name = {"docker_image_base_name": "registry/exp"}
     config = mock.Mock()
     config.get.side_effect = lambda key, default=None: {
         "mode": "debug",
-        "docker_image_base_name": "registry/exp",
         "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        **({} if in_exp_config else base_name),
     }.get(key, default)
 
     fake_tools = mock.Mock(image_base_name=image_base_name)
@@ -209,7 +212,11 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
         ) as push_image,
     ):
         with pytest.raises(StopAfterPush):
-            docker_cli.deploy_heroku_docker(log=mock.Mock(), verbose=False)
+            docker_cli.deploy_heroku_docker(
+                log=mock.Mock(),
+                verbose=False,
+                exp_config=base_name if in_exp_config else None,
+            )
 
     setup.assert_called_once()
     fake_tools.build_image.assert_called_once_with(

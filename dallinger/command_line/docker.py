@@ -376,12 +376,16 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None, base_name
     """Deploy the experiment to Heroku as a Docker image pushed to a registry.
 
     ``base_name`` is the image repository name; it defaults to the required
-    ``docker_image_base_name``.
+    ``docker_image_base_name``, from ``exp_config`` or the config.
     """
     from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
     config = get_config(load=True)
-    base_name = base_name or _heroku_image_base_name(config)
+    base_name = (
+        base_name
+        or (exp_config or {}).get("docker_image_base_name")
+        or _heroku_image_base_name(config)
+    )
     heroku_app_id, tmp = setup_experiment(
         log,
         debug=False,
