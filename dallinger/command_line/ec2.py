@@ -271,9 +271,6 @@ def ec2__stop(ctx, dns, name, region, dns_host):
 def ec2__start(ctx, dns, name, region, dns_host):
     """Start a stopped EC2 instance"""
     _validate_instance_selector(name, dns)
-    from dallinger.command_line.config import get_configured_hosts
-
-    CONFIGURED_HOSTS = get_configured_hosts()
     instance_row = _get_instance_row_from(
         region_name=region,
         instance_name=name,
@@ -285,16 +282,11 @@ def ec2__start(ctx, dns, name, region, dns_host):
     assert instance_row["state"] == "stopped", (
         f"Instance '{name}' is not stopped, but in state '{instance_row['state']}'"
     )
-    dns, instance_id, name = (
-        instance_row["public_dns_name"],
-        instance_row["instance_id"],
-        instance_row["name"],
-    )
+    instance_id, name = instance_row["instance_id"], instance_row["name"]
     start(region, instance_id)
 
     saved = saved_server(instance_id)
-    old_dns_host = CONFIGURED_HOSTS.get(dns) or saved
-    user = old_dns_host.get("user", "ubuntu")
+    user = saved.get("user", "ubuntu")
 
     instance_row = wait_for_instance_state_change(region, name, "running")
     host = instance_row["public_dns_name"]

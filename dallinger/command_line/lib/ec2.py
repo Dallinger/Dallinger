@@ -1001,6 +1001,8 @@ def create_dns_record(dns_host, user, host, route_53=None):
         route_53 = get_53_client()
 
     filtered_hosts = filter_zone_ids(get_domain(dns_host), route_53)
+    if not filtered_hosts:
+        raise click.ClickException(f"No Route 53 hosted zone found for {dns_host}.")
     hosted_zone_id = filtered_hosts[0]
     response = route_53.change_resource_record_sets(
         HostedZoneId=hosted_zone_id,

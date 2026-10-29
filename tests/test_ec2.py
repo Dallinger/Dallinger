@@ -789,10 +789,10 @@ SAVED_ALICE = {
 }
 
 
-def _run_start_or_stop(command, zone=True, hosts=SAVED_ALICE, dns_error=None):
+def _run_start_or_stop(command, zone=True, hosts=SAVED_ALICE, dns_error=None, args=()):
     """Run ``ec2 start`` (by ``--dns``) or ``ec2 stop`` (by ``--name``) with fakes.
 
-    ``hosts`` may be an exception that reading the saved server records raises.
+    With ``hosts=None``, the saved server records are read from disk.
     Returns the CLI result and a dict of the mocks.
     """
     from click.testing import CliRunner
@@ -803,13 +803,10 @@ def _run_start_or_stop(command, zone=True, hosts=SAVED_ALICE, dns_error=None):
     row = {"instance_id": "i-123", "name": "alice", "public_dns_name": AWS_HOSTNAME}
     stopped, running = {**row, "state": "stopped"}, {**row, "state": "running"}
     selector = ["--name", "alice"] if command == "stop" else ["--dns", AWS_HOSTNAME]
-    read_hosts = hosts if isinstance(hosts, Exception) else lambda: hosts
+    read_hosts = ec2.get_configured_hosts if hosts is None else lambda: hosts
     mocks = {}
     with (
         mock.patch.object(ec2, "get_configured_hosts", side_effect=read_hosts),
-        mock.patch(
-            "dallinger.command_line.config.get_configured_hosts", return_value={}
-        ),
         mock.patch.object(ec2_cli, "has_route_53_zone", return_value=zone),
         mock.patch.object(ec2_cli, "_get_instance_row_from", return_value=stopped),
         mock.patch.object(
@@ -824,7 +821,7 @@ def _run_start_or_stop(command, zone=True, hosts=SAVED_ALICE, dns_error=None):
             "remove_records"
         ],
     ):
-        result = CliRunner().invoke(ec2_cli.ec2, [command, *selector])
+        result = CliRunner().invoke(ec2_cli.ec2, [command, *selector, *args])
     assert result.exit_code == 0, result.output
     return result, mocks
 
@@ -853,10 +850,32 @@ def test_ec2_start_says_what_to_repoint_when_route_53_fails():
     )
 
 
+def test_ec2_start_says_what_to_repoint_without_a_hosted_zone():
+    from dallinger.command_line.lib import ec2
+
+    route_53 = mock.Mock()
+    route_53.list_hosted_zones_by_name.return_value = {"HostedZones": []}
+    with mock.patch.object(ec2, "get_53_client", return_value=route_53):
+        result, _ = _run_start_or_stop(
+            "start",
+            dns_error=lambda *a: ec2.create_dns_records(*a),
+            args=["--dns-host", "lab.nowhere.org"],
+        )
+    assert "No Route 53 hosted zone found for lab.nowhere.org" in result.output
+    assert f"Point lab.nowhere.org and *.lab.nowhere.org at {AWS_HOSTNAME}" in (
+        result.output
+    )
+
+
 @pytest.mark.parametrize("command", ["start", "stop"])
-def test_ec2_start_and_stop_run_when_server_records_are_unreadable(command, caplog):
-    error = json.JSONDecodeError("Expecting value", "", 0)
-    _, mocks = _run_start_or_stop(command, hosts=error)
+def test_ec2_start_and_stop_run_when_server_records_are_unreadable(
+    command, caplog, tmp_path, monkeypatch
+):
+    config = importlib.import_module("dallinger.command_line.config")
+    (tmp_path / "broken.example.org").write_text("{not json")
+    monkeypatch.setattr(config, "NEW_HOSTS_DIR", tmp_path)
+    monkeypatch.setattr(config, "OLD_HOSTS_DIR", tmp_path / "old")
+    _, mocks = _run_start_or_stop(command, hosts=None)
     assert "Could not read the saved docker-ssh server records" in caplog.text
     assert "i-123" in caplog.text
     if command == "stop":
