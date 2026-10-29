@@ -95,6 +95,7 @@ designing new experiments for others to use.
     scheduled_tasks
     private_repo
     using_websockets
+    realtime_games
 
 Alternative Environments Documentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

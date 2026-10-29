@@ -41,6 +41,13 @@ These bots interact primarily via websockets rather than HTTP.
 
 .. _`Griduniverse bots`: https://github.com/Dallinger/Griduniverse/blob/master/dlgr/griduniverse/bots.py
 
+In an experiment with real-time games, a game type's ``bot`` method can make
+the moves of a high-performance bot that the bots recruiter runs on the
+experiment's workers. Such a bot signs off once it has joined, and the
+experiment isn't complete until its games end. A bot that plays the game
+itself over HTTP and WebSockets joins the session as the game's page does
+instead, as :doc:`realtime_games` describes.
+
 API documentation
 *****************
 

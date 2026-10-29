@@ -61,6 +61,8 @@ contain the experiment's exported tables as CSV files:
       inflating: data/transmission.csv
       inflating: data/participant.csv
       inflating: data/node.csv
+      inflating: data/realtime_session.csv
+      inflating: data/realtime_event.csv
 
 Once the data is uncompressed, you can analyze it using many different
 applications. Excel, for example, will easily import the data, just by double

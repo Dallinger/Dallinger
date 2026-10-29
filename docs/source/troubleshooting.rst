@@ -49,9 +49,8 @@ Common Sandbox Error
 ::
 
 
-    ❯❯ Launching the experiment on MTurk...
-
-    ❯❯ Error parsing response from /launch, check logs for details: <!DOCTYPE html>
+    Launching the experiment on MTurk...
+    Error parsing response from /launch, check logs for details: <!DOCTYPE html>
         <html>
           <head>
             <meta name="viewport" content="width=device-width, initial-scale=1">

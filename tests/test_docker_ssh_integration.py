@@ -108,6 +108,7 @@ def test_docker_ssh_destroy_missing_app_reports_error(fresh_docker_ssh_server):
             fresh_docker_ssh_server.server,
             "--app",
             missing_app_id,
+            "--keep-data",
         ],
         check=False,
     )
@@ -177,8 +178,9 @@ def test_docker_ssh_update_refreshes_served_template(fresh_docker_ssh_server, tm
         template_path.write_text(after_template)
         update_result = fresh_docker_ssh_server.update_sandbox(app_id)
         update_output = f"{update_result.stdout}\n{update_result.stderr}"
+        assert "Restarting the experiment server...\n" in update_output
         assert (
-            "Skipping experiment launch logic because we are in update mode."
+            "Not launching again: this is an update of a running experiment."
             in update_output
         )
 
