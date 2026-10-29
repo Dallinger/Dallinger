@@ -7,15 +7,20 @@ import re
 import signal
 import subprocess
 import sys
+import threading
 import time
-import traceback
 from functools import cached_property
 from shlex import quote
 
 import psutil
 
 from dallinger.config import SENSITIVE_KEY_NAMES
-from dallinger.utils import check_call, check_output, port_is_open
+from dallinger.utils import (
+    check_call,
+    check_output,
+    ignore_stop_signals,
+    port_is_open,
+)
 
 
 def app_name(experiment_uuid):
@@ -405,24 +410,33 @@ class HerokuTimeoutError(HerokuStartupError):
     """
 
 
-class HerokuLocalWrapper:
-    """Wrapper around a heroku local subprocess.
+class LocalProcfileWrapper:
+    """Wrapper around a local Procfile runner subprocess.
+
+    The experiment's Procfile processes (gunicorn web workers, the rq worker,
+    and optionally the clock) are started with honcho, a Python port of
+    foreman, so local debugging does not need the Heroku CLI. POSIX only:
+    process management relies on process groups and SIGALRM.
 
     Provides for verified startup and shutdown, and allows observers to register
     to recieve subprocess output via 'monitor()'.
 
     Implements a context manager pattern:
 
-        with HerokuLocalWrapper(config, output) as heroku:
+        with LocalProcfileWrapper(config, output) as heroku:
             heroku.monitor(my_callback)
 
     Arg 'output' should implement log(), error() and blather() methods taking
     strings as arguments.
     """
 
-    shell_command = "heroku"
-    # On Windows, use 'CTRL_C_EVENT', otherwise SIGINT
-    int_signal = getattr(signal, "CTRL_C_EVENT", signal.SIGINT)
+    # Run honcho with this interpreter so it is found even when the
+    # virtualenv's bin directory is not on PATH.
+    shell_command = (sys.executable, "-m", "honcho")
+    # Not SIGTERM: that starts gunicorn's graceful shutdown (up to its 30 s
+    # graceful_timeout), which overruns stop_grace_secs and ends in SIGKILL.
+    int_signal = signal.SIGINT
+    stop_grace_secs = 5
     MONITOR_STOP = object()
     # The subprocess stdout is a binary pipe, so readline() returns b"" at EOF.
     STREAM_SENTINEL = b""
@@ -443,14 +457,17 @@ class HerokuLocalWrapper:
         self.env = env if env is not None else os.environ.copy()
         self._record = []
         self._process = None
+        self._runner = None
+        self._leaders = []
         self._stop_requested = False
+        self._stop_lock = threading.Lock()
         # needs_chrome, tmp_dir and experiment_name are here just for simmetry with the Docker wrapper
         self.needs_chrome = needs_chrome
         self.experiment_name = experiment_name
         self.tmp_dir = tmp_dir
 
     def start(self, timeout_secs=60):
-        """Start the heroku local subprocess group and verify that
+        """Start the Procfile runner subprocess group and verify that
         it has started successfully by polling the relevant port.
 
         If the port is not available after 'timeout_secs',
@@ -463,7 +480,7 @@ class HerokuLocalWrapper:
             )
 
         if self.is_running:
-            self.out.log("Local Heroku is already running.")
+            self.out.log("Local server is already running.")
             return
 
         self._stop_requested = False
@@ -472,12 +489,21 @@ class HerokuLocalWrapper:
         try:
             self._boot()
             success = self._verify_startup()
+        except BaseException:
+            # Includes Ctrl-C, which would otherwise skip __exit__ and leak.
+            signal.alarm(0)
+            self.stop()
+            raise
         finally:
             signal.alarm(0)
 
-        if not success:
+        if success:
+            # Remember the Procfile processes so stop() can reach them even if
+            # honcho dies first (its children are then reparented).
+            self._leaders = _session_leaders(_children(self._runner))
+        else:
             self._log_failure()
-            self.stop(signal.SIGKILL)
+            self.stop()
             raise HerokuStartupError(
                 "Failed to start for unknown reason: {}".format("".join(self._record))
             )
@@ -488,42 +514,82 @@ class HerokuLocalWrapper:
         return self._process is not None
 
     def stop(self, signal=None):
-        """Stop the heroku local subprocess and all of its children."""
+        """Stop the Procfile runner and all of its descendant processes.
+
+        Each Procfile process group, then honcho, gets ``signal`` (SIGINT by
+        default, which makes gunicorn shut down quickly). Procfile processes
+        still alive after ``stop_grace_secs`` are killed. Concurrent calls
+        (e.g. from a status thread and ``__exit__``) run one at a time. In the
+        main thread, Ctrl-C, SIGTERM and SIGHUP are ignored (discarded)
+        meanwhile, so repeating them can't cut the cleanup short.
+        """
         # Set before signalling, so a monitor() thread that sees the output end
         # knows the exit was requested.
         self._stop_requested = True
+        with ignore_stop_signals(), self._stop_lock:
+            self._stop(signal)
+
+    def _stop(self, signal):
         signal = signal or self.int_signal
-        self.out.log("Cleaning up local Heroku process...")
-        if self._process is None:
-            self.out.log("No local Heroku process was running.")
+        self.out.log("Cleaning up local server processes...")
+        process, self._process = self._process, None
+        runner, self._runner = self._runner, None
+        leaders, self._leaders = self._leaders, []
+        if process is None:
+            self.out.log("No local server process was running.")
             return
 
-        try:
-            # Try to kill the process group if still running
+        # psutil handles taken at startup stay valid (and safe against PID
+        # reuse) even if honcho has died and its children were reparented.
+        procs = {}
+        for proc in [runner, *leaders]:
+            if proc is not None and _is_running(proc):
+                procs[proc] = None
+                for child in _children(proc):
+                    procs[child] = None
+        descendants = [proc for proc in procs if proc != runner]
+        leaders = _session_leaders(descendants)
+
+        if not procs:
+            self.out.log("Local server was already terminated.")
+        # honcho starts each Procfile process as a session and process-group
+        # leader. Signal those groups first so honcho's own SIGTERM (which
+        # triggers gunicorn's slower graceful shutdown) doesn't arrive first.
+        for leader in leaders:
             try:
-                os.killpg(os.getpgid(self._process.pid), signal)
-                self.out.log("Local Heroku process terminated.")
+                os.killpg(leader.pid, signal)
             except OSError:
-                self.out.log("Local Heroku was already terminated.")
-            except Exception:
-                self.out.log("Unexpected error while terminating local Heroku.")
-                self.out.log(traceback.format_exc())
-
-            # Ensure the process is fully cleaned up by calling wait(), even if
-            # it has already terminated.
+                pass
+        if runner is not None and _is_running(runner):
             try:
-                self._process.wait(timeout=5)
-            except Exception:
-                self.out.log("Process did not terminate within timeout.")
-
-            # Close stdout to avoid ResourceWarning
-            try:
-                self._process.stdout.close()
-            except Exception:
+                runner.send_signal(signal)
+            except psutil.Error:
                 pass
 
-        finally:
-            self._process = None
+        _, alive = psutil.wait_procs(descendants, timeout=self.stop_grace_secs)
+        # Spare honcho's own helpers (its session) so honcho can exit normally;
+        # they are only killed below if honcho leaves them behind.
+        _kill([child for child in alive if not _in_session(child, runner)])
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+        process.stdout.close()
+        _kill(alive)
+
+        # Killed processes can linger briefly as zombies until reaped.
+        _, survivors = psutil.wait_procs(alive, timeout=5)
+        survivors = [child for child in survivors if _is_running(child)]
+
+        if survivors:
+            self.out.error(
+                "Some local server processes could not be stopped: {}".format(
+                    [child.pid for child in survivors]
+                )
+            )
+        elif procs:
+            self.out.log("Local server processes terminated.")
 
     def monitor(self, listener):
         """Relay the stream to listener until told to stop."""
@@ -538,7 +604,7 @@ class HerokuLocalWrapper:
         process = self._process
         exit_code = process.poll() if process is not None else None
         self.out.error(
-            "Local Heroku stopped producing output (exit code: {}).".format(exit_code)
+            "Local server stopped producing output (exit code: {}).".format(exit_code)
         )
 
     def _verify_startup(self):
@@ -595,32 +661,53 @@ class HerokuLocalWrapper:
         if not self.env.get("HOME", False):
             raise HerokuStartupError('"HOME" environment not set... aborting.')
 
+        if not sys.executable:
+            raise HerokuStartupError(
+                "Cannot locate the Python interpreter to run honcho."
+            )
+
         port = self.config.get("base_port")
         web_dynos = self.config.get("num_dynos_web")
         worker_dynos = self.config.get("num_dynos_worker")
         clock_dyno = self.config.get("clock_on")
-        dyno_options = "web={},worker={}{}".format(
-            web_dynos, worker_dynos, ",clock" if clock_dyno else ""
-        )
+        processes = ["web", "worker"] + (["clock"] if clock_dyno else [])
         commands = [
-            self.shell_command,
-            "local",
+            *self.shell_command,
+            "start",
+            "--no-colour",
             "-p",
             str(port),
-            dyno_options,
+            "-c",
+            "web={},worker={}".format(web_dynos, worker_dynos),
+            *processes,
         ]
         try:
             options = {
                 "stdin": subprocess.DEVNULL,
                 "stdout": subprocess.PIPE,
                 "stderr": subprocess.STDOUT,
-                "env": self.env,
+                "env": self._runner_env(),
                 "preexec_fn": os.setsid,
             }
             self._process = subprocess.Popen(commands, **options)
+            self._runner = psutil.Process(self._process.pid)
         except OSError:
-            self.out.error("Couldn't start Heroku for local debugging.")
+            self.out.error("Couldn't start honcho for local debugging.")
             raise
+
+    def _runner_env(self):
+        """Environment for honcho and the Procfile processes it starts."""
+        env = dict(self.env)
+        # honcho is a Python program, so without this its output to the pipe
+        # is block-buffered and startup/monitor lines arrive late.
+        env["PYTHONUNBUFFERED"] = "1"
+        # The Procfile commands (dallinger_heroku_web etc.) are console scripts
+        # installed next to this interpreter, which may not be on PATH when the
+        # virtualenv is not activated.
+        bin_dir = os.path.dirname(sys.executable)
+        rest = [d for d in env.get("PATH", "").split(os.pathsep) if d and d != bin_dir]
+        env["PATH"] = os.pathsep.join([bin_dir, *rest])
+        return env
 
     def _stream(self):
         for line in iter(self._process.stdout.readline, self.STREAM_SENTINEL):
@@ -645,7 +732,7 @@ class HerokuLocalWrapper:
     def _startup_error(self, line):
         if isinstance(line, bytes):
             line = line.decode("utf-8")
-        return re.match(r"\[DONE\] Killing all processes", line)
+        return re.match(r"^.*? system\s+\| \S+ stopped \(rc=", line)
 
     def __enter__(self):
         self.start()
@@ -675,8 +762,55 @@ class HerokuLocalWrapper:
         return "<{} pid='{}', children: {}>".format(classname, self._process.pid, reprs)
 
 
+def _is_running(process):
+    """Whether a psutil process is still running (zombies count as stopped)."""
+    try:
+        return process.is_running() and process.status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
+
+
+def _children(process):
+    try:
+        return process.children(recursive=True)
+    except psutil.NoSuchProcess:
+        return []
+
+
+def _in_session(process, leader):
+    """Whether ``process`` belongs to the session led by ``leader``."""
+    try:
+        return leader is not None and os.getsid(process.pid) == leader.pid
+    except OSError:
+        return False
+
+
+def _kill(processes):
+    for process in processes:
+        try:
+            process.kill()
+        except psutil.Error:
+            pass
+
+
+def _session_leaders(processes):
+    """The processes that lead their own session (honcho's Procfile processes)."""
+    leaders = []
+    for process in processes:
+        try:
+            if os.getsid(process.pid) == process.pid:
+                leaders.append(process)
+        except OSError:
+            pass
+    return leaders
+
+
+# Backwards-compatible name from when this wrapped ``heroku local``.
+HerokuLocalWrapper = LocalProcfileWrapper
+
+
 def local_worker_processes(database_url=None):
-    """Return running local ``dallinger_heroku_*`` processes for one database.
+    """Return running local Dallinger processes for one database.
 
     Parameters
     ----------
@@ -687,9 +821,10 @@ def local_worker_processes(database_url=None):
     Returns
     -------
     list of psutil.Process
-        Web and worker processes started by ``heroku local`` whose
-        ``DATABASE_URL`` matches. Processes whose details can't be read are
-        treated as someone else's and left out.
+        Web and worker processes started by the local Procfile runner, and
+        the real-time runners the workers start, whose ``DATABASE_URL``
+        matches. Processes whose details can't be read are treated as
+        someone else's and left out.
     """
     from dallinger.db import corrected_db_url, db_url_default
 
@@ -712,12 +847,14 @@ def local_worker_processes(database_url=None):
 
 def _is_local_worker_process(process):
     name = process.name()
-    # Linux names the process after its truncated entry-point script.
-    if name.startswith("dallinger_herok"):
+    # Linux names the process after its entry-point script, cut to 15
+    # characters.
+    if name.startswith(("dallinger_herok", "dallinger_realt")):
         return True
     # macOS names it after the Python interpreter running the script.
     return "python" in name.lower() and any(
         os.path.basename(argument).startswith("dallinger_heroku_")
+        or os.path.basename(argument) == "dallinger_realtime"
         for argument in process.cmdline()[:2]
     )
 

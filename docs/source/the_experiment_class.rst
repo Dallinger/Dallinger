@@ -51,12 +51,17 @@ what to do with the database when the server receives requests from outside.
   .. autoattribute:: channel
     :annotation:
 
+  .. autoattribute:: realtime_games
+    :annotation:
+
   .. attribute:: public_properties
 
      dictionary, the properties of this experiment that are exposed
      to the public over an AJAX call
 
   .. automethod:: __init__
+
+  .. automethod:: accept_websocket_connection
 
   .. automethod:: add_node_to_network
 

@@ -71,9 +71,95 @@ def test_after_commit_hook(db_session):
         from dallinger.db import queue_message
 
         queue_message("test", "test")
+        redis_publish.assert_not_called()
         db_session.commit()
 
         redis_publish.assert_called_once_with("test", "test")
+
+
+def test_run_after_commit_waits_for_the_commit(db_session, caplog):
+    from dallinger.db import run_after_commit
+
+    calls = []
+    run_after_commit(lambda: calls.append("committed"))
+    assert calls == []
+    db_session.commit()
+    assert calls == ["committed"]
+
+    run_after_commit(lambda: calls.append("rolled back"))
+    db_session.rollback()
+    db_session.commit()
+    assert calls == ["committed"]
+    assert caplog.records == []
+
+    run_after_commit(lambda: calls.append("closed"))
+    run_after_commit(lambda: calls.append("closed"), "starting session 4")
+    db_session.close()
+    db_session.commit()
+    assert calls == ["committed"]
+    assert caplog.messages == [
+        "Dropped 2 callbacks waiting for a commit, because their transaction "
+        "ended without one: starting session 4."
+    ]
+    assert caplog.records[-1].levelname == "ERROR"
+
+    run_after_commit(lambda: calls.append("closed"))
+    db_session.close()
+    db_session.commit()
+    assert caplog.records[-1].levelname == "WARNING"
+    assert caplog.messages[-1] == (
+        "Dropped 1 callbacks waiting for a commit, because their transaction "
+        "ended without one."
+    )
+
+
+def test_a_failing_callback_is_logged_and_the_rest_run(db_session, caplog):
+    from dallinger.db import run_after_commit
+    from dallinger.models import Network
+
+    calls = []
+    run_after_commit(lambda: 1 / 0)
+    run_after_commit(lambda: calls.append("after the failure"))
+    db_session.commit()
+
+    assert calls == ["after the failure"]
+    assert "A callback run after a commit failed" in caplog.text
+    assert db_session.query(Network).count() == 0
+
+
+def test_run_after_commit_drops_only_a_rolled_back_savepoints_callbacks(db_session):
+    from dallinger.db import run_after_commit
+    from dallinger.models import Network
+
+    calls = []
+    db_session.add(Network())
+    db_session.flush()
+    run_after_commit(lambda: calls.append("outer"))
+    for name, end in [("rolled back", "rollback"), ("released", "commit")]:
+        savepoint = db_session.begin_nested()
+        db_session.add(Network())
+        db_session.flush()
+        run_after_commit(lambda name=name: calls.append(name))
+        getattr(savepoint, end)()
+    db_session.commit()
+    assert calls == ["outer", "released"]
+
+    db_session.add(Network())
+    db_session.flush()
+    savepoint = db_session.begin_nested()
+    run_after_commit(lambda: calls.append("released, then rolled back"))
+    savepoint.commit()
+    db_session.rollback()
+    db_session.commit()
+    assert calls == ["outer", "released"]
+
+    outer = db_session.begin_nested()
+    inner = db_session.begin_nested()
+    run_after_commit(lambda: calls.append("inside a rolled-back savepoint"))
+    inner.commit()
+    outer.rollback()
+    db_session.commit()
+    assert calls == ["outer", "released"]
 
 
 def test_create_db_engine_updates_postgresql_scheme():
@@ -170,8 +256,32 @@ def test_create_db_engine_arguments_override_the_environment(monkeypatch):
         engine.dispose()
 
 
-def test_create_db_engine_rejects_invalid_arguments():
+@pytest.mark.parametrize(
+    "argument, value, message",
+    [
+        ("pool_size", 0, "pool_size must be an integer of at least 1, not 0."),
+        (
+            "max_overflow",
+            -5,
+            r"max_overflow must be an integer of at least -1 \(no limit\), not -5.",
+        ),
+        ("pool_timeout", 0, "pool_timeout must be a number greater than 0, not 0."),
+    ],
+)
+def test_create_db_engine_rejects_invalid_arguments(argument, value, message):
     from dallinger.db import create_db_engine, db_url
 
-    with pytest.raises(ValueError, match="pool_size"):
-        create_db_engine(db_url, pool_size=0)
+    with pytest.raises(ValueError, match=message):
+        create_db_engine(db_url, **{argument: value})
+
+
+def test_sessions_scope_reraises_without_logging_the_traceback(db_session, caplog):
+    from dallinger.db import sessions_scope
+
+    with caplog.at_level("DEBUG", logger="dallinger.db"):
+        with pytest.raises(ValueError, match="boom"):
+            with sessions_scope():
+                raise ValueError("boom")
+
+    assert not [r for r in caplog.records if r.exc_info or r.levelname == "ERROR"]
+    assert any("Rolling back" in r.getMessage() for r in caplog.records)

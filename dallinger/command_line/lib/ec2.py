@@ -13,7 +13,9 @@ import click
 import pandas as pd
 import paramiko
 import requests
+from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import ConnectionError as BotoConnectionError
 from paramiko import ssh_exception as pse
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from tenacity import (
@@ -30,6 +32,8 @@ from ..config import remove_host as dallinger_remove_host
 from ..config import store_host as dallinger_store_host
 from ..docker_ssh import Executor
 from ..docker_ssh import prepare_server as dallinger_prepare_server
+from ..docker_ssh import register_server as dallinger_register_server
+from ..utils import get_server_pem_path
 
 logger = logging.getLogger(__name__)
 
@@ -41,27 +45,43 @@ DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
 
 
 def _resolve_default_region_name():
-    """Resolve default region for user-facing messages."""
-    from dallinger.config import get_config
-
-    config = get_config(load=True)
-
-    return config.get("aws_region", DEFAULT_AWS_REGION)
+    """Resolve the region boto uses when no region is given, for user-facing messages."""
+    return get_keys()["region_name"]
 
 
 def get_keys(region_name=None):
+    """Return boto client arguments: Dallinger's AWS keys, if set, and a region.
+
+    If the keys are unset or still the placeholder defaults, boto finds
+    credentials itself (``~/.aws``, SSO, a role). If the key ID is a
+    temporary one (``ASIA...``) and is the one in ``AWS_ACCESS_KEY_ID``,
+    ``AWS_SESSION_TOKEN`` is passed along with the keys, so exported temporary
+    credentials work; a leftover token never reaches long-lived keys. The
+    region is ``region_name``, else boto's default region
+    (``AWS_DEFAULT_REGION`` or the AWS profile's region) when Dallinger's keys
+    aren't used, else Dallinger's ``aws_region``.
+    """
     from dallinger.config import get_config
+    from dallinger.data import aws_access_keys_present
 
     config = get_config(load=True)
-    keys = {}
-    # If keys are not set let boto get them from ~/.aws/config or other standard places
-    if config.get("aws_access_key_id"):
+    default_region = config.get("aws_region", DEFAULT_AWS_REGION) or DEFAULT_AWS_REGION
+    if aws_access_keys_present(config):
         keys = {
             "aws_access_key_id": config.get("aws_access_key_id"),
             "aws_secret_access_key": config.get("aws_secret_access_key"),
-            "region_name": region_name or config.get("aws_region", DEFAULT_AWS_REGION),
+            "region_name": region_name or default_region,
         }
-    return keys
+        session_token = os.environ.get("AWS_SESSION_TOKEN")
+        key_id = keys["aws_access_key_id"]
+        if (
+            session_token
+            and key_id.startswith("ASIA")
+            and key_id == os.environ.get("AWS_ACCESS_KEY_ID")
+        ):
+            keys["aws_session_token"] = session_token
+        return keys
+    return {"region_name": region_name or boto3.Session().region_name or default_region}
 
 
 def url_to_country_city(url):
@@ -88,6 +108,11 @@ _AUTH_FAILURE_MSG = (
 
 _AUTH_FAILURE_CODES = {"AuthFailure", "InvalidClientTokenId", "RequestExpired"}
 
+_REGION_UNAVAILABLE_CODES = {"AuthFailure", "OptInRequired", "UnauthorizedOperation"}
+# Fail fast on unreachable regions in the all-regions scan; boto's defaults
+# retry for about five minutes per region.
+_REGION_SCAN_CONFIG = Config(connect_timeout=10, retries={"max_attempts": 2})
+
 
 class _BotoClientProxy:
     """Wraps a boto3 client to add a helpful hint to auth-related errors."""
@@ -111,8 +136,10 @@ class _BotoClientProxy:
         return wrapper
 
 
-def get_ec2_client(region_name=None):
-    return _BotoClientProxy(boto3.client("ec2", **get_keys(region_name)))
+def get_ec2_client(region_name=None, config=None):
+    return _BotoClientProxy(
+        boto3.client("ec2", config=config, **get_keys(region_name))
+    )
 
 
 def get_ssm_client(region_name=None):
@@ -169,18 +196,20 @@ def get_instance_details(instance_types, region_name=None):
     return price_df
 
 
-def get_instances(region_name, show_spinner=True):
+def get_instances(region_name, show_spinner=True, boto_config=None):
     display_region = region_name or _resolve_default_region_name()
     if show_spinner:
         with yaspin(
             text=f"Retrieving instances in {display_region}...", color="green"
         ) as sp:
-            reservations = get_ec2_client(region_name).describe_instances()[
-                "Reservations"
-            ]
+            reservations = get_ec2_client(
+                region_name, boto_config
+            ).describe_instances()["Reservations"]
             sp.ok("✔")
     else:
-        reservations = get_ec2_client(region_name).describe_instances()["Reservations"]
+        reservations = get_ec2_client(region_name, boto_config).describe_instances()[
+            "Reservations"
+        ]
     instances = []
     for reservation in reservations:
         for instance in reservation["Instances"]:
@@ -225,7 +254,9 @@ def get_all_instances(region_name=None):
     if region_name is None:
         logger.info("Listing instances in all regions...")
         instance_dfs = []
-        all_regions = get_ec2_client().describe_regions()["Regions"]
+        all_regions = get_ec2_client(config=_REGION_SCAN_CONFIG).describe_regions()[
+            "Regions"
+        ]
         with Progress(
             SpinnerColumn(style="green"),
             TextColumn("[progress.description]{task.description}"),
@@ -236,17 +267,55 @@ def get_all_instances(region_name=None):
             task = progress.add_task(
                 "Retrieving instances in all regions...", total=len(all_regions)
             )
+            skipped = {}
             for region in all_regions:
                 progress.update(
                     task,
                     description=f"Retrieving instances in {region['RegionName']}...",
                 )
-                instance_dfs.append(
-                    get_instances(region["RegionName"], show_spinner=False)
-                )
+                try:
+                    instance_dfs.append(
+                        get_instances(
+                            region["RegionName"],
+                            show_spinner=False,
+                            boto_config=_REGION_SCAN_CONFIG,
+                        )
+                    )
+                except BotoConnectionError:
+                    skipped[region["RegionName"]] = "unreachable"
+                except (ClientError, click.ClickException) as e:
+                    # _BotoClientProxy turns AuthFailure into a ClickException.
+                    error = e if isinstance(e, ClientError) else e.__cause__
+                    if not isinstance(error, ClientError):
+                        raise
+                    code = error.response.get("Error", {}).get("Code")
+                    if code not in _REGION_UNAVAILABLE_CODES:
+                        raise
+                    skipped[region["RegionName"]] = code
                 progress.advance(task)
+        if not instance_dfs:
+            message = "Could not list instances in any region: " + ", ".join(
+                f"{r} ({c})" for r, c in skipped.items()
+            )
+            if skipped and set(skipped.values()) <= _AUTH_FAILURE_CODES:
+                message += f". {_AUTH_FAILURE_MSG}"
+            raise click.ClickException(message)
+        for skipped_region, code in skipped.items():
+            click.echo(
+                click.style(
+                    f"Warning: skipped region {skipped_region} ({code}); "
+                    "its instances are not listed or checked.",
+                    fg="yellow",
+                ),
+                err=True,
+            )
+        scanned = (
+            f"{len(instance_dfs)} of {len(all_regions)} regions"
+            if skipped
+            else "all regions"
+        )
         click.echo(
-            click.style("✔ Finished retrieving instances in all regions.", fg="green")
+            click.style(f"✔ Finished retrieving instances in {scanned}.", fg="green")
         )
         instance_df = pd.concat(instance_dfs)
     else:
@@ -283,7 +352,7 @@ def get_all_instances(region_name=None):
                 instance_df["Cost"] = (
                     instance_df["Cost"] * instance_df["uptime"] / (60**2)
                 )
-                instance_df.sort_values("Cost", inplace=True)
+                instance_df = instance_df.sort_values("Cost")
                 instance_df["Cost"] = instance_df["Cost"].apply(
                     lambda x: f"${int(x)}" if pd.notna(x) else "N/A"
                 )
@@ -526,6 +595,37 @@ def wait_for_instance(host, user="ubuntu", n_tries=10):
     return _wait_for_instance()
 
 
+def check_server_pem_matches_key_pair(key_name):
+    """Raise a ``UsageError`` unless ``server_pem`` is the private key of EC2 key pair ``key_name``.
+
+    New instances accept only the key pair they boot with, and docker-ssh
+    logs in to every server with ``server_pem``, which can't have a passphrase.
+    """
+    pair_path, server_pem = get_pem_path(key_name), get_server_pem_path()
+    same_file = pair_path.resolve() == server_pem.resolve()
+    keys = []
+    for path in [server_pem] if same_file else [server_pem, pair_path]:
+        try:
+            keys.append(paramiko.PKey.from_path(path))
+        except Exception as exc:
+            raise click.UsageError(
+                f"Could not read the SSH key {path}: {exc}. server_pem and the "
+                "ec2_default_pem key file must be unencrypted RSA, ECDSA or "
+                "Ed25519 private keys (to replace a DSA key, see "
+                "https://dallinger.readthedocs.io/en/latest/docker_support.html"
+                "#replacing-a-dsa-key)."
+            ) from exc
+    if not same_file and keys[0].get_base64() != keys[1].get_base64():
+        raise click.UsageError(
+            f"server_pem ({server_pem}) is not the private key of the EC2 key pair "
+            f"ec2_default_pem = {key_name} ({pair_path}). New instances accept only "
+            "that key pair, and Dallinger logs in to every server with server_pem. "
+            f"Set server_pem = {pair_path} in ~/.dallingerconfig or the "
+            "environment, or set "
+            "ec2_default_pem to the key pair whose private key server_pem is."
+        )
+
+
 def _get_latest_ubuntu_image_id(ec2):
     """Fallback: find the latest Ubuntu 24.04 AMI via ec2.describe_images."""
     response = ec2.describe_images(
@@ -633,13 +733,40 @@ def boot_instance(ec2, image_id, instance_type, key_name, instance_name, region_
     instance = response["Instances"][0]
     instance_id = instance["InstanceId"]
 
-    with yaspin(
-        text=f"Waiting for {instance_name} to be ready...", color="green"
-    ) as sp:
-        waiter = get_ec2_client(region_name).get_waiter("instance_running")
-        waiter.wait(InstanceIds=[instance_id])
-        sp.ok("✔")
+    try:
+        with yaspin(
+            text=f"Waiting for {instance_name} to be ready...", color="green"
+        ) as sp:
+            waiter = get_ec2_client(region_name).get_waiter("instance_running")
+            waiter.wait(InstanceIds=[instance_id])
+            sp.ok("✔")
+    except BaseException:
+        _print_teardown_hint(instance_name, instance_id, region_name, starting=True)
+        raise
     return instance_id
+
+
+def _print_teardown_hint(instance_name, instance_id, region_name, starting=False):
+    """Say how to remove an instance that booted but was not set up.
+
+    ``ec2 teardown --name`` finds only running instances, so an instance that
+    may still be ``pending`` gets that caveat.
+    """
+    region = f" --region {region_name}" if region_name else ""
+    teardown = f"`dallinger ec2 teardown --name {instance_name}{region}`"
+    if starting:
+        print(
+            f"{instance_name} ({instance_id}) was launched but may still be "
+            f"starting. Terminate {instance_id} in the EC2 console now, or run "
+            f"{teardown} once `dallinger ec2 list instances --running{region}` "
+            "shows it; then provision it again."
+        )
+    else:
+        print(
+            f"{instance_name} ({instance_id}) is running but was not set up. Fix "
+            f"the problem above, then remove it with {teardown} and provision it "
+            "again."
+        )
 
 
 def set_security_group(
@@ -865,6 +992,11 @@ def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False, target=N
 
 
 def create_dns_record(dns_host, user, host, route_53=None):
+    """Point ``dns_host`` at ``host`` with a Route 53 CNAME and wait until it is in sync.
+
+    Nothing connects through the new name, as the local resolver may still
+    cache an older answer (or a negative one) for it.
+    """
     if route_53 is None:
         route_53 = get_53_client()
 
@@ -891,29 +1023,18 @@ def create_dns_record(dns_host, user, host, route_53=None):
         response["ResponseMetadata"]["HTTPStatusCode"] == 200
     ), "Failed to set up DNS record"
 
-    with yaspin(
-        text=f"Waiting for DNS record for {dns_host} (can take up to two minutes)...",
-        color="green",
-    ) as sp:
-        change_id = response["ChangeInfo"]["Id"]
-        n_tries = 24
-        wait = 5
-        timeout = n_tries * wait
-        for _ in range(n_tries):
-            response = route_53.get_change(Id=change_id)
-            if response["ChangeInfo"]["Status"] == "INSYNC":
-                break
-            time.sleep(wait)
-        else:
-            raise Exception(f"DNS record setup timed out after {timeout} seconds.")
-        sp.ok("✔")
-
-    is_wild_card = dns_host.startswith("*.")
-    full_domain = dns_host.replace("*.", "")
-    test_host = f"test.{full_domain}" if is_wild_card else dns_host
-
-    dns_executor = Executor(test_host, user)
-    return dns_executor
+    print(f"Waiting for the DNS record {dns_host} (can take up to two minutes)...")
+    change_id = response["ChangeInfo"]["Id"]
+    n_tries, wait = 24, 5
+    for _ in range(n_tries):
+        if route_53.get_change(Id=change_id)["ChangeInfo"]["Status"] == "INSYNC":
+            print(f"DNS record {dns_host} is in sync.")
+            return
+        time.sleep(wait)
+    print(
+        f"Route 53 had not synced the DNS record {dns_host} after {n_tries * wait} "
+        "seconds; it usually finishes within a few more minutes."
+    )
 
 
 def prepare_instance(
@@ -965,6 +1086,8 @@ def prepare_instance(
 
     start = time.time()
     ec2 = get_ec2_client(region_name)
+    # Without --region, get_keys picks boto's default region or aws_region.
+    region_name = ec2.meta.region_name
     security_group_id = get_security_group_id(security_group_name, region_name)
     print(f"Provisioning {instance_name} on {region_name}...")
     image_id = get_image_id(ec2, image_name)
@@ -974,21 +1097,47 @@ def prepare_instance(
         ec2, image_id, instance_type, key_name, instance_name, region_name
     )
 
-    set_security_group(
-        ec2, instance_id, instance_name, security_group_id, security_group_name
-    )
-
-    host, user, ip_address, executor = increase_storage(
-        instance_id, instance_name, storage_in_gb, ec2
-    )
-    if callback is not None:
-        callback(
-            host, user, ip_address, executor, dns_host, instance_name, instance_id
+    try:
+        set_security_group(
+            ec2, instance_id, instance_name, security_group_id, security_group_name
         )
+        host, user, ip_address, executor = increase_storage(
+            instance_id, instance_name, storage_in_gb, ec2
+        )
+    except BaseException as exc:
+        # With a key that loads, paramiko reports a rejection as "Invalid key"
+        # after also trying the file as other key types.
+        if isinstance(exc, pse.AuthenticationException) or (
+            isinstance(exc, pse.SSHException) and "Invalid key" in str(exc)
+        ):
+            print(
+                f"The instance rejected server_pem. It accepts only the EC2 key pair "
+                f"{key_name} it booted with. If that key pair in AWS was imported "
+                f"from a different key than your local {key_name}.pem, delete it in "
+                "the EC2 console so that provisioning imports the local key."
+            )
+        _print_teardown_hint(instance_name, instance_id, region_name)
+        raise
+    if callback is not None:
+        try:
+            callback(
+                host, user, ip_address, executor, dns_host, instance_name, instance_id
+            )
+        except BaseException:
+            region = f" --region {region_name}" if region_name else ""
+            dns = f" --dns-host {dns_host}" if dns_host else ""
+            print(
+                "To remove the instance and its DNS records instead, run "
+                f"`dallinger ec2 teardown --name {instance_name}{region}{dns}`."
+                if dns_host
+                else "To remove the instance instead, run "
+                f"`dallinger ec2 teardown --name {instance_name}{region}`."
+            )
+            raise
 
-    duration = time.time() - start
+    duration = round(time.time() - start)
     print(
-        f"Provisioning complete! Time taken: {duration}. {instance_name} is ready at {host}"
+        f"Provisioning complete in {duration} seconds. {instance_name} is ready at {host}"
     )
 
 
@@ -1021,28 +1170,56 @@ def remove_dns_record(dns_host, remove_dallinger_host=True, target=None):
 def prepare_docker_experiment_setup(
     host, user, ip_address, executor, dns_host=None, instance_name=None, instance_id=None
 ):
-    from dallinger.config import get_config
+    """Install Docker on a new instance, create its DNS records and register it.
 
-    with yaspin(text="Loading Dallinger configuration...", color="green") as sp:
-        config = get_config(load=True)
-        assert config.get("dashboard_user") and config.get(
-            "dashboard_password"
-        ), "dashboard_user and dashboard_password must be set in ~/.dallingerconfig"
-        sp.ok("✔")
-
-    dallinger_prepare_server(host, user)
-
-    create_dns_records(dns_host, user, host)
-
-    with yaspin(text="Registering host in Dallinger...", color="green") as sp:
-        # One entry per server: its DNS name if it has one, so deployments
-        # infer the DNS host and there is no second entry to choose between.
-        # ``teardown`` finds the entry by instance id.
-        server_info = dict(host=dns_host or host, user=user, ec2_instance_id=instance_id)
+    Everything connects over the AWS hostname ``host``: a resolver may still
+    cache an old or negative answer for the new DNS host. Without a DNS host,
+    a nip.io name for the public IP gives the server's sites a name that
+    Let's Encrypt certifies, unlike the AWS hostname, which can resolve to a
+    private IP inside AWS. A server record is saved under the AWS hostname
+    and, with a DNS host, under that name too, both with the instance id so
+    that ``ec2 teardown``, ``stop`` and ``start`` find them. A failure prints
+    the commands that finish the setup (``prepare_instance`` adds the teardown
+    command).
+    """
+    server_dns_host = dns_host or f"{ip_address}.nip.io"
+    try:
         if dns_host:
-            server_info["dns_host"] = dns_host
+            try:
+                create_dns_records(dns_host, user, host)
+            except Exception as exc:
+                print(
+                    f"Warning: Could not create the DNS records {dns_host} and "
+                    f"*.{dns_host} ({exc}). Create them in Route 53 as CNAME "
+                    f"records pointing to {host}."
+                )
+        dallinger_prepare_server(host, user)
+        print("Registering the server and starting its shared services.")
+        server_info = dallinger_register_server(
+            host, user, dns_host=server_dns_host, network_advice=False
+        )
+        server_info = {**server_info, "ec2_instance_id": instance_id}
         dallinger_store_host(server_info)
-        sp.ok("✔")
+        if dns_host:
+            dallinger_store_host({**server_info, "host": dns_host})
+    except BaseException:
+        commands = [
+            f"dallinger docker-ssh servers add --host {host} --user {user} "
+            f"--dns-host {server_dns_host}"
+        ]
+        if dns_host:
+            commands.append(
+                f"dallinger docker-ssh servers add --host {dns_host} --user {user} "
+                f"--dns-host {dns_host}"
+            )
+        print(
+            f"{host} is running but is not set up. Fix the problem above, then run:\n"
+            + "".join(f"  {command}\n" for command in commands)
+            + (f"Run the second command once {dns_host} resolves. " if dns_host else "")
+            + "If `servers add` says the shared files were left unchanged, also "
+            f"run `dallinger docker-ssh servers upgrade --host {host} --yes`."
+        )
+        raise
 
 
 def provision(
@@ -1176,18 +1353,27 @@ def stop(region_name, instance_id):
 
 
 def saved_server(instance_id):
-    """Return the server entry that provisioning saved for ``instance_id``, or ``{}``.
-
-    An entry with a DNS host is preferred if several have this instance id.
-    """
-    matches = [
-        info
-        for info in get_configured_hosts().values()
-        if instance_id and info.get("ec2_instance_id") == instance_id
-    ]
-    return next((info for info in matches if info.get("dns_host")), None) or next(
-        iter(matches), {}
+    """Return a server entry that provisioning saved for ``instance_id``, or ``{}``."""
+    return next(
+        (
+            info
+            for info in get_configured_hosts().values()
+            if instance_id and info.get("ec2_instance_id") == instance_id
+        ),
+        {},
     )
+
+
+def route_53_dns_host(server_info):
+    """Return the saved DNS host of a server entry, unless it is a nip.io name.
+
+    Provisioning without ``--dns-host`` saves ``<ip>.nip.io``, which has no
+    Route 53 records to manage.
+    """
+    dns_host = server_info.get("dns_host")
+    if dns_host and not dns_host.lower().endswith(".nip.io"):
+        return dns_host
+    return None
 
 
 def has_route_53_zone(dns_host):
@@ -1215,7 +1401,9 @@ def teardown(region_name, instance_id, public_dns_name, dns_host):
             else host in (public_dns_name, dns_host)
         )
     ]
-    saved = [hosts[h].get("dns_host") for h in owned if hosts[h].get("ec2_instance_id")]
+    saved = [
+        route_53_dns_host(hosts[h]) for h in owned if hosts[h].get("ec2_instance_id")
+    ]
     dns_host = dns_host or next(filter(None, saved), None)
     try:
         remove_dns_record(dns_host, remove_dallinger_host=False, target=public_dns_name)

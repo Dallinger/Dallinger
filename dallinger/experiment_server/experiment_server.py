@@ -20,15 +20,15 @@ from flask import (
 )
 from flask_login import LoginManager, current_user, login_required
 from jinja2 import TemplateNotFound
-from psycopg2.extensions import TransactionRollbackError
 from rq import Queue
-from sqlalchemy import exc, func
+from sqlalchemy import func, text
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.sql.expression import true
 
 from dallinger import db, experiment, models, recruiters
 from dallinger.config import get_config
 from dallinger.notifications import MessengerError, admin_notifier
+from dallinger.realtime import store
 from dallinger.utils import (
     attach_json_logger,
     generate_random_id,
@@ -58,6 +58,39 @@ redis_conn = db.redis_conn
 # Connect to the Redis queue for notifications.
 q = Queue("default", connection=redis_conn)
 WAITING_ROOM_CHANNEL = "quorum"
+
+# Arbitrary stable key used with pg_advisory_xact_lock to serialize participant
+# signup decisions. All signup transactions must acquire this lock before
+# reading or writing participant state (worker checks, occupancy count, insert).
+# The lock is automatically released when the transaction commits or rolls back.
+PARTICIPANT_SIGNUP_LOCK_KEY = 7759314749901988
+
+# Maximum time to wait for the signup advisory lock before giving up.
+# Protection against a wedged holder blocking all signups indefinitely.
+# 5s is ~50x a typical signup; tight enough to fail fast before gunicorn's
+# worker timeout intervenes, but generous enough for slow create_participant
+# overrides. Transaction-local; does not affect other connections.
+PARTICIPANT_SIGNUP_LOCK_TIMEOUT = "5s"
+
+
+def acquire_participant_signup_lock(connection):
+    """Block until this transaction owns participant-signup decisions.
+
+    Uses a PostgreSQL transaction-level advisory lock, which is automatically
+    released when the surrounding transaction commits or rolls back. Blocking
+    (not NOWAIT) so concurrent signups queue rather than fail.
+
+    Raises if the lock cannot be acquired within PARTICIPANT_SIGNUP_LOCK_TIMEOUT,
+    preventing a wedged holder from blocking all signups indefinitely.
+    """
+    connection.execute(
+        text(f"SET LOCAL lock_timeout = '{PARTICIPANT_SIGNUP_LOCK_TIMEOUT}'")
+    )
+    connection.execute(
+        text("SELECT pg_advisory_xact_lock(:key)"),
+        {"key": PARTICIPANT_SIGNUP_LOCK_KEY},
+    )
+
 
 app = Flask("Experiment_Server")
 
@@ -577,14 +610,14 @@ def launch():
             )
 
     if recruitment_details is not None:
-        message = "\n".join(
-            (
-                "Initial recruitment list:\n{}".format(
-                    "\n".join(recruitment_details["items"])
-                ),
-                "Additional details:\n{}".format(recruitment_details["message"]),
+        sections = []
+        if recruitment_details["items"]:
+            sections.append(
+                "Initial recruitment list:\n" + "\n".join(recruitment_details["items"])
             )
-        )
+        if recruitment_details["message"]:
+            sections.append("Additional details:\n" + recruitment_details["message"])
+        message = "\n".join(sections)
     else:
         message = "Recruitment hasn't been started yet. Please, initialize recruitment manually!"
     return success_response(recruitment_msg=message)
@@ -751,6 +784,10 @@ def summary():
 
     if state["completed"] is None:
         state["completed"] = False
+    # Bots that a game type plays for sign off once they've joined, so an
+    # experiment whose participants have all signed off can still be playing
+    if state["completed"] and exp.realtime_games:
+        state["completed"] = not store.sessions_still_running()
 
     # Regenerate a waiting room message when checking status
     # to counter missed messages at the end of the waiting room
@@ -916,7 +953,6 @@ def assign_properties(thing):
 
 
 @app.route("/participant/<worker_id>/<hit_id>/<assignment_id>/<mode>", methods=["POST"])
-@db.serialized
 def create_participant(worker_id, hit_id, assignment_id, mode, entry_information=None):
     """Create a participant.
 
@@ -926,30 +962,30 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     """
     config = get_config(load=True)
 
-    recruiter_name = request.args.get("recruiter")
+    recruiter_name = request.args.get("recruiter") or request.form.get("recruiter")
     fingerprint_hash = request.args.get("fingerprint_hash") or request.form.get(
         "fingerprint_hash"
     )
-
-    if config.get("lock_table_when_creating_participant"):
-        # Historically we have locked the participant table when creating participants
-        # to avoid database inconsistency problems. However some experimenters have experienced
-        # some deadlocking problems associated with this locking, so we have made
-        # it an opt-out behavior.
-        try:
-            session.connection().execute(
-                "LOCK TABLE participant IN EXCLUSIVE MODE NOWAIT"
-            )
-        except exc.OperationalError as e:
-            e.orig = TransactionRollbackError()
-            raise e
 
     missing = [p for p in (worker_id, hit_id, assignment_id) if p == "undefined"]
     if missing:
         msg = "/participant POST: required values were 'undefined'"
         return error_response(error_type=msg, status=403)
 
+    session.remove()
+    connection = session.connection(
+        execution_options={"isolation_level": "READ COMMITTED"}
+    )
+
     exp = Experiment()
+
+    # Serialize all participant-state decisions involved in signup (worker and
+    # assignment checks, occupancy count, and insert) through one advisory lock.
+    # Under READ COMMITTED, a request that waits here sees earlier signups'
+    # committed changes in the queries it executes after acquiring the lock.
+    # The critical section intentionally includes exp.create_participant() so
+    # that subclass overrides operate on consistent participant state.
+    acquire_participant_signup_lock(connection)
 
     if (
         fingerprint_hash
@@ -980,6 +1016,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     if already_participated:
         if not allow_repeat_worker_ids:
             db.logger.warning("Worker has already participated.")
+            session.rollback()
             return error_response(
                 error_type="/participant POST: worker has already participated.",
                 status=403,
@@ -995,13 +1032,14 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         .one_or_none()
     )
 
+    duplicate_id = None
     if duplicate:
         msg = """
             {} has reused assignment_id while existing participant is
             working. Replacing older participant {}.
         """
         app.logger.warning(msg.format(recruiter_name, duplicate.id))
-        q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
+        duplicate_id = duplicate.id
 
     # Count working or beyond participants.
     nonfailed_count = (
@@ -1033,6 +1071,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         db.logger.exception(
             "Error creating particant using these values: {}".format(participant_vals)
         )
+        session.rollback()
         msg = "/participant POST: an error occurred while registering the participant."
         return error_response(error_type=msg, status=400)
 
@@ -1059,6 +1098,11 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         }
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
         result["quorum"] = quorum
+
+    session.commit()
+
+    if duplicate_id:
+        q.enqueue(worker_function, "AssignmentReassigned", None, duplicate_id)
 
     # return the data
     return success_response(**result)

@@ -6,6 +6,7 @@ import os
 import socket
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime
 
 import gevent
@@ -18,25 +19,39 @@ from redis import TimeoutError as RedisTimeoutError
 from simple_websocket import ConnectionClosed
 from sqlalchemy.exc import SQLAlchemyError
 
-from dallinger import models
 from dallinger.db import (
     CONTROL_CHANNEL,
     DIRECT_CHANNEL,
+    REALTIME_SESSION_CHANNEL,
     RESERVED_CHANNELS,
+    TIME_CHANNEL,
+    channel_frame,
+    direct_envelope,
     redis_conn,
     session,
 )
+from dallinger.realtime import session_sockets, store
+from dallinger.redis_utils import connect_to_redis
+from dallinger.utils import normalized_participant_id
 
-from .experiment_server import Experiment, app
+from . import socket_admission
+from .experiment_server import app
 from .utils import date_handler
 
 sock = Sock(app)
 
+#: Channel listeners hold a connection each for as long as their channel has
+#: clients, so they get their own pool. Otherwise enough busy channels would
+#: make every other Redis call in the process wait for a free connection.
+#: It is built independently of ``dallinger.db.redis_conn``, so replacing that
+#: client redirects publishes but not subscriptions; replace both together.
+pubsub_conn = connect_to_redis()
+
 # Send a ping on the websocket channel every 25 seconds
 app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
 
-#: Every field an envelope carries. ``deliver_direct`` indexes all four.
-ENVELOPE_FIELDS = frozenset({"participant_ids", "scope", "origin", "payload"})
+#: Every field a directed send carries. ``deliver_direct`` indexes all three.
+SEND_FIELDS = frozenset({"participant_ids", "scope", "payload"})
 
 #: Seconds a connection waits for redis to confirm its subscriptions before it
 #: starts relaying. Only an outage reaches it; a healthy subscription is
@@ -69,6 +84,10 @@ def process_token():
     return _process_token
 
 
+#: RFC 6455 going away. Sent to every connection when the web process shuts
+#: down, so the browser reconnects to another one.
+GOING_AWAY_CLOSE_CODE = 1001
+
 #: RFC 6455 policy violation, reported to the browser as ``event.code`` on
 #: ``onclose``. Dallinger's bundled ``ReconnectingWebSocket`` stops retrying on
 #: it.
@@ -94,25 +113,19 @@ def log(msg, level="info"):
     logfunc("{}/{}: {}".format(os.getpid(), id(gevent.hub.getcurrent()), msg))
 
 
-_process_experiment = None
-_process_experiment_lock = Semaphore()
+_process_games = None
 
 
-def process_experiment():
-    """The one ``Experiment`` this process hands to its experiment-socket clients.
-
-    ``Experiment.__init__`` runs ``configure()``, which is experiment code and
-    may query, so the constructor can yield and two connections would otherwise
-    each build one.
+def process_games():
+    """The experiment's game types, as
+    :func:`~dallinger.realtime.store.experiment_games` returns them, loaded
+    once per process, when its gunicorn worker or the ``dallinger develop``
+    server starts.
     """
-    global _process_experiment
-    with _process_experiment_lock:
-        if _process_experiment is None:
-            try:
-                _process_experiment = Experiment()
-            finally:
-                session.remove()
-    return _process_experiment
+    global _process_games
+    if _process_games is None:
+        _process_games = store.experiment_games()
+    return _process_games
 
 
 def publish_control_event(payload):
@@ -138,6 +151,11 @@ class Channel:
     on the specified channel name.
 
     When a message is received, it is relayed to all clients that have subscribed.
+
+    A channel is stopped when its last client leaves, and a new one is started
+    when a client joins again. Until the new channel's ``SUBSCRIBE`` reaches
+    Redis, messages published to that name are not relayed, so a message sent
+    straight after a client (re)joins an empty channel can be lost.
     """
 
     #: Seconds to wait before re-reading after a lost redis connection,
@@ -198,9 +216,18 @@ class Channel:
         """Send one pubsub message to every subscribed client."""
         if message["type"] != "message":
             return
-        payload = "{}:{}".format(
-            message["channel"].decode("utf-8"), message["data"].decode("utf-8")
-        )
+        # Only redis errors are caught by ``listen``, so a decode error raised
+        # here would end the listener and leave this channel's clients deaf.
+        try:
+            channel = message["channel"].decode("utf-8")
+            data = message["data"].decode("utf-8")
+        except UnicodeDecodeError:
+            log(
+                "Dropped a message on channel {} that is not UTF-8.".format(self.name),
+                level="warning",
+            )
+            return
+        payload = channel_frame(channel, data)
         for client in self.clients:
             gevent.spawn(self._relay, client, payload)
 
@@ -226,7 +253,7 @@ class Channel:
         refused, so the listener ends and ``ChatBackend.forget`` drops the
         channel. ``rebuilds_on_protocol_error`` rebuilds even then.
         """
-        pubsub = redis_conn.pubsub()
+        pubsub = pubsub_conn.pubsub()
         name = self.name
         if isinstance(name, str):
             name = name.encode("utf-8")
@@ -279,8 +306,8 @@ class Channel:
                     if not retryable:
                         # ``close()`` disconnects, so the new pubsub starts on
                         # a fresh stream.
-                        pubsub.close()
-                        pubsub = redis_conn.pubsub()
+                        self._close(pubsub)
+                        pubsub = pubsub_conn.pubsub()
                         subscribed = False
                     if reported:
                         app.logger.warning(template.format(self.name, delay))
@@ -294,8 +321,19 @@ class Channel:
         finally:
             # Returns the connection to the redis pool. ``stop()`` reaches this
             # too, because killing a greenlet raises inside it.
-            pubsub.close()
+            self._close(pubsub)
             chat_backend.forget(self)
+
+    def _close(self, pubsub):
+        """Close a pubsub without letting a close error replace ``GreenletExit``
+        or skip ``ChatBackend.forget``."""
+        try:
+            pubsub.close()
+        except Exception as error:
+            log(
+                "Could not close redis channel {}: {!r}".format(self.name, error),
+                level="warning",
+            )
 
     @staticmethod
     def _relay(client, payload):
@@ -322,23 +360,28 @@ class Channel:
 class DirectChannel(Channel):
     """Relays directed sends published by other processes to local clients.
 
-    A process runs one of these while it holds any connection that named a
-    participant. It has no subscribers of its own: an envelope names
-    participants, and the backend looks up their connections, so a client is
-    addressable without having subscribed to anything.
+    A process starts one of these on :data:`~dallinger.db.DIRECT_CHANNEL` with
+    its first connection that names a participant, and one on
+    :data:`~dallinger.db.REALTIME_SESSION_CHANNEL` with its first connection
+    that joins or waits for a real-time session, and keeps each running after
+    those connections leave. It has no subscribers of its own: an envelope
+    names participants, and the backend looks up their connections, so a
+    client is addressable without having subscribed to anything.
     """
 
     #: Registrations live on the backend rather than here, so a listener that
     #: ended would leave every one of them unreachable from other processes
-    #: until the next connection named a participant.
+    #: until the next connection that needs the listener starts another.
     rebuilds_on_protocol_error = True
 
-    def __init__(self, backend):
-        super().__init__(DIRECT_CHANNEL)
+    def __init__(self, backend, name):
+        super().__init__(name)
         self.backend = backend
 
     def relay(self, message):
-        """Hand one envelope to the backend, unless this process published it."""
+        """Hand an envelope's sends to the backend, unless this process
+        published it.
+        """
         if message["type"] != "message":
             return
         envelope = parsed_envelope(message.get("data"))
@@ -352,40 +395,59 @@ class DirectChannel(Channel):
             return
         if envelope["origin"] == process_token():
             return
-        self.backend.deliver_direct(envelope)
+        for send in envelope["items"]:
+            self.backend.deliver_direct(self.name, send)
 
 
 def parsed_envelope(data):
-    """The directed send ``data`` carries, or ``None`` if it carries no envelope.
+    """The envelope ``data`` carries, or ``None`` if it carries no envelope.
+
+    An envelope holds the ``origin`` that published it and its ``items``, a
+    list of directed sends: one from
+    :func:`publish_to_participants`, or every view of a step from a real-time
+    runner (:func:`dallinger.realtime.delivery.view_batch`). An item that
+    isn't a send is logged and dropped, and the rest are kept.
 
     Every field ``deliver_direct`` reads is checked here, because this is where
     an envelope enters the process. Neither clients nor
     :func:`~dallinger.experiment.Experiment.publish_to_subscribers` can publish
-    to the channel, but anything else holding the redis credentials can. An
-    exception raised in a relay unwinds
+    to the channels of directed sends, but anything else holding the redis
+    credentials can. An exception raised in a relay unwinds
     ``Channel.listen``, which catches redis errors only, and the process is
-    then left with no listener until its next addressable connection.
-
-    A participant id has to be a string because it is looked up as a dict key,
-    and an unhashable one raises rather than missing.
+    then left without that listener until its next connection that needs it.
     """
     try:
         envelope = json.loads(data)
     except (TypeError, ValueError):
         return None
-    if not isinstance(envelope, dict) or not ENVELOPE_FIELDS <= envelope.keys():
+    if not isinstance(envelope, dict) or not isinstance(envelope.get("origin"), str):
         return None
-    if not isinstance(envelope["origin"], str):
+    if not isinstance(envelope.get("items"), list):
         return None
-    if not isinstance(envelope["payload"], str):
-        return None
-    if envelope["scope"] is not None and not isinstance(envelope["scope"], str):
-        return None
-    if not isinstance(envelope["participant_ids"], list):
-        return None
-    if not all(isinstance(each, str) for each in envelope["participant_ids"]):
-        return None
-    return envelope
+    sends = []
+    for item in envelope["items"]:
+        if _is_send(item):
+            sends.append(item)
+        else:
+            log("Discarding an unreadable directed send.", level="warning")
+    return {"origin": envelope["origin"], "items": sends}
+
+
+def _is_send(value):
+    """Whether ``value`` holds every field of a send that ``deliver_direct``
+    reads.
+
+    A participant id has to be a string because it is looked up as a dict key,
+    and an unhashable one raises rather than missing.
+    """
+    return (
+        isinstance(value, dict)
+        and SEND_FIELDS <= value.keys()
+        and isinstance(value["payload"], str)
+        and (value["scope"] is None or isinstance(value["scope"], str))
+        and isinstance(value["participant_ids"], list)
+        and all(isinstance(each, str) for each in value["participant_ids"])
+    )
 
 
 class ChatBackend:
@@ -398,7 +460,13 @@ class ChatBackend:
         #: both websocket routes, or a reload that connects before the old
         #: socket times out.
         self.clients_by_participant = {}
-        self.direct_channel = None
+        #: The listener for each channel of directed sends, by its name.
+        self.direct_channels = {}
+        #: Every client connected to this process, to close when it shuts
+        #: down.
+        self.open_clients = set()
+        #: Set by :meth:`close_all`, after which every connection is closed.
+        self.closing = False
 
     def subscribe(self, client, channel_name):
         """Register a new client to receive messages on a channel.
@@ -433,22 +501,34 @@ class ChatBackend:
 
         A connection that named no usable id is left unaddressable rather
         than refused: it can still subscribe, send, and receive broadcasts.
-        Returns the listener for directed sends, or ``None`` for a connection
-        which is not addressable.
+        Returns the listeners for directed sends that the client's frames
+        arrive through: none for a connection which is not addressable, and
+        the session listener as well for one that joins or waits for a
+        real-time session.
         """
         addressable_id = getattr(client, "addressable_id", None)
         if addressable_id is None:
-            return None
+            return []
         self.clients_by_participant.setdefault(addressable_id, set()).add(client)
-        if self.direct_channel is None:
-            self.direct_channel = DirectChannel(self)
-            self.direct_channel.start()
-        return self.direct_channel
+        names = [DIRECT_CHANNEL]
+        if client.session.uses_session_listener:
+            names.append(REALTIME_SESSION_CHANNEL)
+        return [self.direct_listener(name) for name in names]
+
+    def direct_listener(self, name):
+        """Return the running listener for directed sends on the channel
+        ``name``, starting one if there is none.
+        """
+        listener = self.direct_channels.get(name)
+        if listener is None:
+            listener = self.direct_channels[name] = DirectChannel(self, name)
+            listener.start()
+        return listener
 
     def deregister(self, client):
         """Stop addressing a client.
 
-        The listener is left running once started. Stopping it with the last
+        Each listener is left running once started. Stopping it with the last
         addressable client and starting it again with the next costs a window,
         during ``Greenlet.kill``, in which a registration either attaches to a
         dying listener and is never reached, or starts a second one that
@@ -463,20 +543,39 @@ class ChatBackend:
         if not clients:
             del self.clients_by_participant[addressable_id]
 
-    def deliver_direct(self, envelope):
-        """Send one directed payload to this process's matching connections.
+    def deliver_direct(self, channel, send):
+        """Deliver one directed send to this process's matching connections,
+        in a frame on ``channel``.
 
-        An envelope carrying a ``scope`` reaches only the connections opened
-        with that same scope. Every process sees every envelope, so naming
-        participants who are connected elsewhere, or nowhere, is ordinary.
+        A send carrying a ``scope`` reaches only the connections opened with
+        that same scope. One without reaches every connection of the
+        participants it names, whatever their scopes, so a real-time view for
+        a page opened without a scope reaches every page that participant
+        has open. Every process sees every envelope, so naming participants
+        who are connected elsewhere, or nowhere, is ordinary.
         """
-        scope = envelope["scope"]
-        frame = "{}:{}".format(DIRECT_CHANNEL, envelope["payload"])
-        for participant_id in envelope["participant_ids"]:
+        scope = send["scope"]
+        frame = channel_frame(channel, send["payload"])
+        for participant_id in send["participant_ids"]:
             for client in list(self.clients_by_participant.get(participant_id, ())):
                 if scope is not None and client.scope != scope:
                     continue
                 gevent.spawn(Channel._relay, client, frame)
+
+    def close_all(self):
+        """Close every connection this process holds, and every one it
+        accepts from now on, as it shuts down.
+
+        Each connection's handler then finishes, so its session gets its
+        leave, and the browser reconnects to another web process. Gunicorn's
+        worker goes on accepting connections for up to a second after
+        SIGTERM.
+        """
+        self.closing = True
+        for client in list(self.open_clients):
+            # A relay blocked on a browser that stopped reading holds that
+            # client's send lock, which its close waits for.
+            gevent.spawn(client.close_going_away)
 
     def forget(self, channel):
         """Drop a channel whose listener has stopped.
@@ -486,8 +585,8 @@ class ChatBackend:
         one. The identity check keeps a replacement already registered under
         the same name.
         """
-        if self.direct_channel is channel:
-            self.direct_channel = None
+        if self.direct_channels.get(channel.name) is channel:
+            del self.direct_channels[channel.name]
             return
         if self.channels.get(channel.name) is channel:
             del self.channels[channel.name]
@@ -500,8 +599,10 @@ chat_backend = ChatBackend()
 class Client:
     """Represents a single websocket client.
 
-    A client holding an ``experiment`` hands it each inbound message. One
-    without publishes to redis for a subscriber to pick up.
+    A frame on one of the experiment's game channels goes to the client's
+    real-time session, if it has one. Otherwise a client holding an
+    ``experiment`` hands it each inbound message, and one without publishes to
+    redis for a subscriber to pick up.
     """
 
     def __init__(
@@ -511,6 +612,7 @@ class Client:
         participant_id=None,
         scope=None,
         experiment=None,
+        games=None,
     ):
         self.ws = ws
         self.worker_id = worker_id
@@ -518,6 +620,11 @@ class Client:
         self.addressable_id = normalized_participant_id(participant_id)
         self.scope = scope
         self.experiment = experiment
+        #: The experiment's game types, a dict from each channel to its game
+        #: type's instance.
+        self.games = games or {}
+        #: Takes the connection's frames on game channels and the time channel.
+        self.session = session_sockets.NoSession(self.client_info())
 
         # This lock is used to make sure that multiple greenlets
         # cannot send to the same socket concurrently.
@@ -547,6 +654,17 @@ class Client:
                     raise
                 raise ConnectionClosed(self.ws.close_reason, self.ws.close_message)
             # log('Sent to {}: {}'.format(self, message), level='debug')
+
+    def close_going_away(self):
+        """Close the connection because the web process is shutting down."""
+        try:
+            with self.send_lock:
+                self.ws.close(GOING_AWAY_CLOSE_CODE, "server shutting down")
+        except ConnectionClosed:
+            return
+        # receive() waits on this event, and simple_websocket's reader thread
+        # sets it only once the browser answers the close.
+        self.ws.event.set()
 
     def subscribe(self, channel):
         """Start listening to messages on ``channel``, if there is one.
@@ -616,15 +734,18 @@ class Client:
                         level="warning",
                     )
                     continue
-                if channel_name in RESERVED_CHANNELS:
+                if channel_name == TIME_CHANNEL or channel_name in self.games:
+                    answer = self.session.handle_frame(channel_name, data)
+                    if answer is not None:
+                        self.send(answer)
+                elif channel_name in RESERVED_CHANNELS:
                     log(
                         "Client {} may not publish to the reserved channel {}.".format(
                             self.client_info(), channel_name
                         ),
                         level="warning",
                     )
-                    continue
-                if self.experiment is not None:
+                elif self.experiment is not None:
                     self.handle(channel_name, data)
                 else:
                     redis_conn.publish(channel_name, data)
@@ -707,12 +828,11 @@ def publish_to_participants(payload, participant_ids, scope=None):
             addressable_ids.append(addressable_id)
     if not addressable_ids:
         return
-    envelope = {
+    send = {
         "participant_ids": addressable_ids,
         # A connection names its scope in a query string, so the value it is
         # compared against is text on that side whatever the caller passed.
         "scope": None if scope is None else str(scope),
-        "origin": process_token(),
         # Serialized here so that every recipient of one send is delivered the
         # same bytes.
         "payload": json.dumps(payload, default=date_handler),
@@ -720,60 +840,8 @@ def publish_to_participants(payload, participant_ids, scope=None):
     # Published first: ``deliver_direct`` only spawns senders, so the order
     # costs nothing, and a redis failure then reaches nobody rather than
     # leaving this process's connections served and every other process's not.
-    redis_conn.publish(DIRECT_CHANNEL, json.dumps(envelope))
-    chat_backend.deliver_direct(envelope)
-
-
-def normalized_participant_id(participant_id):
-    """The string form of the participant id ``participant_id`` names, or ``None``.
-
-    Returns the participant id as a normalized string, or None if the value
-    is not a string or an integer, or cannot be parsed as a whole number.
-
-    The id is parsed as an int and rendered back as a string rather than
-    returned as-is, because int() accepts values the database column does
-    not, such as non-ASCII decimal digits. Without the round-trip, a raw value
-    like "٤٢" would pass the existence check but raise DataError on any
-    subsequent query that uses it as a column value. The round-trip also gives
-    each id a single string form, so "42", " 42 ", "+42" and "042" all come
-    back as "42".
-
-    Values that are neither strings nor integers are refused rather than
-    truncated: int() would read 12.7 as participant 12.
-
-    bool is excluded explicitly: although it is an int subclass and int(True)
-    is 1, a boolean participant_id is almost certainly a bug in the caller.
-
-    numbers.Integral is used instead of int so that numpy integers are
-    accepted (a caller reading participant ids out of a dataframe column
-    gets a numpy integer, not a plain int).
-    """
-    if isinstance(participant_id, bool) or not isinstance(
-        participant_id, (str, bytes, numbers.Integral)
-    ):
-        return None
-    try:
-        return str(int(participant_id))
-    except ValueError:
-        return None
-
-
-def resolve_participant_id(participant_id):
-    """The id of the participant ``participant_id`` names, or ``None``.
-
-    Existence is checked against the normalized id, so a value the column
-    cannot hold is refused before a query is made with it.
-    """
-    normalized = normalized_participant_id(participant_id)
-    if normalized is None:
-        return None
-    try:
-        found = session.query(
-            session.query(models.Participant).filter_by(id=int(normalized)).exists()
-        ).scalar()
-    finally:
-        session.remove()
-    return normalized if found else None
+    redis_conn.publish(DIRECT_CHANNEL, direct_envelope(process_token(), [send]))
+    chat_backend.deliver_direct(DIRECT_CHANNEL, send)
 
 
 def wait_until_listening(*channels):
@@ -799,25 +867,135 @@ def wait_until_listening(*channels):
 
 
 def _serve(ws, participant_id=None, experiment=None):
-    """Subscribe a connection to its channel and relay until it closes."""
+    """Subscribe a connection to its channel and relay until it closes.
+
+    A connection that asks for a real-time ``session`` is refused unless its
+    participant is one of the session's players. Its session gets a join
+    once the process's listener for session frames is confirmed, so the view
+    the runner answers with can't miss it, and a leave when it closes. A session
+    that has ended gets no join, and the connection gets its ending instead.
+    One whose keys expired after the check is refused like a non-member. A
+    connection waiting for a session of a game type is sent the newest one, if
+    there is one, once the same listener is confirmed, so a session started
+    in between is found or announced. A connection that closes while it waits
+    for its subscriptions, with or without a session, isn't served.
+    """
+    try:
+        client = _open_client(ws, participant_id, experiment)
+    except socket_admission.Refused as refusal:
+        _refuse(ws, refusal)
+        return
+    with _registered(client, request.args.get("channel")) as listeners:
+        # Checked only once the client is registered, so a shutdown that
+        # began while the connection was being set up closes it either way.
+        if chat_backend.closing:
+            client.close_going_away()
+            return
+        wait_until_listening(*listeners)
+        if not ws.connected:
+            # Closed during the wait, by the browser or by a shutdown.
+            return
+        try:
+            frame = _join_session(client)
+        except socket_admission.Refused as refusal:
+            _refuse(ws, refusal)
+            return
+        if frame is not None:
+            client.send(frame)
+        client.publish()
+
+
+def _refuse(ws, refusal):
+    code = UNAVAILABLE_CLOSE_CODE if refusal.retry else REFUSED_CLOSE_CODE
+    ws.close(code, refusal.reason)
+
+
+def _open_client(ws, participant_id, experiment):
+    """Return the :class:`Client` for a new connection, with its place in
+    the real-time session it asked for, or the game type it waits for a
+    session of, if any.
+
+    :raises ~dallinger.experiment_server.socket_admission.Refused: if the
+        game types can't be loaded, or as
+        :func:`~dallinger.realtime.session_sockets.open_connection_session`
+        refuses
+    """
+    try:
+        games = process_games()
+    except Exception:
+        log("Could not load the experiment's game types.", level="exception")
+        raise socket_admission.Refused("experiment unavailable", retry=True)
     client = Client(
         ws,
         worker_id=request.args.get("worker_id"),
         participant_id=participant_id,
         scope=request.args.get("scope"),
         experiment=experiment,
+        games=games,
     )
-    subscribed = client.subscribe(request.args.get("channel"))
-    direct = chat_backend.register(client)
     try:
-        wait_until_listening(subscribed, direct)
-        client.publish()
+        client.session = session_sockets.open_connection_session(
+            request.args,
+            client.addressable_id,
+            client.scope,
+            games,
+            checked=experiment is not None,
+            describe=client.client_info(),
+        )
+    except session_sockets.Refusal as refusal:
+        raise socket_admission.Refused(refusal.reason, retry=refusal.retry)
+    return client
+
+
+@contextmanager
+def _registered(client, channel):
+    """Subscribe ``client`` to ``channel``, register it for directed sends
+    and add it to the open clients. Yield the channels to wait for.
+
+    Afterwards, unsubscribe and deregister it, remove it from the open
+    clients, and add its leave to its session if it joined.
+    """
+    subscribed = client.subscribe(channel)
+    listeners = chat_backend.register(client)
+    chat_backend.open_clients.add(client)
+    try:
+        yield [subscribed, *listeners]
     finally:
-        # The client is registered by the two calls above, and the wait hands
-        # control to the hub, so a greenlet killed during it would leave the
-        # registrations behind. ``unsubscribe`` also runs in ``publish``, and
-        # tolerates being called twice.
+        # The caller's wait for the subscriptions hands control to the hub, so
+        # a greenlet killed during it would otherwise leave the registrations
+        # behind. ``unsubscribe`` also runs in ``publish``, and tolerates being
+        # called twice.
         chat_backend.unsubscribe(client)
+        chat_backend.open_clients.discard(client)
+        try:
+            client.session.leave()
+        except RedisError:
+            log(
+                "Could not add the leave of {}.".format(client.client_info()),
+                level="exception",
+            )
+
+
+def _join_session(client):
+    """Add the client's join to its session, if it has one, and return the
+    frame the page is sent first, or ``None``: how the session ended, if it
+    has, or for a client waiting for a session, the session it found.
+
+    :raises ~dallinger.experiment_server.socket_admission.Refused: if the
+        session's keys have expired, or redis or Postgres refuses the join
+    """
+    try:
+        return client.session.join()
+    except session_sockets.SessionExpired:
+        raise socket_admission.Refused("not a player in this session")
+    except (RedisError, SQLAlchemyError):
+        log(
+            "Could not join {} to its session or find it one.".format(
+                client.client_info()
+            ),
+            level="exception",
+        )
+        raise socket_admission.Refused("session join failed", retry=True)
 
 
 def chat(ws):
@@ -827,36 +1005,12 @@ def chat(ws):
 
 def experiment_socket(ws):
     """Hand each inbound message to the experiment running in this process."""
-    requested_id = request.args.get("participant_id")
     try:
-        participant_id = resolve_participant_id(requested_id)
-    except SQLAlchemyError:
-        log(
-            "Could not look up participant {!r} for an experiment socket.".format(
-                requested_id
-            ),
-            level="exception",
+        participant_id, experiment = socket_admission.admit(
+            request.args.get("participant_id"), request.args.get("scope")
         )
-        ws.close(UNAVAILABLE_CLOSE_CODE, "participant lookup failed")
-        return
-    # handle_websocket_message is told which participant sent each message, so
-    # a connection we cannot name is refused rather than handled anonymously.
-    # Existence is all this proves: the route is unauthenticated, so the id is
-    # not evidence of who is on the other end.
-    if participant_id is None:
-        log(
-            "Refusing experiment socket for unknown participant {!r}.".format(
-                requested_id
-            ),
-            level="warning",
-        )
-        ws.close(REFUSED_CLOSE_CODE, "unknown participant")
-        return
-    try:
-        experiment = process_experiment()
-    except Exception:
-        log("Could not build the experiment.", level="exception")
-        ws.close(UNAVAILABLE_CLOSE_CODE, "experiment unavailable")
+    except socket_admission.Refused as refusal:
+        _refuse(ws, refusal)
         return
     _serve(ws, participant_id=participant_id, experiment=experiment)
 

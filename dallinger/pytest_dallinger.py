@@ -72,7 +72,7 @@ def clear_workers():
             if process.pid == os.getpid():
                 continue
             try:
-                # When one of its processes exits, heroku local stops the rest.
+                # When one of its processes exits, the Procfile runner stops the rest.
                 process.terminate()
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
@@ -163,7 +163,6 @@ def stub_config():
         "id": "TEST_EXPERIMENT_UID",  # This is a significant value; change with caution.
         "keywords": "kw1, kw2, kw3",
         "lifetime": 1,
-        "lock_table_when_creating_participant": True,
         "logfile": "-",
         "loglevel": 0,
         "loglevel_worker": 2,
@@ -473,7 +472,7 @@ def debug_experiment(request, env, clear_workers):
         yield p
         if request.node.rep_setup.passed and request.node.rep_call.passed:
             p.expect_exact("Experiment completed", timeout=timeout)
-            p.expect_exact("Local Heroku process terminated", timeout=timeout)
+            p.expect_exact("Local server processes terminated", timeout=timeout)
     finally:
         try:
             flush_output(p, timeout=0.1)
@@ -509,8 +508,12 @@ def recruitment_loop(request, debug_experiment):
         while True:
             index = debug_experiment.expect(
                 [
-                    "{}: (.*&mode=debug)".format(NEW_RECRUIT_LOG_PREFIX),
-                    "{}".format(CLOSE_RECRUITMENT_LOG_PREFIX),
+                    # The debugger's own line, which starts the line;
+                    # --verbose also shows the server's, after a prefix.
+                    r"(?m)^{} (.*&mode=debug)".format(
+                        re.escape(NEW_RECRUIT_LOG_PREFIX)
+                    ),
+                    re.escape(CLOSE_RECRUITMENT_LOG_PREFIX),
                 ],
                 timeout=timeout,
             )

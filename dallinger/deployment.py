@@ -2,9 +2,11 @@ import codecs
 import json
 import os
 import re
+import signal
 import sys
 import threading
 import time
+from contextlib import contextmanager
 from shlex import quote
 from urllib.parse import urlparse, urlunparse
 
@@ -22,11 +24,12 @@ from rich.progress import (
 
 from dallinger import data, db, heroku, recruiters, registration
 from dallinger.config import get_config
-from dallinger.heroku.tools import HerokuApp, HerokuLocalWrapper
+from dallinger.heroku.tools import HerokuApp, LocalProcfileWrapper
 from dallinger.redis_utils import connect_to_redis
 from dallinger.utils import (
     ExperimentFileSource,
     GitClient,
+    available_signals,
     bootstrap_development_session,
     get_base_url,
     open_browser,
@@ -66,8 +69,18 @@ def _is_startup_status(status_code):
         return False
 
 
-def _https_wait_progress():
-    """Progress bar for the HTTPS wait. Disabled when stdout is not a TTY.
+def _show_https_wait_bar(context):
+    """Whether the HTTPS wait may draw a live progress bar.
+
+    A local server writes its log to the same terminal while ``/launch`` runs,
+    and a live bar can't move that output out of the way, so local launches
+    get the plain one-line notice instead.
+    """
+    return sys.stdout.isatty() and context != "local"
+
+
+def _https_wait_progress(context=None):
+    """Progress bar for the HTTPS wait, disabled unless :func:`_show_https_wait_bar`.
 
     The wait has no known length (the first POST may succeed, or we may retry
     until the timeout), so the bar is indeterminate: it pulses instead of
@@ -84,15 +97,15 @@ def _https_wait_progress():
         TimeElapsedColumn(),
         console=Console(highlight=False),
         transient=True,
-        disable=not sys.stdout.isatty(),
+        disable=not _show_https_wait_bar(context),
     )
 
 
-def _announce_https_wait(announced):
-    """Print a one-line wait notice on non-TTY logs; the progress bar covers TTYs."""
+def _announce_https_wait(announced, context=None):
+    """Print a one-line wait notice when there is no progress bar."""
     if announced:
         return True
-    if not sys.stdout.isatty():
+    if not _show_https_wait_bar(context):
         Console(highlight=False).print(HTTPS_WAIT_MESSAGE)
     return True
 
@@ -110,8 +123,10 @@ def handle_launch_data(
     """POST to ``url`` (``/launch``), retrying with exponential backoff.
 
     Connection, TLS, and gateway-startup failures are expected while the
-    server becomes reachable. Those retries show a progress bar instead of
-    error output. Application errors are still reported as they happen. If
+    server becomes reachable. Those retries show a live progress bar instead
+    of error output, except for ``context="local"`` or when stdout is not a
+    TTY: then a one-line notice is printed on the first startup failure.
+    Application errors are still reported as they happen. If
     every attempt fails, the last error is reported and a
     ``click.ClickException`` summarizing the failure is raised.
 
@@ -122,7 +137,9 @@ def handle_launch_data(
         attempts: Maximum number of retry attempts
         dns_host: Hostname for Docker SSH deployments
         dozzle_password: Password for Dozzle logs in Docker SSH deployments
-        context: Deployment context ('heroku', 'ssh', 'local', etc.)
+        context: Deployment context ('heroku', 'ssh', 'local', etc.).
+            'local' disables the live bar, because a local server writes its
+            log to the same terminal.
     """
     launch_data = None
     launch_request = None
@@ -130,7 +147,7 @@ def handle_launch_data(
     saw_application_error = False
     announced_wait = False
 
-    with _https_wait_progress() as progress:
+    with _https_wait_progress(context) as progress:
         task_id = progress.add_task(HTTPS_WAIT_MESSAGE, total=None)
         for remaining_attempt in sorted(range(attempts), reverse=True):
             startup_failure = False
@@ -191,7 +208,7 @@ def handle_launch_data(
                 )
 
             if startup_failure and not saw_application_error:
-                announced_wait = _announce_https_wait(announced_wait)
+                announced_wait = _announce_https_wait(announced_wait, context)
                 attempt_number = attempts - remaining_attempt
                 progress.update(
                     task_id,
@@ -347,7 +364,7 @@ def deploy_sandbox_shared_setup(
             r = connect_to_redis(url=heroku_app.redis_url)
             r.set("foo", "bar")
             ready = True
-            log("\n✓ connected at {}".format(heroku_app.redis_url), chevrons=False)
+            log("\nConnected at {}.".format(heroku_app.redis_url))
         except (ValueError, redis.exceptions.ConnectionError):
             time.sleep(2)
             log(".", chevrons=False, nl=False)
@@ -456,6 +473,35 @@ class DevelopmentDeployment:
         db.init_db(drop_all=True)
 
 
+@contextmanager
+def stop_signals_raise_keyboard_interrupt():
+    """Treat SIGTERM and SIGHUP like Ctrl-C, so ``kill <pid>`` or closing the
+    terminal also stops the local server.
+
+    Does nothing outside the main thread, and leaves alone any of these
+    signals that already has a handler or is ignored.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+
+    def _interrupt(signum, frame):
+        raise KeyboardInterrupt
+
+    signums = [
+        signum
+        for signum in available_signals("SIGTERM", "SIGHUP")
+        if signal.getsignal(signum) == signal.SIG_DFL
+    ]
+    for signum in signums:
+        signal.signal(signum, _interrupt)
+    try:
+        yield
+    finally:
+        for signum in signums:
+            signal.signal(signum, signal.SIG_DFL)
+
+
 class HerokuLocalDeployment:
     exp_id = None
     tmp_dir = None
@@ -463,8 +509,8 @@ class HerokuLocalDeployment:
     environ = None
     bot = False
     experiment_files = None
-    DEPLOY_NAME = "Heroku"
-    WRAPPER_CLASS = HerokuLocalWrapper
+    DEPLOY_NAME = "local"
+    WRAPPER_CLASS = LocalProcfileWrapper
     DO_INIT_DB = True
 
     def configure(self):
@@ -480,7 +526,7 @@ class HerokuLocalDeployment:
 
     def update_dir(self):
         # FIXME: this call is used for implicit communication between classes in this file
-        # and service wrappers (HerokuLocalWrapper, DockerComposeWrapper).
+        # and service wrappers (LocalProcfileWrapper, DockerComposeWrapper).
         # This communication should be made explicit, passing this path around instead of
         # changing a global state.
         os.chdir(self.tmp_dir)
@@ -506,16 +552,19 @@ class HerokuLocalDeployment:
         if self.environ:
             environ = os.environ.copy()
             environ.update(self.environ)
-        self.out.log(f"Starting up the {self.DEPLOY_NAME} Local server...")
-        with self.WRAPPER_CLASS(
-            config,
-            self.out,
-            self.original_dir,
-            self.tmp_dir,
-            verbose=self.verbose,
-            env=environ,
-            needs_chrome=self.bot,
-        ) as wrapper:
+        self.out.log(f"Starting up the {self.DEPLOY_NAME} server...")
+        with (
+            stop_signals_raise_keyboard_interrupt(),
+            self.WRAPPER_CLASS(
+                config,
+                self.out,
+                self.original_dir,
+                self.tmp_dir,
+                verbose=self.verbose,
+                env=environ,
+                needs_chrome=self.bot,
+            ) as wrapper,
+        ):
             try:
                 self.execute(wrapper)
             except KeyboardInterrupt:
@@ -541,8 +590,10 @@ class HerokuLocalDeployment:
 
 class DebugDeployment(HerokuLocalDeployment):
     dispatch = {
-        r"[^\"]{} (.*)$".format(recruiters.NEW_RECRUIT_LOG_PREFIX): "new_recruit",
-        r"{}".format(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
+        r"[^\"]{} (.*)$".format(re.escape(recruiters.NEW_RECRUIT_LOG_PREFIX)): (
+            "new_recruit"
+        ),
+        re.escape(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX): "recruitment_closed",
     }
     #: Seconds between checks of the ``/summary`` route once recruitment closes.
     status_poll_interval = 10
@@ -606,6 +657,14 @@ class DebugDeployment(HerokuLocalDeployment):
         else:
             if result["status"] == "success":
                 self.out.log(result["recruitment_msg"])
+                if (
+                    not self.no_browsers
+                    and recruiters.config_opens_participant_browsers(get_config())
+                ):
+                    self.out.log(
+                        "New participants requested by the experiment will open "
+                        "in browser windows automatically."
+                    )
                 dashboard_url = self.with_proxy_port("{}/dashboard/".format(base_url))
                 self.display_dashboard_access_details(dashboard_url)
                 if not self.no_browsers:
@@ -617,12 +676,12 @@ class DebugDeployment(HerokuLocalDeployment):
 
                 self.heroku = heroku
                 self.out.log(
-                    "Monitoring the Heroku Local server for recruitment or completion..."
+                    f"Monitoring the {self.DEPLOY_NAME} server for recruitment or completion..."
                 )
                 heroku.monitor(listener=self.notify)
 
     def launch_request_complete(self, match):
-        return HerokuLocalWrapper.MONITOR_STOP
+        return LocalProcfileWrapper.MONITOR_STOP
 
     def cleanup(self):
         self.complete = True
@@ -634,12 +693,11 @@ class DebugDeployment(HerokuLocalDeployment):
         open a browser window for the a new participant (in this case the
         person doing local debugging).
         """
-        self.out.log("new recruitment request!")
-        if self.no_browsers:
-            self.out.log(recruiters.NEW_RECRUIT_LOG_PREFIX + ": " + match.group(1))
-            return
         url = self.with_proxy_port(match.group(1))
-
+        if self.no_browsers:
+            self.out.log(f"{recruiters.NEW_RECRUIT_LOG_PREFIX} {url}")
+            return
+        self.out.log(f"Opening a browser for a new participant: {url}")
         open_browser(url)
 
     def display_dashboard_access_details(self, url):
@@ -696,6 +754,7 @@ class DebugDeployment(HerokuLocalDeployment):
             error = None
             try:
                 resp = requests.get(status_url, timeout=self.status_request_timeout)
+                resp.raise_for_status()
                 exp_data = resp.json()
             except (ValueError, requests.exceptions.RequestException) as e:
                 error = e
@@ -727,7 +786,7 @@ class DebugDeployment(HerokuLocalDeployment):
         has determined that the experiment is complete.
         """
         if self.complete:
-            return HerokuLocalWrapper.MONITOR_STOP
+            return LocalProcfileWrapper.MONITOR_STOP
         return super(DebugDeployment, self).notify(message)
 
 

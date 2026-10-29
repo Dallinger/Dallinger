@@ -92,6 +92,10 @@ The ``server_pem`` value specifies the local private key file that will
 be used for SSH authentication when connecting to the instance. It's recommended to
 store this in ``~/.ssh/`` following standard SSH key management practices.
 Note that this variable should be specified as a full path (e.g. ``~/.ssh/my-ec2-key.pem``).
+A new instance accepts only the ``ec2_default_pem`` key pair, and Dallinger
+logs in to every server with ``server_pem``, so ``server_pem`` must be that
+key pair's private key, without a passphrase; ``provision`` checks this
+before booting an instance.
 
 **Both configuration values are required** for EC2-based deployments. If either is missing
 or if the PEM file doesn't exist at the specified path, the deployment will fail with an error message.
@@ -136,11 +140,6 @@ To provision an on-demand EC2 instance::
 
     dallinger ec2 provision --name <server_name> --region <region> --dns-host <subdomain>.my-experiments.org --type <type> --security_group_name <security_group>
 
-The server is registered under its ``--dns-host`` name, so later deployments
-can select it with ``--server <subdomain>.my-experiments.org`` or its short name
-``--server <subdomain>`` (or omit ``--server`` if it is your only server)
-without passing ``--dns-host`` again.
-
 Pick an instance name which is easy to recognize, for example
 `tapping-deployment-batch-2` is good but `melody123` would be bad::
 
@@ -165,6 +164,33 @@ You can configure different amounts of storage or different instance types::
 
     dallinger ec2 provision --name <server_name> --region <region> --storage 100 --type m5.2xlarge
 
+Like ``dallinger docker-ssh servers add``, ``provision`` then starts the
+server's shared Caddy, Postgres and Dozzle services and prints the log viewer
+login once. It saves the server under its AWS hostname and, with
+``--dns-host``, under that name too. Both records keep the DNS host, so a
+deploy to either needs no ``--dns-host``. ``--server <aws_hostname>``
+connects over SSH straight away; ``--server <subdomain>.my-experiments.org``
+(or ``--server <subdomain>``) needs that name to resolve on your computer
+first. A classic deploy checks that the app's
+public name resolves to the server, whichever ``--server`` you use. With
+``--dns-host``, you can deploy once your computer resolves the new DNS records
+(up to about five minutes; up to 15 if you looked a name up before it
+existed); without it, straight away. The setup connects over the AWS
+hostname: it waits for Route 53 to sync the records (up to two minutes each),
+but not for your computer to resolve the new name. Caddy gives Let's
+Encrypt the ``contact_email_on_error`` address from ``~/.dallingerconfig``
+(or the environment, but not an experiment's ``config.txt`` or experiment
+class), so ``provision`` stops before booting an instance if that is not an
+email address, or if ``dashboard_password`` (or ``dashboard_user``, which
+defaults to ``admin``) is not set. Without ``--dns-host``, the server is
+saved with ``--dns-host <public ip>.nip.io``, because Let's Encrypt does not
+issue certificates for AWS hostnames. If Route 53 can't create the DNS
+records, ``provision`` warns, says which records to create by hand, and sets
+the server up anyway. If a later step fails, the instance keeps running.
+``provision`` then prints the ``ec2 teardown`` command that removes it (with
+its ``--region`` and ``--dns-host``) and, if the setup had started, the
+``servers add`` commands that finish the setup instead. Fix the problem and
+run one or the other.
 
 Increasing Storage on An Instance
 ---------------------------------
@@ -226,7 +252,7 @@ Or by the instance's public AWS hostname::
 
     dallinger ec2 teardown --dns <aws_public_hostname> --region <region>
 
-Teardown removes the server from Dallinger's server list and deletes the
+Teardown removes both of the server's records from Dallinger's server list and deletes the
 Route 53 records for the ``--dns-host`` it was provisioned with, if they point
 at this instance. It warns about records that point elsewhere (for example a
 record left at an old hostname after ``ec2 stop`` and ``ec2 start``); check

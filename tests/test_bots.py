@@ -167,6 +167,30 @@ class TestHighPerformanceBot:
         )
         assert bot.participant_id == 4
 
+    def test_a_bot_subscribes_to_the_quorum_channel(self, active_config, monkeypatch):
+        from dallinger.bots import HighPerformanceBotBase
+        from dallinger.experiment_server import sockets
+
+        monkeypatch.setattr(sockets, "redis_conn", mock.Mock())
+        monkeypatch.setattr(sockets, "chat_backend", sockets.ChatBackend())
+        monkeypatch.setattr(sockets.Channel, "start", mock.Mock())
+        bot = HighPerformanceBotBase(
+            "https://dallinger.io/ad?assignment_id=assignment1&"
+            "worker_id=worker1&participant_id=1&hit_id=hit1"
+        )
+
+        bot.subscribe_to_quorum_channel()
+        channel = sockets.chat_backend.channels["quorum"]
+        channel._relay(bot, 'quorum:{"q": 2, "n": 1}')
+
+        assert channel.clients == [bot]
+        (_, event), _ = sockets.redis_conn.publish.call_args
+        assert json.loads(event)["client"] == {
+            "class": "dallinger.bots.HighPerformanceBotBase",
+            "worker_id": "worker1",
+            "participant_id": "1",
+        }
+
     def test_sign_off(self, bot, req_post):
         value = bot.sign_off()
         req_post.assert_called_once_with(

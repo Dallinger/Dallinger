@@ -761,6 +761,42 @@ class TestDashboardDatabase:
         if "details" in row:
             assert isinstance(row["details"], dict)
 
+    @pytest.mark.parametrize(
+        "table, column, value",
+        [
+            ("realtime_session", "outcome", {"winner": "1"}),
+            ("realtime_event", "payload", {"bid": 5}),
+        ],
+    )
+    def test_the_realtime_tables_show_their_columns(
+        self, db_session, table, column, value
+    ):
+        from dallinger.experiment_server.experiment_server import Experiment
+        from dallinger.models import RealtimeEvent, RealtimeSession
+
+        session = RealtimeSession(
+            game_type="sealed_bid", members=[1, 2], outcome={"winner": "1"}
+        )
+        db_session.add(session)
+        db_session.flush()
+        db_session.add(
+            RealtimeEvent(
+                session_id=session.id,
+                sequence=1,
+                event_type="message",
+                participant_id=1,
+                payload={"bid": 5},
+            )
+        )
+        db_session.flush()
+        exp = Experiment()
+
+        columns = [c["data"] for c in exp.table_columns(table=table)]
+        page = exp.table_data(table=table, start=0, length=10)
+
+        assert column in columns
+        assert page["data"][0][column] == value
+
     def test_table_data_search_and_order(self, a, db_session):
         """Global search and ordering by a column should work."""
         from dallinger.experiment_server.experiment_server import Experiment

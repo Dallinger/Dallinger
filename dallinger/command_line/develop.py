@@ -1,24 +1,38 @@
+import contextlib
+import os
+import re
+import signal
 import subprocess
+import sys
 import threading
 import time
 from urllib.parse import urlparse, urlunparse
 
 import click
+from redis.exceptions import RedisError
 from rq import Queue
+from rq.exceptions import InvalidJobOperation
+from rq.job import Job, JobStatus
 
+from dallinger import dev_logging
 from dallinger.command_line.utils import (
     Output,
-    error,
     get_experiment_files,
-    header,
     log,
     require_exp_directory,
 )
 from dallinger.config import get_config
 from dallinger.db import redis_conn
-from dallinger.deployment import DevelopmentDeployment, handle_launch_data
+from dallinger.deployment import (
+    DevelopmentDeployment,
+    handle_launch_data,
+    stop_signals_raise_keyboard_interrupt,
+)
 from dallinger.utils import (
+    JSON_LOGFILE,
+    DevelopDirectoryError,
     develop_target_path,
+    ignore_stop_signals,
     open_browser,
     setup_warning_hooks,
 )
@@ -26,6 +40,8 @@ from dallinger.utils import (
 setup_warning_hooks()
 
 BASE_URL = "http://127.0.0.1:{}/"
+# In the launch message of the hotair and cli recruiters.
+_SINGLE_RECRUITMENT_LINK = re.compile(r"Single recruitment link: (\S+)")
 
 
 def ad_url(config, port):
@@ -54,7 +70,12 @@ def develop():
 
 
 @develop.command()
-@click.option("--port", default=5000, help="The port Flask is running on")
+@click.option(
+    "--port",
+    type=int,
+    default=None,
+    help="The port Flask is running on (default: the base_port setting)",
+)
 @click.option(
     "--skip-flask",
     is_flag=True,
@@ -63,9 +84,17 @@ def develop():
 @click.option(
     "--no-browsers",
     is_flag=True,
-    help="Skip opening browsers; log the recruitment message and dashboard login",
+    help="Skip opening the dashboard and participant pages in browsers",
 )
-def debug(port, skip_flask, no_browsers=False):
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help=(
+        "Show the server's full output, including a line for every request "
+        "(same as DALLINGER_DEV_LOG=full)"
+    ),
+)
+def debug(port, skip_flask, no_browsers=False, verbose=False):
     from dallinger.command_line.utils import verify_package
 
     files = get_experiment_files()
@@ -75,6 +104,7 @@ def debug(port, skip_flask, no_browsers=False):
     if not verify_package(
         verify_experiment=False,
         experiment_files=files,
+        summary=True,
     ):
         # We could instead use the @require_exp_directory decorator,
         # but this doesn't print anything useful without the verbose flag.
@@ -84,7 +114,11 @@ def debug(port, skip_flask, no_browsers=False):
         )
         raise click.Abort
 
-    _bootstrap(experiment_files=files)
+    _bootstrap(
+        exp_config=None if port is None else {"base_port": port},
+        experiment_files=files,
+    )
+    port = get_config().get("base_port")
 
     q = Queue("default", connection=redis_conn)
     if no_browsers:
@@ -93,13 +127,91 @@ def debug(port, skip_flask, no_browsers=False):
         job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
 
     if not skip_flask:
-        config = get_config()
-        develop_dir = develop_target_path(config)
         try:
-            subprocess.check_call(["./run.sh"], cwd=develop_dir)
-        except subprocess.CalledProcessError as ex:
+            develop_dir = develop_target_path(get_config())
+            env = {**os.environ, "FLASK_RUN_PORT": str(port), "base_port": str(port)}
+            if verbose:
+                env[dev_logging.LOG_MODE_ENV] = "full"
+            _run_dev_server(["./run.sh"], develop_dir, env=env)
+        finally:
+            _cancel_pending_job(job)
+
+
+def _cancel_pending_job(job):
+    """Cancel ``job`` if it hasn't started, so it can't run in a later session."""
+    pending = (JobStatus.QUEUED, JobStatus.DEFERRED, JobStatus.SCHEDULED)
+    try:
+        # A finished job's record expires, and then get_status() raises.
+        if Job.exists(job.id, job.connection) and job.get_status() in pending:
             job.cancel()
-            error("Failed to run flask: {} See traceback above for details.".format(ex))
+    except (InvalidJobOperation, RedisError) as ex:
+        log(f"Could not cancel the launch job: {ex}")
+
+
+def _run_dev_server(cmd, cwd, stop_timeout=5, env=None):
+    """Run the local server until it exits or this process is interrupted.
+
+    The server runs in its own session, so Ctrl-C reaches only this process,
+    which then stops the server's whole process group. SIGTERM and SIGHUP
+    are treated like Ctrl-C. A SIGKILL to this process can't be passed on,
+    so it leaves the server running.
+
+    Parameters
+    ----------
+    cmd : list of str
+        Command that starts the server.
+    cwd : str
+        Directory to run ``cmd`` in.
+    stop_timeout : float
+        Seconds to wait after SIGTERM before killing the server's processes.
+    env : dict, optional
+        Environment for the server; defaults to this process's environment.
+
+    Raises
+    ------
+    click.ClickException
+        If the server fails of its own accord.
+    """
+    interrupted = False
+    with stop_signals_raise_keyboard_interrupt():
+        proc = subprocess.Popen(cmd, cwd=cwd, env=env, start_new_session=True)
+        try:
+            code = proc.wait()
+        except KeyboardInterrupt:
+            interrupted = True
+            log("Stopping the local server...")
+        finally:
+            _stop_process_group(proc, stop_timeout)
+    if interrupted:
+        log("Local server stopped.")
+    elif code < 0:
+        raise click.ClickException(
+            f"The local server was killed by signal {-code}; see its output above."
+        )
+    elif code:
+        raise click.ClickException(
+            f"The local server exited with status {code}; see its output above."
+        )
+
+
+def _stop_process_group(proc, timeout=5):
+    """Stop the process group led by ``proc`` and reap ``proc``.
+
+    Sends SIGTERM to the group, then SIGKILL to any member still alive after
+    ``timeout`` seconds. In the main thread, Ctrl-C, SIGTERM and SIGHUP are
+    ignored meanwhile, so repeating them can't cut the cleanup short.
+    """
+    with ignore_stop_signals():
+        # macOS reports EPERM for a group that only has zombies left.
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(proc.pid, signal.SIGTERM)
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                proc.poll()
+                os.killpg(proc.pid, 0)
+                time.sleep(0.1)
+            os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
 
 
 @develop.command()
@@ -115,33 +227,109 @@ def _bootstrap(exp_config=None, experiment_files=None):
         exp_config,
         experiment_files=experiment_files,
     )
-    log(header, chevrons=False)
-    bootstrapper.run()
+    try:
+        bootstrapper.run()
+    except DevelopDirectoryError as ex:
+        raise click.ClickException(str(ex))
 
 
 def launch_app_and_open_browser(port):
-    _launch_app(port)
-    _async_browser("dashboard", port)
+    launch_app_without_browsers(port)
+    _async_browser("dashboard", port, quiet=True)
     time.sleep(0.1)  # A little delay to ensure they always open in the same order
-    _async_browser("ad", port)
+    _async_browser("ad", port, quiet=True)
 
 
 def launch_app_without_browsers(port):
-    """Launch the app and log what the browsers would otherwise show.
-
-    Matches the output of ``dallinger debug --no-browsers``.
-    """
+    """Launch the app and print the participant link and dashboard login."""
     launch_data = _launch_app(port)
-    if launch_data.get("recruitment_msg"):
-        log(launch_data["recruitment_msg"])
     config = get_config(load=True)
-    log("Experiment dashboard: {}".format(BASE_URL.format(port) + "dashboard/develop"))
-    log(
-        "Dashboard user: {} password: {}".format(
-            config.get("dashboard_user"),
-            config.get("dashboard_password"),
+    details = launch_message_rows(launch_data.get("recruitment_msg"))
+    details.append(
+        (
+            "Dashboard",
+            "{}dashboard/develop (user {}, password {})".format(
+                BASE_URL.format(port),
+                config.get("dashboard_user"),
+                config.get("dashboard_password"),
+            ),
         )
     )
+    echo_ready(details)
+
+
+def launch_message_rows(message):
+    """Return ``(label, value)`` rows for the start-up block from a launch message.
+
+    The recruiter's single recruitment link (hotair and cli recruiters), or
+    else the only link in the "Initial recruitment list:", becomes the
+    ``Participant link``; the rest of "Additional details:" (or a message
+    in another format) becomes ``Recruitment``. Neither heading is kept.
+
+    Parameters
+    ----------
+    message : str or None
+        The ``recruitment_msg`` that ``/launch`` returns.
+
+    Returns
+    -------
+    list of (str, str)
+    """
+    message = (message or "").strip()
+    link = _SINGLE_RECRUITMENT_LINK.search(message)
+    if link:
+        return [("Participant link", link.group(1))]
+    if not message.startswith(("Initial recruitment list:", "Additional details:")):
+        return [("Recruitment", message)] if message else []
+    items, _, details = message.partition("Additional details:")
+    items = items.replace("Initial recruitment list:", "", 1).split()
+    rows = []
+    if len(items) == 1:
+        rows.append(("Participant link", items[0]))
+    elif items:
+        rows.append(("Participant links", "\n".join(items)))
+    if details.strip():
+        rows.append(("Recruitment", details.strip()))
+    return rows
+
+
+def echo_ready(details=(), after=()):
+    """Print the block that ends the development server's start-up.
+
+    After a blank line come "Ready.", ``details``, the location of the full
+    log and ``after`` as aligned ``label: value`` lines, and how to stop the
+    server::
+
+        Ready.
+          Participant link: http://127.0.0.1:5000/ad?recruiter=hotair&…
+          Dashboard:        http://127.0.0.1:5000/dashboard/develop (user …)
+          Full log:         /tmp/dallinger_develop/logs.jsonl
+        Press Ctrl+C to stop.
+
+    The block is printed in one write, so that server log lines don't
+    split it.
+
+    Parameters
+    ----------
+    details : sequence of (str, str)
+        Labels and values to show before the full log's location. Lines
+        after the first of a value are indented to line up with it.
+    after : sequence of (str, str)
+        Labels and values to show after it, such as PsyNet's
+        ``Other terminals`` line.
+    """
+    colour = dev_logging.use_colour(sys.stdout)
+    ready = click.style("Ready.", fg="green", bold=True) if colour else "Ready."
+    log_path = os.path.join(develop_target_path(get_config(load=True)), JSON_LOGFILE)
+    rows = [*details, ("Full log", log_path), *after]
+    width = max(len(label) for label, _ in rows) + 1
+    lines = ["", ready]
+    for label, value in rows:
+        first, *rest = str(value).splitlines() or [""]
+        lines.append(f"  {label + ':':<{width}} {first}")
+        lines.extend((" " * (width + 3) + line).rstrip() for line in rest)
+    lines.append("Press Ctrl+C to stop.")
+    click.echo("\n".join(lines), color=colour)
 
 
 def _launch_app(port):
@@ -155,18 +343,29 @@ def _launch_app(port):
     default=None,
     help="Route name (valid routes are: {})".format(", ".join(valid_routes.keys())),
 )
-@click.option("--port", default=5000, help="The port Flask is running on")
-def browser(route=None, port=5000):
+@click.option(
+    "--port",
+    type=int,
+    default=None,
+    help="The port Flask is running on (default: the base_port setting)",
+)
+def browser(route=None, port=None):
+    if port is None:
+        port = get_config(load=True).get("base_port")
     _browser(route=route, port=port)
 
 
-def _browser(route=None, port=5000):
-    """Open one of the supported routes with appropriate path and URL parameters"""
+def _browser(route=None, port=5000, quiet=False):
+    """Open one of the supported routes with appropriate path and URL parameters.
+
+    Unless ``quiet``, the URL is printed first.
+    """
     config = get_config(load=True)
     url_factory = valid_routes.get(route)
     if url_factory is not None:
         url = url_factory(config, port)
-        log(f"Opening {route}: {url}")
+        if not quiet:
+            log(f"Opening {route}: {url}")
         open_browser(url)
     else:
         click.echo(
@@ -174,9 +373,11 @@ def _browser(route=None, port=5000):
         )
 
 
-def _async_browser(route=None, port=5000):
+def _async_browser(route=None, port=5000, quiet=False):
     # The _browser call is pretty slow, so we run it in a thread
     # to allow us to open multiple browsers at the same time
     threading.Thread(
-        target=_browser, name=f"Open {route}", kwargs={"route": route, "port": port}
+        target=_browser,
+        name=f"Open {route}",
+        kwargs={"route": route, "port": port, "quiet": quiet},
     ).start()

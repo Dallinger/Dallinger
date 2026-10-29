@@ -1,5 +1,6 @@
 import configparser
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -77,10 +78,29 @@ def run_worker(
 def test_worker_that_never_registers_exits_after_startup_timeout(tmp_path):
     result = run_worker(tmp_path, "time.sleep(30)", startup_timeout="5")
     assert result.returncode == 1
-    assert (
-        "Worker will exit if it hasn't registered with RQ within 5 s" in result.stderr
-    )
+    # The announcement is logged at DEBUG, so only loglevel_worker = 0 shows it.
+    assert "Worker will exit" not in result.stderr
     assert "hasn't registered with RQ within 5 s; exiting" in result.stderr
+
+
+def test_development_server_worker_uses_the_console_format(tmp_path, monkeypatch):
+    monkeypatch.setenv("DALLINGER_DEV_ROLE", "worker")
+    result = run_worker(
+        tmp_path, startup_timeout="60", extra_config="loglevel_worker = 0\n"
+    )
+    assert re.search(
+        r"^\d\d:\d\d:\d\d worker Worker will exit if", result.stderr, re.MULTILINE
+    )
+
+
+def test_debug_log_level_announces_startup_timeout(tmp_path):
+    result = run_worker(
+        tmp_path, startup_timeout="60", extra_config="loglevel_worker = 0\n"
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Worker will exit if it hasn't registered with RQ within 60 s" in (
+        result.stderr
+    )
 
 
 def test_startup_timeout_from_config_txt(tmp_path):

@@ -153,112 +153,28 @@ def test_resolve_dns_host(server_info, dns_host, expected):
 
 
 @pytest.mark.parametrize(
-    "host, host_option, record, offers_nip_io",
+    "server_info, dns_host, expected",
     [
-        ("1.2.3.4:2222", "1.2.3.4:2222", "A", True),
-        ("[2001:db8::1]:2222", "'[2001:db8::1]:2222'", "AAAA", False),
+        ({"host": "1.2.3.4", "dns_host": "lab.example.org"}, None, "lab.example.org"),
+        ({"host": "1.2.3.4", "dns_host": "lab.example.org"}, "other.org", "other.org"),
+        ({"host": "lab.example.org:2222"}, None, "lab.example.org"),
     ],
 )
-def test_missing_dns_host_advice_suits_the_address_family(
-    host, host_option, record, offers_nip_io
+def test_classic_hostname_uses_the_explicit_then_saved_dns_host(
+    server_info, dns_host, expected
 ):
-    advice = docker_ssh_module._missing_dns_host_advice(
-        {"host": host, "user": "ubuntu", "default_ingress": "classic"}
-    )
-    assert f"Create a DNS {record} record" in advice
-    assert ("nip.io" in advice) == offers_nip_io
-    assert (
-        f"servers add --host {host_option} --user ubuntu --default-ingress classic "
-        "--dns-host my-custom-domain.example.com" in advice
-    )
+    hostname = docker_ssh_module._classic_hostname(server_info, "myapp", None, dns_host)
+    assert hostname == f"myapp.{expected}"
 
 
-def test_servers_add_saves_dns_host():
-    with (
-        mock.patch.object(docker_ssh_module, "prepare_server"),
-        mock.patch.object(docker_ssh_module, "get_configured_hosts", return_value={}),
-        mock.patch.object(docker_ssh_module, "store_host") as store_host,
-    ):
-        result = CliRunner().invoke(
-            docker_ssh_module.servers,
-            ["add", "--host", "1.2.3.4", "--dns-host", "lab.example.org"],
-        )
-    assert result.exit_code == 0, result.output
-    store_host.assert_called_once_with(
-        {
-            "host": "1.2.3.4",
-            "user": None,
-            "default_ingress": "classic",
-            "dns_host": "lab.example.org",
-        }
-    )
-
-
-def test_servers_add_keeps_the_saved_ec2_fields():
-    saved = {
-        "host": "alice.example.org",
-        "user": "ubuntu",
-        "dns_host": "alice.example.org",
-        "ec2_instance_id": "i-123",
-    }
-    with (
-        mock.patch.object(docker_ssh_module, "prepare_server"),
-        mock.patch.object(
-            docker_ssh_module,
-            "get_configured_hosts",
-            return_value={"alice.example.org": saved},
-        ),
-        mock.patch.object(docker_ssh_module, "store_host") as store_host,
-    ):
-        result = CliRunner().invoke(
-            docker_ssh_module.servers,
-            ["add", "--host", "alice.example.org", "--user", "ubuntu"]
-            + ["--default-ingress", "cloudflare"],
-        )
-    assert result.exit_code == 0, result.output
-    store_host.assert_called_once_with({**saved, "default_ingress": "cloudflare"})
-
-
-@pytest.mark.parametrize(
-    "server_info, aborts",
-    [
-        ({"host": "1.2.3.4", "dns_host": "lab.example.org"}, False),
-        ({"host": "1.2.3.4"}, True),
-    ],
-)
-def test_deploy_to_an_ip_server_needs_a_saved_dns_host(
-    monkeypatch, capsys, server_info, aborts
-):
-    from dallinger.config import Configuration
-
-    config = Configuration()
-    config._reset(register_defaults=True)
-    config.extend({"contact_email_on_error": "lab@example.org"})
-    config.ready = True
-    monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
-    monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {"1.2.3.4": server_info})
-    monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", mock.Mock())
-    monkeypatch.setattr(docker_ssh_module, "get_experiment_files", mock.Mock())
-    dns_check = mock.Mock()
-    monkeypatch.setattr(docker_ssh_module, "_check_experiment_hostname_dns", dns_check)
-    monkeypatch.setattr(
-        docker_ssh_module, "Executor", mock.Mock(side_effect=RuntimeError("ssh"))
-    )
-    with pytest.raises(click.Abort if aborts else RuntimeError):
-        docker_ssh_module._deploy_in_mode(
-            app_name="myapp",
-            archive_path=None,
-            config_options=(),
-            dns_host=None,
-            mode="live",
-            server="1.2.3.4",
-            update=False,
-            local_build=False,
-            push_build=False,
-        )
-    assert ("you must specify a DNS host" in capsys.readouterr().out) == aborts
-    if not aborts:
-        dns_check.assert_called_once_with("1.2.3.4", "myapp.lab.example.org", False)
+@pytest.mark.parametrize("host", ["1.2.3.4:2222", "[2001:db8::1]:2222"])
+def test_ip_server_without_a_dns_host_is_refused(capsys, host):
+    with pytest.raises(click.Abort):
+        docker_ssh_module._classic_hostname({"host": host}, "myapp", None, None)
+    output = capsys.readouterr().out
+    ipv6 = host.startswith("[")
+    assert ("nip.io" in output) != ipv6
+    assert ("classic ingress needs IPv4" in output) == ipv6
 
 
 @pytest.mark.parametrize(
@@ -276,9 +192,9 @@ def test_deploy_to_an_ip_server_needs_a_saved_dns_host(
     ],
 )
 def test_classic_ingress_requires_a_public_server(
-    monkeypatch, capsys, ip_addr, ingress, default_ingress, aborts
+    monkeypatch, ip_addr, ingress, default_ingress, aborts
 ):
-    host_record = {"host": "lab-pc:2222", "user": "ubuntu", "dns_host": "lab.org"}
+    host_record = {"host": "lab-pc:2222", "user": "ubuntu"}
     if default_ingress:
         host_record["default_ingress"] = default_ingress
     monkeypatch.setattr(docker_ssh_module, "CONFIGURED_HOSTS", {"lab-pc": host_record})
@@ -286,14 +202,11 @@ def test_classic_ingress_requires_a_public_server(
         docker_ssh_module, "gethostbyname_ex", _ipv4_lookup({"lab-pc": ip_addr})
     )
     if aborts:
-        with pytest.raises(click.Abort):
+        with pytest.raises(click.ClickException) as excinfo:
             docker_ssh_module._check_classic_ingress_reachable("lab-pc", ingress)
-        output = capsys.readouterr().out
+        output = excinfo.value.message
         assert "--ingress cloudflare" in output
-        assert (
-            "servers add --host lab-pc:2222 --user ubuntu "
-            "--default-ingress cloudflare --dns-host lab.org`" in output
-        )
+        assert "servers add --host lab-pc:2222 --default-ingress cloudflare`" in output
         assert "--allow-private-ip" in output
     else:
         docker_ssh_module._check_classic_ingress_reachable("lab-pc", ingress)
@@ -332,8 +245,16 @@ def test_classic_ingress_check_is_skipped_by_allow_private_ip_and_update(
 
 def test_servers_add_warns_about_private_network(monkeypatch):
     monkeypatch.setattr(docker_ssh_module, "prepare_server", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: {})
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_config_contact_email",
+        lambda *a: ("a@b.org", "~/.dallingerconfig"),
+    )
     store_host = mock.Mock()
     monkeypatch.setattr(docker_ssh_module, "store_host", store_host)
+    write_server_files = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "_write_server_files", write_server_files)
     monkeypatch.setattr(
         docker_ssh_module, "gethostbyname_ex", _ipv4_lookup({"lab-pc": "10.0.0.1"})
     )
@@ -344,5 +265,168 @@ def test_servers_add_warns_about_private_network(monkeypatch):
 
     assert result.exit_code == 0, result.output
     store_host.assert_called_once()
+    assert store_host.call_args.args[0]["contact_email"] == "a@b.org"
+    assert write_server_files.call_args.kwargs == {"replace": False}
     assert "Warning: lab-pc has a private IP address (10.0.0.1)" in result.output
-    assert "--host lab-pc --user ubuntu --default-ingress cloudflare" in result.output
+    assert "--host lab-pc --default-ingress cloudflare" in result.output
+
+
+def test_servers_add_saves_only_a_valid_contact_email(monkeypatch):
+    monkeypatch.setattr(docker_ssh_module, "prepare_server", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: {})
+    # The placeholder from global_config_defaults.txt.
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_config_contact_email",
+        lambda *a: ("???", "~/.dallingerconfig"),
+    )
+    store_host = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "store_host", store_host)
+    monkeypatch.setattr(docker_ssh_module, "_write_server_files", mock.Mock())
+    add = ["add", "--host", "lab.example.org"]
+
+    result = CliRunner().invoke(docker_ssh_module.servers, add)
+    assert result.exit_code == 0, result.output
+    assert "contact_email" not in store_host.call_args.args[0]
+
+    # A placeholder saved by an earlier version gives way to a fixed config.
+    saved = {"host": "lab.example.org", "contact_email": "XXX@gmail.com"}
+    monkeypatch.setattr(
+        docker_ssh_module, "get_configured_hosts", lambda: {saved["host"]: saved}
+    )
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_config_contact_email",
+        lambda *a: ("a@b.org", "~/.dallingerconfig"),
+    )
+    result = CliRunner().invoke(docker_ssh_module.servers, add)
+    assert result.exit_code == 0, result.output
+    assert store_host.call_args.args[0]["contact_email"] == "a@b.org"
+    assert docker_ssh_module._server_tls(saved) == "tls a@b.org"
+
+    store_host.reset_mock()
+    for invalid in (
+        "nobody",
+        "XXX@gmail.com",
+        "???@b.org",
+        "Me <me@b.org>",
+        '"a b"@b.org',
+        "`a`@b.org",
+        "<me@b.org>",
+        "me@b.org}",
+        "me@b.org;",
+    ):
+        result = CliRunner().invoke(
+            docker_ssh_module.servers, add + ["--contact-email", invalid]
+        )
+        assert result.exit_code == 2
+        assert "Invalid value for '--contact-email'" in result.output
+    store_host.assert_not_called()
+
+    result = CliRunner().invoke(
+        docker_ssh_module.servers,
+        add + ["--contact-email", "o'brien+lab@mail.example.org"],
+    )
+    assert result.exit_code == 0, result.output
+    assert store_host.call_args.args[0]["contact_email"] == (
+        "o'brien+lab@mail.example.org"
+    )
+
+
+def test_server_commands_ignore_an_experiments_contact_email(tmp_path, monkeypatch):
+    home, experiment = tmp_path / "home", tmp_path / "experiment"
+    home.mkdir()
+    experiment.mkdir()
+    user_config = home / ".dallingerconfig"
+    user_config.write_text("[Parameters]\ncontact_email_on_error = me@example.org\n")
+    (experiment / "config.txt").write_text(
+        "[Parameters]\ncontact_email_on_error = exp@example.org\n"
+    )
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.chdir(experiment)
+    monkeypatch.setattr("dallinger.config.config", None)
+    monkeypatch.setattr(docker_ssh_module, "prepare_server", mock.Mock())
+    monkeypatch.setattr(docker_ssh_module, "get_configured_hosts", lambda: {})
+    store_host = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "store_host", store_host)
+    monkeypatch.setattr(docker_ssh_module, "_write_server_files", mock.Mock())
+
+    result = CliRunner().invoke(
+        docker_ssh_module.servers, ["add", "--host", "lab.example.org"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert store_host.call_args.args[0]["contact_email"] == "me@example.org"
+    assert (
+        "Let's Encrypt contact email: me@example.org (from ~/.dallingerconfig)."
+        in result.output
+    )
+
+    # A deploy also reads config.txt, but its placeholder doesn't hide a real email.
+    (experiment / "config.txt").write_text(
+        "[Parameters]\ncontact_email_on_error = XXX@gmail.com\n"
+    )
+    monkeypatch.setattr("dallinger.config.config", None)
+    server = {"host": "lab.example.org"}
+    assert docker_ssh_module._server_tls(server, experiment=True) == (
+        "tls me@example.org"
+    )
+
+    # Without one in ~/.dallingerconfig, only a deploy uses the experiment's.
+    (experiment / "config.txt").write_text(
+        "[Parameters]\ncontact_email_on_error = exp@example.org\n"
+    )
+    user_config.write_text("[Parameters]\ncontact_email_on_error = ???\n")
+    monkeypatch.setattr("dallinger.config.config", None)
+    with pytest.raises(click.ClickException) as error:
+        docker_ssh_module._server_tls(server)
+    assert "from ~/.dallingerconfig is '???', not an email address" in str(error.value)
+    assert "servers add --host lab.example.org --contact-email <email>" in str(
+        error.value
+    )
+    assert docker_ssh_module._server_tls(server, experiment=True) == (
+        "tls exp@example.org"
+    )
+
+    # A loopback server uses internal TLS, so no email is announced.
+    result = CliRunner().invoke(
+        docker_ssh_module.servers,
+        ["add", "--host", "127.0.0.1", "--contact-email", "me@example.org"],
+    )
+    assert result.exit_code == 0, result.output
+    assert "Let's Encrypt" not in result.output
+
+
+def test_servers_add_keeps_saved_fields_unless_given(monkeypatch):
+    saved = {
+        "host": "lab.example.org",
+        "user": "ubuntu",
+        "default_ingress": "cloudflare",
+        "dns_host": "lab.example.org",
+        "ec2_instance_id": "i-1",
+    }
+    monkeypatch.setattr(
+        docker_ssh_module, "get_configured_hosts", lambda: {saved["host"]: saved}
+    )
+    prepare_server, store_host = mock.Mock(), mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "prepare_server", prepare_server)
+    monkeypatch.setattr(docker_ssh_module, "store_host", store_host)
+    monkeypatch.setattr(docker_ssh_module, "_write_server_files", mock.Mock())
+    add = ["add", "--host", "lab.example.org", "--contact-email", "me@example.org"]
+
+    result = CliRunner().invoke(docker_ssh_module.servers, add)
+    assert result.exit_code == 0, result.output
+    prepare_server.assert_called_once_with("lab.example.org", "ubuntu")
+    assert store_host.call_args.args[0] == {**saved, "contact_email": "me@example.org"}
+
+    result = CliRunner().invoke(
+        docker_ssh_module.servers,
+        add + ["--user", "root", "--default-ingress", "classic"],
+    )
+    assert result.exit_code == 0, result.output
+    stored = store_host.call_args.args[0]
+    assert (stored["user"], stored["default_ingress"]) == ("root", "classic")
+    # Suggested re-registration commands can therefore name only the changes.
+    assert docker_ssh_module._servers_add_command(stored, dns_host="<name>") == (
+        "dallinger docker-ssh servers add --host lab.example.org --dns-host '<name>'"
+    )

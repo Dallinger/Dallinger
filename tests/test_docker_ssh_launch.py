@@ -2,6 +2,7 @@ import dataclasses
 import importlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -210,6 +211,28 @@ def test_printed_ssh_commands_quote_the_key_path(pem, port, expected, monkeypatc
     assert docker_ssh._ssh_prefix("lab", port, "me") == expected
 
 
+def test_printed_ssh_commands_use_the_users_alias_for_the_server(tmp_path, monkeypatch):
+    key = tmp_path / "key.pem"
+
+    def ssh_dash_g(args, **kwargs):
+        # What `ssh -G lab` prints for "Host lab / HostName lab.example.org / ...".
+        assert args == ["ssh", "-G", "--", "lab"]
+        output = (
+            "hostname lab.example.org\nport 22\nuser me@example.org\n"
+            f"identityfile ~/.ssh/id_rsa\nidentityfile {key}\n"
+        )
+        return subprocess.CompletedProcess(args, 0, output, "")
+
+    monkeypatch.setattr(docker_ssh.subprocess, "run", ssh_dash_g)
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: key)
+
+    assert docker_ssh._ssh_prefix("lab.example.org", 22, "me@example.org") == "ssh lab"
+    assert docker_ssh._ssh_prefix("lab.example.org", 22, "you@example.org") == (
+        f"ssh -i {key} -l you@example.org lab.example.org"
+    )
+    assert docker_ssh._ssh_prefix("10.0.0.1", 22, "me") == f"ssh -i {key} me@10.0.0.1"
+
+
 @pytest.fixture
 def deploy_dir(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
@@ -289,12 +312,46 @@ def test_deploy_launches_once_the_public_url_answers(deploy_dir, capsys):
     )
 
     with public_check(events, 200):
-        docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", False)
+        launch_data = docker_ssh._record_then_launch(
+            executor, TARGET, ["notes"], "pw", False
+        )
         assert events == ["health", "check", "launch"]
-        assert "The app answers /health inside the server." in capsys.readouterr().out
+        assert launch_data["recruitment_msg"] == "open"
+        assert "The experiment server is up." in capsys.readouterr().out
 
-        docker_ssh._record_then_launch(executor, TARGET, ["notes"], "pw", True)
+        assert docker_ssh._record_then_launch(executor, TARGET, ["n"], "pw", True) == {}
         assert events == ["health", "check", "launch"]
+        assert "Not launching again" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("show_summary", [True, False])
+def test_no_summary_leaves_the_summary_to_the_caller(show_summary, deploy_dir, capsys):
+    for command in docker_ssh.deploy, docker_ssh.sandbox:
+        assert "show_summary" in {param.name for param in command.params}
+    executor = FakeExecutor([(0, reply(200, {"recruitment_msg": "rmsg"}), "")])
+
+    with public_check([], 200):
+        launch_data = docker_ssh._record_then_launch(
+            executor, TARGET, ["notes"], "s3cret", False, show_summary
+        )
+
+    assert launch_data["recruitment_msg"] == "rmsg"
+    assert Path("deploy_logs/myapp.txt").read_text() == "notes\n"
+    out = capsys.readouterr().out
+    for text in "notes", "s3cret", "rmsg":
+        assert (text in out) is show_summary
+
+
+def test_no_summary_still_prints_the_summary_if_launching_fails(deploy_dir, capsys):
+    executor = FakeExecutor()
+
+    with public_check([], 530), pytest.raises(click.ClickException):
+        docker_ssh._record_then_launch(
+            executor, TARGET, ["notes"], "s3cret", False, show_summary=False
+        )
+
+    out = capsys.readouterr().out
+    assert "notes" in out and "s3cret" in out
 
 
 def test_public_wait_retries_errors_and_one_redirect_until_2xx(no_sleep):
@@ -302,6 +359,21 @@ def test_public_wait_retries_errors_and_one_redirect_until_2xx(no_sleep):
     with public_check(events, 530, 302, 530, 200):
         launch.wait_for_public_url(FakeExecutor(), TARGET)
     assert events == ["check"] * 4
+
+
+def test_public_wait_does_not_launch_a_waking_app(no_sleep):
+    events = []
+    with public_check(events, 200, text='{"status": "waking"}'):
+        with pytest.raises(click.ClickException, match="answered for a stopped app"):
+            launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert len(events) > 1
+
+
+def test_public_wait_accepts_an_apps_own_health_body(no_sleep):
+    events = []
+    with public_check(events, 200, text='{"status": "ok", "ready": true}'):
+        launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert events == ["check"]
 
 
 def test_public_wait_stops_early_on_a_second_redirect_in_a_row(no_sleep, capsys):
@@ -314,6 +386,22 @@ def test_public_wait_stops_early_on_a_second_redirect_in_a_row(no_sleep, capsys)
     assert events == ["check"] * 2
     assert launch.time.now == launch.PUBLIC_CHECK_INTERVAL
     assert "redirected twice in a row" in capsys.readouterr().out
+
+
+def test_public_wait_stops_early_on_a_second_hibernating_answer(no_sleep, capsys):
+    awaken = f"awaken --server {TARGET.server} --app {TARGET.app}"
+    states = ["hibernating", "waking", "hibernating", "ok"]
+    bodies = [f'{{"status": "{state}"}}' for state in states]
+    with mock.patch.object(launch, "_probe", lambda *a: (200, bodies.pop(0))):
+        launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert not bodies
+
+    events = []
+    with public_check(events, 200, text='{"status": "hibernating"}'):
+        with pytest.raises(click.ClickException, match=re.escape(awaken)):
+            launch.wait_for_public_url(FakeExecutor(), TARGET)
+    assert events == ["check"] * 2
+    assert f"dallinger docker-ssh {awaken}" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(

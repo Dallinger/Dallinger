@@ -88,6 +88,45 @@ class TestAppConfiguration:
                 server.load_user_config()
                 assert server.options["workers"] == "2"
 
+    def test_each_worker_loads_the_game_types_and_closes_sockets_on_sigterm(
+        self, webapp
+    ):
+        from dallinger.experiment_server import gunicorn
+
+        with (
+            mock.patch(
+                "dallinger.experiment_server.sockets.process_games"
+            ) as process_games,
+            mock.patch.object(gunicorn, "close_sockets_on_sigterm") as on_sigterm,
+            mock.patch.object(gunicorn, "experiment_hook"),
+        ):
+            gunicorn.post_worker_init(mock.Mock())
+
+        process_games.assert_called_once_with()
+        on_sigterm.assert_called_once_with()
+
+    @pytest.mark.timeout(10)
+    def test_sigterm_runs_the_workers_handler_and_closes_the_sockets(self, webapp):
+        import os
+        import signal
+
+        import gevent
+
+        from dallinger.experiment_server import gunicorn, sockets
+
+        previous = mock.Mock()
+        original = signal.signal(signal.SIGTERM, previous)
+        try:
+            gunicorn.close_sockets_on_sigterm()
+            with mock.patch.object(sockets, "chat_backend") as chat_backend:
+                os.kill(os.getpid(), signal.SIGTERM)
+                gevent.sleep(0.05)
+        finally:
+            signal.signal(signal.SIGTERM, original)
+
+        previous.assert_called_once()
+        chat_backend.close_all.assert_called_once_with()
+
     def test_flask_secret_loaded_from_environ(self, webapp):
         with mock.patch("os.environ", {"FLASK_SECRET_KEY": "A TEST SECRET KEY"}):
             webapp.get("/")
@@ -1005,6 +1044,24 @@ class TestParticipantCreateRoute:
                 entry_information={"additional_stuff": "1"},
             )
 
+    def test_post_participant_keeps_the_recruiter_from_the_form(
+        self, a, db_session, webapp
+    ):
+        resp = webapp.post(
+            "/participant",
+            data={
+                "hitId": "H",
+                "workerId": "W",
+                "assignmentId": "A",
+                "mode": "debug",
+                "recruiter": "test-recruiter",
+            },
+        )
+
+        participant_id = json.loads(resp.data)["participant"]["id"]
+        participant = models.Participant.query.get(participant_id)
+        assert participant.recruiter_id == "test-recruiter"
+
     def test_post_participant_removes_fingerprint(self, a, db_session, webapp):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.create_participant"
@@ -1154,6 +1211,22 @@ class TestSummaryRoute:
             "summary": [],
             "unfilled_networks": 1,
         }
+
+    def test_summary_isnt_complete_while_a_realtime_session_runs(
+        self, webapp, active_config, monkeypatch
+    ):
+        from dallinger import experiment
+        from dallinger.realtime import store
+
+        active_config.register_extra_parameters()
+        active_config.extend({"_is_completed": True})
+        monkeypatch.setattr(experiment.load(), "realtime_games", ["a game type"])
+        running = mock.Mock(return_value=True)
+        monkeypatch.setattr(store, "sessions_still_running", running)
+
+        assert json.loads(webapp.get("/summary").data)["completed"] is False
+        running.return_value = False
+        assert json.loads(webapp.get("/summary").data)["completed"] is True
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -1794,6 +1867,20 @@ class TestLaunchRoute:
         assert resp.status_code == 200
         mock_exp.recruiter.open_recruitment.assert_called()
 
+    def test_launch_omits_empty_recruitment_sections(self, webapp, active_config):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as mock_class:
+            mock_exp = mock.Mock(protected_routes=[], background_tasks=[], channel=None)
+            mock_exp.recruiter.open_recruitment.return_value = {
+                "items": [],
+                "message": "Single recruitment link: x",
+            }
+            mock_class.return_value = mock_exp
+            resp = webapp.post("/launch", data={})
+        message = json.loads(resp.get_data())["recruitment_msg"]
+        assert message == "Additional details:\nSingle recruitment link: x"
+
     def test_launch_establishes_channel_subscription(self, webapp, active_config):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
@@ -1867,6 +1954,30 @@ class TestWorkerFunctionIntegration:
         assert (
             mock.call("Event type IgnoreMe is not supported... ignoring.") in log_calls
         )
+
+    def test_logs_notifications_in_plain_words(self, worker_func):
+        mock_exp = mock.Mock()
+        with mock.patch(
+            "dallinger.experiment_server.worker_events._loaded_experiment",
+            return_value=mock_exp,
+        ):
+            worker_func("RecruiterSubmissionComplete", "A1", 2)
+            worker_func("NotificationMissing", "A2", None)
+            with pytest.raises(ValueError):  # There is no participant 3.
+                worker_func("AssignmentReassigned", None, 3)
+        messages = [c.args[0] for c in mock_exp.log.call_args_list]
+        assert (
+            "Participant 2 finished (RecruiterSubmissionComplete, assignment A1)."
+            in messages
+        )
+        assert (
+            "The participant with assignment A2 ran over time without the "
+            "recruiter reporting a submission (NotificationMissing)."
+        ) in messages
+        assert (
+            "Participant 3 was replaced by a new participant with the same "
+            "assignment (AssignmentReassigned)."
+        ) in messages
 
     def test_uses_assignment_id(self, a, worker_func):
         participant = a.participant()
