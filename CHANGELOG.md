@@ -4,6 +4,9 @@
 
 ### Changed
 
+- Cloudflare Tunnel deployments now use cloudflared 2026.10.4, including the
+  eMudhra certificate-compromise mitigation. Existing connectors require a
+  separate image update and restart.
 - `AGENTS.md` now says that behavior that never reached a final Dallinger
   release, such as behavior only on `master`, needs no
   backward-compatibility code.
