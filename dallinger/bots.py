@@ -351,6 +351,22 @@ class HighPerformanceBotBase(BotBase):
         self.log("Bot subscribing to quorum channel.")
         chat_backend.subscribe(self, "quorum")
 
+    def client_info(self):
+        """Describe the bot in the control events its channel subscriptions
+        publish.
+        """
+        return {
+            "class": self.__class__.__module__ + "." + self.__class__.__name__,
+            "worker_id": self.worker_id,
+            "participant_id": self.participant_id,
+        }
+
+    def send(self, message):
+        """Receive a message from a channel the bot subscribed to, as
+        ``"<channel>:<data>"``. Does nothing; override it to act on quorum
+        messages.
+        """
+
     def on_signup(self, data):
         """Take any needed action on response from /participant call."""
         self.participant_id = data["participant"]["id"]

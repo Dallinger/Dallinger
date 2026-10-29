@@ -6,6 +6,7 @@ from .lib.ec2 import (
     DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
     _get_instance_id_from,
     _get_instance_row_from,
+    check_server_pem_matches_key_pair,
     create_dns_records,
     get_instances,
     get_pem_path,
@@ -21,7 +22,6 @@ from .lib.ec2 import (
     teardown,
     wait_for_instance_state_change,
 )
-from .utils import get_server_pem_path
 
 
 def _validate_instance_selector(name, dns):
@@ -155,12 +155,34 @@ def ec2__provision(
     config = get_instance_config()
     pem_key = config.get("pem")
 
-    # Validate that the expected local PEM files exist
+    # Local settings that would stop provisioning are checked before an instance boots.
     try:
-        get_pem_path(pem_key)
-        get_server_pem_path()
+        check_server_pem_matches_key_pair(pem_key)
     except FileNotFoundError as err:
         raise click.UsageError(str(err))
+
+    dallinger_config = get_config(strict=False)
+    if not (
+        dallinger_config.get("dashboard_user", None)
+        and dallinger_config.get("dashboard_password", None)
+    ):
+        raise click.UsageError(
+            "Set dashboard_user and dashboard_password in ~/.dallingerconfig or "
+            "the environment."
+        )
+
+    from .docker_ssh import _config_contact_email, _is_email
+
+    # The shared services set up at the end need an email for Let's Encrypt.
+    email, source = _config_contact_email()
+    if not _is_email(email):
+        current = f"; it is {email!r} from {source}" if source else ""
+        raise click.UsageError(
+            "Set contact_email_on_error in ~/.dallingerconfig or the environment "
+            "to a bare email address for Let's Encrypt certificates (not a "
+            f"placeholder such as XXX@gmail.com{current}). `dallinger email-test` "
+            "sends a test email to it."
+        )
 
     if not security_group_name:
         security_group_name = config.get("security_group_name", security_group_name)
