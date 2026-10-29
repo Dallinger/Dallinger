@@ -167,10 +167,11 @@ You can configure different amounts of storage or different instance types::
 Like ``dallinger docker-ssh servers add``, ``provision`` then starts the
 server's shared Caddy, Postgres and Dozzle services and prints the log viewer
 login once. It saves the server under its AWS hostname and, with
-``--dns-host``, under that name too. You can deploy straight away with
-``--server <AWS hostname>``, and with ``--server <dns-host>`` once your
-computer resolves the new DNS record (up to about five minutes; up to 15 if
-you looked the name up before it existed). The setup connects over the AWS
+``--dns-host``, under that name too. A classic deploy checks that the app's
+public name resolves to the server, whichever ``--server`` you use. With
+``--dns-host``, you can deploy once your computer resolves the new DNS records
+(up to about five minutes; up to 15 if you looked a name up before it
+existed); without it, straight away. The setup connects over the AWS
 hostname: it waits for Route 53 to sync the records (up to two minutes each),
 but not for your computer to resolve the new name. Caddy gives Let's
 Encrypt the ``contact_email_on_error`` address from ``~/.dallingerconfig``

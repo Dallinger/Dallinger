@@ -27,8 +27,9 @@ channel subscribers (generally either participants or the experiment itself).
 When a client makes a WebSocket connection to the `/chat?channel=<channel>`
 route (see :doc:`The Web API <web_api>`) it opens a persistent connection to the
 experiment over which it can send messages (to any channel except the reserved
-`"dallinger_control"` and `"dallinger_direct"` channels) and will receive all
-messages published to the `channel` named in the initial request.
+``"dallinger_control"``, ``"dallinger_direct"``, ``"dallinger_realtime_session"``
+and ``"dallinger_time"`` channels) and will receive all messages published to
+the `channel` named in the initial request.
 
 Additionally, Experiment classes can provide a
 :attr:`~dallinger.experiment.Experiment.channel` attribute which will
@@ -98,8 +99,10 @@ incoming message goes straight to the
 :func:`~dallinger.experiment.Experiment.handle_websocket_message` method, on the
 web process that owns the socket, before the next message is read. Nothing is
 published to redis on the way. Use it when a participant's action has to be
-acted on immediately, such as a move in a turn-based game. The
-``dallinger.openExperimentSocket`` function opens such a connection, and is
+acted on immediately, such as a move in a turn-based game. Games in which
+players act at the same time, or which run on a timer, are better written for
+the real-time engine, which :doc:`Real-Time Games <realtime_games>` describes.
+The ``dallinger.openExperimentSocket`` function opens such a connection, and is
 described along with the rest of the client library in its own section below::
 
     var socket = dallinger.openExperimentSocket({channel: 'game_7'});
@@ -109,6 +112,12 @@ described along with the rest of the client library in its own section below::
 An experiment socket subscribes to ``channel`` just as a ``/chat`` connection
 does, so broadcasts to that channel reach the browser the same way. Only the
 inbound direction differs.
+
+A socket on either route that joins a real-time session sends the frames on
+its game type's channel to that session alone. They never reach
+:func:`~dallinger.experiment.Experiment.handle_websocket_message`, or any other
+subscriber, so a game's hidden information stays hidden. Frames on its other
+channels are handled as they would be without a session.
 
 ``channel`` is optional. A connection that leaves it out subscribes to nothing
 and receives nothing, which suits a game socket that only reports moves. It can
@@ -133,14 +142,58 @@ binary frame has no prefix to split on, so the connection is closed with code
 An experiment socket must name a participant that exists, because every message
 is reported to the method as coming from someone. Dallinger closes the socket
 otherwise, with code ``1008`` and the reason ``unknown participant``.
-Two failures that are not the client's fault close with ``1013`` instead, which
-tells the client to try again later: a participant lookup that raises, and an
-experiment class that fails to build.
 
 The lookup proves only that a row with that id exists. ``/experiment-socket`` is
 not authenticated, so the id says which participant the connection claims to be,
 not who is sending the messages. Treat it as Dallinger treats every other
 ``participant_id``.
+
+An experiment that needs more can check each connection as it opens, by
+overriding :func:`~dallinger.experiment.Experiment.accept_websocket_connection`.
+It is given the participant id and the connection's ``scope``. To accept only
+connections from a participant's own pages, render each page with a token the
+server signs, and have the page open its socket with
+``dallinger.openExperimentSocket({scope: token})``. The token below is a random
+nonce and a signature of the participant id and that nonce, so nothing needs to
+be stored, and each page still has a scope of its own, which keeps directed
+sends going to the page that asked::
+
+    import hashlib
+    import hmac
+    import os
+    import secrets
+
+    def signature(participant_id, nonce):
+        key = os.environ["FLASK_SECRET_KEY"].encode()
+        message = "{}:{}".format(participant_id, nonce).encode()
+        return hmac.new(key, message, hashlib.sha256).hexdigest().encode()
+
+    def page_token(participant_id):
+        nonce = secrets.token_hex(16)
+        return nonce + "." + signature(participant_id, nonce).decode()
+
+    class MyExperiment(Experiment):
+        def accept_websocket_connection(self, participant_id, scope):
+            nonce, _, mac = (scope or "").partition(".")
+            expected = signature(participant_id, nonce)
+            return bool(nonce) and hmac.compare_digest(mac.encode(), expected)
+
+Don't keep a token anywhere a route returns it: ``GET /participant/<id>``
+returns a participant's ``property1`` to ``property5`` and ``details`` to anyone
+who asks. The scope isn't hidden from the people running the experiment either.
+Dallinger logs it, includes it in control channel events, and saves it with
+real-time records, so the check stops one participant's page from connecting as
+another participant, not someone who can read the logs or the data.
+
+A falsy return closes the socket with code ``1008`` and the reason
+``refused by the experiment``, before it subscribes to any channel or joins a
+real-time session. ``/chat`` connections are not checked, so a page that opens
+one can still join a real-time session as any of its players without a token.
+
+Three failures that are not the client's fault close with ``1013`` instead,
+which tells the client to try again later: a participant lookup that raises, an
+experiment class that fails to build, and an ``accept_websocket_connection``
+that raises.
 
 A socket opened with ``dallinger.openExperimentSocket`` stops reconnecting when
 the server refuses it, and passes the close code and reason to its
@@ -238,7 +291,21 @@ participants enrolled is not. Send that work to a worker with
 ``dallinger.db.get_queue()``, which is what the default
 :func:`~dallinger.experiment.Experiment.handle_websocket_message` does. An
 experiment that opens an experiment socket without overriding the method gets
-the same asynchronous handling ``/chat`` gives.
+the same asynchronous handling ``/chat`` gives. A game that has to answer
+moves at once can be written for the real-time engine instead, which keeps the
+game's state in redis and needs no database work on the web process.
+
+Calling redis while holding a row lock can stall other processes too. Code
+locks a row by updating it or with ``with_for_update()``, and keeps the lock
+until it commits. If it calls redis in between, including through
+:func:`~dallinger.experiment.Experiment.publish_to_participants` or
+:func:`~dallinger.experiment.Experiment.publish_to_subscribers`, the lock is
+held for as long as redis takes to answer, which can be seconds if redis is
+busy or unreachable. A web process that needs the same row waits all that
+time, and every socket and request it serves waits with it. A job on a worker
+process waits too, though the worker's other jobs carry on. Sending the message
+with :func:`dallinger.db.run_after_commit` releases the lock before redis is
+called.
 
 A handler will typically dispatch on the message type, doing the work that has
 to happen immediately and queueing the rest::
@@ -283,13 +350,22 @@ rather than on a worker, and the budget above applies to it.
 Making Database Waits Cooperative
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Two changes would remove that budget, and Dallinger makes neither today.
-``psycogreen.gevent.patch_psycopg()`` is only a few lines, but it puts
-connections into psycopg2's asynchronous mode, which does not support ``COPY``,
-and Dallinger uses ``COPY`` to export data. Psycopg 3 waits cooperatively on its
-own and keeps ``COPY``, but it needs the SQLAlchemy 2.0 upgrade first, and
-Dallinger pins ``sqlalchemy==1.4.54``. `Issue #9807
-<https://github.com/Dallinger/Dallinger/issues/9807>`_ has the full comparison.
+Dallinger applies ``psycogreen`` in the gunicorn web workers and in the RQ
+gevent workers. ``psycogreen`` registers a gevent wait callback so that
+psycopg2 socket waits yield to the gevent event loop rather than blocking the
+OS thread — a database wait in one greenlet no longer stalls every other
+request on the same worker.
+
+The trade-off is that psycogreen puts psycopg2 into asynchronous mode, which
+does not support the ``COPY`` command. ``dallinger export`` and
+``dallinger.data.ingest_zip`` use ``COPY``, but they run as CLI commands in a
+separate process where psycogreen is never applied, so they are unaffected.
+The limitation applies to experiment code: if a handler or RQ job calls
+``data.export()`` or ``ingest_zip()`` directly, it will fail inside a patched
+process. Psycopg 3 would keep ``COPY`` cooperative natively, but requires the
+SQLAlchemy 2.0 upgrade first. `Issue #9807
+<https://github.com/Dallinger/Dallinger/issues/9807>`_ has the full
+comparison.
 
 
 Sending to Specific Participants
@@ -356,12 +432,14 @@ to its ``onDirect`` callbacks, and its channel's broadcasts to its
         }
     });
 
-Like ``dallinger_control``, the ``dallinger_direct`` channel is reserved for
-Dallinger's own use. Experiments should not publish to it, and clients may
-neither publish to it nor subscribe to it; the server discards such a message or
-subscription and logs a warning. Both channels carry messages in the same format
-as the ones a client expects to receive, so a subscriber would be given other
-participants' messages as though they were its own.
+Like ``dallinger_control``, the ``dallinger_direct`` channel and the
+``dallinger_realtime_session`` channel, which carries real-time sessions' views
+and tells pages when their sessions start, are reserved for Dallinger's own use.
+Experiments should not publish to them, and clients may neither publish to them
+nor subscribe to them; the server discards such a message or subscription and
+logs a warning. All three carry messages in the same format as the ones a client
+expects to receive, so a subscriber would be given other participants' messages
+as though they were its own.
 
 Connection Scope
 ~~~~~~~~~~~~~~~~
@@ -451,10 +529,12 @@ The ``send`` method takes a channel name and a payload, which will be encoded as
 JSON unless it is already a string. Messages may be sent to any channel, not
 just the one to which the connection is subscribed. The exceptions are
 ``"dallinger_control"``, which is reserved for the server's own connection and
-subscription events, and ``"dallinger_direct"``, which is reserved for directed
-messages. ``send`` refuses both names. The server also discards a message a
-client addresses to either and logs a warning, since the experiment treats
-anything arriving on the control channel as genuine.
+subscription events, ``"dallinger_direct"``, which is reserved for directed
+messages, ``"dallinger_realtime_session"``, which carries the views of pages in
+real-time sessions, and ``"dallinger_time"``, which carries their clock
+measurements. ``send`` refuses all four names. The server also discards a
+message a client addresses to any of the first three and logs a warning, since
+the experiment treats anything arriving on the control channel as genuine.
 
 Callbacks passed to ``onBroadcast`` and ``onDirect`` receive the payload parsed
 as JSON, or the payload string itself if it is not JSON, followed by the payload

@@ -90,6 +90,8 @@ from .utils import get_server_pem_path
 # Hibernated apps keep stopped Compose containers that ``awaken`` restarts.
 CONTAINER_PRUNE = "docker container prune -f --filter label!=com.docker.compose.project"
 SERVER_COMPOSE = "docker compose -f ~/dallinger/docker-compose.yml"
+# Databases in the shared Postgres that are never an app's own.
+SHARED_POSTGRES_DATABASES = {"dallinger", "postgres", "template0", "template1"}
 
 
 @dataclass(frozen=True)
@@ -413,7 +415,9 @@ def _old_root_routes(executor, caddyfile, host, tls):
         names for names in map(_site_names, (caddyfile or "").splitlines()) if names
     ]
     old_names = sites[0] if sites else [host]
-    old_host = host if host in old_names else old_names[0]
+    old_host = next(
+        (name for name in old_names if name.lower() == host.lower()), old_names[0]
+    )
     routes = {}
     for app in re.findall(
         r"handle \{\s*reverse_proxy ([A-Za-z0-9._-]+)_web:5000", caddyfile or ""
@@ -423,7 +427,7 @@ def _old_root_routes(executor, caddyfile, host, tls):
         ):
             continue
         route = f"reverse_proxy {app}_web:5000"
-        if old_host == host:
+        if old_host.lower() == host.lower():
             routes[f"dallinger/root.d/{app}"] = f"{route}\n"
         else:
             routes[f"dallinger/caddy.d/{app}"] = (
@@ -639,13 +643,16 @@ def _server_state(executor):
 
     Returns a dict with the ``Caddyfile`` and ``docker-compose.yml``
     contents, the running shared ``services``, a ``root.d`` key if
-    ``~/dallinger/root.d`` exists, and a ``caddy.d/<app>`` key with the site
+    ``~/dallinger/root.d`` exists and is not the directory of an app that
+    older Dallinger versions let users call ``root.d``, and a
+    ``caddy.d/<app>`` key with the site
     lines of each app's Caddy file. Uses one SSH command.
     """
     output = executor.run(
         'for f in Caddyfile docker-compose.yml; do echo "#== $f"; '
         "cat ~/dallinger/$f 2>/dev/null; echo; done; "
-        "[ ! -d ~/dallinger/root.d ] || echo '#== root.d'; "
+        "[ ! -d ~/dallinger/root.d ] || [ -f ~/dallinger/root.d/docker-compose.yml ] "
+        "|| echo '#== root.d'; "
         'for f in ~/dallinger/caddy.d/*; do [ -f "$f" ] && '
         'echo "#== caddy.d/${f##*/}" && '
         "grep -E '^[^#[:space:]{(@][^{#]*[{]' \"$f\"; done; echo '#== services'; "
@@ -704,7 +711,8 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     Without ``replace``, a server that already has a server compose file is
     left alone. With it, changed files are listed and, unless ``yes``,
     confirmed before they are replaced. The shared files are left read-only.
-    Returns whether the files were written.
+    A server with an app called ``root.d`` is refused before anything is
+    written. Returns whether the files were written.
     """
     executor = _build_executor(server_info)
     if not replace and executor.run(
@@ -717,10 +725,21 @@ def _write_server_files(server, server_info, *, replace, yes=True):
             f"`dallinger docker-ssh servers upgrade --host {server}`."
         )
         return False
+    if executor.run(
+        "test -f ~/dallinger/root.d/docker-compose.yml && echo yes", raise_=False
+    ):
+        raise click.ClickException(
+            f"{server} has an app called root.d, which older Dallinger versions "
+            "allowed. Its directory, ~/dallinger/root.d, is where the shared "
+            "Caddy configuration keeps its routes, so nothing was changed. "
+            f"Destroy that app first with `dallinger docker-ssh destroy --server "
+            f"{quote(server)} --app root.d` (add --keep-data to keep its data), "
+            "then run this command again."
+        )
     upgrade_command = f"dallinger docker-ssh servers upgrade --host {quote(server)}"
     host = _server_host(server_info)
     tls = _server_tls(server_info, command=upgrade_command if replace else None)
-    # The Caddyfile goes last, just before root.d, which it imports.
+    # The Caddyfile goes last: it imports root.d, which the compose file mounts.
     files = {
         "dallinger/docker-compose.yml": DOCKER_COMPOSE_SERVER_TPL.render(),
         "dallinger/Caddyfile": CADDYFILE_SERVER.format(host=host, tls=tls),
@@ -768,12 +787,14 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     )
     sftp = get_sftp(server_info["host"], user=server_info.get("user"))
     with _unlocked_server_files(executor, lock=True):
-        for path in changed:
-            sftp.putfo(BytesIO(files[path].encode()), path)
         # root.d marks the server as set up (see _rewritten_by_older_dallinger).
         executor.run("mkdir -p ~/dallinger/root.d")
+        # Routes go before the Caddyfile that drops the old inline ones, so an
+        # interrupted run leaves the old Caddyfile for a retry to migrate.
         for path, content in routes.items():
             sftp.putfo(BytesIO(content.encode()), path)
+        for path in changed:
+            sftp.putfo(BytesIO(files[path].encode()), path)
         if not executor.run(
             "test -f ~/dallinger/dozzle-users.yml && echo yes", raise_=False
         ):
@@ -826,7 +847,7 @@ def prepare_server(host, user):
             ) from exc
         raise
 
-    with yaspin(text="Checking for Docker...", color="green") as sp:
+    with _spinner(text="Checking for Docker...", color="green") as sp:
         docker_installed = bool(executor.run("command -v docker", raise_=False).strip())
         if not docker_installed:
             sp.text = "Installing Docker..."
@@ -874,6 +895,8 @@ def _grant_docker_group_and_refresh_session(executor, host, user, check_sudo=Tru
     if check_sudo:
         executor.check_sudo()
     executor.run("sudo -n adduser $(id --user --name) docker")
+    # Group membership only applies to new logins.
+    _forget_ssh_client(host, user)
     refreshed_executor = Executor(host, user)
     return refreshed_executor, _docker_is_usable(refreshed_executor)
 
@@ -1099,6 +1122,51 @@ option_allow_private_ip = click.option(
         "address."
     ),
 )
+# Hidden because only callers that read the returned dict, via
+# ``ctx.invoke(..., show_summary=False)``, can use the details it hides.
+option_show_summary = click.option(
+    "--summary/--no-summary",
+    "show_summary",
+    default=True,
+    hidden=True,
+    help=(
+        "Print the closing summary: links, logs command, dashboard password "
+        "and recruitment message."
+    ),
+)
+option_deploy_delete_data_command = click.option(
+    "--delete-data-command",
+    hidden=True,
+    help=(
+        "Command printed for deleting the kept data of apps that a root-domain "
+        "deploy destroys, with {app} standing for the app name, for tools that "
+        "wrap this command."
+    ),
+)
+
+
+# Names the server already uses, mapped to what uses them: subdomains it
+# serves (see CADDYFILE_SERVER), directories beside the app directories in
+# ~/dallinger, and the Compose project of the shared stack (SERVER_COMPOSE),
+# which Compose names after ~/dallinger.
+SERVER_COMPOSE_PROJECT = "dallinger"
+RESERVED_APP_NAMES = {
+    "logs": "the server's log viewer",
+    "caddy.d": "the server's Caddy configuration",
+    "root.d": "the server's Caddy configuration",
+    SERVER_COMPOSE_PROJECT: "the server's shared services",
+}
+
+
+def _check_app_name_not_reserved(app_name):
+    """Reject an app name that would clash with a name the server uses."""
+    owner = RESERVED_APP_NAMES.get(app_name.lower())
+    if _compose_project(app_name) == SERVER_COMPOSE_PROJECT:
+        owner = RESERVED_APP_NAMES[SERVER_COMPOSE_PROJECT]
+    if owner:
+        raise click.UsageError(
+            f'"{app_name}" is reserved for {owner}; choose another app name.'
+        )
 
 
 def should_use_subdomain(app_name, archive_path):
@@ -1196,20 +1264,71 @@ def docker_host_uri(host, user=None, port=22):
 
     docker-py splits this URL on ``@`` and cannot parse a username that
     itself contains ``@``, such as a Cambridge CRSid login. Those users are
-    left out of the URL, so the SSH client takes the user from
-    ``~/.ssh/config``.
+    left out of the URL, so the SSH client chooses the user (usually from
+    ``~/.ssh/config``); a hint is printed unless ``ssh -G`` reports that it
+    would already log in as that user.
     """
+    ssh_host = host
     if ":" in host and not host.startswith("["):
         host = f"[{host}]"
     if user and "@" in user:
-        print(
-            f"SSH user {user!r} contains '@', so Docker connects without it. "
-            f"Set `User {user}` for {host} in ~/.ssh/config."
-        )
+        if _ssh_config_user(ssh_host, port) != user:
+            print(
+                f"SSH user {user!r} contains '@', so Docker connects without it. "
+                f"Set `User {user}` for {ssh_host} in ~/.ssh/config."
+            )
         user = None
     user_part = f"{user}@" if user else ""
     port_part = f":{port}" if port != 22 else ""
     return f"ssh://{user_part}{host}{port_part}"
+
+
+def _ssh_config_user(host, port=None):
+    """Return the user OpenSSH would log in to ``host`` as, or None if unknown.
+
+    Docker's SSH transport runs ``ssh``, so ``ssh -G`` answers for exactly
+    the configuration it uses (``Include``, ``Match`` and system files too).
+    """
+    return (_ssh_config(host, port) or {}).get("user", [None])[0]
+
+
+def _ssh_config(host, port=None):
+    """Return the options ``ssh -G`` resolves for ``host``, or None if unknown.
+
+    Parameters
+    ----------
+    host : str
+        The host name or SSH alias.
+    port : int, optional
+        The port to connect to, passed as ``-p``. By default, the one the
+        SSH config gives.
+
+    Returns
+    -------
+    dict or None
+        Lower-case option names mapped to lists of values, such as
+        ``{"user": ["alice"], "identityfile": ["~/.ssh/id_rsa", ...]}``.
+    """
+    port_args = [] if port is None else ["-p", str(port)]
+    try:
+        result = subprocess.run(
+            ["ssh", "-G", *port_args, "--", host],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        logging.getLogger(__name__).debug("ssh -G %s failed: %s", host, exc)
+        return None
+    if result.returncode != 0:
+        return None
+    options = {}
+    for line in result.stdout.splitlines():
+        key, _, value = line.partition(" ")
+        options.setdefault(key, []).append(value)
+    return options
 
 
 def _resolve_server_info(server):
@@ -1286,15 +1405,27 @@ done; true"""
 
 
 def _served_at_server_host(executor, app):
-    """Return whether classic ingress serves the existing ``app`` at the server's own host."""
-    return bool(
-        executor.run(
-            f"d=~/dallinger; app={quote(app)}; "
-            f'if [ -f "$d/$app/docker-compose.yml" ] && {{ {_ROOT_ROUTE_TEST}; }}; '
-            "then echo yes; fi",
-            raise_=False,
-        )
+    """Return whether classic ingress serves the existing ``app`` at the server's own host.
+
+    That is, whether ``~/dallinger/root.d`` or an older Dallinger's Caddyfile
+    routes it. Aborts if the server can't tell, rather than moving the app
+    to a subdomain.
+    """
+    # Exits 0 if served there, 1 if not, and otherwise if the check failed.
+    status, _, stderr = executor.run_with_status(
+        f"d=~/dallinger; app={quote(app)}; "
+        '[ -f "$d/$app/docker-compose.yml" ] || exit 1; '
+        '[ -f "$d/root.d/$app" ] && exit 0; '
+        '[ -x "$d/root.d" ] || [ ! -e "$d/root.d" ] || exit 2; '
+        '[ -e "$d/Caddyfile" ] || exit 1; '
+        'grep -qF "reverse_proxy ${app}_web:5000" "$d/Caddyfile"'
     )
+    if status not in (0, 1):
+        raise click.ClickException(
+            f"Could not check whether {app} is served at the server's own host "
+            f"(exit status {status}). {stderr.strip()}".strip()
+        )
+    return status == 0
 
 
 def _load_remote_app_records(executor, app_names):
@@ -1444,7 +1575,7 @@ you can pass options --app experiment1 --dns-host my-custom-domain.example.com{E
 def _classic_preflight(
     server, app_name, archive_path, dns_host, allow_private_ip, update=False
 ):
-    """Check TLS email, DNS and the server's shared services for a classic deploy.
+    """Check DNS and the server's shared services for a classic deploy.
 
     Runs before the image build. Returns the app's public hostname, which for
     ``--update`` of an app on the server's own host is that host. A new
@@ -1453,18 +1584,30 @@ def _classic_preflight(
     """
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     server_info = CONFIGURED_HOSTS[server]
-    _server_tls(server_info, experiment=True)
-    executor = _build_executor(server_info)
+    # Without --app, DNS is checked before connecting.
+    executor = _build_executor(server_info) if app_name else None
     on_server_host = app_name and _served_at_server_host(executor, app_name)
     if on_server_host:
         hostname = _server_host(server_info, dns_host, deploy=True)
+        if update and dns_host and not _same_host(dns_host, hostname):
+            print(
+                f"Ignoring --dns-host {dns_host}: {app_name} keeps its address "
+                f"at {hostname}, the server's own host."
+            )
     else:
         hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
     _check_experiment_hostname_dns(
         split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
     )
     # A server that still needs `servers upgrade` says so before the advice below.
-    _check_server_setup(executor, server, server_info, hostname, dns_host, app_name)
+    _check_server_setup(
+        executor or _build_executor(server_info),
+        server,
+        server_info,
+        hostname,
+        dns_host,
+        app_name,
+    )
     if on_server_host and not update:
         raise click.BadParameter(
             f"{app_name} is already deployed at {hostname}, the server's own "
@@ -1513,7 +1656,11 @@ def _check_server_setup(
     caddyfile = parts.get("Caddyfile", "")
     compose = parts.get("docker-compose.yml", "")
     problems = []
-    serves_host = any(host in _site_names(line) for line in caddyfile.splitlines())
+    serves_host = any(
+        name.lower() == host.lower()
+        for line in caddyfile.splitlines()
+        for name in _site_names(line)
+    )
     if not compose.strip():
         problems.append("it has no ~/dallinger/docker-compose.yml")
     else:
@@ -1671,6 +1818,48 @@ def _upload_frontdoor_caddyfile(sftp, executor, app):
     )
 
 
+def _project_siblings(app, server_apps):
+    """Return the other ``server_apps`` whose Compose project is ``app``'s.
+
+    Such apps (for example ``MyApp`` and ``myapp``) share containers and
+    volumes. Entries that are not valid app names are not apps.
+    """
+    project = _compose_project(app)
+    return [
+        name
+        for name in server_apps
+        if name != app
+        and APP_NAME_PATTERN.fullmatch(name)
+        and _compose_project(name) == project
+    ]
+
+
+def _check_compose_project_free(executor, app, update):
+    """Abort if another app on the server has ``app``'s Compose project name."""
+    server_apps = _discover_server_apps(executor)
+    siblings = _project_siblings(app, server_apps)
+    if siblings:
+        others = ", ".join(siblings)
+        if not update:
+            advice = f"Use a different name, or destroy {others} first."
+        elif app in server_apps:
+            # While app exists, destroy refuses to delete the other app's data.
+            advice = (
+                f"Destroy {others} first with --keep-data; this also stops the "
+                f"containers of {app}, which share the project, until this "
+                "update starts them again."
+            )
+        else:
+            advice = f"There is no app {app} to update; did you mean {others}?"
+        print(
+            f"{RED}App name {app} gives the same Docker Compose project, "
+            f"{_compose_project(app)}, as the existing "
+            f"app{'s' if len(siblings) > 1 else ''} {others}, so they would share "
+            f"containers and volumes. {advice}{END}"
+        )
+        raise click.Abort()
+
+
 def _check_app_slot(executor, app, update, ingress):
     """Abort unless ``app`` is free, or exists with this ingress for ``--update``.
 
@@ -1726,7 +1915,10 @@ def _upload_app_stack(
 
     Compose reads ``secrets`` (for example ``POSTGRES_PASSWORD``) from the
     app's ``.env``, so the Compose file itself holds none.
+
+    Returns the image the replaced Compose file pinned, or None for a new app.
     """
+    previous_image = read_remote_experiment_image(executor, app)
     # The JSON log is bind-mounted as a file, so it must exist before Compose starts.
     executor.run(f"mkdir -p dallinger/{app} && touch dallinger/{app}/{JSON_LOGFILE}")
     run_as_ssh_user = _image_runs_as_ssh_user(executor, image_name)
@@ -1757,6 +1949,20 @@ def _upload_app_stack(
             cloudflare=cloudflare or {},
         ),
     )
+    return previous_image
+
+
+def _remove_replaced_image(executor, app, previous_image, image_name):
+    """After an update, remove the app's previous image unless another app pins it.
+
+    The update has already succeeded, so a cleanup failure only warns.
+    """
+    if not previous_image or previous_image == image_name:
+        return
+    try:
+        remove_unshared_experiment_image(executor, previous_image, except_app=app)
+    except Exception as exc:
+        print(f"Warning: could not remove the previous image {previous_image}: {exc}")
 
 
 def _image_runs_as_ssh_user(executor, image_name):
@@ -1783,19 +1989,57 @@ def _image_runs_as_ssh_user(executor, image_name):
 
 
 def _ssh_prefix(ssh_host, ssh_port, ssh_user):
-    """Return the ``ssh`` invocation an operator can use to reach the server."""
+    """Return the ``ssh`` invocation an operator can use to reach the server.
+
+    If the user's SSH config has a short alias for the server (see
+    :func:`_ssh_alias`), that is all the invocation needs. A user name with
+    an ``@``, such as an email address, is passed with ``-l``, which reads
+    better than ``user@example.org@host``.
+    """
+    key = str(get_server_pem_path())
+    alias = _ssh_alias(ssh_host, ssh_port, ssh_user, key)
+    if alias:
+        return f"ssh {alias}"
     ssh_port_part = f"-p {ssh_port} " if ssh_port != 22 else ""
-    destination = f"{ssh_user}@{ssh_host}" if ssh_user else ssh_host
-    return (
-        f"ssh {ssh_port_part}-i {quote(str(get_server_pem_path()))} "
-        f"{quote(destination)}"
-    )
+    if ssh_user and "@" in ssh_user:
+        destination = f"-l {quote(ssh_user)} {quote(ssh_host)}"
+    else:
+        destination = quote(f"{ssh_user}@{ssh_host}" if ssh_user else ssh_host)
+    return f"ssh {ssh_port_part}-i {quote(key)} {destination}"
 
 
-def _log_command(ssh_host, ssh_port, ssh_user, app):
+def _ssh_alias(ssh_host, ssh_port, ssh_user, key):
+    """Return the first label of ``ssh_host`` if it is an SSH alias for the server.
+
+    For example, ``rr-pc02`` for ``rr-pc02.example.org``, if ``ssh -G
+    rr-pc02`` gives the same host name, port and user, and ``key`` among its
+    identity files. Otherwise None.
+    """
+    alias = ssh_host.split(".")[0]
+    if alias == ssh_host or not alias or _is_ip_address(ssh_host):
+        return None
+    options = _ssh_config(alias)
+    if options is None:
+        return None
+
+    def resolved(path):
+        return os.path.realpath(os.path.expanduser(path))
+
+    if (
+        options.get("hostname") == [ssh_host]
+        and options.get("port") == [str(ssh_port)]
+        and options.get("user") == [ssh_user or getuser()]
+        and resolved(key)
+        in {resolved(path) for path in options.get("identityfile", [])}
+    ):
+        return alias
+    return None
+
+
+def _log_command(ssh_prefix, app):
     """Return the ssh command that follows an app's Compose logs."""
     return ssh_command(
-        _ssh_prefix(ssh_host, ssh_port, ssh_user),
+        ssh_prefix,
         f"docker compose -f ~/dallinger/{app}/docker-compose.yml logs -f",
     )
 
@@ -1805,17 +2049,23 @@ def _public_dashboard_url(hostname):
     return f"https://{hostname}/dashboard"
 
 
-def _record_deployment_infos(experiment_id, lines, dashboard_password):
-    """Print operator notes, and persist them to deploy_logs/ without secrets."""
-    for line in lines:
-        print_bold(line)
-    print_bold(f"Dashboard password: {dashboard_password}")
+def _record_deployment_infos(experiment_id, lines):
+    """Persist operator notes to deploy_logs/ without secrets."""
     deploy_log_path = Path("deploy_logs") / f"{experiment_id}.txt"
     deploy_log_path.parent.mkdir(exist_ok=True)
     deploy_log_path.write_text("\n".join(lines) + "\n")
 
 
-def _record_then_launch(executor, target, deployment_infos, dashboard_password, update):
+def _print_deployment_infos(lines, dashboard_password):
+    """Print operator notes and the dashboard password."""
+    for line in lines:
+        print_bold(line)
+    print_bold(f"Dashboard password: {dashboard_password}")
+
+
+def _record_then_launch(
+    executor, target, deployment_infos, dashboard_password, update, show_summary=True
+):
     """Record the deployment, wait for the public URL, then launch the experiment.
 
     The record comes first so it exists even if the deploy stops here. A
@@ -1823,16 +2073,28 @@ def _record_then_launch(executor, target, deployment_infos, dashboard_password, 
     not answer 2xx, fails before the long public wait.
     Launching opens recruitment, so it only happens once participants can
     reach the public URL; if the bounded wait times out, nothing is launched.
+    Returns the ``/launch`` response, or an empty dict in update mode.
+    Without ``show_summary``, neither the notes nor the recruitment message
+    are printed, unless launching fails and so the caller gets no result.
     """
-    _record_deployment_infos(target.app, deployment_infos, dashboard_password)
+    if show_summary:
+        _print_deployment_infos(deployment_infos, dashboard_password)
+    _record_deployment_infos(target.app, deployment_infos)
     if update:
-        print("Skipping experiment launch logic because we are in update mode.")
-        return
-    check_internal_health(executor, target)
-    wait_for_public_url(executor, target)
-    print("Launching experiment")
-    launch_data = launch_from_server(executor, target)
-    print(launch_data.get("recruitment_msg"))
+        print("Not launching again: this is an update of a running experiment.")
+        return {}
+    try:
+        check_internal_health(executor, target)
+        wait_for_public_url(executor, target)
+        print("Launching the experiment...")
+        launch_data = launch_from_server(executor, target)
+    except BaseException:
+        if not show_summary:
+            _print_deployment_infos(deployment_infos, dashboard_password)
+        raise
+    if show_summary:
+        print(launch_data.get("recruitment_msg"))
+    return launch_data
 
 
 def _install_tunnel_token(executor, sftp, app, connector_token, tunnel_id):
@@ -1957,11 +2219,34 @@ def _apply_config_options(config, config_options):
     return config_options
 
 
-def ensure_root_domain_ready(server, update):
-    """Make sure no other host-Caddy experiment holds the server's root domain.
+def _manual_removal_commands(name):
+    """Return shell commands that remove the files of an invalid app name by hand.
 
-    In a terminal, offers to destroy the experiments that do. Without one,
-    refuses with the destroy commands to run first.
+    There is no ``docker compose down``: Compose can strip such a name to the
+    project of a live app (``myapp~`` becomes ``myapp``).
+    """
+    return [
+        f"rm -rf ~/dallinger/{quote(name)} ~/dallinger/caddy.d/{quote(name)} "
+        f"~/dallinger/root.d/{quote(name)}",
+        f"{SERVER_COMPOSE} exec -T httpserver caddy reload --config /etc/caddy/Caddyfile",
+    ]
+
+
+def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=None):
+    """Offer to destroy the server's classic apps before a root-domain deploy.
+
+    Without a terminal, refuses with the destroy commands to run first. The
+    teardown keeps each app's data, as ``destroy --keep-data`` does, so no
+    experiment data is deleted before the image build and destroy asks
+    nothing once the user agrees. If ``new_app``, the app being deployed, is
+    one of them, the prompt says that the deploy replaces its database and
+    Redis volume.
+
+    ``delete_data_command`` is the command printed for deleting an app's kept
+    data, with ``{app}`` standing for the app name; it defaults to
+    ``dallinger docker-ssh destroy … --remove-data``. If an app's name is not
+    a valid app name, nothing is destroyed and the error says how to remove
+    that app by hand.
     """
     if update:
         return True
@@ -1973,11 +2258,25 @@ def ensure_root_domain_ready(server, update):
         return True
 
     joined = ", ".join(conflicts)
+    invalid = [name for name in conflicts if not APP_NAME_PATTERN.fullmatch(name)]
+    if invalid:
+        commands = "\n".join(
+            f"  {command}"
+            for name in invalid
+            for command in _manual_removal_commands(name)
+        )
+        raise click.ClickException(
+            f"Can't destroy {', '.join(map(repr, invalid))} automatically: not a "
+            f"valid app name, so nothing was destroyed. Remove "
+            f"{'its' if len(invalid) == 1 else 'their'} files on {server} by "
+            f"hand, for example with:\n{commands}\nThese commands don't stop "
+            "any containers or delete any data. Then deploy again."
+        )
     destroy_cmds = "\n".join(
-        f"  dallinger docker-ssh destroy --app {name} --server {server}"
+        f"  dallinger docker-ssh destroy --app {name} --server {server} --keep-data"
         for name in conflicts
     )
-    if not sys.stdin.isatty():
+    if not _stdin_is_tty():
         raise click.ClickException(
             f"Deploying to the root domain of {server} requires destroying its "
             f"classic-ingress experiments first: {joined}. Without a terminal they "
@@ -1994,15 +2293,24 @@ def ensure_root_domain_ready(server, update):
         f"{destroy_cmds}"
     )
 
+    kept = "Their data is kept"
+    if new_app in conflicts:
+        kept += f", but this deploy replaces the database and Redis volume of {new_app}"
     if not click.confirm(
-        "Destroy these experiments automatically before proceeding?",
+        f"Destroy these experiments automatically before proceeding? {kept}.",
         default=False,
     ):
         raise click.Abort()
 
     for name in conflicts:
         print_bold(f"Destroying {name} on server {server}")
-        destroy.callback(server=server, app=name)
+        destroy.callback(
+            server=server,
+            app=name,
+            keep_data=True,
+            delete_data_command=delete_data_command
+            and delete_data_command.replace("{app}", name),
+        )
 
     executor = _executor_for_server(server)
     remaining = _host_caddy_apps(executor)
@@ -2143,8 +2451,8 @@ def _built_image(
             os.environ["DOCKER_HOST"] = docker_host_uri(
                 ssh_host, user=ssh_user, port=ssh_port
             )
-            print(
-                f"Attempting to build image on remote host: {os.environ['DOCKER_HOST']}"
+            logging.getLogger(__name__).debug(
+                "Using remote Docker host %s", os.environ["DOCKER_HOST"]
             )
             # Add server_pem to SSH agent so docker-py's SSH client can use it
             # (necessary because docker.from_env() does not accept PEM files directly).
@@ -2165,12 +2473,14 @@ def _built_image(
             local_checks=False,
             app=app_name,
             experiment_files=experiment_files,
+            quiet=True,
         )
         image_name = build_image(
             tmp_dir,
             config.get("docker_image_base_name"),
             out=Output(),
             image_tag=docker_tag_from_experiment_id(config.get("id")),
+            quiet=True,
         )
         built_image = image_name
 
@@ -2180,8 +2490,10 @@ def _built_image(
                 # If built remotely and not pushing, the image is only on the remote daemon.
                 # We need to get its full name (repo:tag) for deployment.
                 # The build_image function already returns the image name, so we use that.
-                print(
-                    f"Image {image_name} built remotely, skipping push to registry because --push-build was not selected."
+                logging.getLogger(__name__).debug(
+                    "Image %s built remotely, skipping push to registry "
+                    "because --push-build was not selected.",
+                    image_name,
                 )
             else:
                 # If it's a local build, or if it's a remote build and push_build, then push.
@@ -2242,6 +2554,160 @@ def _remove_aborted_build(docker_client, image_name, server, local_build, app):
             print(f"Kept the image {image_name} built for this deploy: {exc}")
     else:
         print(f"Removed the image {image_name} built for this deploy.")
+
+
+def _report_ssh_failures(f):
+    """Turn a failed SSH connection or login to the server into one ``Error:`` line.
+
+    Other errors, including SSH errors after connecting, are raised unchanged.
+    """
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception as exc:
+            server_info = _configured_server_info(kwargs.get("server"))
+            message = server_info and _ssh_failure_message(
+                exc,
+                server_info["host"],
+                server_info.get("user"),
+                docker_over_ssh=not kwargs.get("local_build"),
+            )
+            if not message:
+                raise
+            _stop_active_spinner()
+            raise click.ClickException(message) from exc
+
+    return wrapper
+
+
+def _configured_server_info(server):
+    """Return the configured details of ``server``, or None if it isn't configured."""
+    try:
+        return CONFIGURED_HOSTS[resolve_server_name(server, CONFIGURED_HOSTS)]
+    except (KeyError, ValueError):
+        return None
+
+
+def _ssh_failure_message(exc, ssh_address, user, docker_over_ssh=False):
+    """Explain ``exc`` if it means the server couldn't be reached or logged in to.
+
+    Parameters
+    ----------
+    exc : Exception
+        The error.
+    ssh_address : str
+        The server's ``host`` or ``host:port``.
+    user : str or None
+        The SSH user configured for the server.
+    docker_over_ssh : bool
+        Whether Docker was reaching the server over SSH, so that its failure to
+        connect is an SSH problem.
+
+    Returns
+    -------
+    str or None
+        The explanation, or None for any other error.
+    """
+    import docker.errors
+
+    host, port = split_ssh_host_port(ssh_address)
+    address = host if port == 22 else f"{host}:{port}"
+
+    def ssh_line(user, key=None):
+        options = (f"-i {quote(str(key))} " if key else "") + (
+            "" if port == 22 else f"-p {port} "
+        )
+        if user and "@" in user:
+            return f"ssh {options}-l {user} {host}"
+        return f"ssh {options}{user}@{host}" if user else f"ssh {options}{host}"
+
+    def check(user):
+        return (
+            f"Check that `{ssh_line(user)}` works without asking for a "
+            "password, using a key in ~/.ssh, your SSH agent or the server_pem "
+            "setting."
+        )
+
+    prefix = "Error while fetching server API version: "
+    if isinstance(exc, paramiko.AuthenticationException):
+        login = f"Couldn't log in to {address} over SSH as {user or getuser()}."
+        try:
+            key = get_server_pem_path()
+        except OSError:
+            return f"{login} {check(user)}"
+        # Dallinger's own SSH connections use only this key.
+        return (
+            f"{login} Check that `{ssh_line(user, key)}` works without asking for "
+            "a password, with the key in the server_pem setting."
+        )
+    if (
+        docker_over_ssh
+        and isinstance(exc, docker.errors.DockerException)
+        and str(exc).startswith(prefix)
+    ):
+        # Docker connects without a user name that contains "@" (see
+        # docker_host_uri), so ssh picks the user as it would for this command.
+        docker_user = None if user and "@" in user else user
+        return (
+            f"Couldn't reach Docker on {address} over SSH "
+            f"({_root_cause(exc, prefix)}; see any message from ssh above). "
+            f"{check(docker_user)}"
+        )
+    if not _raised_by_paramiko(exc):
+        return None
+    if isinstance(exc, socket.gaierror):
+        reason = f"can't find a host called {host}"
+    elif isinstance(exc, paramiko.ssh_exception.NoValidConnectionsError):
+        reason = f"nothing accepted the connection on port {port}"
+    elif isinstance(exc, TimeoutError):
+        reason = "the connection timed out"
+    elif isinstance(exc, paramiko.SSHException) and "protocol banner" in str(exc):
+        reason = f"port {port} doesn't answer like an SSH server"
+    else:
+        return None
+    return (
+        f"Couldn't connect to {address} over SSH: {reason}. Check the server's "
+        f"address and that it is running, then try `{ssh_line(user)}`."
+    )
+
+
+def _root_cause(exc, prefix=""):
+    """Describe the innermost error behind ``exc``, such as "Broken pipe".
+
+    Follows ``__cause__`` and ``__context__``, then an exception held in the
+    arguments, as urllib3 does with ``ProtocolError("Connection aborted.",
+    BrokenPipeError(...))``.
+    """
+    root, seen = exc, set()
+    while id(root) not in seen:
+        seen.add(id(root))
+        nested = root.__cause__
+        if nested is None and not root.__suppress_context__:
+            nested = root.__context__
+        if nested is None:
+            nested = next(
+                (a for a in reversed(root.args) if isinstance(a, BaseException)), None
+            )
+        if nested is None:
+            break
+        root = nested
+    if root is exc:
+        return str(exc).removeprefix(prefix)
+    if getattr(root, "strerror", None) and not getattr(root, "filename", None):
+        return root.strerror
+    return str(root)
+
+
+def _raised_by_paramiko(exc):
+    """Return True if ``exc`` was raised inside Paramiko."""
+    tb = exc.__traceback__
+    while tb is not None:
+        if tb.tb_frame.f_globals.get("__name__", "").startswith("paramiko."):
+            return True
+        tb = tb.tb_next
+    return False
 
 
 def validate_update(f):
@@ -2353,7 +2819,10 @@ def set_dozzle_password_cmd(server, password):
 @option_push_build
 @option_ingress
 @option_allow_private_ip
+@option_show_summary
+@option_deploy_delete_data_command
 @validate_update
+@_report_ssh_failures
 def sandbox(**kwargs):  # pragma: no cover
     """Sandbox a dallinger experiment docker image to a server using ssh."""
     return _deploy_in_mode(mode="sandbox", **kwargs)
@@ -2370,7 +2839,10 @@ def sandbox(**kwargs):  # pragma: no cover
 @option_push_build
 @option_ingress
 @option_allow_private_ip
+@option_show_summary
+@option_deploy_delete_data_command
 @validate_update
+@_report_ssh_failures
 def deploy(**kwargs):  # pragma: no cover
     """Deploy a dallinger experiment docker image to a server using ssh."""
     return _deploy_in_mode(mode="live", **kwargs)
@@ -2388,14 +2860,19 @@ def _deploy_in_mode(
     push_build,
     ingress=None,
     allow_private_ip=False,
+    show_summary=True,
+    delete_data_command=None,
 ):
     """Check a docker-ssh deploy, build or reuse its image, then deploy it.
 
     Building the image can take minutes, so every check that does not need
     the image runs first. The root-domain cleanup, which can destroy apps,
     follows the other checks. Only the app-name check comes after it, since
-    the cleanup can free that name.
+    the cleanup can free that name; the Compose project check comes before
+    it, since the cleanup keeps the data that a clashing name would share.
     """
+    if app_name:
+        _check_app_name_not_reserved(app_name)
     experiment_files = get_experiment_files(os.getcwd())
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     # Existing apps already have their certificates, so updates skip the check.
@@ -2420,8 +2897,10 @@ def _deploy_in_mode(
         experiment_id = f"dlgr-{experiment_uuid[:8]}"
     if not APP_NAME_PATTERN.fullmatch(experiment_id):
         raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
+    _check_app_name_not_reserved(experiment_id)
 
     resolved_ingress = _resolve_ingress(server_info, ingress)
+    takes_root_domain = False
     if resolved_ingress == INGRESS_CLOUDFLARE:
         try:
             validate_app_dns_label(experiment_id)
@@ -2436,18 +2915,25 @@ def _deploy_in_mode(
         cloudflare_settings = None
         tls = _server_tls(server_info, experiment=True)
         experiment_hostname = _classic_preflight(
-            server, app_name, archive_path, dns_host, allow_private_ip, update=update
+            server, app_name, archive_path, dns_host, allow_private_ip, update
         )
-        if _root_domain_preflight_required(
+        takes_server_root = _same_host(
+            experiment_hostname, _server_host(server_info, dns_host)
+        )
+        takes_root_domain = takes_server_root and _root_domain_preflight_required(
             server, app_name, archive_path, ingress
-        ) and _same_host(experiment_hostname, _server_host(server_info, dns_host)):
-            ensure_root_domain_ready(server=server, update=update)
+        )
 
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
-    try:
-        _check_app_slot(slot_executor, experiment_id, update, resolved_ingress)
-    finally:
-        slot_executor.client.close()
+    _check_compose_project_free(slot_executor, experiment_id, update)
+    if takes_root_domain:
+        ensure_root_domain_ready(
+            server=server,
+            update=update,
+            new_app=experiment_id,
+            delete_data_command=delete_data_command,
+        )
+    _check_app_slot(slot_executor, experiment_id, update, resolved_ingress)
 
     # A new deploy that fails after the build removes the image it built.
     with _built_image(
@@ -2480,32 +2966,33 @@ def _deploy_in_mode(
                 server_info=server_info,
                 settings=cloudflare_settings,
                 update=update,
+                show_summary=show_summary,
             )
 
         app_identifier = app_name or experiment_id
         executor = Executor(ssh_address, user=ssh_user, app=app_identifier)
-        takes_server_root = _same_host(
-            experiment_hostname, _server_host(server_info, dns_host)
-        )
         if not update:
-            print("Removing any pre-existing Redis volumes.")
+            logging.getLogger(__name__).debug(
+                "Removing any pre-existing Redis volumes."
+            )
             remove_redis_volumes(app_identifier, executor)
 
         sftp = get_sftp(ssh_address, user=ssh_user)
 
         if not update:
-            print("Starting experiment.")
+            print("Starting the experiment server...")
         else:
-            print("Restarting experiment.")
+            print("Restarting the experiment server...")
 
         logs_url = _logs_url(server_info, dns_host)
         dozzle_password = get_dotenv_values(executor).get("DOZZLE_PASSWORD")
         dozzle_login = "user = dallinger" + (
             f", password = {dozzle_password}" if dozzle_password else ""
         )
-        print_bold(
-            f"To view the logs for this experiment go to {logs_url} ({dozzle_login})"
-        )
+        if show_summary:
+            print_bold(
+                f"To view the logs for this experiment go to {logs_url} ({dozzle_login})"
+            )
         app_secrets = _app_secrets(executor, experiment_id, update)
         postgresql_password = app_secrets["POSTGRES_PASSWORD"]
         cfg = _compose_environment(
@@ -2517,7 +3004,7 @@ def _deploy_in_mode(
             app_secrets["FLASK_SECRET_KEY"],
         )
         public_origin = public_origin_for_hostname(experiment_hostname)
-        _upload_app_stack(
+        previous_image = _upload_app_stack(
             sftp,
             executor,
             cfg,
@@ -2538,20 +3025,20 @@ def _deploy_in_mode(
             f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
         )
         if not update:
-            print("Cleaning up db/user")
+            print("Cleaning up the database and its user...")
             executor.run(
                 rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP DATABASE IF EXISTS "{experiment_id}";'"""
             )
             executor.run(
                 rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'DROP USER IF EXISTS "{experiment_id}"; '"""
             )
-            print(f"Creating database {experiment_id}")
+            print(f"Creating database {experiment_id}...")
             executor.run(
                 rf"""{SERVER_COMPOSE} exec -T postgresql psql -U dallinger -c 'CREATE DATABASE "{experiment_id}"'"""
             )
 
             if archive_path is not None:
-                print(f"Loading database data from {archive_path}")
+                print(f"Loading database data from {archive_path}...")
                 with remote_postgres(server_info, experiment_id) as db_uri:
                     engine = create_db_engine(db_uri)
                     bootstrap_db_from_zip(archive_path, engine)
@@ -2599,6 +3086,7 @@ def _deploy_in_mode(
             update,
             restore=False,
         )
+        _remove_replaced_image(executor, experiment_id, previous_image, image_name)
 
         # We give caddy the alias for the service. If we scale up the service container caddy will
         # send requests to all of them in a round robin fashion.
@@ -2626,16 +3114,17 @@ def _deploy_in_mode(
         # Tell caddy we changed something in the configuration
         executor.reload_caddy()
 
+        ssh_prefix = _ssh_prefix(ssh_host, ssh_port, ssh_user)
         launch_target = LaunchTarget(
             app=experiment_id,
             server=server,
             public_origin=public_origin,
             ingress=INGRESS_CLASSIC,
-            ssh_prefix=_ssh_prefix(ssh_host, ssh_port, ssh_user),
+            ssh_prefix=ssh_prefix,
             verify=not is_loopback_host(ssh_host),
         )
         dashboard_link = _public_dashboard_url(experiment_hostname)
-        log_command = _log_command(ssh_host, ssh_port, ssh_user, experiment_id)
+        log_command = _log_command(ssh_prefix, experiment_id)
         deployment_infos = []
         if push_build:
             deployment_infos.append(f"Deployed Docker image name: {image_name}")
@@ -2646,18 +3135,27 @@ def _deploy_in_mode(
             f"Or you can head to {logs_url} (user = dallinger)",
             f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
         ]
-        _record_then_launch(
-            executor, launch_target, deployment_infos, dashboard_password, update
+        launch_data = _record_then_launch(
+            executor,
+            launch_target,
+            deployment_infos,
+            dashboard_password,
+            update,
+            show_summary,
         )
         return {
             "dashboard_user": dashboard_user,
             "dashboard_password": dashboard_password,
             "dashboard_link": dashboard_link,
             "log_command": log_command,
+            "logs_url": logs_url,
+            "logs_password": dozzle_password,
+            "image_name": image_name,
             "app": experiment_id,
             "server": server,
             "ingress": INGRESS_CLASSIC,
             "public_origin": public_origin,
+            "recruitment_msg": launch_data.get("recruitment_msg"),
         }
 
 
@@ -2714,6 +3212,7 @@ def _deploy_cloudflare_in_mode(
     server_info,
     settings,
     update,
+    show_summary=True,
 ):
     """Deploy an isolated Cloudflare-tunnel experiment on a docker-ssh host.
 
@@ -2721,6 +3220,7 @@ def _deploy_cloudflare_in_mode(
     The caller has already checked that the app slot is free (or exists,
     for ``--update``) and loaded ``api_token``.
     """
+    print("Setting up the Cloudflare tunnel...")
     hostname = cloudflare_public_hostname(experiment_id, settings["dns_zone"])
     public_origin = public_origin_for_hostname(hostname)
     ssh_address = server_info["host"]
@@ -2729,9 +3229,10 @@ def _deploy_cloudflare_in_mode(
     executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
 
     if not update:
-        print("Removing any pre-existing Redis and Postgres volumes.")
-        remove_named_volume(f"{experiment_id}_redis_data", executor)
-        remove_named_volume(f"{experiment_id}_postgres_data", executor)
+        logging.getLogger(__name__).debug(
+            "Removing any pre-existing Redis and Postgres volumes."
+        )
+        _remove_cloudflare_volumes(experiment_id, executor)
     app_secrets = _app_secrets(executor, experiment_id, update)
 
     # This server's own tunnel, recorded when its connector token was
@@ -2789,7 +3290,7 @@ def _deploy_cloudflare_in_mode(
         image_name,
         app_secrets["FLASK_SECRET_KEY"],
     )
-    _upload_app_stack(
+    previous_image = _upload_app_stack(
         sftp,
         executor,
         cfg,
@@ -2803,9 +3304,9 @@ def _deploy_cloudflare_in_mode(
     )
 
     if not update:
-        print("Starting experiment.")
+        print("Starting the experiment server...")
     else:
-        print("Restarting experiment.")
+        print("Restarting the experiment server...")
 
     executor.run(
         f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml run --rm web ls"
@@ -2826,16 +3327,18 @@ def _deploy_cloudflare_in_mode(
         update,
         restore=True,
     )
+    _remove_replaced_image(executor, experiment_id, previous_image, image_name)
 
+    ssh_prefix = _ssh_prefix(ssh_host, ssh_port, ssh_user)
     launch_target = LaunchTarget(
         app=experiment_id,
         server=server,
         public_origin=public_origin,
         ingress=INGRESS_CLOUDFLARE,
-        ssh_prefix=_ssh_prefix(ssh_host, ssh_port, ssh_user),
+        ssh_prefix=ssh_prefix,
     )
     dashboard_link = _public_dashboard_url(hostname)
-    log_command = _log_command(ssh_host, ssh_port, ssh_user, experiment_id)
+    log_command = _log_command(ssh_prefix, experiment_id)
     deployment_infos = []
     if push_build:
         deployment_infos.append(f"Deployed Docker image name: {image_name}")
@@ -2845,18 +3348,25 @@ def _deploy_cloudflare_in_mode(
         f"Public origin: {public_origin}",
         f"You can now log in to the console at {dashboard_link} (user = {dashboard_user})",
     ]
-    _record_then_launch(
-        executor, launch_target, deployment_infos, dashboard_password, update
+    launch_data = _record_then_launch(
+        executor,
+        launch_target,
+        deployment_infos,
+        dashboard_password,
+        update,
+        show_summary,
     )
     return {
         "dashboard_user": dashboard_user,
         "dashboard_password": dashboard_password,
         "dashboard_link": dashboard_link,
         "log_command": log_command,
+        "image_name": image_name,
         "app": experiment_id,
         "server": server,
         "ingress": INGRESS_CLOUDFLARE,
         "public_origin": public_origin,
+        "recruitment_msg": launch_data.get("recruitment_msg"),
         "tunnel_name": tunnel_name_for_app(experiment_id),
     }
 
@@ -2911,8 +3421,17 @@ def remove_experiment_image(executor, image_name: str | None) -> None:
     """
     if not image_name:
         return
-    print(f"Removing experiment image {image_name}")
-    executor.run(f"docker rmi {quote(image_name)}", raise_=False)
+    image = quote(image_name)
+    result = executor.run(
+        f"if docker rmi {image} >/dev/null 2>&1; then echo removed; "
+        f"elif docker image inspect {image} >/dev/null 2>&1; then echo kept; fi",
+        raise_=False,
+    )
+    result = (result or "").strip()
+    if result == "removed":
+        print(f"Removed experiment image {image_name}.")
+    elif result == "kept":
+        print(f"Kept experiment image {image_name} (still in use).")
 
 
 def remove_unshared_experiment_image(
@@ -2922,7 +3441,7 @@ def remove_unshared_experiment_image(
     if not image_name:
         return
     if image_pinned_by_other_apps(executor, image_name, except_app):
-        print(f"Not removing image {image_name}: another app still pins it in compose")
+        print(f"Kept experiment image {image_name} (another app uses it).")
         return
     remove_experiment_image(executor, image_name)
 
@@ -2946,7 +3465,14 @@ def remove_named_volume(volume_name, executor):
 
 
 def remove_redis_volumes(app_name, executor):
-    remove_named_volume(f"{app_name}_redis_data", executor)
+    remove_named_volume(f"{_compose_project(app_name)}_redis_data", executor)
+
+
+def _remove_cloudflare_volumes(app, executor):
+    """Remove a Cloudflare app's Redis and Postgres volumes, if they exist."""
+    project = _compose_project(app)
+    for volume in ("redis_data", "postgres_data"):
+        remove_named_volume(f"{project}_{volume}", executor)
 
 
 def get_apps(server):
@@ -3198,38 +3724,35 @@ def _forward_local_port(transport, remote_address):
 def remote_postgres(server_info, app):
     """A context manager that opens an ssh tunnel to the remote host and
     returns a database URI to connect to it.
+
+    The tunnel rides on the shared SSH connection, which stays open for
+    other callers.
     """
-    executor = None
-    try:
-        ssh_user = server_info.get("user")
-        executor = Executor(server_info["host"], user=ssh_user, app=app)
-        container, remote_ip, isolated = _resolve_remote_postgres(executor, app)
-        if isolated:
-            env = _inspect_container_env(executor, container)
-            db_user = env.get("POSTGRES_USER") or app
-            db_password = env.get("POSTGRES_PASSWORD") or ""
-            db_name = env.get("POSTGRES_DB") or app
-            if not db_password:
-                raise ExecuteException(
-                    f"Could not read POSTGRES_PASSWORD from {container}."
-                )
-            uri_user = url_quote(db_user, safe="")
-            uri_password = url_quote(db_password, safe="")
-            uri_db = url_quote(db_name, safe="")
-        else:
-            uri_user = "dallinger"
-            uri_password = "dallinger"
-            uri_db = url_quote(app, safe="")
-        with _forward_local_port(
-            executor.client.get_transport(), (remote_ip, 5432)
-        ) as local_port:
-            yield (
-                f"postgresql://{uri_user}:{uri_password}"
-                f"@127.0.0.1:{local_port}/{uri_db}"
+    ssh_user = server_info.get("user")
+    executor = Executor(server_info["host"], user=ssh_user, app=app)
+    container, remote_ip, isolated = _resolve_remote_postgres(executor, app)
+    if isolated:
+        env = _inspect_container_env(executor, container)
+        db_user = env.get("POSTGRES_USER") or app
+        db_password = env.get("POSTGRES_PASSWORD") or ""
+        db_name = env.get("POSTGRES_DB") or app
+        if not db_password:
+            raise ExecuteException(
+                f"Could not read POSTGRES_PASSWORD from {container}."
             )
-    finally:
-        if executor is not None:
-            executor.client.close()
+        uri_user = url_quote(db_user, safe="")
+        uri_password = url_quote(db_password, safe="")
+        uri_db = url_quote(db_name, safe="")
+    else:
+        uri_user = "dallinger"
+        uri_password = "dallinger"
+        uri_db = url_quote(app, safe="")
+    with _forward_local_port(
+        executor.client.get_transport(), (remote_ip, 5432)
+    ) as local_port:
+        yield (
+            f"postgresql://{uri_user}:{uri_password}@127.0.0.1:{local_port}/{uri_db}"
+        )
 
 
 def _resolve_remote_postgres(executor, app):
@@ -3285,52 +3808,423 @@ def _inspect_container_env(executor, container):
     return env
 
 
+def _app_data_link_target(executor, app):
+    """Return ``(exists, symlink_target)`` for ``~/dallinger-data/<app>``.
+
+    ``symlink_target`` is None unless the path is a symlink, dangling or not.
+    """
+    path = f"~/dallinger-data/{quote(app)}"
+    out = executor.run(
+        f'if [ -L {path} ]; then echo "symlink $(readlink {path})"; '
+        f"elif [ -e {path} ]; then echo dir; fi",
+        raise_=False,
+    )
+    out = (out or "").strip()
+    if out.startswith("symlink"):
+        return True, out[len("symlink") :].strip()
+    return out == "dir", None
+
+
+def _app_data_size(executor, app):
+    """Return a human-readable size for the app's data folder, or None.
+
+    ``du`` is capped at 15 seconds; a size from a ``du`` that hit unreadable
+    files is reported as a lower bound.
+    """
+    out = executor.run(
+        f'timeout 15 du -sh ~/dallinger-data/{quote(app)} 2>/dev/null; echo "rc=$?"',
+        raise_=False,
+    )
+    lines = (out or "").strip().splitlines()
+    if len(lines) < 2 or not lines[-1].startswith("rc="):
+        return None
+    size, rc = lines[0].split("\t")[0].strip(), lines[-1][3:]
+    if not size or rc in ("124", "127"):
+        return None
+    return size if rc == "0" else f"at least {size}"
+
+
+def _stdin_is_tty():
+    """True if a user can answer a confirmation prompt."""
+    return sys.stdin.isatty()
+
+
+SHARED_PSQL_TIMEOUT = 30
+
+
+def _shared_psql(*statements):
+    """Return a command running SQL ``statements`` in the server's shared Postgres.
+
+    Each statement gets its own ``-c``, so DROP DATABASE runs outside a
+    transaction block.
+    """
+    args = " ".join(f"-c {quote(sql)}" for sql in statements)
+    return (
+        f"timeout {SHARED_PSQL_TIMEOUT} {SERVER_COMPOSE} exec -T postgresql "
+        f"psql -U dallinger -v ON_ERROR_STOP=1 -tA {args}"
+    )
+
+
+def _shared_database(executor, app, required=True):
+    """Return experiment data items for ``app``'s database and user in the shared Postgres.
+
+    A Cloudflare app doesn't use the shared Postgres, but an earlier classic
+    deploy of the same name may have left a database there. For such an app
+    (``required=False``) a failed check prints a note instead of returning an
+    ``unchecked`` item.
+    """
+    if app in SHARED_POSTGRES_DATABASES:
+        return []
+    status, out, err = executor.run_with_status(
+        "[ -f ~/dallinger/docker-compose.yml ] || exit 0; "
+        + _shared_psql(
+            "SELECT (SELECT pg_size_pretty(pg_database_size(datname)) "
+            f"FROM pg_database WHERE datname = '{app}'), "
+            f"EXISTS (SELECT FROM pg_roles WHERE rolname = '{app}')"
+        )
+    )
+    if status != 0:
+        reason = _failure_reason(status, err, SHARED_PSQL_TIMEOUT)
+        if required:
+            if status == 124:
+                reason += ", so try again"
+            return [_unchecked(f"the database {app} in the shared Postgres", reason)]
+        when = (
+            "when the server is less busy"
+            if status == 124
+            else "after fixing the problem"
+        )
+        print(
+            "Could not check whether the shared Postgres still has a database "
+            f"{app} from an earlier classic deploy of this name ({reason}). "
+            "The Cloudflare app's own database volume, if any, is listed "
+            f"separately. If {app} was ever deployed with classic ingress, run "
+            f"destroy with --remove-data again {when}."
+        )
+        return []
+    size, _, has_user = (out or "").strip().partition("|")
+    items = []
+    if size:
+        label = f"the database {app} ({size}) in the shared Postgres"
+        items.append(("database", app, label))
+    if has_user == "t":
+        items.append(("user", app, f"the Postgres user {app}"))
+    return items
+
+
+def _failure_reason(status, err, timeout=None):
+    """Describe why a remote command failed.
+
+    For a command run under ``timeout`` seconds, exit status 124 means it
+    timed out.
+    """
+    if timeout and status == 124:
+        return f"timed out after {timeout} s; the server may be busy"
+    return ((err or "").strip().splitlines()[-1:] or ["unknown error"])[0]
+
+
+def _unchecked(what, reason):
+    """Return an experiment data item for data whose existence is unknown."""
+    return "unchecked", what, f"{what}, if any (could not check: {reason})"
+
+
+def _own_database_size(executor, app):
+    """Return the size of a Cloudflare app's database while its Postgres runs."""
+    sql = f"SELECT pg_size_pretty(pg_database_size('{app}'))"
+    status, out, _ = executor.run_with_status(
+        f"timeout 20 docker exec {quote(app + '_postgresql')} "
+        f"psql -U {quote(app)} -d {quote(app)} -tAc {quote(sql)}"
+    )
+    return (out or "").strip() if status == 0 else ""
+
+
+def _experiment_data(executor, app, cloudflare=False):
+    """List the experiment data ``app`` has on the server.
+
+    Returns ``(kind, name, label)`` tuples for the app's database and user in
+    the shared Postgres, its Docker volumes and its data folder. Each is
+    checked on its own; one that can't be checked is an ``unchecked`` item,
+    except the shared Postgres of a ``cloudflare`` app.
+    """
+    items = _shared_database(executor, app, required=not cloudflare)
+    status, out, err = executor.run_with_status("docker volume ls -q")
+    if status != 0:
+        items.append(
+            _unchecked(f"the Docker volumes of {app}", _failure_reason(status, err))
+        )
+        out = ""
+    volumes = set(out.split())
+    project = _compose_project(app)
+    for volume, what in (("postgres_data", "database"), ("redis_data", "Redis")):
+        volume = f"{project}_{volume}"
+        if volume in volumes:
+            size = _own_database_size(executor, app) if what == "database" else ""
+            if size:
+                label = f"the database {app} ({size}) in the volume {volume}"
+            else:
+                label = f"the {what} volume {volume}"
+            items.append(("volume", volume, label))
+    exists, link_target = _app_data_link_target(executor, app)
+    if exists:
+        path = f"~/dallinger-data/{app}"
+        if link_target is not None:
+            label = (
+                f"the symlink {path} (only the link; its target {link_target} stays)"
+            )
+        else:
+            size = _app_data_size(executor, app)
+            label = f"the folder {path}" + (f" ({size})" if size else "")
+        items.append(("folder", path, label))
+    return items
+
+
+def _print_data(heading, items):
+    print(heading)
+    for _, _, label in items:
+        print(f"  - {label}")
+
+
+def _remove_experiment_data(executor, app, items):
+    """Delete the listed experiment data and return whether all of it is gone.
+
+    Refuses unless Docker confirms that none of the app's containers run.
+    """
+    label = f"label=com.docker.compose.project={_compose_project(app)}"
+    status, running, stderr = executor.run_with_status(
+        f"docker ps -q --filter {quote(label)}"
+    )
+    if status != 0 or (running or "").strip():
+        reason = (
+            "could not check whether its containers are running"
+            if status
+            else "its containers are still running"
+        )
+        print(
+            f"{RED}Not deleting the data of {app}: {reason}.{END} {(stderr or '').strip()}"
+        )
+        return False
+    removed = True
+    for kind, name, label in items:
+        if kind == "folder":
+            removed = _remove_app_data(executor, app) and removed
+            continue
+        if kind == "unchecked":
+            removed = False
+            print(f"{RED}Did not delete {label}.{END}")
+            continue
+        if kind == "database":
+            command = _shared_psql(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                f"WHERE datname = '{app}' AND pid <> pg_backend_pid()",
+                f'DROP DATABASE IF EXISTS "{app}"',
+            )
+        elif kind == "user":
+            command = _shared_psql(f'DROP USER IF EXISTS "{app}"')
+        else:
+            command = f"docker volume rm {quote(name)}"
+        status, _, stderr = executor.run_with_status(command)
+        if status == 0:
+            print(f"Deleted {label}.")
+        else:
+            removed = False
+            timeout = SHARED_PSQL_TIMEOUT if kind in ("database", "user") else None
+            reason = _failure_reason(status, stderr, timeout)
+            print(f"{RED}Could not delete {label}.{END} {reason}")
+    return removed
+
+
+def _remove_app_data(executor, app):
+    """Delete ``~/dallinger-data/<app>`` and return whether it is gone.
+
+    The parent folder is usually root-owned, so the SSH user cannot unlink
+    the app folder itself; a root container then deletes it. A symlink is
+    unlinked; its target is kept.
+    """
+    path = f"~/dallinger-data/{app}"
+    status, stdout, stderr = executor.run_with_status(
+        f'app={quote(app)}; parent="$HOME/dallinger-data"; p="$parent/$app"; '
+        'if [ -L "$p" ]; then kind="symlink $(readlink "$p")"; '
+        'elif [ -e "$p" ]; then kind=dir; else echo absent; exit 0; fi; '
+        'rm -rf "$p" 2>/dev/null || '
+        'docker run --rm -v "$parent:/data" alpine:3.20 rm -rf "/data/$app"; '
+        'if [ -e "$p" ] || [ -L "$p" ]; then echo failed; '
+        'else echo "removed $kind"; fi'
+    )
+    result = (stdout or "").strip()
+    if result == "removed dir":
+        print(f"Deleted the folder {path}.")
+    elif result.startswith("removed symlink"):
+        target = result[len("removed symlink") :].strip()
+        print(f"Deleted the symlink {path}; its target {target} was kept.")
+    elif result != "absent":
+        print(f"{RED}Could not delete {path}.{END} {(stderr or '').strip()}")
+        return False
+    return True
+
+
 @docker_ssh.command()
 @click.option("--app", required=True, help="Name of the experiment app to destroy")
+@click.option(
+    "--remove-data",
+    is_flag=True,
+    help=(
+        "Delete the experiment's data: its database, Redis volume and "
+        "~/dallinger-data/<app>. Asks for confirmation unless --yes is given. "
+        "Works after the app has been destroyed; if nothing is left, says so "
+        "and exits successfully."
+    ),
+)
+@click.option(
+    "--keep-data",
+    is_flag=True,
+    help="Keep the experiment's data on the server and print how to delete it.",
+)
+@click.option(
+    "--yes", is_flag=True, help="Don't ask before deleting data with --remove-data."
+)
+@click.option(
+    "--delete-data-command",
+    hidden=True,
+    help=(
+        "Command printed for deleting the kept data later, for tools that "
+        "wrap this command."
+    ),
+)
 @option_server
-def destroy(server, app):
-    """Tear down an experiment run on a server you control via ssh."""
+def destroy(
+    server,
+    app,
+    remove_data=False,
+    keep_data=False,
+    yes=False,
+    delete_data_command=None,
+):
+    """Tear down an experiment run on a server you control via ssh.
+
+    Without --remove-data or --keep-data, asks whether to delete the
+    experiment's data, or keeps it if there is no terminal to ask in. While
+    another app on the server has the same Docker Compose project name (such
+    as MyApp and myapp), destroy only runs if it keeps the data.
+    """
+    if not APP_NAME_PATTERN.fullmatch(app):
+        raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
+    if remove_data and keep_data:
+        raise click.UsageError("Pass only one of --remove-data and --keep-data.")
+    if not _stdin_is_tty():
+        if remove_data and not yes:
+            raise click.UsageError(
+                "--remove-data needs confirmation; pass --yes in non-interactive "
+                "sessions."
+            )
+        keep_data = not remove_data
     server_info = _resolve_server_info(server)
     ssh_address = server_info["host"]
+    ssh_host, _ = split_ssh_host_port(ssh_address)
     ssh_user = server_info.get("user")
     executor = Executor(ssh_address, user=ssh_user, app=app)
+    quoted_app = quote(app)
 
     caddy_config_exists = executor.run(
-        f"test -f ~/dallinger/caddy.d/{quote(app)} -o "
-        f"-f ~/dallinger/root.d/{quote(app)} && echo Yes",
+        f"test -f ~/dallinger/caddy.d/{quoted_app} -o "
+        f"-f ~/dallinger/root.d/{quoted_app} && echo Yes",
         raise_=False,
     )
     docker_compose_exists = executor.run(
-        f"test -f ~/dallinger/{app}/docker-compose.yml && echo Yes", raise_=False
+        f"test -f ~/dallinger/{quoted_app}/docker-compose.yml && echo Yes",
+        raise_=False,
     )
     # A Cloudflare deploy that failed after creating its tunnel leaves only
     # the connector token behind.
     tunnel_token_exists = executor.run(
-        f"test -f ~/dallinger/{app}/secrets/cloudflare-tunnel-token && echo Yes",
+        f"test -f ~/dallinger/{quoted_app}/secrets/cloudflare-tunnel-token && echo Yes",
         raise_=False,
     )
-    if not (caddy_config_exists or docker_compose_exists or tunnel_token_exists):
-        print(f"App {app} is not deployed")
-        raise click.Abort()
-
-    manifest = _load_remote_manifests(executor, [app]).get(app)
+    deployed = caddy_config_exists or docker_compose_exists or tunnel_token_exists
+    manifest = _load_remote_manifests(executor, [app]).get(app) if deployed else None
     if manifest:
         ingress = manifest.ingress
     elif tunnel_token_exists:
         ingress = INGRESS_CLOUDFLARE
     else:
         ingress = INGRESS_CLASSIC
+    data = _experiment_data(executor, app, cloudflare=ingress == INGRESS_CLOUDFLARE)
+    if not deployed and not data and remove_data:
+        print(f"Nothing left to delete for {app} on {ssh_host}.")
+        return
+    if not deployed:
+        print(f"App {app} is not deployed.")
+        if not data:
+            print(f"No experiment data of {app} is left on {ssh_host}.")
+            raise click.Abort()
+    if data and not keep_data:
+        siblings = _project_siblings(app, _discover_server_apps(executor))
+        if siblings:
+            others = ", ".join(siblings)
+            keep = (
+                f"Nothing was destroyed. To remove {app} and keep its data, run "
+                "destroy with --keep-data; this also stops the containers of "
+                f"{others}, which share the project, until {others} is "
+                "deployed again with --update. "
+                if deployed
+                else ""
+            )
+            raise click.ClickException(
+                f"The data of {app} can't be deleted while {others} exists on "
+                f"{ssh_host}: they have the same Docker Compose project, "
+                f"{_compose_project(app)}, so they share Docker volumes. {keep}"
+                f"Once {others} is destroyed too, --remove-data can delete the "
+                "data of each."
+            )
+    # Ask before teardown, so declining --remove-data leaves a live app untouched.
+    if data and not keep_data and not (remove_data and yes):
+        _print_data(f"Experiment data of {app} on {ssh_host}:", data)
+        remove_data = click.confirm(
+            "Delete this data? This cannot be undone."
+            + ("" if remove_data else " Answer no to keep it."),
+            default=False,
+            abort=remove_data,
+        )
+
+    if deployed:
+        _tear_down_app(executor, app, server, docker_compose_exists, manifest, ingress)
+    delete_again = (
+        delete_data_command
+        or f"dallinger docker-ssh destroy --app {app} --server {server} --remove-data"
+    )
+    if data and remove_data:
+        if not _remove_experiment_data(executor, app, data):
+            raise click.ClickException(
+                f"Some data of {app} was not deleted. Fix the problem above "
+                f"and run: {delete_again}"
+            )
+    elif data:
+        _print_data(f"Kept the experiment data of {app} on {ssh_host}:", data)
+        print(
+            f"To delete it, run: {delete_again}\n"
+            f"A new deploy of {app} without --update deletes its database and "
+            f"volumes, but reuses ~/dallinger-data/{app}."
+        )
+        if not deployed:
+            raise click.ClickException(
+                f"App {app} is not deployed, so nothing was destroyed."
+            )
+
+
+def _tear_down_app(executor, app, server, has_compose, manifest, ingress):
+    """Stop and remove a deployed app, keeping its data volumes and folder."""
+    quoted_app = quote(app)
 
     experiment_image = None
-    if docker_compose_exists:
+    if has_compose:
         experiment_image = read_remote_experiment_image(executor, app)
 
     if ingress == INGRESS_CLOUDFLARE:
-        if docker_compose_exists:
+        if has_compose:
             _stop_cloudflare_connector(executor, app)
         own_tunnel_id = (
             executor.run(
-                f"cat ~/dallinger/{app}/secrets/cloudflare-tunnel-id", raise_=False
+                f"cat ~/dallinger/{quoted_app}/secrets/cloudflare-tunnel-id",
+                raise_=False,
             )
             or ""
         ).strip() or (manifest.cloudflare.get("tunnel_id") if manifest else None)
@@ -3340,13 +4234,9 @@ def destroy(server, app):
                 "stopped. Fix the problem above and run destroy again."
             )
             raise click.Abort()
-        executor.run(
-            f"docker compose -f ~/dallinger/{app}/docker-compose.yml down -v",
-            raise_=False,
-        )
     else:
         state = _server_state(executor)
-        executor.run(f"rm -f ~/dallinger/root.d/{quote(app)}")
+        executor.run(f"rm -f ~/dallinger/root.d/{quoted_app}")
         if _rewritten_by_older_dallinger(state):
             print(f"Warning: {_older_dallinger_message(server, state)}")
         elif f"reverse_proxy {app}_web:5000" in state.get("Caddyfile", ""):
@@ -3356,22 +4246,28 @@ def destroy(server, app):
                 "Destroy leaves that shared file alone. To reset it, run "
                 f"`dallinger docker-ssh servers upgrade --host {server}`."
             )
-        executor.run(f"rm -f ~/dallinger/caddy.d/{quote(app)}")
+        executor.run(f"rm -f ~/dallinger/caddy.d/{quoted_app}")
         executor.reload_caddy()
-        executor.run(
-            f"docker compose -f ~/dallinger/{app}/docker-compose.yml down",
-            raise_=False,
+    if has_compose:
+        status, _, stderr = executor.run_with_status(
+            f"docker compose -f ~/dallinger/{quoted_app}/docker-compose.yml down"
         )
-
+        if status != 0:
+            print(
+                f"{RED}Could not stop the containers of {app}:{END} "
+                f"{(stderr or '').strip()}\nIts files are left on the server. "
+                "Fix the problem and run destroy again."
+            )
+            raise click.Abort()
     remove_unshared_experiment_image(executor, experiment_image, except_app=app)
-    executor.run(f"rm -rf ~/dallinger/{app}/")
-    print(f"App {app} removed")
+    executor.run(f"rm -rf ~/dallinger/{quoted_app}/")
+    print(f"App {app} removed.")
 
 
 def _stop_cloudflare_connector(executor, app):
     """Stop the tunnel connector so Cloudflare will accept tunnel deletion."""
     executor.run(
-        f"docker compose -f ~/dallinger/{app}/docker-compose.yml stop cloudflared",
+        f"docker compose -f ~/dallinger/{quote(app)}/docker-compose.yml stop cloudflared",
         raise_=False,
     )
 
@@ -3432,15 +4328,21 @@ def hibernate(server, app):
 @option_server
 def awaken(server, app):
     """Start a hibernated app without re-launching recruitment."""
-    awaken_app(server, app)
+    _run_hibernation_action(server, app, "awaken")
 
 
 def awaken_app(server, app, required=True):
-    """Wake a docker-ssh app, waiting until Postgres and web are ready."""
-    return _run_hibernation_action(server, app, "awaken", required=required)
+    """Wake a docker-ssh app, waiting until Postgres and web are ready.
+
+    Prints nothing if the app is already awake, so callers can use it as a
+    routine check before touching the app's database.
+    """
+    return _run_hibernation_action(
+        server, app, "awaken", required=required, report_awake=False
+    )
 
 
-def _run_hibernation_action(server, app, action, required=True):
+def _run_hibernation_action(server, app, action, required=True, report_awake=True):
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
     server_info = _resolve_server_info(server)
@@ -3454,7 +4356,8 @@ def _run_hibernation_action(server, app, action, required=True):
             raise click.Abort()
         return False
     if action == "awaken" and app not in _remote_hibernation_states(executor):
-        print(f"App {app} is awake")
+        if report_awake:
+            print(f"App {app} is awake")
         return True
     services = executor.run(
         f"docker compose -f {compose} config --services", raise_=False
@@ -3506,7 +4409,99 @@ def _is_dsa_key(path):
     return b"\x00\x00\x00\x07ssh-dss" in blob
 
 
+class _PlainSpinner:
+    """Stand-in for yaspin when stdout is not a terminal: no frames, one line per outcome."""
+
+    def __init__(self, text=""):
+        self.text = text
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
+    def ok(self, text=""):
+        print(" ".join(part for part in (text, self.text) if part), flush=True)
+
+    fail = ok
+
+
+_active_spinner = None
+
+
+@contextmanager
+def _spinner(text="", **kwargs):
+    """Animate a yaspin spinner on a terminal; otherwise print only the outcome."""
+    global _active_spinner
+    spinner = yaspin(text=text, **kwargs) if sys.stdout.isatty() else None
+    spinner = spinner or _PlainSpinner(text)
+    previous, _active_spinner = _active_spinner, spinner
+    try:
+        with spinner:
+            yield spinner
+    finally:
+        _active_spinner = previous
+        sys.stdout.flush()
+
+
+def _stop_active_spinner():
+    """Clear a running spinner so that the next output starts on a clean line."""
+    if _active_spinner is not None:
+        _active_spinner.stop()
+
+
+_ssh_clients = {}
+_ssh_clients_lock = threading.Lock()
+
+
+def _ssh_client_key(host, user=None):
+    """Identify a login the same way however the host and user were spelled."""
+    return (*split_ssh_host_port(host), user or getuser())
+
+
+def _forget_ssh_client(host, user=None, client=None):
+    """Close the shared connection to ``host`` so the next one logs in afresh.
+
+    If ``client`` is given, it is closed, and dropped from the cache only if
+    the cache still holds it rather than a newer connection.
+    """
+    key = _ssh_client_key(host, user)
+    with _ssh_clients_lock:
+        if client is None:
+            client = _ssh_clients.pop(key, None)
+        elif _ssh_clients.get(key) is client:
+            del _ssh_clients[key]
+    if client is not None:
+        client.close()
+
+
 def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
+    """Return a connected SSH client, reusing this process's open connection to ``host``.
+
+    Callers share the client, so they should not close it unless they are
+    finished with the server; a closed client is replaced on the next call.
+    """
+    key = _ssh_client_key(host, user)
+    with _ssh_clients_lock:
+        client = _ssh_clients.get(key)
+        transport = client.get_transport() if client is not None else None
+        if transport is not None and transport.is_active():
+            return client
+        if client is not None:
+            client.close()
+        client = _connect_ssh_client(host, user)
+        _ssh_clients[key] = client
+        return client
+
+
+def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
     """Create and connect an SSH client with proper authentication.
 
     Args:
@@ -3555,8 +4550,8 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
     )
 
     connecting_to = ssh_host if ssh_port == 22 else f"{ssh_host}:{ssh_port}"
-    print(f"Connecting to {connecting_to}")
-    with yaspin() as spinner:
+    print(f"Connecting to {connecting_to}...", flush=True)
+    with _spinner() as spinner:
         try:
             client.connect(**connect_kwargs)
             spinner.ok("Connected.")
@@ -3639,18 +4634,44 @@ def add_server_pem_to_ssh_agent():
 
 
 def ensure_remote_host_in_known_hosts(host, user=None):
-    """Make sure the SSH host key is trusted locally before other clients connect."""
-    client = get_connected_ssh_client(host, user)
-    client.close()
+    """Make sure the SSH host key is trusted locally before other clients connect.
+
+    Raises
+    ------
+    click.ClickException
+        If the server can't be reached or logged in to.
+    """
+    try:
+        get_connected_ssh_client(host, user)
+    except Exception as exc:
+        message = _ssh_failure_message(exc, host, user)
+        if message is None:
+            raise
+        raise click.ClickException(message) from exc
 
 
 class Executor:
-    """Execute remote commands using paramiko"""
+    """Execute remote commands using paramiko.
+
+    All Executors for a server share one SSH connection. Closing ``client``
+    closes it for every one of them; each reconnects on its next use.
+    """
 
     def __init__(self, host, user=None, app=None):
         self.app = app
-        self.client = get_connected_ssh_client(host, user)
         self.host = host
+        self.user = user
+        # Connect now so that connection and login errors surface here.
+        get_connected_ssh_client(host, user)
+
+    @property
+    def client(self):
+        """The shared SSH client for this server, reconnected if it was closed."""
+        return get_connected_ssh_client(self.host, self.user)
+
+    def close(self):
+        """Close the shared SSH connection for this server, without reconnecting."""
+        _forget_ssh_client(self.host, self.user)
 
     def run(self, cmd, raise_=True):
         """Run the given command and block until it completes.
@@ -3658,6 +4679,7 @@ class Executor:
         """
         status, stdout, stderr = self.run_with_status(cmd)
         if raise_ and status != 0:
+            _stop_active_spinner()
             print(f"Error: exit code was not 0 ({status})")
             print(stdout)
             print(stderr)
@@ -3705,7 +4727,17 @@ class Executor:
 
     def run_with_status(self, cmd):
         """Run ``cmd`` and return ``(exit_status, stdout, stderr)`` without raising."""
-        channel = self.client.get_transport().open_session()
+        client = self.client
+        try:
+            channel = client.get_transport().open_session()
+        except (paramiko.SSHException, EOFError):
+            # A connection can die before its transport notices. A live one
+            # refusing a channel (e.g. MaxSessions) must stay up for others.
+            transport = client.get_transport()
+            if transport is not None and transport.is_active():
+                raise
+            _forget_ssh_client(self.host, self.user, client)
+            channel = self.client.get_transport().open_session()
         channel.exec_command(cmd)
         return self._drain_channel(channel)
 
@@ -3768,14 +4800,14 @@ class Executor:
             raise click.Abort
 
     def reload_caddy(self):
-        print("Reloading Caddy config file")
-        self.run(
-            f"{SERVER_COMPOSE} exec -T httpserver "
-            "caddy reload --config /etc/caddy/Caddyfile"
-        )
+        with _spinner(text="Reloading Caddy config file", color="green"):
+            self.run(
+                f"{SERVER_COMPOSE} exec -T httpserver "
+                "caddy reload --config /etc/caddy/Caddyfile"
+            )
 
     def restart_dozzle(self):
-        with yaspin(text="Restarting Dozzle", color="green"):
+        with _spinner(text="Restarting Dozzle", color="green"):
             self.run(f"{SERVER_COMPOSE} restart dozzle")
 
     def run_and_echo(self, cmd):  # pragma: no cover
@@ -3815,6 +4847,14 @@ class Executor:
                     break
 
 
+def _compose_project(app):
+    """Return the Compose project name for ``app``, as Compose normalizes it.
+
+    Compose labels the app's containers with this name.
+    """
+    return re.sub(r"[^a-z0-9_-]", "", app.lower())
+
+
 def get_docker_compose_yml(
     config: Dict[str, str],
     experiment_id: str,
@@ -3848,8 +4888,7 @@ def get_docker_compose_yml(
         idle_enabled=str(idle_enabled).lower(),
         idle_minutes=idle_minutes,
         controller_image=CONTROLLER_IMAGE,
-        # Compose's own project-name normalization, which its labels use.
-        compose_project=re.sub(r"[^a-z0-9_-]", "", experiment_id.lower()),
+        compose_project=_compose_project(experiment_id),
         run_as_ssh_user=run_as_ssh_user,
     )
 
@@ -3900,18 +4939,15 @@ def _bring_up_app_containers(
     if update and "was-hibernating" in (output or ""):
         print(f"App {experiment_id} was hibernating. The update woke it.")
     if archive_path is None and not update:
-        print(f"Experiment {experiment_id} started.")
-        print("Initializing database...")
         executor.run(
             f"docker compose -f ~/dallinger/{experiment_id}/docker-compose.yml "
             "exec -T web dallinger-housekeeper initdb"
         )
-        print("Database initialized.")
 
 
 def _restore_experiment_archive(server_info, experiment_id, archive_path):
     """Load an export into the app database before web starts."""
-    print(f"Loading database data from {archive_path}")
+    print(f"Loading database data from {archive_path}...")
     grant_roles_script = (
         f'grant all privileges on database "{experiment_id}" to "{experiment_id}"'
     )
@@ -4132,7 +5168,14 @@ def _servers_add_command(server_info, **changes):
 
 
 def get_dns_host(ssh_host):
-    ip_addr = gethostbyname_ex(ssh_host)[2][0]
+    """Return the nip.io name for ``ssh_host``'s IP address."""
+    try:
+        ip_addr = gethostbyname_ex(ssh_host)[2][0]
+    except OSError as exc:
+        raise click.ClickException(
+            f"Can't find the IP address of {ssh_host} for --dns-host nip.io "
+            f"({exc.strerror or exc}). Check the server's address."
+        ) from exc
     return f"{ip_addr}.nip.io"
 
 

@@ -218,25 +218,26 @@ def test_a_dns_host_in_another_case_is_the_servers_host():
 
 
 @pytest.mark.parametrize(
-    "app_name, hostname, route_dir, update",
+    "app_name, dns_host, hostname, route_dir, update",
     [
-        ("myapp", "myapp.1.2.3.4.nip.io", "caddy.d", False),
-        (None, "1.2.3.4.nip.io", "caddy.d", False),
-        (None, "lab.example.org", "root.d", False),
-        (None, "Lab.example.org", "root.d", False),
-        # The preflight gives an updated root.d app the server's own host.
-        ("myapp", "lab.example.org", "root.d", True),
+        ("myapp", "1.2.3.4.nip.io", "myapp.1.2.3.4.nip.io", "caddy.d", False),
+        (None, "1.2.3.4.nip.io", "1.2.3.4.nip.io", "caddy.d", False),
+        (None, None, "lab.example.org", "root.d", False),
+        (None, "LAB.example.org", "lab.example.org", "root.d", False),
+        ("myapp", None, "lab.example.org", "root.d", True),
+        ("myapp", None, "myapp.lab.example.org", "caddy.d", True),
     ],
     ids=[
         "subdomain",
         "own-host",
         "server-root",
-        "server-root-other-case",
-        "update-server-root",
+        "server-root-case",
+        "update-root",
+        "update-subdomain",
     ],
 )
 def test_classic_deploy_only_writes_its_own_caddy_route(
-    server, app_name, hostname, route_dir, update, capsys
+    server, app_name, dns_host, hostname, route_dir, update, capsys
 ):
     if route_dir == "root.d":
         CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"])
@@ -244,13 +245,12 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
     if update:
         (server / "dallinger/myapp").mkdir()
         (server / "dallinger/myapp/docker-compose.yml").write_text("services: {}\n")
-        (server / "dallinger/root.d/myapp").write_text("old route\n")
+        (server / "dallinger" / route_dir / "myapp").write_text("old route\n")
     before = checksums(server)
     config = Configuration()
     config._reset(register_defaults=True)
     config.ready = True
     built_image = mock.Mock(return_value=contextlib.nullcontext("image"))
-    preflight = mock.Mock(return_value=hostname)
     with mock.patch.multiple(
         docker_ssh,
         get_config=lambda load=False: config,
@@ -262,7 +262,10 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
         get_server_pem_path=mock.Mock(return_value="key.pem"),
         get_experiment_files=mock.DEFAULT,
         _check_classic_ingress_reachable=mock.DEFAULT,
-        _classic_preflight=preflight,
+        # Only the app's hostname and the SSH host resolve.
+        _ipv4_addresses=lambda name: (
+            ["1.2.3.4"] if name in {hostname, SERVER["host"]} else []
+        ),
         ensure_root_domain_ready=mock.DEFAULT,
         _built_image=built_image,
     ) as mocks:
@@ -270,7 +273,7 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
             app_name=app_name,
             archive_path=None,
             config_options=(),
-            dns_host="1.2.3.4.nip.io",
+            dns_host=dns_host,
             mode="live",
             server="lab",
             update=update,
@@ -279,11 +282,9 @@ def test_classic_deploy_only_writes_its_own_caddy_route(
         )
 
     assert checksums(server) == before
-    # The preflight refuses --app of an app on the server's host unless updating.
-    assert preflight.call_args.kwargs["update"] is update
-    # Only a new app that takes the server's own host replaces its other apps.
+    # Only an app that takes the server's own host replaces its other apps.
     assert mocks["ensure_root_domain_ready"].called == (
-        hostname.lower() == "lab.example.org" and not app_name
+        route_dir == "root.d" and not update
     )
     # A failed new deploy removes the image it built; an update keeps it.
     assert built_image.call_args.kwargs["remove_for_app"] == (
@@ -332,6 +333,15 @@ def test_classic_deploy_checks_the_server_setup_before_building(
     assert "older Dallinger" not in output
 
 
+@pytest.mark.parametrize("update", [True, False], ids=["update", "new"])
+def test_classic_deploy_stops_if_the_server_cannot_say_where_the_app_is(server, update):
+    (server / "dallinger/myapp").mkdir()
+    (server / "dallinger/myapp/docker-compose.yml").write_text("services: {}\n")
+    (server / "dallinger/root.d").write_text("")  # not a searchable directory
+    with pytest.raises(click.ClickException, match="Could not check whether myapp"):
+        docker_ssh._classic_preflight("lab", "myapp", None, None, False, update)
+
+
 def test_server_check_suggests_saving_the_dns_host_the_server_serves(server, capsys):
     (server / "dallinger/Caddyfile").write_text(
         OLD_CADDYFILE.replace("lab.example.org", "other.example.org")
@@ -362,13 +372,14 @@ LEGACY_ROOT_CADDYFILE = """lab.example.org {
     "old_host, route, content",
     [
         ("lab.example.org", "root.d/old", "reverse_proxy old_web:5000\n"),
+        ("LAB.example.org", "root.d/old", "reverse_proxy old_web:5000\n"),
         (
             "1.2.3.4.nip.io",
             "caddy.d/old",
             "1.2.3.4.nip.io {\n    tls lab@example.org\n    reverse_proxy old_web:5000\n}",
         ),
     ],
-    ids=["server-host", "other-dns-host"],
+    ids=["server-host", "server-host-other-case", "other-dns-host"],
 )
 def test_upgrade_keeps_an_old_root_domain_app_at_its_address(
     server, old_host, route, content
@@ -391,6 +402,55 @@ def test_upgrade_keeps_an_old_root_domain_app_at_its_address(
         "log viewer moves from the /logs path to https://logs.lab.example.org,"
         in result.output
     )
+
+
+def test_a_retried_upgrade_keeps_an_old_root_domain_app(server, monkeypatch):
+    (server / "dallinger/Caddyfile").write_text(LEGACY_ROOT_CADDYFILE)
+    (server / "dallinger/old").mkdir()
+    (server / "dallinger/old/docker-compose.yml").write_text("services: {}\n")
+
+    class FailingSftp(LocalSftp):
+        def putfo(self, fo, path):
+            if path == "dallinger/root.d/old":
+                raise OSError("connection lost")
+            super().putfo(fo, path)
+
+    monkeypatch.setattr(docker_ssh, "get_sftp", lambda *a, **k: FailingSftp(server))
+    upgrade = ["upgrade", "--host", "lab", "--yes"]
+    assert isinstance(
+        CliRunner().invoke(docker_ssh.servers, upgrade).exception, OSError
+    )
+    monkeypatch.setattr(docker_ssh, "get_sftp", lambda *a, **k: LocalSftp(server))
+    result = CliRunner().invoke(docker_ssh.servers, upgrade)
+
+    assert result.exit_code == 0, result.output
+    assert (server / "dallinger/root.d/old").read_text() == (
+        "reverse_proxy old_web:5000\n"
+    )
+
+
+def test_upgrade_refuses_a_server_with_an_old_app_called_root_d(server):
+    (server / "dallinger/root.d").mkdir()
+    (server / "dallinger/root.d/docker-compose.yml").write_text("services: {}\n")
+    before = checksums(server)
+
+    result = CliRunner().invoke(
+        docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
+    )
+
+    assert result.exit_code == 1
+    assert "destroy --server lab.example.org --app root.d" in result.output
+    assert checksums(server) == before
+    assert docker_calls(server) == ""
+
+
+def test_a_new_deploy_without_app_checks_dns_before_connecting(server, monkeypatch):
+    monkeypatch.setattr(docker_ssh, "Executor", mock.Mock(side_effect=AssertionError))
+    with (
+        mock.patch.object(docker_ssh, "_ipv4_addresses", return_value=[]),
+        pytest.raises(click.Abort),
+    ):
+        docker_ssh._classic_preflight("lab", None, None, None, False)
 
 
 def test_server_check_accepts_a_site_with_several_addresses(server):
@@ -821,6 +881,8 @@ def test_app_on_the_servers_host_is_updated_there_and_not_redeployed(server, cap
             preflight = docker_ssh._classic_preflight
             assert preflight("lab", app, None, dns_host, False, update) == hostname
             assert dns.call_args.args[1] == hostname
+            ignored = "Ignoring --dns-host other.example.org: dlgr-abcd1234 keeps"
+            assert (ignored in capsys.readouterr().out) == bool(dns_host)
 
         with pytest.raises(click.BadParameter, match="--update --app dlgr-abcd1234"):
             preflight("lab", "dlgr-abcd1234", None, None, False, False)

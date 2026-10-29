@@ -51,3 +51,6 @@ pip-selfcheck.json
 # but files mentioned here are not copied over when preparing the experiment
 # tests/experiment/constraints.txt
 # tests/experiment/requirements.txt
+
+# Dallinger JSON log written by local runs
+logs.jsonl

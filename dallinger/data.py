@@ -46,6 +46,8 @@ table_names = [
     "notification",
     "participant",
     "question",
+    "realtime_event",
+    "realtime_session",
     "transformation",
     "transmission",
     "vector",
@@ -186,6 +188,11 @@ def copy_db_to_csv(dsn, path, scrub_pii=False):
         conn = psycopg2.connect(database=dsn, user="dallinger")
     cur = conn.cursor()
     for table in table_names:
+        # A database made by an older Dallinger lacks the newer tables.
+        # TO_REGCLASS returns NULL for a table that doesn't exist.
+        cur.execute("SELECT to_regclass(%s)", (table,))
+        if cur.fetchone()[0] is None:
+            continue
         csv_path = os.path.join(path, "{}.csv".format(table))
         with open(csv_path, "w") as f:
             sql = "COPY {} TO STDOUT WITH CSV HEADER".format(table)
@@ -322,23 +329,26 @@ def ingest_zip(path, engine=None):
     database with the data stored in the included .csv files.
     """
     import_order = [
-        "network",
-        "participant",
-        "node",
-        "info",
-        "notification",
-        "question",
-        "transformation",
-        "vector",
-        "transmission",
+        models.Network,
+        models.Participant,
+        models.Node,
+        models.Info,
+        models.Notification,
+        models.Question,
+        models.Transformation,
+        models.Vector,
+        models.Transmission,
+        models.RealtimeSession,
+        models.RealtimeEvent,
     ]
     with ZipFile(path, "r") as archive:
         filenames = archive.namelist()
-        for name in import_order:
-            filename = [f for f in filenames if name in f][0]
-            model_name = name.capitalize()
-            model = getattr(models, model_name)
-            with archive.open(filename) as binary_file:
+        for model in import_order:
+            found = [f for f in filenames if model.__tablename__ in f]
+            # An export from an older Dallinger lacks the newer tables.
+            if not found:
+                continue
+            with archive.open(found[0]) as binary_file:
                 file = io.TextIOWrapper(binary_file, encoding="utf-8", newline="")
                 ingest_to_model(file, model, engine)
 
@@ -460,11 +470,9 @@ class Data:
             input_zip.extractall(tmp_dir)
 
             for tab in table_names:
-                setattr(
-                    self,
-                    "{}s".format(tab),
-                    Table(os.path.join(tmp_dir, "data", "{}.csv".format(tab))),
-                )
+                path = os.path.join(tmp_dir, "data", "{}.csv".format(tab))
+                if os.path.exists(path):
+                    setattr(self, "{}s".format(tab), Table(path))
 
 
 class Table:

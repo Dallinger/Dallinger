@@ -1,0 +1,58 @@
+{% extends "layout.html" %}
+
+{% block body %}
+    <div class="main_div">
+        <h1>Bargaining</h1>
+        <p id="waiting">Waiting for the other player…</p>
+        <div id="game" style="display: none;">
+            <p id="round" class="fw-bold" style="display: none;"></p>
+            <p id="role"></p>
+            <p id="time-left">Time left: <span id="timer"></span> seconds</p>
+            <p id="clock-waiting" style="display: none;">The clock starts when the other player opens the game.</p>
+            <p>Your offer: <span id="my-offer">none</span></p>
+            <p>
+                Their offer: <span id="their-offer">none</span>
+                <button type="button" id="accept" class="btn btn-success btn-sm" style="display: none;">Accept</button>
+            </p>
+            <form id="offer-form" class="row g-2">
+                <div class="col-auto">
+                    <input type="number" id="price" class="form-control" min="0" max="100" placeholder="Price in cents" />
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary">Offer</button>
+                </div>
+            </form>
+            <p id="error" class="text-danger"></p>
+            <p id="result" class="fw-bold"></p>
+            <p id="next-round" style="display: none;">The next round starts in a moment…</p>
+            <button type="button" id="continue" class="btn btn-success" style="display: none;">Continue</button>
+            <div id="earlier" style="display: none;">
+                <h2 class="h5">Earlier rounds</h2>
+                <ul id="history"></ul>
+            </div>
+            <h2 class="h5">Offers so far</h2>
+            <ul id="offers"></ul>
+            {% if experiment.chat %}
+            <h2 class="h5">Chat</h2>
+            <ul id="chat-log" class="list-unstyled"></ul>
+            <form id="chat-form" class="row g-2">
+                <div class="col">
+                    <input type="text" id="chat-text" class="form-control" maxlength="500" placeholder="Say something to the other player" />
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-secondary">Send</button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        playBargain({
+            rounds: {{ experiment.rounds }},
+            chat: {{ experiment.chat|tojson }}
+        });
+    </script>
+{% endblock %}

@@ -13,7 +13,9 @@ import click
 import pandas as pd
 import paramiko
 import requests
+from botocore.config import Config
 from botocore.exceptions import ClientError
+from botocore.exceptions import ConnectionError as BotoConnectionError
 from paramiko import ssh_exception as pse
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from tenacity import (
@@ -42,27 +44,43 @@ DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER = (
 
 
 def _resolve_default_region_name():
-    """Resolve default region for user-facing messages."""
-    from dallinger.config import get_config
-
-    config = get_config(load=True)
-
-    return config.get("aws_region", DEFAULT_AWS_REGION)
+    """Resolve the region boto uses when no region is given, for user-facing messages."""
+    return get_keys()["region_name"]
 
 
 def get_keys(region_name=None):
+    """Return boto client arguments: Dallinger's AWS keys, if set, and a region.
+
+    If the keys are unset or still the placeholder defaults, boto finds
+    credentials itself (``~/.aws``, SSO, a role). If the key ID is a
+    temporary one (``ASIA...``) and is the one in ``AWS_ACCESS_KEY_ID``,
+    ``AWS_SESSION_TOKEN`` is passed along with the keys, so exported temporary
+    credentials work; a leftover token never reaches long-lived keys. The
+    region is ``region_name``, else boto's default region
+    (``AWS_DEFAULT_REGION`` or the AWS profile's region) when Dallinger's keys
+    aren't used, else Dallinger's ``aws_region``.
+    """
     from dallinger.config import get_config
+    from dallinger.data import aws_access_keys_present
 
     config = get_config(load=True)
-    keys = {}
-    # If keys are not set let boto get them from ~/.aws/config or other standard places
-    if config.get("aws_access_key_id"):
+    default_region = config.get("aws_region", DEFAULT_AWS_REGION) or DEFAULT_AWS_REGION
+    if aws_access_keys_present(config):
         keys = {
             "aws_access_key_id": config.get("aws_access_key_id"),
             "aws_secret_access_key": config.get("aws_secret_access_key"),
-            "region_name": region_name or config.get("aws_region", DEFAULT_AWS_REGION),
+            "region_name": region_name or default_region,
         }
-    return keys
+        session_token = os.environ.get("AWS_SESSION_TOKEN")
+        key_id = keys["aws_access_key_id"]
+        if (
+            session_token
+            and key_id.startswith("ASIA")
+            and key_id == os.environ.get("AWS_ACCESS_KEY_ID")
+        ):
+            keys["aws_session_token"] = session_token
+        return keys
+    return {"region_name": region_name or boto3.Session().region_name or default_region}
 
 
 def url_to_country_city(url):
@@ -89,6 +107,11 @@ _AUTH_FAILURE_MSG = (
 
 _AUTH_FAILURE_CODES = {"AuthFailure", "InvalidClientTokenId", "RequestExpired"}
 
+_REGION_UNAVAILABLE_CODES = {"AuthFailure", "OptInRequired", "UnauthorizedOperation"}
+# Fail fast on unreachable regions in the all-regions scan; boto's defaults
+# retry for about five minutes per region.
+_REGION_SCAN_CONFIG = Config(connect_timeout=10, retries={"max_attempts": 2})
+
 
 class _BotoClientProxy:
     """Wraps a boto3 client to add a helpful hint to auth-related errors."""
@@ -112,8 +135,10 @@ class _BotoClientProxy:
         return wrapper
 
 
-def get_ec2_client(region_name=None):
-    return _BotoClientProxy(boto3.client("ec2", **get_keys(region_name)))
+def get_ec2_client(region_name=None, config=None):
+    return _BotoClientProxy(
+        boto3.client("ec2", config=config, **get_keys(region_name))
+    )
 
 
 def get_ssm_client(region_name=None):
@@ -170,18 +195,20 @@ def get_instance_details(instance_types, region_name=None):
     return price_df
 
 
-def get_instances(region_name, show_spinner=True):
+def get_instances(region_name, show_spinner=True, boto_config=None):
     display_region = region_name or _resolve_default_region_name()
     if show_spinner:
         with yaspin(
             text=f"Retrieving instances in {display_region}...", color="green"
         ) as sp:
-            reservations = get_ec2_client(region_name).describe_instances()[
-                "Reservations"
-            ]
+            reservations = get_ec2_client(
+                region_name, boto_config
+            ).describe_instances()["Reservations"]
             sp.ok("✔")
     else:
-        reservations = get_ec2_client(region_name).describe_instances()["Reservations"]
+        reservations = get_ec2_client(region_name, boto_config).describe_instances()[
+            "Reservations"
+        ]
     instances = []
     for reservation in reservations:
         for instance in reservation["Instances"]:
@@ -226,7 +253,9 @@ def get_all_instances(region_name=None):
     if region_name is None:
         logger.info("Listing instances in all regions...")
         instance_dfs = []
-        all_regions = get_ec2_client().describe_regions()["Regions"]
+        all_regions = get_ec2_client(config=_REGION_SCAN_CONFIG).describe_regions()[
+            "Regions"
+        ]
         with Progress(
             SpinnerColumn(style="green"),
             TextColumn("[progress.description]{task.description}"),
@@ -237,17 +266,55 @@ def get_all_instances(region_name=None):
             task = progress.add_task(
                 "Retrieving instances in all regions...", total=len(all_regions)
             )
+            skipped = {}
             for region in all_regions:
                 progress.update(
                     task,
                     description=f"Retrieving instances in {region['RegionName']}...",
                 )
-                instance_dfs.append(
-                    get_instances(region["RegionName"], show_spinner=False)
-                )
+                try:
+                    instance_dfs.append(
+                        get_instances(
+                            region["RegionName"],
+                            show_spinner=False,
+                            boto_config=_REGION_SCAN_CONFIG,
+                        )
+                    )
+                except BotoConnectionError:
+                    skipped[region["RegionName"]] = "unreachable"
+                except (ClientError, click.ClickException) as e:
+                    # _BotoClientProxy turns AuthFailure into a ClickException.
+                    error = e if isinstance(e, ClientError) else e.__cause__
+                    if not isinstance(error, ClientError):
+                        raise
+                    code = error.response.get("Error", {}).get("Code")
+                    if code not in _REGION_UNAVAILABLE_CODES:
+                        raise
+                    skipped[region["RegionName"]] = code
                 progress.advance(task)
+        if not instance_dfs:
+            message = "Could not list instances in any region: " + ", ".join(
+                f"{r} ({c})" for r, c in skipped.items()
+            )
+            if skipped and set(skipped.values()) <= _AUTH_FAILURE_CODES:
+                message += f". {_AUTH_FAILURE_MSG}"
+            raise click.ClickException(message)
+        for skipped_region, code in skipped.items():
+            click.echo(
+                click.style(
+                    f"Warning: skipped region {skipped_region} ({code}); "
+                    "its instances are not listed or checked.",
+                    fg="yellow",
+                ),
+                err=True,
+            )
+        scanned = (
+            f"{len(instance_dfs)} of {len(all_regions)} regions"
+            if skipped
+            else "all regions"
+        )
         click.echo(
-            click.style("✔ Finished retrieving instances in all regions.", fg="green")
+            click.style(f"✔ Finished retrieving instances in {scanned}.", fg="green")
         )
         instance_df = pd.concat(instance_dfs)
     else:
@@ -989,7 +1056,7 @@ def prepare_instance(
 
     start = time.time()
     ec2 = get_ec2_client(region_name)
-    # get_keys passes --region to boto only with credentials from the config.
+    # Without --region, get_keys picks boto's default region or aws_region.
     region_name = ec2.meta.region_name
     security_group_id = get_security_group_id(security_group_name, region_name)
     print(f"Provisioning {instance_name} on {region_name}...")
