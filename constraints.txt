@@ -313,7 +313,7 @@ nest-asyncio2==1.7.4
     # via ipykernel
 nodeenv==1.11.0
     # via pre-commit
-notebook==7.6.3
+notebook==7.6.4
     # via jupyter
 notebook-shim==0.2.4
     # via
