@@ -4,6 +4,12 @@
 
 ### Changed
 
+- The bundled demos and the `tests/experiment` fixture now request Python
+  3.14 in `.python-version`, the version in Dallinger's Docker images, and
+  their `constraints.txt` files are compiled for it.
+  `scripts/update_experiments_constraints.py` now takes the Python version
+  from the root `Dockerfile` instead of from the interpreter that runs it,
+  so the demos follow future Docker image upgrades automatically.
 - Cloudflare Tunnel deployments now use cloudflared 2026.10.4, including the
   eMudhra certificate-compromise mitigation. Existing connectors require a
   separate image update and restart.

@@ -6,6 +6,10 @@ when preparing a new Dallinger release.
 The script reads the Dallinger version from dallinger/version.py and uses it to
 reference the correct GitHub tag (e.g., v12.0.0) in the constraint files.
 
+Each experiment's .python-version is set to the Python minor version of the root
+Dockerfile, the image that deployed experiments run on, and the constraints are
+compiled for that version. The interpreter running this script does not matter.
+
 Note 1: you should make sure that you have pushed the latest version of your branch
 before running this script, so that GitHub's hosted dev-requirements.txt file is up to date.
 
@@ -37,7 +41,6 @@ allows.
 
 import hashlib
 import os
-import platform
 import re
 import subprocess
 from pathlib import Path
@@ -52,14 +55,29 @@ DEMOS_DIR = REPO_ROOT / "demos" / "dlgr" / "demos"
 TEST_EXPERIMENT_DIR = REPO_ROOT / "tests" / "experiment"
 
 
-def write_python_version_file(demo_dir):
+def get_docker_python_version(dockerfile=REPO_ROOT / "Dockerfile"):
+    """Return the Python minor version (e.g. ``3.14``) of Dallinger's Docker image.
+
+    Every ``FROM python:X.Y`` stage must use the same minor version.
+    """
+    versions = set(
+        re.findall(
+            r"^FROM python:(\d+\.\d+)\b", dockerfile.read_text(), flags=re.MULTILINE
+        )
+    )
+    if len(versions) != 1:
+        raise RuntimeError(
+            f"Expected one Python version in the 'FROM python:X.Y' lines of "
+            f"{dockerfile}, found {sorted(versions) or 'none'}"
+        )
+    return versions.pop()
+
+
+def write_python_version_file(demo_dir, python_version):
     # Note: we only constrain to the level of minor version to minimize the friction
     # of upgrading to Python patch versions.
     file = demo_dir / ".python-version"
-    version = platform.python_version_tuple()
-    major = version[0]
-    minor = version[1]
-    file.write_text(f"{major}.{minor}\n", encoding="utf-8")
+    file.write_text(f"{python_version}\n", encoding="utf-8")
 
 
 def md5_cmd(filepath):
@@ -103,9 +121,11 @@ def main():
     current_branch = get_current_branch()
     dallinger_version = get_dallinger_version()
     version_tag = f"v{dallinger_version}"
+    python_version = get_docker_python_version()
     print(f"Current branch: {current_branch}")
     print(f"Dallinger version: {dallinger_version}")
     print(f"Using version tag: {version_tag}")
+    print(f"Python version (from Dockerfile): {python_version}")
 
     experiment_dirs = [
         path for path in sorted(DEMOS_DIR.iterdir()) if path.is_dir()
@@ -118,7 +138,7 @@ def main():
             continue
         print(f"Compiling {demo_dir.name}")
         # 0. Update .python-version
-        write_python_version_file(demo_dir)
+        write_python_version_file(demo_dir, python_version)
         # 1. Replace dallinger with github requirement in requirements.txt (using current branch)
         if requirements_txt.exists():
             req_text = requirements_txt.read_text()
