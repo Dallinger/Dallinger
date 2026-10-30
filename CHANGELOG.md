@@ -481,6 +481,10 @@
 - `dallinger.identity.uniqueId` keeps the participant's value on pages whose
   URL has no `workerId` and `assignmentId`, such as the ones `goToPage()`
   opens. It was set to `"undefined:undefined"` there.
+- `dallinger.loadParticipant()` stores the participant's `unique_id`, so a
+  resumed participant's exit link carries it. `/load-participant` returns
+  `unique_id` and `worker_id` only when the request's worker id matches the
+  participant's.
 - Fixed a race condition in `POST /participant` where two concurrent signup
   requests could both be recorded as `"working"` when only one should be
   (write-skew at the occupancy count). Also fixed the related issue where a

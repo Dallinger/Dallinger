@@ -1163,8 +1163,13 @@ def load_participant():
             status=403,
         )
 
-    # return the data
-    return success_response(participant=ppt.__json__())
+    participant = ppt.__json__()
+    # unique_id is worker_id:assignment_id; return it only to a caller that
+    # sent the matching worker_id.
+    if participant_info.get("worker_id") == ppt.worker_id:
+        participant["unique_id"] = ppt.unique_id
+        participant["worker_id"] = ppt.worker_id
+    return success_response(participant=participant)
 
 
 @app.route("/network/<network_id>", methods=["GET"])

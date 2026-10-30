@@ -582,6 +582,7 @@ var dallinger = (function () {
           dlgr.identity.assignmentId = resp.participant.assignment_id || data.assignment_id;
           dlgr.identity.mode = resp.participant.mode;
           dlgr.identity.fingerprintHash = resp.participant.fingerprint_hash;
+          dlgr.identity.uniqueId = resp.participant.unique_id;
           $('.btn-success').prop('disabled', false);
           deferred.resolve();
         });

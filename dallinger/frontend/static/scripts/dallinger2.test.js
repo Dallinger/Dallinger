@@ -237,3 +237,37 @@ describe('recruiterExitRoute', function () {
     expect(opener.location).toBe('/exit-sentinel');
   });
 });
+
+describe('loadParticipant', function () {
+  var dlgr;
+
+  beforeEach(function () {
+    global.$ = global.jQuery = require('./jquery-4.0.0.min');
+    window.history.pushState({}, 'Test Title', 'questionnaire?mode=debug');
+    store.clear();
+    jest.resetModules();
+    dlgr = require('./dallinger2').dallinger;
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(function () {
+    jest.restoreAllMocks();
+    store.clear();
+  });
+
+  function loadWith(participant) {
+    dlgr.post = jest.fn(() => $.Deferred().resolve({participant: participant}).promise());
+    return new Promise((resolve) => dlgr.loadParticipant({assignmentId: 'AAA'}).done(resolve));
+  }
+
+  test('stores the unique_id the server returns', async () => {
+    await loadWith({id: 7, assignment_id: 'AAA', unique_id: 'WWW:AAA'});
+    expect(dlgr.identity.uniqueId).toBe('WWW:AAA');
+  });
+
+  test('keeps the stored unique_id when the server returns none', async () => {
+    dlgr.identity.uniqueId = 'WWW:AAA';
+    await loadWith({id: 7, assignment_id: 'AAA'});
+    expect(dlgr.identity.uniqueId).toBe('WWW:AAA');
+  });
+});
