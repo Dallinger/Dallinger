@@ -328,7 +328,7 @@ var dallinger = (function () {
    * instance of `AjaxRejection`, see :ref:`deferreds-label`.
    *
    * @example
-   * var response = dallinger.get('/participant/1');
+   * var response = dallinger.get('/node/' + nodeId + '/infos');
    * // Wait for response and handle data
    * response.done(function (data) {...});
    *
