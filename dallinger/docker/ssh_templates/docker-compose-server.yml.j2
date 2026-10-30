@@ -28,7 +28,9 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - ./caddy.d:/etc/caddy/caddy.d
+      - ./root.d:/etc/caddy/root.d
       - caddy_config:/config
+      - caddy_data:/data
     networks:
       - dallinger
   dozzle:
@@ -40,15 +42,13 @@ services:
       - ./dozzle-users.yml:/data/users.yml
     environment:
       - DOZZLE_AUTH_PROVIDER=simple
-      {% if dozzle_base -%}
-      - DOZZLE_BASE={{ dozzle_base }}
-      {% endif %}
     networks:
       - dallinger
 
 volumes:
   dallinger_pg_data:
   caddy_config:
+  caddy_data:
 
 networks:
   dallinger:

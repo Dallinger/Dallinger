@@ -1,0 +1,33 @@
+{% extends "layout.html" %}
+
+{% block body %}
+    <div class="main_div">
+        <h1>Coins</h1>
+        <p id="waiting">Waiting for the other players…</p>
+        <div id="game" style="display: none;">
+            <p>
+                Move with the arrow keys or W, A, S and D.
+                Time left: <span id="timer"></span> seconds.
+                <span id="paused" class="text-warning" style="display: none;">Paused…</span>
+            </p>
+            <p id="stealing" style="display: none;">
+                Run into another player to take one of their coins. A player who has just
+                been robbed blinks, and can't be robbed again for two seconds.
+            </p>
+            <p id="bouncing" style="display: none;">
+                Run into another player to knock them away. If you run into each other,
+                you both bounce off.
+            </p>
+            <canvas id="arena" width="800" height="480" style="border: 1px solid #888; max-width: 100%;"></canvas>
+            <ul id="scores" class="list-inline"></ul>
+            <p id="result" class="fw-bold"></p>
+            <button type="button" id="continue" class="btn btn-success" style="display: none;">Continue</button>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        playCoins();
+    </script>
+{% endblock %}
