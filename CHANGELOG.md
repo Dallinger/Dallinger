@@ -13,6 +13,10 @@
 - Cloudflare Tunnel deployments now use cloudflared 2026.10.4, including the
   eMudhra certificate-compromise mitigation. Existing connectors require a
   separate image update and restart.
+- Dependabot now opens pull requests for new cloudflared releases. The
+  docker-ssh Cloudflare Tunnel image is pinned by tag and digest in
+  `dallinger/docker/ssh_templates/Dockerfile.cloudflared`, like the
+  hibernation controller image, instead of by tag in the Compose template.
 - `AGENTS.md` now says that behavior that never reached a final Dallinger
   release, such as behavior only on `master`, needs no
   backward-compatibility code.
