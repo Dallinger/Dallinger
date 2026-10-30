@@ -484,7 +484,8 @@
 - `dallinger.loadParticipant()` stores the participant's `unique_id`, so a
   resumed participant's exit link carries it. `/load-participant` returns
   `unique_id` and `worker_id` only when the request's worker id matches the
-  participant's.
+  participant's. `loadParticipant()` clears a stored `unique_id` that ends
+  with another assignment's id.
 - Fixed a race condition in `POST /participant` where two concurrent signup
   requests could both be recorded as `"working"` when only one should be
   (write-skew at the occupancy count). Also fixed the related issue where a

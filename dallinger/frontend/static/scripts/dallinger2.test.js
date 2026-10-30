@@ -270,4 +270,10 @@ describe('loadParticipant', function () {
     await loadWith({id: 7, assignment_id: 'AAA'});
     expect(dlgr.identity.uniqueId).toBe('WWW:AAA');
   });
+
+  test("clears a stored unique_id that ends with another assignment's id", async () => {
+    dlgr.identity.uniqueId = 'WWW:BBB';
+    await loadWith({id: 7, assignment_id: 'AAA'});
+    expect(dlgr.identity.uniqueId).toBeUndefined();
+  });
 });

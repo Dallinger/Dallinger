@@ -894,6 +894,10 @@ class Experiment:
 
         Returning a dictionary without valid ``hit_id``, ``assignment_id``, or
         ``worker_id`` will generally result in an exception.
+
+        ``/load-participant`` returns the participant's ``unique_id`` only when
+        the ``worker_id`` returned here matches the participant's, so take
+        ``worker_id`` from ``entry_information``.
         """
         entry_data = self.recruiter.normalize_entry_information(entry_information)
         # We need an assignment_id in order to create a participant

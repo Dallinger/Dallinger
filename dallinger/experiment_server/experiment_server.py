@@ -1164,8 +1164,8 @@ def load_participant():
         )
 
     participant = ppt.__json__()
-    # unique_id is worker_id:assignment_id; return it only to a caller that
-    # sent the matching worker_id.
+    # unique_id is worker_id:assignment_id; return it only when the worker_id
+    # normalized from the request matches.
     if participant_info.get("worker_id") == ppt.worker_id:
         participant["unique_id"] = ppt.unique_id
         participant["worker_id"] = ppt.worker_id

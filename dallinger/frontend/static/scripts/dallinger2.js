@@ -60,6 +60,9 @@ var dallinger = (function () {
     get: function (key) {
       return this._storage.get(key);
     },
+    remove: function (key) {
+      this._storage.remove(key);
+    },
     all: function () {
       return this._storage.getAll();
     },
@@ -550,9 +553,15 @@ var dallinger = (function () {
 
   /**
    * Load an existing `Participant` into the dlgr.identity by making a ``POST``
-   * request to the experiment `/participant` route with some ``assignment_info``
-   * which can be a scalar ``assignment_id`` or an object with ``entry_information``
-   * parameters
+   * request to the experiment's ``/load-participant`` route with some
+   * ``assignment_info``, which can be a scalar ``assignment_id`` or an object
+   * with ``entry_information`` parameters.
+   *
+   * ``dallinger.identity.uniqueId`` is set only when ``assignment_info`` is an
+   * object holding the participant's worker id under the recruiter's parameter
+   * name, such as ``workerId`` for MTurk or ``PROLIFIC_PID`` for Prolific.
+   * Otherwise a stored ``uniqueId`` is kept if it ends with the loaded
+   * ``assignment_id``, and cleared if it doesn't.
    *
    * @returns {jQuery.Deferred} See :ref:`deferreds-label`
    */
@@ -583,6 +592,10 @@ var dallinger = (function () {
           dlgr.identity.mode = resp.participant.mode;
           dlgr.identity.fingerprintHash = resp.participant.fingerprint_hash;
           dlgr.identity.uniqueId = resp.participant.unique_id;
+          var uniqueId = dlgr.identity.uniqueId;
+          if (uniqueId !== undefined && !uniqueId.endsWith(":" + dlgr.identity.assignmentId)) {
+            dlgr.storage.remove('unique_id');
+          }
           $('.btn-success').prop('disabled', false);
           deferred.resolve();
         });
