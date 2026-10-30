@@ -36,8 +36,13 @@ es->>wf: __call__("RecruiterSubmissionComplete", args...)
 end
 
 es-->>d2: HTTP Response
-d2-->>hw: location=/recruiter-exit
+d2-->>hw: location=/recruiter-exit?participant_id=…&unique_id=…
 hw->>es: /recruiter-exit GET
+es->>ex: check_recruiter_exit(participant)
+opt experiment refuses the request
+ex-->>es: <response>
+es-->>hw: <response>
+end
 es->>rec: exit_response(experiment=exp, participant=participant)
 opt recruiter needs input from experiment to determine how to render exit template
 rec->>ex: recruiter_exit_info(participant=participant)

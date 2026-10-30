@@ -111,10 +111,10 @@ var dallinger = (function () {
     initialize: function () {
       this.recruiter = dlgr.getUrlParameter('recruiter');
       this.hitId = dlgr.getUrlParameter('hitId');
-      this.workerId = dlgr.getUrlParameter('workerId');
-      this.assignmentId = dlgr.getUrlParameter('assignmentId');
       var workerId = dlgr.getUrlParameter('workerId'),
           assignmentId = dlgr.getUrlParameter('assignmentId');
+      this.workerId = workerId;
+      this.assignmentId = assignmentId;
       if (workerId !== undefined && assignmentId !== undefined) {
         this.uniqueId = workerId + ":" + assignmentId;
       }

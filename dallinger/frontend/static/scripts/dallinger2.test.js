@@ -193,6 +193,7 @@ describe('recruiterExitRoute', function () {
   });
 
   afterEach(function () {
+    jest.restoreAllMocks();
     store.clear();
   });
 
@@ -213,10 +214,26 @@ describe('recruiterExitRoute', function () {
     );
   });
 
+  test('leaves out unique_id when none is stored', () => {
+    window.history.pushState({}, 'Test Title', 'questionnaire?participant_id=7');
+    store.clear();
+    jest.resetModules();
+    dlgr = require('./dallinger2').dallinger;
+    dlgr.identity.participantId = 7;
+    expect(dlgr.recruiterExitRoute()).toBe('/recruiter-exit?participant_id=7');
+  });
+
   test('is where submitAssignment sends the participant', () => {
-    var route = jest.spyOn(dlgr, 'recruiterExitRoute');
+    jest.spyOn(dlgr, 'recruiterExitRoute').mockReturnValue('/exit-sentinel');
     dlgr.post = jest.fn(() => $.Deferred().resolve().promise());
-    dlgr.submitAssignment();
-    expect(route).toHaveBeenCalled();
+    var opener = {location: {pathname: '/ad'}};
+    window.opener = opener;
+    jest.spyOn(window, 'close').mockImplementation(() => {});
+    try {
+      dlgr.submitAssignment();
+    } finally {
+      window.opener = null;
+    }
+    expect(opener.location).toBe('/exit-sentinel');
   });
 });
