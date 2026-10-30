@@ -182,7 +182,7 @@ services:
 
   cloudflared:
     restart: unless-stopped
-    image: cloudflare/cloudflared:2026.9.1
+    image: {{ cloudflared_image }}
     user: "${UID}:${GID}"
     command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/cloudflare-tunnel-token"]
     environment:

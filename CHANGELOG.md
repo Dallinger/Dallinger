@@ -22,6 +22,22 @@
 - The launch wait progress bar is cleared before a launch error is printed,
   so errors no longer interleave with the bar, and the Heroku and SSH log
   hints after a failed launch go through the same output as the errors.
+- The bundled demos and the `tests/experiment` fixture now request Python
+  3.14 in `.python-version`, the version in Dallinger's Docker images, and
+  their `constraints.txt` files are compiled for it.
+  `scripts/update_experiments_constraints.py` now takes the Python version
+  from the root `Dockerfile` instead of from the interpreter that runs it,
+  so the demos follow future Docker image upgrades automatically.
+- Cloudflare Tunnel deployments now use cloudflared 2026.10.4, including the
+  eMudhra certificate-compromise mitigation. Existing connectors require a
+  separate image update and restart.
+- Dependabot now opens pull requests for new cloudflared releases. The
+  docker-ssh Cloudflare Tunnel image is pinned by tag and digest in
+  `dallinger/docker/ssh_templates/Dockerfile.cloudflared`, like the
+  hibernation controller image, instead of by tag in the Compose template.
+- `AGENTS.md` now says that behavior that never reached a final Dallinger
+  release, such as behavior only on `master`, needs no
+  backward-compatibility code.
 - Before finalizing a feature pull request, agents now ask whether to run
   a single `/branch-review` or the new `branch-review-loop` skill. The loop
   repeats `/branch-review` as a separate agent, preferably with a different
@@ -503,6 +519,111 @@
 
 ### Changed
 
+- Classic-ingress `dallinger docker-ssh deploy`, `sandbox` and `destroy` no
+  longer rewrite a server's shared files (`Caddyfile`, `docker-compose.yml`,
+  `dozzle-users.yml`) or restart its shared Caddy, Postgres and Dozzle, which
+  briefly took every other app on a shared server offline. A deploy now only
+  adds its own Caddy route and reloads Caddy. A root-domain app's route goes
+  in `~/dallinger/root.d/<app>`; an `--update` of such an app is checked and
+  served at the server's host, so `<app>.<host>` need not resolve. `servers add` sets up the shared services on
+  a server without `~/dallinger/docker-compose.yml`; for that, it needs a
+  contact email and, for a server registered by IP address, a `--dns-host`.
+  `dallinger ec2 provision` does the same on the new instance (saving
+  `--dns-host <public ip>.nip.io` when no `--dns-host` is given, as Let's
+  Encrypt does not certify AWS hostnames). It saves the server under its AWS
+  hostname and, with `--dns-host`, under that name too. Before booting an
+  instance, it stops if `contact_email_on_error` is not an email address,
+  if `dashboard_password` (or `dashboard_user`) is not set, or if
+  `server_pem` is not the unencrypted private key in the local
+  `ec2_default_pem` key file (a mismatch used to fail after boot with
+  `SSHException: Invalid key`). It, and `ec2 start --dns-host`, no longer connect through the new
+  `--dns-host` name, so a resolver that still caches a negative answer for
+  it can't stop them; if Route 53 can't create the DNS records, provision
+  warns and sets the server up anyway. If anything fails once the instance
+  is launched, including Ctrl-C, it prints how to remove the instance
+  (`ec2 teardown --name <name> [--region <region>] [--dns-host <dns-host>]`,
+  or the EC2 console while it is still starting). If the setup had started,
+  it also prints the `servers add` commands that would finish it instead.
+  It explains a key that the instance rejected. It prints its total time in whole seconds.
+  It names the region boto actually uses (rather than `None` without
+  `--region`), and its pre-boot errors say that a setting can be in
+  `~/.dallingerconfig` or the environment; it and `ec2 list instances` no
+  longer show a pandas 3.1 deprecation warning.
+  The new `dallinger docker-ssh servers upgrade --host <server>` command sets
+  them up or rewrites them. It lists the files it replaces and the routes it
+  adds, asks first unless given `--yes`, keeps a `.bak` copy of each replaced
+  file, and keeps a root-domain app deployed by an older Dallinger at its
+  address. It refuses, before changing anything, a server with an app called
+  `root.d` (which older Dallinger allowed) and asks to destroy that app
+  first, since its directory is where the routes go. A deploy to a server that lacks the setup it needs stops before
+  the image build and names that command: for example a root-domain app on a
+  server set up by an older Dallinger, or any app on a server whose last
+  classic deploy by an older Dallinger was a root-domain one. The server's
+  DNS host and the email that Caddy gives Let's Encrypt come from the server
+  record: `servers add` saves `--dns-host` and `--contact-email`, and
+  `servers upgrade` also takes `--contact-email`. Re-running `servers add`
+  keeps every saved field it isn't given, including the SSH user and default
+  ingress, which it used to reset to the local user name and `classic`, so
+  the `servers add --host <server> …` commands that errors suggest work as
+  printed. Without one, both save
+  `contact_email_on_error` from `~/.dallingerconfig` or the environment, not
+  from an experiment's `config.txt` or class, and print the saved address and
+  where it came from. A `--contact-email` that is not a bare email address is
+  rejected, and a saved or configured email that is not one (such as the
+  default `???` or the placeholder `XXX@gmail.com`) is ignored and not
+  saved, so setting `contact_email_on_error` later takes effect. A deploy to
+  a server saved without a contact email, such as one registered by an older
+  Dallinger, now stops before the build if its only `contact_email_on_error`
+  is a placeholder such as PsyNet's template `XXX@gmail.com`; save an email
+  with `servers add --contact-email`. A deploy's `--dns-host` now
+  only names the app's own site, except on a server registered by IP address
+  without a saved DNS host, where it also stays the server's own host as
+  before. A deploy without
+  `--app` only replaces the server's other experiments when it takes the
+  server's own DNS host; any other deploy to a hostname that another app or
+  the server's log viewer already serves stops before the image build and
+  names that app or the log viewer. `servers add` and `servers upgrade` no
+  longer fail when `~/.dallingerconfig` has keys that only an extension such
+  as PsyNet registers. The Dozzle log viewer is always `https://logs.<server
+  DNS host>`, so the printed URL is right when a deploy uses a different
+  `--dns-host`; a server that served it at `<host>/logs` needs `logs.<host>`
+  to resolve to it after `servers upgrade`. After `servers upgrade`, Caddy
+  keeps its certificates on a `caddy_data` volume, so recreating it later does
+  not request new ones. If a new deploy, with or without `--app`, fails after
+  building an image, the image is removed unless a container or another app
+  uses it. `servers upgrade`, and
+  `servers add` when it sets up a server, leave the shared files, plus
+  `.env.json`, read-only (mode 0444), so a classic deploy or
+  `set-dozzle-password` by an older Dallinger, which rewrites them, fails with
+  `PermissionError: [Errno 13] Permission denied` before it changes the
+  shared files; update Dallinger to deploy there. If an older Dallinger did
+  rewrite them (before they were read-only, or as `root`), which takes a
+  root-domain app offline and can make Caddy request new certificates, a
+  deploy stops before the image build and asks for `servers upgrade`;
+  `destroy` warns and carries on.
+- `dallinger docker-ssh apps` and `get_apps()` now report the public origin
+  of every classic-ingress app, including apps without
+  `~/dallinger/<app>/deployment.json`, such as those deployed by Dallinger
+  12.4 or earlier. The origin comes from the app's Caddy route, read in the
+  same SSH command as the manifests: the server's own site for a root-domain
+  app (a `root.d/<app>` route, or an older Dallinger's `Caddyfile` route to
+  the app), otherwise the app's `caddy.d/<app>` site if the `Caddyfile`
+  imports `caddy.d`; an app with neither has no origin. `deployment.json` still
+  takes priority. A classic `docker-ssh deploy` or `sandbox` without
+  `--update` whose `--app` names an existing app on the server's own host
+  (such as `dlgr-…`, the name Dallinger generates for an app deployed without
+  `--app`) now stops before the build and suggests `--update --app <app>`
+  (or, on a server that needs it, `servers upgrade` first), instead of
+  failing later on the DNS check for `<app>.<host>` or the existing app.
+  `--update --app dlgr-…` updates such an app in place, and its
+  DNS check before the build now checks the server's own host. On a server
+  with a saved DNS host, a different `--dns-host` passed to such an update
+  is ignored, with a one-line note; on a server registered by IP address
+  without one, `--dns-host` still names the server's host.
+  If the server can't say whether an app is on its own host, the deploy
+  stops with an error rather than moving it to a subdomain. New `dlgr-…`
+  names still deploy to a subdomain, and `destroy`, `export`, `hibernate` and
+  `awaken` accept these names.
 - The HotAir recruiter's launch message is now just the single recruitment
   link, and the CLI and HotAir messages no longer start with a blank line.
   `dallinger debug` says that new participants will open in browser windows
@@ -800,6 +921,11 @@
 
 ### Fixed
 
+- Local launches (``dallinger develop debug``, and tools such as PsyNet that
+  launch a local server the same way) no longer draw the "Waiting for the
+  experiment URL to become reachable" progress bar, which the local server's
+  own log lines were written onto. They print that message as one plain line
+  instead, and only if the first launch attempt fails. Deploys keep the bar.
 - `HighPerformanceBotBase` bots can sign up again. `sign_up` subscribes the
   bot to the `quorum` channel, which has raised `AttributeError` since the
   control events added in v9.10.0 asked each subscriber for its

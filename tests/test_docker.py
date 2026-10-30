@@ -75,18 +75,22 @@ def test_get_docker_compose_yml_uses_app_scoped_redis():
     assert services["pgbouncer"]["healthcheck"]["test"][0] == "CMD-SHELL"
 
 
-def test_controller_image_needs_a_from_line(tmp_path):
-    from dallinger.command_line.docker_ssh import _read_controller_image
+def test_pinned_image_needs_a_from_line(tmp_path, monkeypatch):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    with pytest.raises(RuntimeError, match="Dockerfile.missing"):
+        docker_ssh._read_pinned_image("Dockerfile.missing")
 
     dockerfile = tmp_path / "Dockerfile.controller"
+    monkeypatch.setattr(docker_ssh, "abspath_from_egg", lambda egg, path: dockerfile)
     dockerfile.write_text("# comment\nFROM python:3.14-alpine@sha256:abc\n")
-    assert _read_controller_image(dockerfile) == "python:3.14-alpine@sha256:abc"
+    assert docker_ssh._read_pinned_image(dockerfile.name) == (
+        "python:3.14-alpine@sha256:abc"
+    )
 
     dockerfile.write_text("# FROM python:3.14-alpine\n")
     with pytest.raises(RuntimeError, match="FROM line"):
-        _read_controller_image(dockerfile)
-    with pytest.raises(RuntimeError, match="Dockerfile.controller"):
-        _read_controller_image(None)
+        docker_ssh._read_pinned_image(dockerfile.name)
 
 
 def test_tunnel_compose_has_isolated_postgres_and_no_published_ports():
@@ -115,6 +119,12 @@ def test_tunnel_compose_has_isolated_postgres_and_no_published_ports():
     assert services["controller"]["group_add"] == ["${DOCKER_GID}"]
     assert services["web"]["restart"] == "unless-stopped"
     assert services["cloudflared"]["restart"] == "unless-stopped"
+    from dallinger.command_line.docker_ssh import CLOUDFLARED_IMAGE
+
+    assert services["cloudflared"]["image"] == CLOUDFLARED_IMAGE
+    assert re.fullmatch(
+        r"cloudflare/cloudflared:\d{4}\.\d+\.\d+@sha256:[0-9a-f]{64}", CLOUDFLARED_IMAGE
+    )
     assert services["frontdoor"]["user"] == "${UID}:${GID}"
     assert services["frontdoor"]["environment"]["XDG_DATA_HOME"] == "/state/caddy-data"
     assert services["cloudflared"]["environment"]["HOME"] == "/tmp"
@@ -243,7 +253,7 @@ def test_postgres_services_disable_jit(tmp_path, stub_config):
         wrapper.copy_docker_compose_files()
     composes = [
         get_yaml({}, ingress="cloudflare"),
-        yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render(dozzle_base="")),
+        yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render()),
         yaml.safe_load((tmp_path / "docker-compose.yml").read_text()),
     ]
     for compose in composes:
