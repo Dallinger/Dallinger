@@ -27,8 +27,22 @@ def plain_console():
     return Console(file=io.StringIO(), force_terminal=False, width=70)
 
 
-def terminal_console():
-    return Console(file=io.StringIO(), force_terminal=True, width=70)
+def terminal_console(width=70):
+    """A fixed-size color-free terminal.
+
+    ``height`` is set so Rich honors ``width`` even when ``TERM`` is dumb.
+    ``color_system=None`` drops the dim style's ANSI codes (``NO_COLOR`` does
+    not: it strips colors and leaves ``dim``). GitHub Actions has a color
+    terminal and sets neither, so an auto-detecting console fails these
+    tests there.
+    """
+    return Console(
+        file=io.StringIO(),
+        force_terminal=True,
+        width=width,
+        height=24,
+        color_system=None,
+    )
 
 
 def test_checklist_is_nested_in_a_panel_for_the_whole_operation():
@@ -162,7 +176,13 @@ def test_ssh_launch_progress_reuses_the_live_checklist():
 
 
 def test_panel_spans_the_whole_terminal_width():
-    console = Console(file=io.StringIO(), force_terminal=True, width=200, height=40)
+    console = Console(
+        file=io.StringIO(),
+        force_terminal=True,
+        width=200,
+        height=40,
+        color_system=None,
+    )
     steps = StepProgress("Deploying dlgr-1", STEPS, console=console)
 
     console.print(steps.renderable())
@@ -212,7 +232,9 @@ def test_latest_log_symlink_can_be_followed_during_the_run(tmp_path, monkeypatch
 
 
 def test_log_records_are_diverted_into_the_panel():
-    console = terminal_console()
+    # Wider than the default 70 columns: that width shortens this line so the
+    # panel keeps its shape, which is covered on its own below.
+    console = terminal_console(width=120)
     handler = logging.StreamHandler(sys.__stdout__)
     logger = logging.getLogger("dallinger.tests.step_progress")
     logger.addHandler(handler)
