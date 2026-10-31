@@ -81,6 +81,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: calculate_qualifications
 
+  .. automethod:: check_recruiter_exit
+
   .. automethod:: collect
 
   .. automethod:: create_network

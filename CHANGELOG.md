@@ -4,6 +4,10 @@
 
 ### Changed
 
+- `dallinger.submitAssignment()` adds the participant's `unique_id` to the
+  `/recruiter-exit` link, so an experiment's exit page can check that the
+  visitor is that participant. The new `dallinger.recruiterExitRoute()`
+  returns the link. Dallinger's own exit page ignores the extra parameter.
 - `docker_image_base_name` is now optional for `dallinger docker-ssh deploy`
   and `sandbox` when the image is built on the server and not pushed (the
   default, without `--push-build` or `--local_build`). The image is then
@@ -219,6 +223,10 @@
 
 ### Added
 
+- `Experiment.check_recruiter_exit(participant)` lets an experiment refuse a
+  `/recruiter-exit` request, for example when its `unique_id` parameter
+  doesn't match the participant, by returning a response to send instead of
+  the exit page. The default returns `None`, which shows the exit page.
 - `dallinger docker-ssh destroy` now makes you choose what happens to the
   experiment's data: its database (with its Postgres user for classic
   ingress), its Redis volume and its data folder `~/dallinger-data/<app>`.
@@ -499,6 +507,14 @@
 
 ### Fixed
 
+- `dallinger.identity.uniqueId` keeps the participant's value on pages whose
+  URL has no `workerId` and `assignmentId`, such as the ones `goToPage()`
+  opens. It was set to `"undefined:undefined"` there.
+- `dallinger.loadParticipant()` stores the participant's `unique_id`, so a
+  resumed participant's exit link carries it. `/load-participant` returns
+  `unique_id` and `worker_id` only when the request's worker id matches the
+  participant's. `loadParticipant()` clears a stored `unique_id` that ends
+  with another assignment's id.
 - Fixed a race condition in `POST /participant` where two concurrent signup
   requests could both be recorded as `"working"` when only one should be
   (write-skew at the occupancy count). Also fixed the related issue where a

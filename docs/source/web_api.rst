@@ -334,6 +334,10 @@ responsible for transforming ``entry_information`` data into an
 ``assignment_id`` data needed to lookup a participant.
 See :func:`~dallinger.experiment.Experiment.normalize_entry_information`.
 
+The ``participant`` in the response includes ``unique_id`` and ``worker_id``
+only when the ``worker_id`` that ``normalize_entry_information`` returns for the
+request matches the participant's.
+
 When the lookup fails, the JSON error response may include a machine-readable
 ``error_code``:
 

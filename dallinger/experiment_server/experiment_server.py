@@ -734,6 +734,10 @@ def recruiter_exit():
             status=404,
         )
 
+    refusal = exp.check_recruiter_exit(participant)
+    if refusal is not None:
+        return refusal
+
     # Get the recruiter from the participant rather than config, to support
     # MultiRecruiter experiments
     recruiter = recruiters.by_name(participant.recruiter_id)
@@ -1159,8 +1163,13 @@ def load_participant():
             status=403,
         )
 
-    # return the data
-    return success_response(participant=ppt.__json__())
+    participant = ppt.__json__()
+    # unique_id is worker_id:assignment_id; return it only when the worker_id
+    # normalized from the request matches.
+    if participant_info.get("worker_id") == ppt.worker_id:
+        participant["unique_id"] = ppt.unique_id
+        participant["worker_id"] = ppt.worker_id
+    return success_response(participant=participant)
 
 
 @app.route("/network/<network_id>", methods=["GET"])

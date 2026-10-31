@@ -85,6 +85,8 @@ these explicitly:
 
 .. js:autofunction:: dallinger.submitAssignment
 
+.. js:autofunction:: dallinger.recruiterExitRoute
+
 .. js:autofunction:: dallinger.submitQuestionnaire
 
 .. js:autofunction:: dallinger.waitForQuorum

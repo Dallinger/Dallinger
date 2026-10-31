@@ -60,6 +60,9 @@ var dallinger = (function () {
     get: function (key) {
       return this._storage.get(key);
     },
+    remove: function (key) {
+      this._storage.remove(key);
+    },
     all: function () {
       return this._storage.getAll();
     },
@@ -111,9 +114,13 @@ var dallinger = (function () {
     initialize: function () {
       this.recruiter = dlgr.getUrlParameter('recruiter');
       this.hitId = dlgr.getUrlParameter('hitId');
-      this.workerId = dlgr.getUrlParameter('workerId');
-      this.assignmentId = dlgr.getUrlParameter('assignmentId');
-      this.uniqueId = dlgr.getUrlParameter('workerId') + ":" + dlgr.getUrlParameter('assignmentId');
+      var workerId = dlgr.getUrlParameter('workerId'),
+          assignmentId = dlgr.getUrlParameter('assignmentId');
+      this.workerId = workerId;
+      this.assignmentId = assignmentId;
+      if (workerId !== undefined && assignmentId !== undefined) {
+        this.uniqueId = workerId + ":" + assignmentId;
+      }
       this.mode = dlgr.getUrlParameter('mode');
       // Store all url parameters as entry information.
       // This won't work in IE, but should work in Edge.
@@ -321,7 +328,7 @@ var dallinger = (function () {
    * instance of `AjaxRejection`, see :ref:`deferreds-label`.
    *
    * @example
-   * var response = dallinger.get('/participant/1');
+   * var response = dallinger.get('/node/' + nodeId + '/infos');
    * // Wait for response and handle data
    * response.done(function (data) {...});
    *
@@ -404,6 +411,21 @@ var dallinger = (function () {
   };
 
   /**
+   * The URL of the participant's ``/recruiter-exit`` page. It carries the
+   * participant's ``unique_id`` as well as their ``participant_id``, so an
+   * experiment can check that the visitor is that participant.
+   *
+   * @returns {string} The exit page's path and query string.
+   */
+  dlgr.recruiterExitRoute = function() {
+    var params = {participant_id: dlgr.identity.participantId};
+    if (dlgr.identity.uniqueId) {
+      params.unique_id = dlgr.identity.uniqueId;
+    }
+    return "/recruiter-exit?" + $.param(params);
+  };
+
+  /**
    * Notify the experiment that the participant's assignment is complete.
    * Performs a ``POST`` request to the experiment's ``/worker_complete`` route,
    * then redirects the main/parent window to the ``/recruiter-exit`` route and
@@ -421,7 +443,7 @@ var dallinger = (function () {
   dlgr.submitAssignment = function() {
     var deferred = $.Deferred(),
         participantId = dlgr.identity.participantId,
-        exitRoute = "/recruiter-exit?participant_id=" + participantId;
+        exitRoute = dlgr.recruiterExitRoute();
 
     dlgr.post('/worker_complete', {
         'participant_id': participantId
@@ -531,9 +553,15 @@ var dallinger = (function () {
 
   /**
    * Load an existing `Participant` into the dlgr.identity by making a ``POST``
-   * request to the experiment `/participant` route with some ``assignment_info``
-   * which can be a scalar ``assignment_id`` or an object with ``entry_information``
-   * parameters
+   * request to the experiment's ``/load-participant`` route with some
+   * ``assignment_info``, which can be a scalar ``assignment_id`` or an object
+   * with ``entry_information`` parameters.
+   *
+   * ``dallinger.identity.uniqueId`` is set only when ``assignment_info`` is an
+   * object holding the participant's worker id under the recruiter's parameter
+   * name, such as ``workerId`` for MTurk or ``PROLIFIC_PID`` for Prolific.
+   * Otherwise a stored ``uniqueId`` is kept if it ends with the loaded
+   * ``assignment_id``, and cleared if it doesn't.
    *
    * @returns {jQuery.Deferred} See :ref:`deferreds-label`
    */
@@ -563,6 +591,11 @@ var dallinger = (function () {
           dlgr.identity.assignmentId = resp.participant.assignment_id || data.assignment_id;
           dlgr.identity.mode = resp.participant.mode;
           dlgr.identity.fingerprintHash = resp.participant.fingerprint_hash;
+          dlgr.identity.uniqueId = resp.participant.unique_id;
+          var uniqueId = dlgr.identity.uniqueId;
+          if (uniqueId !== undefined && !uniqueId.endsWith(":" + dlgr.identity.assignmentId)) {
+            dlgr.storage.remove('unique_id');
+          }
           $('.btn-success').prop('disabled', false);
           deferred.resolve();
         });

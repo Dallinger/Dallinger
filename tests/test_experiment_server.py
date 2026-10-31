@@ -440,6 +440,25 @@ class TestRecruiterExit:
 
         assert resp.status_code == 200
 
+    def test_experiment_can_refuse_with_its_own_response(self, a, webapp):
+        participant = a.participant()
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as Experiment:
+            Experiment.return_value.check_recruiter_exit.return_value = (
+                "Refused by the experiment",
+                403,
+            )
+            resp = webapp.get(
+                "/recruiter-exit?participant_id={}".format(participant.id)
+            )
+
+        Experiment.return_value.check_recruiter_exit.assert_called_once_with(
+            participant
+        )
+        assert resp.status_code == 403
+        assert resp.data == b"Refused by the experiment"
+
     def test_debug_mode_renders_exit_page_for_hotair_recruiter(self, a, webapp):
         participant = a.participant()
         resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
@@ -816,6 +835,23 @@ class TestParticipantByAssignmentRoute:
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "success"
         assert data.get("participant").get("status") == "working"
+
+    def test_unique_id_returned_to_a_caller_with_the_worker_id(self, a, webapp):
+        a.participant(worker_id="W1", assignment_id="A1")
+        resp = webapp.post(
+            "/load-participant", data={"assignmentId": "A1", "workerId": "W1"}
+        )
+        participant = json.loads(resp.data.decode("utf8"))["participant"]
+        assert participant["unique_id"] == "W1:A1"
+        assert participant["worker_id"] == "W1"
+
+    @pytest.mark.parametrize("data", [{}, {"workerId": "W2"}])
+    def test_unique_id_withheld_without_the_worker_id(self, a, webapp, data):
+        a.participant(worker_id="W1", assignment_id="A1")
+        resp = webapp.post("/load-participant", data={"assignmentId": "A1", **data})
+        participant = json.loads(resp.data.decode("utf8"))["participant"]
+        assert "unique_id" not in participant
+        assert "worker_id" not in participant
 
     def test_missing_assignment(self, webapp):
         resp = webapp.post("/load-participant")
