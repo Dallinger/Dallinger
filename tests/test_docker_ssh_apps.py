@@ -934,11 +934,14 @@ def test_pushed_build_without_base_name_stops_before_the_checks(
     pre_launch_checks.assert_not_called()
 
 
-def _root_domain_deploy(monkeypatch, docker_client):
+def _root_domain_deploy(
+    monkeypatch, docker_client=None, server_pull="pulled\n", **overrides
+):
     """Deploy ``registry.example/exp:1`` with --local_build to a server root.
 
-    Returns the deploy and the mocks for the root-domain destroy (run after
-    the cleanup's ``before_destroy`` hook) and the image build.
+    ``overrides`` change the deploy arguments. Returns the deploy and the
+    mocks for the root-domain destroy (run after the cleanup's
+    ``before_destroy`` hook) and the image build.
     """
     config = Configuration()
     config._reset(register_defaults=True)
@@ -947,7 +950,8 @@ def _root_domain_deploy(monkeypatch, docker_client):
     build = mock.Mock(side_effect=click.Abort)
 
     def root_domain(before_destroy, **kwargs):
-        before_destroy()
+        if before_destroy:
+            before_destroy()
         destroyed()
 
     monkeypatch.setattr(
@@ -960,20 +964,57 @@ def _root_domain_deploy(monkeypatch, docker_client):
         "run_pre_launch_checks": mock.Mock(),
         "_server_tls": mock.Mock(),
         "_classic_preflight": mock.Mock(return_value="lab.example.org"),
+        "_root_domain_preflight_required": lambda *args: True,
         "_check_compose_project_free": mock.Mock(),
         "_check_app_slot": mock.Mock(),
-        "Executor": mock.Mock(),
+        "Executor": mock.Mock(return_value=mock.Mock(run=lambda *a, **k: server_pull)),
         "_image_docker_client": lambda *args: contextlib.nullcontext(docker_client),
         "ensure_root_domain_ready": root_domain,
         "_built_image": build,
     }.items():
         monkeypatch.setattr(docker_ssh_module, name, value)
     kwargs = _deploy_kwargs(
-        server="lab",
-        local_build=True,
-        config_options=(("docker_image_name", "registry.example/exp:1"),),
+        **{
+            "server": "lab",
+            "local_build": True,
+            "config_options": (("docker_image_name", "registry.example/exp:1"),),
+            **overrides,
+        }
     )
     return lambda: docker_ssh_module._deploy_in_mode(**kwargs), destroyed, build
+
+
+def test_configured_image_the_server_cant_pull_stops_before_root_domain_destroy(
+    monkeypatch,
+):
+    """With --local_build the registry check is local, so the server pulls too."""
+    deploy, destroyed, build = _root_domain_deploy(
+        monkeypatch, mock.Mock(), server_pull=""
+    )
+
+    with pytest.raises(click.ClickException, match="can't pull"):
+        deploy()
+    destroyed.assert_not_called()
+
+
+@pytest.mark.parametrize("app_name", ["my-app", "a" * 256])
+def test_server_only_deploy_needs_no_base_name_but_a_usable_app_name(
+    monkeypatch, app_name
+):
+    """The image is named after the app; an unusable name destroys nothing."""
+    deploy, destroyed, build = _root_domain_deploy(
+        monkeypatch, app_name=app_name, local_build=False, config_options=()
+    )
+
+    if len(app_name) > 255:
+        with pytest.raises(click.ClickException, match="Can't make a Docker image"):
+            deploy()
+        destroyed.assert_not_called()
+        return
+    with pytest.raises(click.Abort):
+        deploy()
+    destroyed.assert_called_once()
+    assert build.call_args.kwargs["app"] == app_name
 
 
 @pytest.mark.parametrize(

@@ -2957,6 +2957,8 @@ def _deploy_in_mode(
     if not APP_NAME_PATTERN.fullmatch(experiment_id):
         raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
     _check_app_name_not_reserved(experiment_id)
+    # A long app id can't name a server-only image; find out before any cleanup.
+    image_base_name(config, experiment_id)
 
     resolved_ingress = _resolve_ingress(server_info, ingress)
     takes_root_domain = False
@@ -2989,10 +2991,20 @@ def _deploy_in_mode(
 
     def check_configured_image():
         nonlocal image_usable
+        image = config.get("docker_image_name")
         with _image_docker_client(server, local_build) as docker_client:
-            image_usable = _image_usable_from_registry(
-                docker_client, config.get("docker_image_name")
+            image_usable = _image_usable_from_registry(docker_client, image)
+        if image_usable and local_build:
+            # The registry was checked from local Docker, but the server pulls.
+            pulled = slot_executor.run(
+                f"docker pull -q {quote(image)} >/dev/null 2>&1 && echo pulled",
+                raise_=False,
             )
+            if (pulled or "").strip() != "pulled":
+                raise click.ClickException(
+                    f"{server} can't pull {image}, so nothing was destroyed. "
+                    "Check that the server can log in to the image's registry."
+                )
         if not image_usable and (push_build or local_build):
             image_base_name(config, None, _PUSH_OPTIONS)
 
