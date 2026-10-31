@@ -1,4 +1,5 @@
 import importlib
+import json
 import socket
 from unittest import mock
 
@@ -229,6 +230,33 @@ class TestRemoveDnsRecords:
         remove_dns_records("ZONE", "exp.example.com", route_53=route_53)
 
         assert _deleted_names(route_53) == ["exp.example.com."]
+
+    def test_target_limits_deletion_to_this_instance(self, capsys):
+        route_53 = _route_53_client(
+            [
+                _record("exp.example.com.", "EC2-1-2-3-4.compute.amazonaws.com."),
+                _record("*.exp.example.com.", "ec2-5-6-7-8.compute.amazonaws.com"),
+                {
+                    "Name": "exp.example.com.",
+                    "Type": "A",
+                    "AliasTarget": {"DNSName": "lb.example.net."},
+                },
+            ]
+        )
+        remove_dns_records(
+            "ZONE",
+            "exp.example.com",
+            route_53=route_53,
+            target="ec2-1-2-3-4.compute.amazonaws.com",
+        )
+        assert _deleted_names(route_53) == ["exp.example.com."]
+        output = capsys.readouterr().out
+        assert "*.exp.example.com., which points at ec2-5-6-7-8" in output
+        assert (
+            "If no running server uses ec2-5-6-7-8.compute.amazonaws.com, delete "
+            "the record by hand." in output
+        )
+        assert "exp.example.com., which points at lb.example.net" in output
 
     def test_finds_records_beyond_the_first_page(self):
         route_53 = _route_53_client(
@@ -626,6 +654,274 @@ class TestRegisterKeyPair:
             register_key_pair(mock_ec2, "test-key")
 
         assert "Unable to load key" in str(excinfo.value)
+
+
+AWS_HOSTNAME = "ec2-1-2-3-4.compute.amazonaws.com"
+
+
+HOSTS = {
+    # Registered by older versions, with a DNS host saved by hand.
+    AWS_HOSTNAME: {"host": AWS_HOSTNAME, "dns_host": "nip.io"},
+    "alice.example.org": {
+        "host": "alice.example.org",
+        "dns_host": "alice.example.org",
+        "ec2_instance_id": "i-123",
+    },
+    "bob.example.org": {"host": "bob.example.org", "ec2_instance_id": "i-456"},
+    "old.example.org": {"host": "old.example.org"},  # older DNS-name entry
+}
+ALICE_RECORDS = [
+    _record("alice.example.org.", AWS_HOSTNAME),
+    _record("*.alice.example.org.", AWS_HOSTNAME),
+]
+
+
+def _teardown(instance_id, dns_host, records, hosts=HOSTS, dns_error=None):
+    """Run ``teardown`` against fake AWS clients.
+
+    Returns the removed server entries, the deleted record names, and the
+    order of DNS deletion, termination and entry removal.
+    """
+    from dallinger.command_line.lib import ec2
+
+    events = []
+    route_53 = _route_53_client(records)
+    route_53.list_hosted_zones_by_name.return_value = {
+        "HostedZones": [{"Id": "Z1", "Name": "example.org."}]
+    }
+    route_53.change_resource_record_sets.side_effect = dns_error or (
+        lambda **_: events.append("dns")
+    )
+    ec2_client = mock.Mock()
+    ec2_client.terminate_instances.side_effect = lambda **_: events.append("ec2")
+    with (
+        mock.patch.object(ec2, "get_ec2_client", return_value=ec2_client),
+        mock.patch.object(ec2, "get_53_client", return_value=route_53),
+        mock.patch.object(
+            ec2,
+            "get_configured_hosts",
+            side_effect=hosts if isinstance(hosts, Exception) else lambda: hosts,
+        ),
+        mock.patch.object(
+            ec2, "dallinger_remove_host", side_effect=lambda h: events.append(h)
+        ),
+    ):
+        ec2.teardown("eu-west-1", instance_id, AWS_HOSTNAME, dns_host)
+    removed = sorted(e for e in events if e not in ("dns", "ec2"))
+    return removed, _deleted_names(route_53), events
+
+
+@pytest.mark.parametrize(
+    "dns_host, also_removed",
+    [
+        (None, []),
+        ("alice.example.org", []),
+        ("bob.example.org", []),  # belongs to another instance
+        ("old.example.org", ["old.example.org"]),
+    ],
+)
+def test_teardown_removes_only_this_instances_server_entries(dns_host, also_removed):
+    removed, _, _ = _teardown("i-123", dns_host, [])
+    assert removed == sorted([AWS_HOSTNAME, "alice.example.org", *also_removed])
+
+
+def test_teardown_deletes_this_instances_records_then_terminates():
+    _, deleted, events = _teardown("i-123", None, ALICE_RECORDS)
+    assert deleted == ["alice.example.org.", "*.alice.example.org."]
+    assert events == ["dns", "dns", "ec2", AWS_HOSTNAME, "alice.example.org"]
+
+
+@pytest.mark.parametrize(
+    "records, dns_error",
+    [
+        (ALICE_RECORDS, ClientError({"Error": {"Code": "Throttling"}}, "Change")),
+        (ALICE_RECORDS, EndpointConnectionError(endpoint_url="https://route53")),
+        ([*ALICE_RECORDS, {"Name": "alice.example.org.", "Type": "NS"}], None),
+    ],
+)
+def test_teardown_still_terminates_when_dns_cleanup_fails(records, dns_error, caplog):
+    _, _, events = _teardown("i-123", None, records, dns_error=dns_error)
+    assert events == ["ec2", AWS_HOSTNAME, "alice.example.org"]
+    assert "alice.example.org and *.alice.example.org" in caplog.text
+
+
+def test_teardown_still_terminates_when_server_records_are_unreadable(caplog):
+    error = json.JSONDecodeError("Expecting value", "", 0)
+    _, deleted, events = _teardown("i-123", "alice.example.org", ALICE_RECORDS, error)
+    assert deleted == ["alice.example.org.", "*.alice.example.org."]
+    assert events == ["dns", "dns", "ec2"]
+    assert "Could not read the saved docker-ssh server records" in caplog.text
+
+
+def test_teardown_leaves_a_saved_nip_io_host_alone(capsys):
+    hosts = {
+        AWS_HOSTNAME: {
+            "host": AWS_HOSTNAME,
+            "dns_host": "1.2.3.4.nip.io",
+            "ec2_instance_id": "i-123",
+        }
+    }
+    removed, deleted_records, _ = _teardown("i-123", None, [], hosts=hosts)
+    assert removed == [AWS_HOSTNAME]
+    assert deleted_records == []
+    assert "nip.io" not in capsys.readouterr().out
+
+
+def test_teardown_without_instance_id_or_hosted_zone_does_not_guess(capsys):
+    hosts = {
+        "carol.example.org": {"host": "carol.example.org"},
+        "exp.nowhere.org": {"host": "exp.nowhere.org", "ec2_instance_id": "i-999"},
+    }
+    removed, deleted_records, _ = _teardown(
+        "i-123", "exp.nowhere.org", [_record("exp.nowhere.org.")], hosts=hosts
+    )
+    assert removed == []
+    assert deleted_records == []
+    assert (
+        "No Route 53 hosted zone found for exp.nowhere.org" in capsys.readouterr().out
+    )
+
+
+SAVED_ALICE = {
+    "alice.example.org": {
+        "host": "alice.example.org",
+        "user": "alice",
+        "dns_host": "alice.example.org",
+        "ec2_instance_id": "i-123",
+    }
+}
+
+
+def _run_start_or_stop(command, hosts=SAVED_ALICE, dns_error=None, args=()):
+    """Run ``ec2 start`` (by ``--dns``) or ``ec2 stop`` (by ``--name``) with fakes.
+
+    With ``hosts=None``, the saved server records are read from disk.
+    Returns the CLI result and a dict of the mocks.
+    """
+    from click.testing import CliRunner
+
+    from dallinger.command_line.lib import ec2
+
+    ec2_cli = importlib.import_module("dallinger.command_line.ec2")
+    row = {"instance_id": "i-123", "name": "alice", "public_dns_name": AWS_HOSTNAME}
+    stopped, running = {**row, "state": "stopped"}, {**row, "state": "running"}
+    selector = ["--name", "alice"] if command == "stop" else ["--dns", AWS_HOSTNAME]
+    read_hosts = ec2.get_configured_hosts if hosts is None else lambda: hosts
+    mocks = {}
+    with (
+        mock.patch.object(ec2, "get_configured_hosts", side_effect=read_hosts),
+        mock.patch.object(ec2_cli, "_get_instance_row_from", return_value=stopped),
+        mock.patch.object(
+            ec2_cli, "wait_for_instance_state_change", side_effect=[stopped, running]
+        ) as mocks["wait"],
+        mock.patch.object(ec2_cli, "start"),
+        mock.patch.object(ec2_cli, "stop") as mocks["stop"],
+        mock.patch.object(
+            ec2_cli, "create_dns_records", side_effect=dns_error
+        ) as mocks["create_dns_records"],
+        mock.patch.object(ec2_cli, "remove_instance_dns_records") as mocks[
+            "remove_records"
+        ],
+    ):
+        result = CliRunner().invoke(ec2_cli.ec2, [command, *selector, *args])
+    assert result.exit_code == 0, result.output
+    return result, mocks
+
+
+def test_ec2_start_uses_the_saved_dns_host():
+    _, mocks = _run_start_or_stop("start")
+    assert [call.args[1] for call in mocks["wait"].call_args_list] == ["alice"] * 2
+    mocks["create_dns_records"].assert_called_once_with(
+        "alice.example.org", "alice", AWS_HOSTNAME
+    )
+
+
+def test_ec2_stop_uses_the_saved_dns_host():
+    _, mocks = _run_start_or_stop("stop")
+    mocks["remove_records"].assert_called_once_with("alice.example.org", AWS_HOSTNAME)
+
+
+def test_ec2_start_says_what_to_repoint_when_route_53_fails():
+    error = EndpointConnectionError(endpoint_url="https://route53")
+    result, _ = _run_start_or_stop("start", dns_error=error)
+    assert (
+        "Point alice.example.org and *.alice.example.org at "
+        f"{AWS_HOSTNAME} by hand." in result.output
+    )
+
+
+def test_ec2_start_says_what_to_repoint_without_a_hosted_zone():
+    from dallinger.command_line.lib import ec2
+
+    route_53 = mock.Mock()
+    route_53.list_hosted_zones_by_name.return_value = {"HostedZones": []}
+    with mock.patch.object(ec2, "get_53_client", return_value=route_53):
+        result, _ = _run_start_or_stop(
+            "start",
+            dns_error=lambda *a: ec2.create_dns_records(*a),
+            args=["--dns-host", "lab.nowhere.org"],
+        )
+    assert "No Route 53 hosted zone found for lab.nowhere.org" in result.output
+    assert f"Point lab.nowhere.org and *.lab.nowhere.org at {AWS_HOSTNAME}" in (
+        result.output
+    )
+
+
+@pytest.mark.parametrize("command", ["start", "stop"])
+def test_ec2_start_and_stop_run_when_server_records_are_unreadable(
+    command, caplog, tmp_path, monkeypatch
+):
+    config = importlib.import_module("dallinger.command_line.config")
+    (tmp_path / "broken.example.org").write_text("{not json")
+    monkeypatch.setattr(config, "NEW_HOSTS_DIR", tmp_path)
+    monkeypatch.setattr(config, "OLD_HOSTS_DIR", tmp_path / "old")
+    _, mocks = _run_start_or_stop(command, hosts=None)
+    assert "Could not read the saved docker-ssh server records" in caplog.text
+    assert "i-123" in caplog.text
+    if command == "stop":
+        mocks["stop"].assert_called_once()
+        mocks["remove_records"].assert_called_once_with(None, AWS_HOSTNAME)
+    else:
+        mocks["create_dns_records"].assert_called_once_with(
+            None, "ubuntu", AWS_HOSTNAME
+        )
+
+
+@pytest.mark.parametrize(
+    "dns_error", [None, ClientError({"Error": {"Code": "Throttling"}}, "Change")]
+)
+def test_ec2_stop_deletes_only_this_instances_records_and_still_stops(
+    dns_error, caplog
+):
+    from click.testing import CliRunner
+
+    from dallinger.command_line.lib import ec2
+
+    ec2_cli = importlib.import_module("dallinger.command_line.ec2")
+    route_53 = _route_53_client(
+        [
+            _record("bob.example.org.", AWS_HOSTNAME),
+            _record("*.bob.example.org.", "ec2-5-6-7-8.compute.amazonaws.com"),
+        ]
+    )
+    route_53.list_hosted_zones_by_name.return_value = {
+        "HostedZones": [{"Id": "Z1", "Name": "example.org."}]
+    }
+    route_53.change_resource_record_sets.side_effect = dns_error
+    row = {"instance_id": "i-123", "name": "bob", "public_dns_name": AWS_HOSTNAME}
+    with (
+        mock.patch.object(ec2, "get_53_client", return_value=route_53),
+        mock.patch.object(ec2_cli, "_get_instance_row_from", return_value=row),
+        mock.patch.object(ec2_cli, "stop") as stop,
+    ):
+        result = CliRunner().invoke(
+            ec2_cli.ec2, ["stop", "--name", "bob", "--dns-host", "bob.example.org"]
+        )
+    assert result.exit_code == 0, result.output
+    stop.assert_called_once_with(None, "i-123")
+    # *.bob.example.org points at another instance, so it is kept.
+    assert _deleted_names(route_53) == ["bob.example.org."]
+    assert ("Could not delete the Route 53 records" in caplog.text) == bool(dns_error)
 
 
 @pytest.mark.parametrize(

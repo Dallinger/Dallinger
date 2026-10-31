@@ -738,7 +738,7 @@ def test_ec2_provision_sets_up_the_shared_services(
 
     aws_host = "ec2-1-2-3-4.compute.amazonaws.com"
     ec2.prepare_docker_experiment_setup(
-        aws_host, "ubuntu", "1.2.3.4", None, dns_host=dns_host
+        aws_host, "ubuntu", "1.2.3.4", None, dns_host=dns_host, instance_id="i-1"
     )
 
     # A new DNS record may still resolve to an older server.
@@ -749,8 +749,10 @@ def test_ec2_provision_sets_up_the_shared_services(
         "default_ingress": "classic",
         "dns_host": dns_host or "1.2.3.4.nip.io",
         "contact_email": "me@example.org",
+        "ec2_instance_id": "i-1",
     }
-    assert stored == [record] + ([{**record, "host": dns_host}] if dns_host else [])
+    expected = [record] + ([{**record, "host": dns_host}] if dns_host else [])
+    assert {r["host"]: r for r in stored} == {r["host"]: r for r in expected}
     site = dns_host or "1.2.3.4.nip.io"
     assert f"logs.{site} {{" in (server / "dallinger/Caddyfile").read_text()
     for name in SERVER_FILES:

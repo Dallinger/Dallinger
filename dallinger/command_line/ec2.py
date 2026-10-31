@@ -4,19 +4,21 @@ import click
 
 from .lib.ec2 import (
     DEFAULT_UBUNTU_24_04_AMI_SSM_PARAMETER,
+    ROUTE_53_ERRORS,
     _get_instance_id_from,
     _get_instance_row_from,
     check_server_pem_matches_key_pair,
     create_dns_records,
-    get_instances,
     get_pem_path,
     increase_storage,
     list_instance_types,
     list_instances,
     list_regions,
     provision,
-    remove_dns_record,
+    remove_instance_dns_records,
     restart,
+    route_53_dns_host,
+    saved_server,
     start,
     stop,
     teardown,
@@ -233,18 +235,20 @@ def ec2__increase_storage(ctx, dns, name, region, storage):
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS).",
+    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS). Defaults to the DNS host saved when the instance was provisioned.",
     default=None,
 )
 @click.pass_context
 def ec2__stop(ctx, dns, name, region, dns_host):
     """Stop (pause) an existing EC2 instance"""
     _validate_instance_selector(name, dns)
-    instance_id = _get_instance_id_from(
+    instance_row = _get_instance_row_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
+    instance_id = instance_row["instance_id"]
+    dns_host = dns_host or route_53_dns_host(saved_server(instance_id))
     # Remove old DNS records, but keep the dallinger host
-    remove_dns_record(dns_host, remove_dallinger_host=False)
+    remove_instance_dns_records(dns_host, instance_row["public_dns_name"])
     stop(region, instance_id)
 
 
@@ -258,39 +262,40 @@ def ec2__stop(ctx, dns, name, region, dns_host):
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
-    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS).",
+    help="Custom DNS host (e.g. myexp.example.com) to manage in Route53; distinct from --dns (instance public DNS). Defaults to the DNS host saved when the instance was provisioned.",
     default=None,
 )
 @click.pass_context
 def ec2__start(ctx, dns, name, region, dns_host):
     """Start a stopped EC2 instance"""
     _validate_instance_selector(name, dns)
-    from dallinger.command_line.config import get_configured_hosts
-
-    CONFIGURED_HOSTS = get_configured_hosts()
     instance_row = _get_instance_row_from(
         region_name=region,
         instance_name=name,
         public_dns_name=dns,
         filter_by=None,
     )
+    name = instance_row["name"]
     instance_row = wait_for_instance_state_change(region, name, "stopped")
     assert instance_row["state"] == "stopped", (
         f"Instance '{name}' is not stopped, but in state '{instance_row['state']}'"
     )
-    dns, instance_id, name = (
-        instance_row["public_dns_name"],
-        instance_row["instance_id"],
-        instance_row["name"],
-    )
+    instance_id, name = instance_row["instance_id"], instance_row["name"]
     start(region, instance_id)
 
-    old_dns_host = CONFIGURED_HOSTS.get(dns, {})
-    user = old_dns_host.get("user", "ubuntu")
+    saved = saved_server(instance_id)
+    user = saved.get("user", "ubuntu")
+    dns_host = dns_host or route_53_dns_host(saved)
 
     instance_row = wait_for_instance_state_change(region, name, "running")
-
-    create_dns_records(dns_host, user, instance_row["public_dns_name"])
+    host = instance_row["public_dns_name"]
+    try:
+        create_dns_records(dns_host, user, host)
+    except ROUTE_53_ERRORS as e:
+        print(
+            f"Warning: Could not update the Route 53 records for {dns_host} ({e}). "
+            f"Point {dns_host} and *.{dns_host} at {host} by hand."
+        )
 
 
 @ec2.command("restart")
@@ -328,13 +333,9 @@ def ec2__restart(ctx, dns, name, region):
 def ec2__teardown(ctx, dns, name, region, dns_host):
     """Teardown an EC2 instance"""
     _validate_instance_selector(name, dns)
-    instance_id = _get_instance_id_from(
+    instance_row = _get_instance_row_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
-    if dns is None:
-        dns = (
-            get_instances(region)
-            .query(f"instance_id == '{instance_id}'")
-            .iloc[0]["public_dns_name"]
-        )
-    teardown(region, instance_id, dns, dns_host)
+    teardown(
+        region, instance_row["instance_id"], instance_row["public_dns_name"], dns_host
+    )

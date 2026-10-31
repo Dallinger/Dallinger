@@ -6,7 +6,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 import boto3
 import click
@@ -14,7 +14,7 @@ import pandas as pd
 import paramiko
 import requests
 from botocore.config import Config
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from botocore.exceptions import ConnectionError as BotoConnectionError
 from paramiko import ssh_exception as pse
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
@@ -27,6 +27,7 @@ from tenacity import (
 )
 from yaspin import yaspin
 
+from ..config import get_configured_hosts
 from ..config import remove_host as dallinger_remove_host
 from ..config import store_host as dallinger_store_host
 from ..docker_ssh import Executor
@@ -928,11 +929,33 @@ def _find_dns_records(route_53, zone_id, dns_host):
     return records
 
 
-def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False):
-    """Delete the records for dns_host and its wildcard, optionally confirming first."""
+def _record_targets(record):
+    """Return the hostnames a Route 53 record (or alias record) points at."""
+    values = [r["Value"] for r in record.get("ResourceRecords", [])]
+    values.append(record.get("AliasTarget", {}).get("DNSName", ""))
+    return sorted({value.rstrip(".").lower() for value in values if value})
+
+
+def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False, target=None):
+    """Delete the records for dns_host and its wildcard, optionally confirming first.
+
+    With ``target``, only records pointing at that hostname are deleted; the
+    others, which may belong to another server, are kept with a warning.
+    """
     if route_53 is None:
         route_53 = get_53_client()
     filtered_records = _find_dns_records(route_53, zone_id, dns_host)
+    if target is not None:
+        target = target.rstrip(".").lower()
+        kept = [r for r in filtered_records if _record_targets(r) != [target]]
+        for record in kept:
+            targets = ", ".join(_record_targets(record)) or "an unknown target"
+            print(
+                f"Warning: Kept DNS record {record['Name']}, which points at "
+                f"{targets}, not this instance ({target}). If no running server "
+                f"uses {targets}, delete the record by hand."
+            )
+        filtered_records = [r for r in filtered_records if r not in kept]
 
     if len(filtered_records) > 0:
         targets = sorted(
@@ -973,6 +996,8 @@ def create_dns_record(dns_host, user, host, route_53=None):
         route_53 = get_53_client()
 
     filtered_hosts = filter_zone_ids(get_domain(dns_host), route_53)
+    if not filtered_hosts:
+        raise click.ClickException(f"No Route 53 hosted zone found for {dns_host}.")
     hosted_zone_id = filtered_hosts[0]
     response = route_53.change_resource_record_sets(
         HostedZoneId=hosted_zone_id,
@@ -1018,7 +1043,9 @@ def prepare_instance(
     image_name: str,
     security_group_name: str,
     dns_host: str = None,
-    callback: Callable[[str, str, str, Executor], None] = None,
+    callback: Callable[
+        [str, str, str, Executor, Optional[str], str, str], None
+    ] = None,
 ):
     instance_df = get_all_instances(region_name)
     assert (
@@ -1090,7 +1117,9 @@ def prepare_instance(
         raise
     if callback is not None:
         try:
-            callback(host, user, ip_address, executor, dns_host, instance_name)
+            callback(
+                host, user, ip_address, executor, dns_host, instance_name, instance_id
+            )
         except BaseException:
             region = f" --region {region_name}" if region_name else ""
             dns = f" --dns-host {dns_host}" if dns_host else ""
@@ -1115,17 +1144,8 @@ def create_dns_records(dns_host, user, host):
         create_dns_record("*." + dns_host, user, host)
 
 
-def remove_dns_record(dns_host, remove_dallinger_host=True):
-    if dns_host is not None:
-        route_53 = get_53_client()
-        filtered_ids = filter_zone_ids(get_domain(dns_host), route_53)
-        remove_dns_records(filtered_ids[0], dns_host, route_53)
-        if remove_dallinger_host:
-            dallinger_remove_host(dns_host)
-
-
 def prepare_docker_experiment_setup(
-    host, user, ip_address, executor, dns_host=None, instance_name=None
+    host, user, ip_address, executor, dns_host=None, instance_name=None, instance_id=None
 ):
     """Install Docker on a new instance, create its DNS records and register it.
 
@@ -1134,8 +1154,10 @@ def prepare_docker_experiment_setup(
     a nip.io name for the public IP gives the server's sites a name that
     Let's Encrypt certifies, unlike the AWS hostname, which can resolve to a
     private IP inside AWS. A server record is saved under the AWS hostname
-    and, with a DNS host, under that name too. A failure prints the commands
-    that finish the setup (``prepare_instance`` adds the teardown command).
+    and, with a DNS host, under that name too, both with the instance id so
+    that ``ec2 teardown``, ``stop`` and ``start`` find them. A failure prints
+    the commands that finish the setup (``prepare_instance`` adds the teardown
+    command).
     """
     server_dns_host = dns_host or f"{ip_address}.nip.io"
     try:
@@ -1153,6 +1175,8 @@ def prepare_docker_experiment_setup(
         server_info = dallinger_register_server(
             host, user, dns_host=server_dns_host, network_advice=False
         )
+        server_info = {**server_info, "ec2_instance_id": instance_id}
+        dallinger_store_host(server_info)
         if dns_host:
             dallinger_store_host({**server_info, "host": dns_host})
     except BaseException:
@@ -1305,9 +1329,108 @@ def stop(region_name, instance_id):
     logger.info(f"Stopping of {instance_id} complete!")
 
 
+def _configured_hosts_or_warn(consequence):
+    """Return the saved docker-ssh server entries that are dicts.
+
+    If they can't be read, warn with ``consequence`` and return ``{}``, so
+    that ``ec2 stop``, ``start`` and ``teardown`` still run.
+    """
+    try:
+        hosts = get_configured_hosts()
+    except Exception as e:
+        logger.warning(
+            f"Could not read the saved docker-ssh server records ({e!r}); "
+            f"{consequence}"
+        )
+        return {}
+    return {host: info for host, info in hosts.items() if isinstance(info, dict)}
+
+
+def saved_server(instance_id):
+    """Return a server entry that provisioning saved for ``instance_id``, or ``{}``."""
+    hosts = _configured_hosts_or_warn(
+        f"the DNS host saved for {instance_id} is not used."
+    )
+    return next(
+        (info for info in hosts.values() if info.get("ec2_instance_id") == instance_id),
+        {},
+    )
+
+
+def route_53_dns_host(server_info):
+    """Return the saved DNS host of a server entry, unless it is a nip.io name.
+
+    Provisioning without ``--dns-host`` saves ``<ip>.nip.io``, which has no
+    Route 53 records to manage.
+    """
+    dns_host = server_info.get("dns_host")
+    if dns_host and not dns_host.lower().endswith(".nip.io"):
+        return dns_host
+    return None
+
+
+ROUTE_53_ERRORS = (BotoCoreError, ClientError, click.ClickException)
+
+
+def remove_instance_dns_records(dns_host, public_dns_name):
+    """Delete ``dns_host``'s records that point at ``public_dns_name``, best-effort.
+
+    A missing hosted zone or a Route 53 failure is reported as a warning, so
+    that the caller can still stop or terminate the instance.
+    """
+    if dns_host is None:
+        return
+    try:
+        route_53 = get_53_client()
+        zone_ids = filter_zone_ids(get_domain(dns_host), route_53)
+        if not zone_ids:
+            print(
+                f"Warning: No Route 53 hosted zone found for {dns_host}; "
+                "no DNS records were removed."
+            )
+            return
+        remove_dns_records(zone_ids[0], dns_host, route_53, target=public_dns_name)
+    except ROUTE_53_ERRORS as e:
+        logger.warning(
+            f"Could not delete the Route 53 records for {dns_host} ({e}). Delete "
+            f"{dns_host} and *.{dns_host} by hand if they point at {public_dns_name}."
+        )
+
+
 def teardown(region_name, instance_id, public_dns_name, dns_host):
-    logger.info(f"Terminating {instance_id} ({public_dns_name})...")
-    get_ec2_client(region_name).terminate_instances(InstanceIds=[instance_id])
-    dallinger_remove_host(public_dns_name)
-    remove_dns_record(dns_host, remove_dallinger_host=True)
+    """Delete an instance's DNS records, terminate it, and remove its server entries.
+
+    An entry belongs to the instance if it has the instance id saved at
+    provisioning or, for entries without one (older versions), if it is named
+    after ``public_dns_name`` or ``dns_host``. Without ``dns_host``, the DNS
+    host saved in an entry with this instance id is used. Only DNS records
+    pointing at ``public_dns_name`` are deleted. Unreadable server records and
+    Route 53 failures are reported as warnings, and the instance is terminated
+    whatever happens before.
+    """
+    hosts = _configured_hosts_or_warn(
+        f"{instance_id}'s entries are left in place; remove them with "
+        "`dallinger docker-ssh servers remove`."
+    )
+    # Inside the try, so that a malformed entry can't stop the termination.
+    try:
+        owned = [
+            host
+            for host, info in hosts.items()
+            if (
+                info["ec2_instance_id"] == instance_id
+                if info.get("ec2_instance_id")
+                else host in (public_dns_name, dns_host)
+            )
+        ]
+        saved = [
+            route_53_dns_host(hosts[h]) for h in owned if hosts[h].get("ec2_instance_id")
+        ]
+        dns_host = dns_host or next(filter(None, saved), None)
+        remove_instance_dns_records(dns_host, public_dns_name)
+    finally:
+        logger.info(f"Terminating {instance_id} ({public_dns_name})...")
+        get_ec2_client(region_name).terminate_instances(InstanceIds=[instance_id])
+    for host in owned:
+        dallinger_remove_host(host)
     logger.info(f"Termination of {instance_id} complete!")

@@ -126,6 +126,58 @@ def test_dns_check_treats_malformed_hostname_as_unresolved(capsys):
 
 
 @pytest.mark.parametrize(
+    "server_info, dns_host, expected",
+    [
+        ({"host": "lab.example.org"}, None, "lab.example.org"),
+        ({"host": "lab.example.org:2222"}, None, "lab.example.org"),
+        ({"host": "1.2.3.4"}, None, None),
+        ({"host": "1.2.3.4:2222"}, None, None),
+        ({"host": "::1"}, None, None),
+        ({"host": "[::1]:2222"}, None, None),
+        ({"host": "[2001:db8::1]"}, None, None),
+        ({"host": "1.2.3.4", "dns_host": "lab.example.org"}, None, "lab.example.org"),
+        (
+            {"host": "lab.example.org", "dns_host": "saved.example.org"},
+            None,
+            "saved.example.org",
+        ),
+        (
+            {"host": "lab.example.org", "dns_host": "saved.example.org"},
+            "explicit.example.org",
+            "explicit.example.org",
+        ),
+    ],
+)
+def test_resolve_dns_host(server_info, dns_host, expected):
+    assert docker_ssh_module.resolve_dns_host(server_info, dns_host) == expected
+
+
+@pytest.mark.parametrize(
+    "server_info, dns_host, expected",
+    [
+        ({"host": "1.2.3.4", "dns_host": "lab.example.org"}, None, "lab.example.org"),
+        ({"host": "1.2.3.4", "dns_host": "lab.example.org"}, "other.org", "other.org"),
+        ({"host": "lab.example.org:2222"}, None, "lab.example.org"),
+    ],
+)
+def test_classic_hostname_uses_the_explicit_then_saved_dns_host(
+    server_info, dns_host, expected
+):
+    hostname = docker_ssh_module._classic_hostname(server_info, "myapp", None, dns_host)
+    assert hostname == f"myapp.{expected}"
+
+
+@pytest.mark.parametrize("host", ["1.2.3.4:2222", "[2001:db8::1]:2222"])
+def test_ip_server_without_a_dns_host_is_refused(capsys, host):
+    with pytest.raises(click.Abort):
+        docker_ssh_module._classic_hostname({"host": host}, "myapp", None, None)
+    output = capsys.readouterr().out
+    ipv6 = host.startswith("[")
+    assert ("nip.io" in output) != ipv6
+    assert ("classic ingress needs IPv4" in output) == ipv6
+
+
+@pytest.mark.parametrize(
     "ip_addr, ingress, default_ingress, aborts",
     [
         ("172.22.51.95", None, None, True),
@@ -154,7 +206,7 @@ def test_classic_ingress_requires_a_public_server(
             docker_ssh_module._check_classic_ingress_reachable("lab-pc", ingress)
         output = excinfo.value.message
         assert "--ingress cloudflare" in output
-        assert "--host lab-pc:2222 --user ubuntu " in output
+        assert "servers add --host lab-pc:2222 --default-ingress cloudflare`" in output
         assert "--allow-private-ip" in output
     else:
         docker_ssh_module._check_classic_ingress_reachable("lab-pc", ingress)
@@ -216,7 +268,7 @@ def test_servers_add_warns_about_private_network(monkeypatch):
     assert store_host.call_args.args[0]["contact_email"] == "a@b.org"
     assert write_server_files.call_args.kwargs == {"replace": False}
     assert "Warning: lab-pc has a private IP address (10.0.0.1)" in result.output
-    assert "--host lab-pc --user ubuntu --default-ingress cloudflare" in result.output
+    assert "--host lab-pc --default-ingress cloudflare" in result.output
 
 
 def test_servers_add_saves_only_a_valid_contact_email(monkeypatch):
