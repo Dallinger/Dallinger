@@ -303,8 +303,7 @@ def init_db(drop_all=False, bind=engine):
     except ImportError:
         pass
 
-    clear_redis = drop_all and bind is engine
-    if clear_redis:
+    if drop_all and bind is engine:
         try:
             redis_conn.ping()
         except RedisError:
@@ -318,26 +317,12 @@ def init_db(drop_all=False, bind=engine):
     try:
         if drop_all:
             Base.metadata.drop_all(bind=bind)
-        try:
-            if clear_redis:
-                # Cleared before the tables are recreated, so a new session
-                # can't take a reused id and then lose its keys. Imported
-                # here because the store imports this module.
+            if bind is engine:
+                # Imported here because the store imports this module.
                 from dallinger.realtime.store import clear_realtime_sessions
 
                 clear_realtime_sessions()
-        except RedisError:
-            # Fatal because session ids restart at 1 in the new tables, and
-            # runners would resume the stale sessions against them.
-            logger.error(
-                "Could not delete the old real-time sessions from redis after "
-                "dropping the database tables, which are recreated empty. "
-                "Restore redis and rerun this command before accepting "
-                "participants."
-            )
-            raise
-        finally:
-            Base.metadata.create_all(bind=bind)
+        Base.metadata.create_all(bind=bind)
     except OperationalError as err:
         msg = 'password authentication failed for user "dallinger"'
         if msg in str(err):

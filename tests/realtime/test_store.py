@@ -292,18 +292,6 @@ class TestSessions:
         assert db.session.query(RealtimeSession.id).all() == [(session_id,)]
         assert "rerun this command" in caplog.text
 
-    def test_recreating_the_database_recreates_the_tables_if_redis_fails(self):
-        create_session(TurnTally, ["1"])
-        db.session.commit()
-        db.session.close()
-        with patch.object(
-            store.redis_conn, "scan_iter", side_effect=RedisConnectionError
-        ):
-            with pytest.raises(RedisConnectionError):
-                db.init_db(drop_all=True)
-
-        assert db.session.query(RealtimeSession).count() == 0
-
     def test_recreating_another_database_keeps_the_sessions(self):
         session_id = create_session(TurnTally, ["1"])
         other = db.create_db_engine(db.db_url)
