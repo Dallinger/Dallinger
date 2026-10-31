@@ -610,7 +610,27 @@ class TestProlificRecruiter:
             "entry_information": prolific_format,
         }
 
-    def test_on_task_completion__returns_no_event_and_new_status(self, recruiter):
+    @pytest.mark.usefixtures("experiment_dir_merged")
+    @pytest.mark.parametrize(
+        "worker_params, unique_id",
+        [({"PROLIFIC_PID": "W1"}, "W1:A1"), ({}, None), ({"PROLIFIC_PID": "W2"}, None)],
+    )
+    def test_load_participant_returns_unique_id_for_the_prolific_pid(
+        self, a, webapp, recruiter, worker_params, unique_id
+    ):
+        a.participant(recruiter_id="prolific", worker_id="W1", assignment_id="A1")
+
+        with mock.patch(
+            "dallinger.experiment.Experiment.recruiter",
+            new_callable=mock.PropertyMock,
+            return_value=recruiter,
+        ):
+            response = webapp.post(
+                "/load-participant",
+                data={"STUDY_ID": "S1", "SESSION_ID": "A1", **worker_params},
+            )
+
+        assert response.json["participant"].get("unique_id") == unique_id
         assert recruiter.on_task_completion() == {
             "new_status": "recruiter_submission_started",
         }

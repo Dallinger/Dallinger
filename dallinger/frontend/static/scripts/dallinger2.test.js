@@ -180,3 +180,100 @@ describe('identity', function () {
   });
 
 });
+
+describe('recruiterExitRoute', function () {
+  var dlgr;
+
+  beforeEach(function () {
+    global.$ = global.jQuery = require('./jquery-4.0.0.min');
+    window.history.pushState({}, 'Test Title',
+      'test.html?recruiter=hotair&hitId=HHH&assignmentId=AAA&workerId=WWW&mode=debug'
+    );
+    dlgr = require('./dallinger2').dallinger;
+  });
+
+  afterEach(function () {
+    jest.restoreAllMocks();
+    store.clear();
+  });
+
+  test('carries the unique_id along with the participant_id', () => {
+    dlgr.identity.participantId = 7;
+    expect(dlgr.recruiterExitRoute()).toBe(
+      '/recruiter-exit?participant_id=7&unique_id=WWW%3AAAA'
+    );
+  });
+
+  test('keeps the unique_id on a page reached by goToPage', () => {
+    dlgr.identity.participantId = 7;
+    window.history.pushState({}, 'Test Title', 'questionnaire?participant_id=7');
+    jest.resetModules();
+    dlgr = require('./dallinger2').dallinger;
+    expect(dlgr.recruiterExitRoute()).toBe(
+      '/recruiter-exit?participant_id=7&unique_id=WWW%3AAAA'
+    );
+  });
+
+  test('leaves out unique_id when none is stored', () => {
+    window.history.pushState({}, 'Test Title', 'questionnaire?participant_id=7');
+    store.clear();
+    jest.resetModules();
+    dlgr = require('./dallinger2').dallinger;
+    dlgr.identity.participantId = 7;
+    expect(dlgr.recruiterExitRoute()).toBe('/recruiter-exit?participant_id=7');
+  });
+
+  test('is where submitAssignment sends the participant', () => {
+    jest.spyOn(dlgr, 'recruiterExitRoute').mockReturnValue('/exit-sentinel');
+    dlgr.post = jest.fn(() => $.Deferred().resolve().promise());
+    var opener = {location: {pathname: '/ad'}};
+    window.opener = opener;
+    jest.spyOn(window, 'close').mockImplementation(() => {});
+    try {
+      dlgr.submitAssignment();
+    } finally {
+      window.opener = null;
+    }
+    expect(opener.location).toBe('/exit-sentinel');
+  });
+});
+
+describe('loadParticipant', function () {
+  var dlgr;
+
+  beforeEach(function () {
+    global.$ = global.jQuery = require('./jquery-4.0.0.min');
+    window.history.pushState({}, 'Test Title', 'questionnaire?mode=debug');
+    store.clear();
+    jest.resetModules();
+    dlgr = require('./dallinger2').dallinger;
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(function () {
+    jest.restoreAllMocks();
+    store.clear();
+  });
+
+  function loadWith(participant) {
+    dlgr.post = jest.fn(() => $.Deferred().resolve({participant: participant}).promise());
+    return new Promise((resolve) => dlgr.loadParticipant({assignmentId: 'AAA'}).done(resolve));
+  }
+
+  test('stores the unique_id the server returns', async () => {
+    await loadWith({id: 7, assignment_id: 'AAA', unique_id: 'WWW:AAA'});
+    expect(dlgr.identity.uniqueId).toBe('WWW:AAA');
+  });
+
+  test('keeps the stored unique_id when the server returns none', async () => {
+    dlgr.identity.uniqueId = 'WWW:AAA';
+    await loadWith({id: 7, assignment_id: 'AAA'});
+    expect(dlgr.identity.uniqueId).toBe('WWW:AAA');
+  });
+
+  test("clears a stored unique_id that ends with another assignment's id", async () => {
+    dlgr.identity.uniqueId = 'WWW:BBB';
+    await loadWith({id: 7, assignment_id: 'AAA'});
+    expect(dlgr.identity.uniqueId).toBeUndefined();
+  });
+});
