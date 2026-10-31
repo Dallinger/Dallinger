@@ -703,9 +703,8 @@ def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatc
         lambda *args, **kwargs: "pc01.lab.example.org",
     )
     monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
-    monkeypatch.setattr(docker_ssh_module, "Executor", mock.MagicMock())
-    image_client = mock.Mock()
-    monkeypatch.setattr(docker_ssh_module, "_image_docker_client", image_client)
+    executor = mock.MagicMock()
+    monkeypatch.setattr(docker_ssh_module, "Executor", executor)
     monkeypatch.setattr(
         docker_ssh_module, "_host_caddy_apps", lambda executor: ["old", "older"]
     )
@@ -728,8 +727,8 @@ def test_root_domain_deploy_without_a_terminal_lists_destroy_commands(monkeypatc
         )
     assert "Aborted!" not in result.output
     destroy.assert_not_called()
-    # The configured image is neither looked up nor pushed.
-    image_client.assert_not_called()
+    # The configured image is not pulled.
+    assert "docker pull" not in str(executor.mock_calls)
 
 
 def test_get_apps_raises_for_unknown_server(monkeypatch):
@@ -870,16 +869,7 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
     executor = mock.Mock()
     monkeypatch.setattr(docker_ssh_module, "Executor", executor)
     monkeypatch.setattr(docker_ssh_module, "_built_image", build)
-    monkeypatch.setattr(
-        docker_ssh_module,
-        "_image_usable_from_registry",
-        step("registry-image", True),
-    )
-    monkeypatch.setattr(
-        docker_ssh_module,
-        "_image_docker_client",
-        lambda *args: contextlib.nullcontext(),
-    )
+    executor.return_value.run.side_effect = step("server-image", "found\n")
 
     with pytest.raises(click.Abort):
         docker_ssh_module._deploy_in_mode(
@@ -900,7 +890,7 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         "dns-and-server-check",
         "compose-project",
         "confirm",
-        "registry-image",
+        "server-image",
         "destroy",
         "app-slot",
         "build",
@@ -935,10 +925,11 @@ def test_pushed_build_without_base_name_stops_before_the_checks(
 
 
 def _root_domain_deploy(
-    monkeypatch, docker_client=None, server_pull="pulled\n", **overrides
+    monkeypatch, docker_client=None, server_image="found\n", **overrides
 ):
     """Deploy ``registry.example/exp:1`` with --local_build to a server root.
 
+    ``server_image`` is the server's answer to the image check and
     ``overrides`` change the deploy arguments. Returns the deploy and the
     mocks for the root-domain destroy (run after the cleanup's
     ``before_destroy`` hook) and the image build.
@@ -967,7 +958,7 @@ def _root_domain_deploy(
         "_root_domain_preflight_required": lambda *args: True,
         "_check_compose_project_free": mock.Mock(),
         "_check_app_slot": mock.Mock(),
-        "Executor": mock.Mock(return_value=mock.Mock(run=lambda *a, **k: server_pull)),
+        "Executor": mock.Mock(return_value=mock.Mock(run=lambda *a, **k: server_image)),
         "_image_docker_client": lambda *args: contextlib.nullcontext(docker_client),
         "ensure_root_domain_ready": root_domain,
         "_built_image": build,
@@ -984,15 +975,16 @@ def _root_domain_deploy(
     return lambda: docker_ssh_module._deploy_in_mode(**kwargs), destroyed, build
 
 
+@pytest.mark.parametrize("local_build", [False, True])
 def test_configured_image_the_server_cant_pull_stops_before_root_domain_destroy(
-    monkeypatch,
+    monkeypatch, local_build
 ):
-    """With --local_build the registry check is local, so the server pulls too."""
+    """Any failed pull, such as a registry that answers 403, destroys nothing."""
     deploy, destroyed, build = _root_domain_deploy(
-        monkeypatch, mock.Mock(), server_pull=""
+        monkeypatch, mock.Mock(), server_image="", local_build=local_build
     )
 
-    with pytest.raises(click.ClickException, match="can't pull"):
+    with pytest.raises(click.ClickException, match="couldn't find or pull"):
         deploy()
     destroyed.assert_not_called()
 
@@ -1017,35 +1009,25 @@ def test_server_only_deploy_needs_no_base_name_but_a_usable_app_name(
     assert build.call_args.kwargs["app"] == app_name
 
 
-@pytest.mark.parametrize(
-    "registry_error, error, message",
-    [
-        (RuntimeError("down"), click.ClickException, "docker_image_base_name"),
-        ("missing", click.Abort, "Could not find image"),
-    ],
-)
-def test_unusable_configured_image_stops_before_root_domain_destroy(
-    monkeypatch, capsys, registry_error, error, message
+def test_local_build_of_a_missing_configured_image_stops_before_destroy(
+    monkeypatch, capsys
 ):
-    """A missing image, or a rebuild with no base name, destroys nothing."""
     import docker
 
     docker_client = mock.Mock()
-    if registry_error == "missing":
-        registry_error = docker.errors.ImageNotFound("missing")
-        docker_client.images.push.return_value = '{"error": "not found"}\r\n'
-    docker_client.images.get_registry_data.side_effect = registry_error
-
+    docker_client.images.get_registry_data.side_effect = docker.errors.ImageNotFound(
+        "missing"
+    )
+    docker_client.images.push.return_value = '{"error": "not found"}\r\n'
     deploy, destroyed, build = _root_domain_deploy(monkeypatch, docker_client)
 
-    with pytest.raises(error) as raised:
+    with pytest.raises(click.Abort):
         deploy()
-    assert message in str(raised.value) + capsys.readouterr().out
+    assert "Could not find image" in capsys.readouterr().out
     destroyed.assert_not_called()
-    build.assert_not_called()
 
 
-def test_configured_image_on_the_registry_is_reused_without_base_name(monkeypatch):
+def test_configured_image_the_server_has_is_reused_without_base_name(monkeypatch):
     deploy, destroyed, build = _root_domain_deploy(monkeypatch, mock.Mock())
 
     with pytest.raises(click.Abort):

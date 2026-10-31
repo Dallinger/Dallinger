@@ -15,8 +15,8 @@
   `docker_image_base_name` is unset or has no registry or namespace (such
   as `ghcr.io/<you>/<name>` or `<dockerhub-user>/<name>`). Before a
   docker-ssh deploy removes apps to take a server's root domain, it now
-  also checks that a configured `docker_image_name` can be found and that
-  the server can pull it.
+  also stops, destroying nothing, unless the server has or can pull a
+  configured `docker_image_name`.
 - With `docker_image_base_name` unset, `dallinger docker build` now names
   the image after the experiment directory (`My Study` becomes `my-study`)
   instead of failing with a `KeyError`.

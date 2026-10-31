@@ -2492,13 +2492,12 @@ def _built_image(
     *,
     app,
     remove_for_app=None,
-    image_usable=None,
+    image_usable=False,
 ):
     """Yield the experiment image to deploy, building and pushing it if needed.
 
-    Reuses ``docker_image_name`` when the registry has it. ``image_usable``
-    is the result of a lookup the caller already made: ``True`` reuses the
-    image and ``False`` builds without looking it up again. Otherwise
+    Reuses ``docker_image_name`` when the registry has it, or without
+    checking when ``image_usable`` says the caller already did. Otherwise
     assembles the experiment and builds the image, on the server unless
     ``local_build`` is set, and pushes it for a local build or with
     ``push_build``. ``app`` is the deployed app name, which names the image
@@ -2523,11 +2522,7 @@ def _built_image(
         return
 
     with _image_docker_client(server, local_build) as docker_client:
-        if (
-            image_name
-            and image_usable is None
-            and _image_usable_from_registry(docker_client, image_name)
-        ):
+        if image_name and _image_usable_from_registry(docker_client, image_name):
             yield image_name
             return
 
@@ -2919,9 +2914,9 @@ def _deploy_in_mode(
     Building the image can take minutes, so every check that does not need
     the image runs first. The root-domain cleanup, which can destroy apps,
     follows the other checks. Once the user agrees to the cleanup and before
-    it destroys anything, a configured ``docker_image_name`` is looked up in
-    the registry, which pushes a local-only copy, so a missing image, or a
-    rebuild with no base name to push to, stops the deploy first. Only
+    it destroys anything, the server must have or pull a configured
+    ``docker_image_name`` (a local build first pushes a local-only copy);
+    otherwise the deploy stops. Only
     the app-name check comes after the cleanup, since the cleanup can free
     that name; the Compose project check comes before it, since the cleanup
     keeps the data that a clashing name would share.
@@ -2987,26 +2982,28 @@ def _deploy_in_mode(
 
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
     _check_compose_project_free(slot_executor, experiment_id, update)
-    image_usable = None
+    image_usable = False
 
     def check_configured_image():
         nonlocal image_usable
         image = config.get("docker_image_name")
-        with _image_docker_client(server, local_build) as docker_client:
-            image_usable = _image_usable_from_registry(docker_client, image)
-        if image_usable and local_build:
-            # The registry was checked from local Docker, but the server pulls.
-            pulled = slot_executor.run(
-                f"docker pull -q {quote(image)} >/dev/null 2>&1 && echo pulled",
-                raise_=False,
+        if local_build:
+            # Pushes a copy that only local Docker has.
+            with _image_docker_client(server, local_build) as docker_client:
+                _image_usable_from_registry(docker_client, image)
+        quoted = quote(image)
+        found = slot_executor.run(
+            f"{{ docker image inspect {quoted} || docker pull -q {quoted}; }} "
+            ">/dev/null 2>&1 && echo found",
+            raise_=False,
+        )
+        if (found or "").strip() != "found":
+            raise click.ClickException(
+                f"{server} couldn't find or pull {image}, so nothing was "
+                "destroyed. Check the image name and that the server can log "
+                "in to the image's registry."
             )
-            if (pulled or "").strip() != "pulled":
-                raise click.ClickException(
-                    f"{server} can't pull {image}, so nothing was destroyed. "
-                    "Check that the server can log in to the image's registry."
-                )
-        if not image_usable and (push_build or local_build):
-            image_base_name(config, None, _PUSH_OPTIONS)
+        image_usable = True
 
     if takes_root_domain:
         ensure_root_domain_ready(
