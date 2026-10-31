@@ -507,11 +507,13 @@
 
 ### Fixed
 
-- `init_db(drop_all=True)` now recreates the tables before deleting the
-  real-time sessions from redis. Previously, if redis was unreachable, the
-  error left the database with no tables. The redis error is still raised,
-  after an error is logged saying the old sessions weren't deleted, because
-  session ids restart at 1 and those sessions would clash with new ones.
+- `init_db(drop_all=True)` no longer leaves the database with no tables when
+  redis is unreachable. If redis can't be reached at the start, it now
+  raises before dropping anything. If deleting the real-time sessions from
+  redis fails after the drop, the tables are still recreated. In both cases
+  the redis error is raised and the log says to restore redis and rerun the
+  command before accepting participants, because the old sessions would
+  clash with new ones once session ids restart at 1.
 - `dallinger.identity.uniqueId` keeps the participant's value on pages whose
   URL has no `workerId` and `assignmentId`, such as the ones `goToPage()`
   opens. It was set to `"undefined:undefined"` there.
