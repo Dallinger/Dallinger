@@ -13,6 +13,7 @@ from typing import NamedTuple, Union
 
 import psycopg2
 from psycopg2.extensions import TransactionRollbackError
+from redis import RedisError
 from rq import Queue
 from sqlalchemy import Table, create_engine, event
 from sqlalchemy.exc import OperationalError
@@ -301,6 +302,17 @@ def init_db(drop_all=False, bind=engine):
         from dallinger_experiment import experiment  # noqa: F401
     except ImportError:
         pass
+
+    if drop_all and bind is engine:
+        try:
+            redis_conn.ping()
+        except RedisError:
+            logger.error(
+                "Could not reach redis to delete the real-time sessions, so "
+                "the database was left unchanged. Restore redis and rerun "
+                "this command."
+            )
+            raise
 
     try:
         if drop_all:
