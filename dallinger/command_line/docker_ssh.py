@@ -1988,8 +1988,11 @@ def _image_runs_as_ssh_user(executor, image_name):
     from dallinger.docker.tools import RUNS_AS_SSH_USER_LABEL
 
     image = quote(image_name)
+    pull = f"docker pull -q {image} >/dev/null 2>&1"
+    if not _may_be_registry_image(image_name):
+        pull = f"docker image inspect {image} >/dev/null 2>&1 || {pull}"
     label = executor.run(
-        f"docker pull -q {image} >/dev/null 2>&1; docker image inspect -f "
+        f"{pull}; docker image inspect -f "
         f"'{{{{index .Config.Labels \"{RUNS_AS_SSH_USER_LABEL}\"}}}}' {image}",
         raise_=False,
     )
@@ -2000,6 +2003,18 @@ def _image_runs_as_ssh_user(executor, image_name):
         "containers run as root. Rebuild the image to run as the SSH user."
     )
     return False
+
+
+def _may_be_registry_image(image_name):
+    """Return whether ``image_name`` could name an image that a registry updates.
+
+    A name without ``/`` (such as the default ``my-study:<launch id>``)
+    would resolve to an official Docker Hub image, which experiment images
+    never are, so a local copy is current and pulling only asks Docker Hub.
+    Any name with a ``/``, including Docker Hub ``user/repo`` names, may
+    have been pushed, so a local copy may be stale.
+    """
+    return "/" in image_name
 
 
 def _ssh_prefix(ssh_host, ssh_port, ssh_user):
@@ -2246,7 +2261,14 @@ def _manual_removal_commands(name):
     ]
 
 
-def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=None):
+def ensure_root_domain_ready(
+    server,
+    update,
+    new_app=None,
+    delete_data_command=None,
+    before_destroy=None,
+    keep_image=None,
+):
     """Offer to destroy the server's classic apps before a root-domain deploy.
 
     Without a terminal, refuses with the destroy commands to run first. The
@@ -2260,7 +2282,10 @@ def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=N
     data, with ``{app}`` standing for the app name; it defaults to
     ``dallinger docker-ssh destroy … --remove-data``. If an app's name is not
     a valid app name, nothing is destroyed and the error says how to remove
-    that app by hand.
+    that app by hand. ``before_destroy``, if given, is called with no
+    arguments once the user agrees and before any app is destroyed; it can
+    raise to stop the deploy. ``keep_image``, such as the image the deploy
+    reuses, is not removed with the destroyed apps.
     """
     if update:
         return True
@@ -2315,6 +2340,8 @@ def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=N
         default=False,
     ):
         raise click.Abort()
+    if before_destroy is not None:
+        before_destroy()
 
     for name in conflicts:
         print_bold(f"Destroying {name} on server {server}")
@@ -2324,6 +2351,7 @@ def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=N
             keep_data=True,
             delete_data_command=delete_data_command
             and delete_data_command.replace("{app}", name),
+            keep_image=keep_image,
         )
 
     executor = _executor_for_server(server)
@@ -2411,45 +2439,17 @@ def _image_usable_from_registry(docker_client, image_name):
     return True
 
 
-def _build_and_push_image(
-    config, experiment_files, app_name, server, local_build, push_build
-):
-    """Return the experiment image to deploy, building and pushing it if needed."""
-    with _built_image(
-        config, experiment_files, app_name, server, local_build, push_build
-    ) as image_name:
-        return image_name
+_PUSH_OPTIONS = "--push-build or --local_build"
 
 
 @contextmanager
-def _built_image(
-    config,
-    experiment_files,
-    app_name,
-    server,
-    local_build,
-    push_build,
-    *,
-    remove_for_app=None,
-):
-    """Yield the experiment image to deploy, building and pushing it if needed.
+def _image_docker_client(server, local_build):
+    """Yield a client for the Docker daemon that builds the image.
 
-    Reuses ``docker_image_name`` when the registry has it. Otherwise
-    assembles the experiment and builds the image, on the server unless
-    ``local_build`` is set, and pushes it for a local build or with
-    ``push_build``. With ``remove_for_app``, the id of the new app the image
-    is for, an image built here is removed again if the block raises (see
-    ``_remove_aborted_build``).
+    That is the local daemon with ``local_build``, otherwise the server's
+    daemon over SSH.
     """
     import docker
-
-    from dallinger.command_line.docker import push_image
-    from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
-
-    image_name = config.get("docker_image_name", None)
-
-    # If we build locally we have to push the image to the registry
-    push_build = push_build or local_build
 
     # Save any current values from environment so we can restore them
     original_docker_host = os.environ.get("DOCKER_HOST")
@@ -2476,7 +2476,63 @@ def _built_image(
         _ignore_docker_ssh_resource_warnings()
         # Avoid Paramiko by using the system ssh client
         docker_client = docker.from_env(use_ssh_client=True)
+        yield docker_client
+    finally:
+        # Close client first so the SSH connection tears down cleanly
+        if docker_client is not None:
+            try:
+                docker_client.close()
+            except Exception:
+                pass
 
+        # Restore DOCKER_HOST
+        if original_docker_host is None:
+            os.environ.pop("DOCKER_HOST", None)
+        else:
+            os.environ["DOCKER_HOST"] = original_docker_host
+
+
+@contextmanager
+def _built_image(
+    config,
+    experiment_files,
+    app_name,
+    server,
+    local_build,
+    push_build,
+    *,
+    app,
+    remove_for_app=None,
+    image_usable=False,
+):
+    """Yield the experiment image to deploy, building and pushing it if needed.
+
+    Reuses ``docker_image_name`` when the registry has it, or without
+    checking when ``image_usable`` says the caller already did. Otherwise
+    assembles the experiment and builds the image, on the server unless
+    ``local_build`` is set, and pushes it for a local build or with
+    ``push_build``. ``app`` is the deployed app name, which names the image
+    when ``docker_image_base_name`` is unset. With ``remove_for_app``, the id
+    of the new app the image is for, an image built here is removed again if
+    the block raises (see ``_remove_aborted_build``).
+    """
+    from dallinger.command_line.docker import push_image
+    from dallinger.docker.tools import (
+        build_image,
+        docker_tag_from_experiment_id,
+        image_base_name,
+    )
+
+    image_name = config.get("docker_image_name", None)
+
+    # If we build locally we have to push the image to the registry
+    push_build = push_build or local_build
+
+    if image_usable:
+        yield image_name
+        return
+
+    with _image_docker_client(server, local_build) as docker_client:
         if image_name and _image_usable_from_registry(docker_client, image_name):
             yield image_name
             return
@@ -2491,7 +2547,7 @@ def _built_image(
         )
         image_name = build_image(
             tmp_dir,
-            config.get("docker_image_base_name"),
+            image_base_name(config, app, _PUSH_OPTIONS if push_build else None),
             out=Output(),
             image_tag=docker_tag_from_experiment_id(config.get("id")),
             quiet=True,
@@ -2519,19 +2575,6 @@ def _built_image(
                     docker_client, built_image, server, local_build, remove_for_app
                 )
             raise
-    finally:
-        # Close client first so the SSH connection tears down cleanly
-        if docker_client is not None:
-            try:
-                docker_client.close()
-            except Exception:
-                pass
-
-        # Restore DOCKER_HOST
-        if original_docker_host is None:
-            os.environ.pop("DOCKER_HOST", None)
-        else:
-            os.environ["DOCKER_HOST"] = original_docker_host
 
 
 def _remove_aborted_build(docker_client, image_name, server, local_build, app):
@@ -2881,10 +2924,16 @@ def _deploy_in_mode(
 
     Building the image can take minutes, so every check that does not need
     the image runs first. The root-domain cleanup, which can destroy apps,
-    follows the other checks. Only the app-name check comes after it, since
-    the cleanup can free that name; the Compose project check comes before
-    it, since the cleanup keeps the data that a clashing name would share.
+    follows the other checks. Once the user agrees to the cleanup and before
+    it destroys anything, the server must have or pull a configured
+    ``docker_image_name`` (a local build first pushes a local-only copy);
+    otherwise the deploy stops. Only
+    the app-name check comes after the cleanup, since the cleanup can free
+    that name; the Compose project check comes before it, since the cleanup
+    keeps the data that a clashing name would share.
     """
+    from dallinger.docker.tools import image_base_name
+
     if app_name:
         _check_app_name_not_reserved(app_name)
     experiment_files = get_experiment_files(os.getcwd())
@@ -2894,6 +2943,8 @@ def _deploy_in_mode(
         _check_classic_ingress_reachable(server, ingress)
     config = get_config(load=True)
     config_options = _apply_config_options(config, config_options)
+    if (push_build or local_build) and not config.get("docker_image_name", None):
+        image_base_name(config, None, _PUSH_OPTIONS)
 
     run_pre_launch_checks(**locals())
 
@@ -2912,6 +2963,8 @@ def _deploy_in_mode(
     if not APP_NAME_PATTERN.fullmatch(experiment_id):
         raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
     _check_app_name_not_reserved(experiment_id)
+    # A long app id can't name a server-only image; find out before any cleanup.
+    image_base_name(config, experiment_id)
 
     resolved_ingress = _resolve_ingress(server_info, ingress)
     takes_root_domain = False
@@ -2940,12 +2993,46 @@ def _deploy_in_mode(
 
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
     _check_compose_project_free(slot_executor, experiment_id, update)
+    image_usable = False
+
+    def check_configured_image():
+        nonlocal image_usable
+        image = config.get("docker_image_name")
+        quoted = quote(image)
+        check = f"docker image inspect {quoted} || docker pull -q {quoted}"
+        if local_build:
+            # Pushes a copy that only local Docker has, which the server must
+            # then pull rather than reuse an older copy of the same tag.
+            with _image_docker_client(server, local_build) as docker_client:
+                if not _image_usable_from_registry(docker_client, image):
+                    raise click.ClickException(
+                        f"Couldn't confirm that the registry has {image}, so "
+                        "nothing was destroyed."
+                    )
+            check = f"docker pull -q {quoted}"
+        found = slot_executor.run(
+            f"{{ {check}; }} >/dev/null 2>&1 && echo found", raise_=False
+        )
+        if (found or "").strip() != "found":
+            raise click.ClickException(
+                f"{server} couldn't find or pull {image}, so nothing was "
+                "destroyed. Check the image name and that the server can log "
+                "in to the image's registry."
+            )
+        image_usable = True
+
     if takes_root_domain:
         ensure_root_domain_ready(
             server=server,
             update=update,
             new_app=experiment_id,
             delete_data_command=delete_data_command,
+            before_destroy=(
+                check_configured_image
+                if config.get("docker_image_name", None)
+                else None
+            ),
+            keep_image=config.get("docker_image_name", None),
         )
     _check_app_slot(slot_executor, experiment_id, update, resolved_ingress)
 
@@ -2957,7 +3044,9 @@ def _deploy_in_mode(
         server,
         local_build,
         push_build,
+        app=experiment_id,
         remove_for_app=None if update else experiment_id,
+        image_usable=image_usable,
     ) as image_name:
         # Read after the build, which sets a dashboard password if config has none.
         dashboard_user = config.get("dashboard_user", "admin")
@@ -4112,6 +4201,7 @@ def destroy(
     keep_data=False,
     yes=False,
     delete_data_command=None,
+    keep_image=None,
 ):
     """Tear down an experiment run on a server you control via ssh.
 
@@ -4120,6 +4210,7 @@ def destroy(
     another app on the server has the same Docker Compose project name (such
     as MyApp and myapp), destroy only runs if it keeps the data.
     """
+    # ``keep_image`` is for Python callers only: an image not to remove.
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
     if remove_data and keep_data:
@@ -4200,7 +4291,15 @@ def destroy(
         )
 
     if deployed:
-        _tear_down_app(executor, app, server, docker_compose_exists, manifest, ingress)
+        _tear_down_app(
+            executor,
+            app,
+            server,
+            docker_compose_exists,
+            manifest,
+            ingress,
+            keep_image=keep_image,
+        )
     delete_again = (
         delete_data_command
         or f"dallinger docker-ssh destroy --app {app} --server {server} --remove-data"
@@ -4224,8 +4323,13 @@ def destroy(
             )
 
 
-def _tear_down_app(executor, app, server, has_compose, manifest, ingress):
-    """Stop and remove a deployed app, keeping its data volumes and folder."""
+def _tear_down_app(
+    executor, app, server, has_compose, manifest, ingress, keep_image=None
+):
+    """Stop and remove a deployed app, keeping its data volumes and folder.
+
+    Its image is removed too unless another app uses it or it is ``keep_image``.
+    """
     quoted_app = quote(app)
 
     experiment_image = None
@@ -4273,7 +4377,8 @@ def _tear_down_app(executor, app, server, has_compose, manifest, ingress):
                 "Fix the problem and run destroy again."
             )
             raise click.Abort()
-    remove_unshared_experiment_image(executor, experiment_image, except_app=app)
+    if experiment_image != keep_image:
+        remove_unshared_experiment_image(executor, experiment_image, except_app=app)
     executor.run(f"rm -rf ~/dallinger/{quoted_app}/")
     print(f"App {app} removed.")
 

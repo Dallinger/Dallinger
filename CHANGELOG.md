@@ -4,6 +4,25 @@
 
 ### Changed
 
+- `docker_image_base_name` is now optional for `dallinger docker-ssh deploy`
+  and `sandbox` when the image is built on the server and not pushed (the
+  default, without `--push-build` or `--local_build`). The image is then
+  named after the app, e.g. `my-study`. Previously these deploys failed with
+  a `KeyError` when the setting was unset.
+- Commands that build and push a new image (`dallinger docker push`,
+  `dallinger docker deploy`/`sandbox`, and docker-ssh with `--push-build` or
+  `--local_build`) now stop early with a clear `Error:` if
+  `docker_image_base_name` is unset or has no registry or namespace. A
+  valid pushed name looks like `ghcr.io/<you>/<name>` or
+  `<dockerhub-user>/<name>`. When `docker_image_name` is set, a docker-ssh
+  deploy that removes apps to take a server's root domain now first stops,
+  destroying nothing, unless the server has or can pull that image (with
+  `--local_build`, unless the image is confirmed on the registry and the
+  server pulls it), and removing those apps keeps that image.
+- Removed the internal helper `dallinger.command_line.docker.add_image_name`.
+- With `docker_image_base_name` unset, `dallinger docker build` now names
+  the image after the experiment directory (`My Study` becomes `my-study`)
+  instead of failing with a `KeyError`.
 - The bundled demos and the `tests/experiment` fixture now request Python
   3.14 in `.python-version`, the version in Dallinger's Docker images, and
   their `constraints.txt` files are compiled for it.

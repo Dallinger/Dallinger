@@ -56,14 +56,27 @@ Examples:
 Image creation
 **************
 
-Make sure your experiment specifies an ``docker_image_base_name`` for your image in its ``config.txt``.
+To push newly built images to a registry (``dallinger docker push``, a Heroku Docker deploy with
+``dallinger docker deploy`` or ``sandbox``, or a docker-ssh deploy with ``--push-build`` or
+``--local_build``), make sure your experiment specifies a ``docker_image_base_name`` for your
+image in its ``config.txt``. The setting is optional in three cases:
+
+* A docker-ssh deploy that reuses a configured ``docker_image_name``.
+* A ``dallinger docker-ssh deploy`` or ``sandbox`` that builds the image on the server without
+  ``--push-build`` or ``--local_build``. The image is then named after the app, lowercased, with
+  separators that Docker rejects (such as ``..``) replaced by ``-``.
+* ``dallinger docker build``, which names the image after the experiment directory in the same
+  way, also replacing spaces and other characters that Docker rejects (``My Study`` becomes
+  ``my-study``).
+
 The specified ``docker_image_base_name`` should include the docker registry you want to use and
 the destination where the docker image should be pushed.
 The ``bartlett1932`` experiment, for instance, has it set to ``ghcr.io/dallinger/dallinger/bartlett1932``
 to push to the Github container registry.
 
-After a succesful deployment dallinger will add the ``docker_image_name`` parameter to the experiment
-``config.txt`` file. It will be used in subsequent experiment deployments to guarantee repeatability.
+To reuse a pushed image in later deployments and guarantee repeatability, set ``docker_image_name``
+to that image in the experiment ``config.txt``. This applies to registry images only, not to images
+that a docker-ssh deploy builds on the server without pushing.
 
 In the experiment directory, run
 

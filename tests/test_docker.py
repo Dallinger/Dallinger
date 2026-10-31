@@ -162,44 +162,25 @@ def test_get_docker_compose_yml_env_vars_escaping():
     )
 
 
-def test_add_image_name(tempdir):
-    from dallinger.command_line.docker import add_image_name
+@pytest.mark.parametrize("in_exp_config", [False, True])
+def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path, in_exp_config):
+    """The base name can come from the config or from ``exp_config``."""
+    from dallinger.docker.tools import image_base_name
 
-    file = Path(tempdir) / "test.txt"
-
-    file.write_text("")
-    add_image_name(str(file), "foobar")
-    assert "docker_image_name = foobar" in file.read_text()
-
-    file.write_text("\ndocker_image_name = old_image_name\n")
-    add_image_name(str(file), "new_image_name")
-    assert "old_image_name" not in file.read_text()
-    assert "docker_image_name = new_image_name" in file.read_text()
-
-    file.write_text(
-        "foo = bar\ndocker_image_base_name = the_base_image_name\nbar = foo"
-    )
-    add_image_name(str(file), "foobar_image")
-    assert (
-        file.read_text()
-        == "foo = bar\ndocker_image_base_name = the_base_image_name\ndocker_image_name = foobar_image\nbar = foo"
-    )
-
-
-def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
     docker_cli = importlib.import_module("dallinger.command_line.docker")
 
     class StopAfterPush(Exception):
         pass
 
+    base_name = {"docker_image_base_name": "registry/exp"}
     config = mock.Mock()
     config.get.side_effect = lambda key, default=None: {
         "mode": "debug",
-        "docker_image_base_name": "registry/exp",
         "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        **({} if in_exp_config else base_name),
     }.get(key, default)
 
-    fake_tools = mock.Mock()
+    fake_tools = mock.Mock(image_base_name=image_base_name)
     fake_tools.build_image.return_value = "registry/exp:tag"
     fake_tools.docker_tag_from_experiment_id.side_effect = lambda experiment_id: (
         experiment_id
@@ -217,7 +198,11 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
         ) as push_image,
     ):
         with pytest.raises(StopAfterPush):
-            docker_cli.deploy_heroku_docker(log=mock.Mock(), verbose=False)
+            docker_cli.deploy_heroku_docker(
+                log=mock.Mock(),
+                verbose=False,
+                exp_config=base_name if in_exp_config else None,
+            )
 
     setup.assert_called_once()
     fake_tools.build_image.assert_called_once_with(
@@ -228,6 +213,95 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path):
         image_tag="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     )
     push_image.assert_called_once_with("registry/exp:tag")
+
+
+@pytest.fixture
+def docker_cli_without_base_name(tmp_path, monkeypatch):
+    from dallinger.config import Configuration
+
+    docker_cli = importlib.import_module("dallinger.command_line.docker")
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.ready = True
+    (tmp_path / "My Study").mkdir()
+    monkeypatch.chdir(tmp_path / "My Study")
+    monkeypatch.setattr("docker.client.from_env", mock.Mock())
+    monkeypatch.setattr(
+        "dallinger.command_line.utils.verify_package", mock.Mock(return_value=True)
+    )
+    monkeypatch.setattr(docker_cli, "get_config", mock.Mock(return_value=config))
+    monkeypatch.setattr(docker_cli, "get_experiment_files", mock.Mock())
+    monkeypatch.setattr(
+        docker_cli, "setup_experiment", mock.Mock(return_value=("uid", "tmp"))
+    )
+    monkeypatch.setattr(
+        "dallinger.docker.tools.build_image", mock.Mock(return_value="img:tag")
+    )
+    return docker_cli
+
+
+def test_docker_build_names_image_after_directory_without_base_name(
+    docker_cli_without_base_name,
+):
+    from click.testing import CliRunner
+
+    from dallinger.docker import tools
+
+    result = CliRunner().invoke(docker_cli_without_base_name.docker, ["build"])
+
+    assert result.exit_code == 0, result.output
+    assert tools.build_image.call_args.args[1] == "my-study"
+
+
+def test_docker_build_rejects_unusable_directory_name(
+    docker_cli_without_base_name, tmp_path, monkeypatch
+):
+    from click.testing import CliRunner
+
+    (tmp_path / "---").mkdir()
+    monkeypatch.chdir(tmp_path / "---")
+
+    result = CliRunner().invoke(docker_cli_without_base_name.docker, ["build"])
+
+    assert result.exit_code == 1
+    assert "Can't make a Docker image name" in result.output
+    docker_cli_without_base_name.setup_experiment.assert_not_called()
+
+
+@pytest.mark.parametrize("empty", [False, True])
+def test_docker_push_needs_base_name(docker_cli_without_base_name, empty):
+    from click.testing import CliRunner
+
+    from dallinger.docker import tools
+
+    if empty:
+        docker_cli_without_base_name.get_config().extend({"docker_image_base_name": ""})
+    result = CliRunner().invoke(docker_cli_without_base_name.docker, ["push"])
+
+    assert result.exit_code == 1
+    assert "(dallinger docker push)" in result.output
+    assert "docker_image_base_name = " in result.output
+    docker_cli_without_base_name.setup_experiment.assert_not_called()
+    tools.build_image.assert_not_called()
+
+
+def test_heroku_docker_deploy_needs_base_name(
+    docker_cli_without_base_name, monkeypatch
+):
+    from click.testing import CliRunner
+
+    from dallinger.docker import tools
+
+    for name in ("push_image", "run_pre_launch_checks"):
+        monkeypatch.setattr(docker_cli_without_base_name, name, mock.Mock())
+
+    result = CliRunner().invoke(docker_cli_without_base_name.docker, ["sandbox"])
+
+    assert result.exit_code == 1
+    assert "(dallinger docker deploy/sandbox)" in result.output
+    docker_cli_without_base_name.run_pre_launch_checks.assert_not_called()
+    docker_cli_without_base_name.setup_experiment.assert_not_called()
+    tools.build_image.assert_not_called()
 
 
 def get_yaml(config, ingress="classic"):
