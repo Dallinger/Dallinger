@@ -492,9 +492,11 @@
 ### Changed
 
 - `dallinger ec2 stop`, `start` and `teardown` now use the DNS host saved when
-  the instance was provisioned, so they no longer need `--dns-host`. They
-  delete only the Route 53 records that point at that instance, and leave saved
-  `<ip>.nip.io` names alone. If Route 53 fails or the saved docker-ssh server
+  the instance was provisioned, so they no longer need `--dns-host` (instances
+  provisioned by older Dallinger versions still do). `stop` and `teardown`
+  delete only the Route 53 records that point at that instance, and `start`
+  points the saved names at the new hostname; saved `<ip>.nip.io` names are
+  left alone. If Route 53 fails or the saved docker-ssh server
   entries can't be read, they warn and say what to fix by hand, and teardown
   still terminates the instance. A classic-ingress deploy to a server
   registered by IPv6 address without a DNS host now says that classic ingress
