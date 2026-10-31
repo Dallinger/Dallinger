@@ -2428,27 +2428,7 @@ def _image_usable_from_registry(docker_client, image_name):
     return True
 
 
-def _image_base_name(config, app, push):
-    """Return the repository name for the image a deploy of ``app`` builds.
-
-    See :func:`dallinger.docker.tools.image_base_name`; ``push`` says
-    whether the image will be pushed to a registry.
-    """
-    from dallinger.docker.tools import image_base_name
-
-    return image_base_name(
-        config, app, "--push-build or --local_build" if push else None
-    )
-
-
-def _build_and_push_image(
-    config, experiment_files, app_name, server, local_build, push_build, app=None
-):
-    """Return the experiment image to deploy, building and pushing it if needed."""
-    with _built_image(
-        config, experiment_files, app_name, server, local_build, push_build, app=app
-    ) as image_name:
-        return image_name
+_PUSH_OPTIONS = "--push-build or --local_build"
 
 
 @contextmanager
@@ -2510,7 +2490,7 @@ def _built_image(
     local_build,
     push_build,
     *,
-    app=None,
+    app,
     remove_for_app=None,
     image_usable=None,
 ):
@@ -2518,16 +2498,20 @@ def _built_image(
 
     Reuses ``docker_image_name`` when the registry has it. ``image_usable``
     is the result of a lookup the caller already made: ``True`` reuses the
-    image and ``False`` builds without looking it up again. Otherwise assembles the experiment and builds the image, on the server
-    unless ``local_build`` is set, and pushes it for a local build or with
+    image and ``False`` builds without looking it up again. Otherwise
+    assembles the experiment and builds the image, on the server unless
+    ``local_build`` is set, and pushes it for a local build or with
     ``push_build``. ``app`` is the deployed app name, which names the image
-    when ``docker_image_base_name`` is unset; it defaults to ``app_name``,
-    then to the launch id. With ``remove_for_app``, the id of the new app the
-    image is for, an image built here is removed again if the block raises
-    (see ``_remove_aborted_build``).
+    when ``docker_image_base_name`` is unset. With ``remove_for_app``, the id
+    of the new app the image is for, an image built here is removed again if
+    the block raises (see ``_remove_aborted_build``).
     """
     from dallinger.command_line.docker import push_image
-    from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
+    from dallinger.docker.tools import (
+        build_image,
+        docker_tag_from_experiment_id,
+        image_base_name,
+    )
 
     image_name = config.get("docker_image_name", None)
 
@@ -2557,7 +2541,7 @@ def _built_image(
         )
         image_name = build_image(
             tmp_dir,
-            _image_base_name(config, app or app_name or config.get("id"), push_build),
+            image_base_name(config, app, _PUSH_OPTIONS if push_build else None),
             out=Output(),
             image_tag=docker_tag_from_experiment_id(config.get("id")),
             quiet=True,
@@ -2942,6 +2926,8 @@ def _deploy_in_mode(
     that name; the Compose project check comes before it, since the cleanup
     keeps the data that a clashing name would share.
     """
+    from dallinger.docker.tools import image_base_name
+
     if app_name:
         _check_app_name_not_reserved(app_name)
     experiment_files = get_experiment_files(os.getcwd())
@@ -2952,7 +2938,7 @@ def _deploy_in_mode(
     config = get_config(load=True)
     config_options = _apply_config_options(config, config_options)
     if (push_build or local_build) and not config.get("docker_image_name", None):
-        _image_base_name(config, None, push=True)
+        image_base_name(config, None, _PUSH_OPTIONS)
 
     run_pre_launch_checks(**locals())
 
@@ -2971,10 +2957,6 @@ def _deploy_in_mode(
     if not APP_NAME_PATTERN.fullmatch(experiment_id):
         raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
     _check_app_name_not_reserved(experiment_id)
-    if not config.get("docker_image_name", None):
-        # Check a server-only name before the root-domain cleanup, which can
-        # destroy apps.
-        _image_base_name(config, experiment_id, push_build or local_build)
 
     resolved_ingress = _resolve_ingress(server_info, ingress)
     takes_root_domain = False
@@ -3011,8 +2993,8 @@ def _deploy_in_mode(
             image_usable = _image_usable_from_registry(
                 docker_client, config.get("docker_image_name")
             )
-        if not image_usable:
-            _image_base_name(config, experiment_id, push_build or local_build)
+        if not image_usable and (push_build or local_build):
+            image_base_name(config, None, _PUSH_OPTIONS)
 
     if takes_root_domain:
         ensure_root_domain_ready(

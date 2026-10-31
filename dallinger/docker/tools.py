@@ -548,20 +548,28 @@ def image_base_name(config, name, pushed_by=None):
     Raises
     ------
     click.ClickException
-        If ``docker_image_base_name`` is unset and the image is pushed, since
-        only the user knows which registry to push to, or ``name`` gives an
-        empty or overlong (over 255 characters) repository name.
+        If the image is pushed and ``docker_image_base_name`` is unset or
+        has no ``/``, since only the user knows which registry or namespace
+        to push to, or ``name`` gives an empty or overlong (over 255
+        characters) repository name.
     """
     base_name = config.get("docker_image_base_name", None)
+    if pushed_by and not (base_name and "/" in base_name):
+        problem = (
+            f"docker_image_base_name = {base_name} has no registry or namespace"
+            if base_name
+            else "docker_image_base_name is not set"
+        )
+        raise click.ClickException(
+            f"{problem}. Pushing the image to a registry ({pushed_by}) needs "
+            "it to name the registry or namespace and repository, for example "
+            "in config.txt:\n"
+            "    docker_image_base_name = ghcr.io/<github-user>/<experiment>\n"
+            "or, for Docker Hub:\n"
+            "    docker_image_base_name = <dockerhub-user>/<experiment>"
+        )
     if base_name:
         return base_name
-    if pushed_by:
-        raise click.ClickException(
-            "docker_image_base_name is not set. Pushing the image to a registry "
-            f"({pushed_by}) needs it to name the registry and repository, for "
-            "example in config.txt:\n"
-            "    docker_image_base_name = ghcr.io/<github-user>/<experiment>"
-        )
 
     def separator(match):
         run = match.group()

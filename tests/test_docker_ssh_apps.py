@@ -911,101 +911,106 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
         assert "delete_data_command" in {param.name for param in command.params}
 
 
-@pytest.mark.parametrize(
-    "build_option, image_name, registry",
-    [
-        ("push_build", None, None),
-        ("local_build", None, None),
-        (None, None, None),
-        ("local_build", "registry.example/exp:1", "found"),
-        ("local_build", "registry.example/exp:1", "down"),
-        (None, "registry.example/exp:1", "missing"),
-    ],
-)
-def test_image_base_name_and_configured_image_are_checked_before_cleanup(
-    monkeypatch, capsys, build_option, image_name, registry
+@pytest.mark.parametrize("build_option", ["push_build", "local_build"])
+def test_pushed_build_without_base_name_stops_before_the_checks(
+    monkeypatch, build_option
 ):
-    """Deploys that can't get an image stop before the root-domain cleanup.
-
-    Without ``docker_image_name``, a pushed build with no base name stops
-    before the pre-launch checks, and a server-only build reaches the
-    cleanup and the build. With ``docker_image_name``, the registry is
-    consulted before the cleanup destroys anything: an image it has is
-    reused without a base name; if it can't be checked, a pushed rebuild
-    stops for the missing base name; and an image that can't be found at
-    all aborts.
-    """
-    import docker
-
     config = Configuration()
     config._reset(register_defaults=True)
     config.ready = True
-    destroyed = mock.Mock()
-
-    def root_domain(before_destroy, **kwargs):
-        if before_destroy:
-            before_destroy()
-        destroyed()
-
-    build = mock.Mock(side_effect=click.Abort)
-    docker_client = mock.Mock()
-    if registry == "down":
-        docker_client.images.get_registry_data.side_effect = RuntimeError("down")
-    elif registry == "missing":
-        docker_client.images.get_registry_data.side_effect = (
-            docker.errors.ImageNotFound("missing")
-        )
-        docker_client.images.push.return_value = '{"error": "not found"}\r\n'
-    monkeypatch.setattr(
-        docker_ssh_module,
-        "_image_docker_client",
-        lambda *args: contextlib.nullcontext(docker_client),
-    )
+    pre_launch_checks = mock.Mock()
     monkeypatch.setattr(
         docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example.org"}}
     )
     monkeypatch.setattr(docker_ssh_module, "_ipv4_addresses", lambda host: [])
     monkeypatch.setattr(docker_ssh_module, "get_config", lambda load: config)
     monkeypatch.setattr(docker_ssh_module, "get_experiment_files", lambda path: None)
-    pre_launch_checks = mock.Mock()
     monkeypatch.setattr(docker_ssh_module, "run_pre_launch_checks", pre_launch_checks)
-    monkeypatch.setattr(docker_ssh_module, "ensure_root_domain_ready", root_domain)
-    monkeypatch.setattr(docker_ssh_module, "_built_image", build)
-    monkeypatch.setattr(docker_ssh_module, "_server_tls", mock.Mock())
+
+    with pytest.raises(click.ClickException, match="docker_image_base_name"):
+        docker_ssh_module._deploy_in_mode(
+            **_deploy_kwargs(server="lab", **{build_option: True})
+        )
+    pre_launch_checks.assert_not_called()
+
+
+def _root_domain_deploy(monkeypatch, docker_client):
+    """Deploy ``registry.example/exp:1`` with --local_build to a server root.
+
+    Returns the deploy and the mocks for the root-domain destroy (run after
+    the cleanup's ``before_destroy`` hook) and the image build.
+    """
+    config = Configuration()
+    config._reset(register_defaults=True)
+    config.ready = True
+    destroyed = mock.Mock()
+    build = mock.Mock(side_effect=click.Abort)
+
+    def root_domain(before_destroy, **kwargs):
+        before_destroy()
+        destroyed()
+
     monkeypatch.setattr(
-        docker_ssh_module,
-        "_classic_preflight",
-        mock.Mock(return_value="lab.example.org"),
+        docker_ssh_module, "CONFIGURED_HOSTS", {"lab": {"host": "lab.example.org"}}
     )
-    for name in ("_check_compose_project_free", "_check_app_slot"):
-        monkeypatch.setattr(docker_ssh_module, name, mock.Mock())
-    monkeypatch.setattr(docker_ssh_module, "Executor", mock.Mock())
+    for name, value in {
+        "_ipv4_addresses": lambda host: [],
+        "get_config": lambda load: config,
+        "get_experiment_files": lambda path: None,
+        "run_pre_launch_checks": mock.Mock(),
+        "_server_tls": mock.Mock(),
+        "_classic_preflight": mock.Mock(return_value="lab.example.org"),
+        "_check_compose_project_free": mock.Mock(),
+        "_check_app_slot": mock.Mock(),
+        "Executor": mock.Mock(),
+        "_image_docker_client": lambda *args: contextlib.nullcontext(docker_client),
+        "ensure_root_domain_ready": root_domain,
+        "_built_image": build,
+    }.items():
+        monkeypatch.setattr(docker_ssh_module, name, value)
     kwargs = _deploy_kwargs(
         server="lab",
-        config_options=(("docker_image_name", image_name),) if image_name else (),
-        **({build_option: True} if build_option else {}),
+        local_build=True,
+        config_options=(("docker_image_name", "registry.example/exp:1"),),
     )
+    return lambda: docker_ssh_module._deploy_in_mode(**kwargs), destroyed, build
 
-    if registry == "missing":
-        with pytest.raises(click.Abort):
-            docker_ssh_module._deploy_in_mode(**kwargs)
-        assert "Could not find image" in capsys.readouterr().out
-        destroyed.assert_not_called()
-        return
-    if build_option is None or registry == "found":
-        with pytest.raises(click.Abort):
-            docker_ssh_module._deploy_in_mode(**kwargs)
-        pre_launch_checks.assert_called_once()
-        destroyed.assert_called_once()
-        assert build.call_args.kwargs["image_usable"] == (
-            True if registry == "found" else None
-        )
-        return
-    with pytest.raises(click.ClickException, match="docker_image_base_name"):
-        docker_ssh_module._deploy_in_mode(**kwargs)
-    assert pre_launch_checks.called == bool(image_name)
+
+@pytest.mark.parametrize(
+    "registry_error, error, message",
+    [
+        (RuntimeError("down"), click.ClickException, "docker_image_base_name"),
+        ("missing", click.Abort, "Could not find image"),
+    ],
+)
+def test_unusable_configured_image_stops_before_root_domain_destroy(
+    monkeypatch, capsys, registry_error, error, message
+):
+    """A missing image, or a rebuild with no base name, destroys nothing."""
+    import docker
+
+    docker_client = mock.Mock()
+    if registry_error == "missing":
+        registry_error = docker.errors.ImageNotFound("missing")
+        docker_client.images.push.return_value = '{"error": "not found"}\r\n'
+    docker_client.images.get_registry_data.side_effect = registry_error
+
+    deploy, destroyed, build = _root_domain_deploy(monkeypatch, docker_client)
+
+    with pytest.raises(error) as raised:
+        deploy()
+    assert message in str(raised.value) + capsys.readouterr().out
     destroyed.assert_not_called()
     build.assert_not_called()
+
+
+def test_configured_image_on_the_registry_is_reused_without_base_name(monkeypatch):
+    deploy, destroyed, build = _root_domain_deploy(monkeypatch, mock.Mock())
+
+    with pytest.raises(click.Abort):
+        deploy()
+    destroyed.assert_called_once()
+    assert build.call_args.kwargs["image_usable"] is True
 
 
 def test_cloudflare_deploy_without_api_token_stops_before_the_build(monkeypatch):
@@ -1067,7 +1072,6 @@ def test_deploy_reports_a_missing_config_option_file(monkeypatch, tmp_path):
     [
         ("base-image", "My_Study", "base-image"),
         (None, "My_Study", "my_study"),
-        (None, None, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
     ],
 )
 def test_docker_ssh_build_assembles_the_validated_source(
@@ -1096,15 +1100,10 @@ def test_docker_ssh_build_assembles_the_validated_source(
             "dallinger.docker.tools.build_image", return_value="built:image"
         ) as build_image,
     ):
-        image_name = docker_ssh_module._build_and_push_image(
-            config,
-            source,
-            None,
-            "test-server",
-            local_build=False,
-            push_build=False,
-            app=app,
-        )
+        with docker_ssh_module._built_image(
+            config, source, None, "test-server", False, False, app=app
+        ) as image_name:
+            pass
 
     assert image_name == "built:image"
     assert setup.call_args.kwargs["experiment_files"] is source
@@ -1142,9 +1141,10 @@ def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path):
             docker_cli, "push_image", return_value="pushed:image"
         ) as push_image,
     ):
-        image_name = docker_ssh_module._build_and_push_image(
-            config, source, None, "test-server", local_build=True, push_build=False
-        )
+        with docker_ssh_module._built_image(
+            config, source, None, "test-server", True, False, app="app"
+        ) as image_name:
+            pass
 
     assert image_name == "pushed:image"
     setup.assert_called_once()

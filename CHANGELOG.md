@@ -7,27 +7,18 @@
 - `docker_image_base_name` is now optional for `dallinger docker-ssh deploy`
   and `sandbox` when the image is built on the server and not pushed (the
   default, without `--push-build` or `--local_build`). The image is then
-  named after the app, lowercased, with separators that Docker rejects
-  (such as `..` or `._`) replaced by `-` (e.g. `my-study:<launch id>`). Deploys
-  that build and push a new image (rather than reuse a configured
-  `docker_image_name`) still need the setting and now stop with an `Error:`
-  line naming it before building or changing anything on the server. A
-  configured `docker_image_name` that can't be found now also stops the
-  deploy before the root-domain cleanup.
-  Previously every docker-ssh build stopped with a `KeyError` after
-  assembling the experiment when the setting was unset. When such an image
-  (any name without a `/`) is already on the server, docker-ssh no longer
-  tries to pull it from Docker Hub first, so a slow or unreachable Docker
-  Hub no longer delays the deploy. Likewise, with the setting unset,
-  `dallinger docker build` now names the image after the experiment
-  directory, made valid the same way, with spaces and other characters
-  Docker rejects also replaced by `-` (e.g. `My Study` becomes `my-study`),
-  and `dallinger docker push` stops with the same `Error:` line before
-  assembling the experiment; both previously failed with a `KeyError`.
-  Heroku Docker deploys (`dallinger docker deploy`/`sandbox`) now stop the
-  same way before the recruiter pre-launch checks; previously an unset setting failed with
-  a `KeyError` after assembling (and, for live deploys, registering) the
-  experiment, and an empty one tried to push the bare directory name.
+  named after the app, e.g. `my-study`. Previously these deploys failed with
+  a `KeyError` when the setting was unset.
+- Commands that build and push a new image (`dallinger docker push`,
+  `dallinger docker deploy`/`sandbox`, and docker-ssh with `--push-build` or
+  `--local_build`) now stop early with a clear `Error:` if
+  `docker_image_base_name` is unset or has no registry or namespace (such
+  as `ghcr.io/<you>/<name>` or `<dockerhub-user>/<name>`). Before a
+  docker-ssh deploy removes apps to take a server's root domain, it now
+  also checks that a configured `docker_image_name` can be found.
+- With `docker_image_base_name` unset, `dallinger docker build` now names
+  the image after the experiment directory (`My Study` becomes `my-study`)
+  instead of failing with a `KeyError`.
 - Cloudflare Tunnel deployments now use cloudflared 2026.10.4, including the
   eMudhra certificate-compromise mitigation. Existing connectors require a
   separate image update and restart.
