@@ -9,9 +9,7 @@ from .lib.ec2 import (
     _get_instance_row_from,
     check_server_pem_matches_key_pair,
     create_dns_records,
-    get_instances,
     get_pem_path,
-    has_route_53_zone,
     increase_storage,
     list_instance_types,
     list_instances,
@@ -287,22 +285,13 @@ def ec2__start(ctx, dns, name, region, dns_host):
 
     saved = saved_server(instance_id)
     user = saved.get("user", "ubuntu")
+    dns_host = dns_host or route_53_dns_host(saved)
 
     instance_row = wait_for_instance_state_change(region, name, "running")
     host = instance_row["public_dns_name"]
-    saved_dns_host = route_53_dns_host(saved)
     try:
-        if not dns_host and saved_dns_host:
-            if has_route_53_zone(saved_dns_host):
-                dns_host = saved_dns_host
-            else:
-                print(
-                    f"Warning: No Route 53 hosted zone found for {saved_dns_host}; "
-                    "its DNS records were not updated."
-                )
         create_dns_records(dns_host, user, host)
     except ROUTE_53_ERRORS as e:
-        dns_host = dns_host or saved_dns_host
         print(
             f"Warning: Could not update the Route 53 records for {dns_host} ({e}). "
             f"Point {dns_host} and *.{dns_host} at {host} by hand."
@@ -344,13 +333,9 @@ def ec2__restart(ctx, dns, name, region):
 def ec2__teardown(ctx, dns, name, region, dns_host):
     """Teardown an EC2 instance"""
     _validate_instance_selector(name, dns)
-    instance_id = _get_instance_id_from(
+    instance_row = _get_instance_row_from(
         region_name=region, instance_name=name, public_dns_name=dns
     )
-    if dns is None:
-        dns = (
-            get_instances(region)
-            .query(f"instance_id == '{instance_id}'")
-            .iloc[0]["public_dns_name"]
-        )
-    teardown(region, instance_id, dns, dns_host)
+    teardown(
+        region, instance_row["instance_id"], instance_row["public_dns_name"], dns_host
+    )

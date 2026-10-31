@@ -252,7 +252,10 @@ class TestRemoveDnsRecords:
         assert _deleted_names(route_53) == ["exp.example.com."]
         output = capsys.readouterr().out
         assert "*.exp.example.com., which points at ec2-5-6-7-8" in output
-        assert "may be stale" in output
+        assert (
+            "If no running server uses ec2-5-6-7-8.compute.amazonaws.com, delete "
+            "the record by hand." in output
+        )
         assert "exp.example.com., which points at lb.example.net" in output
 
     def test_finds_records_beyond_the_first_page(self):
@@ -770,7 +773,7 @@ def test_teardown_without_instance_id_or_hosted_zone_does_not_guess(capsys):
         "exp.nowhere.org": {"host": "exp.nowhere.org", "ec2_instance_id": "i-999"},
     }
     removed, deleted_records, _ = _teardown(
-        None, "exp.nowhere.org", [_record("exp.nowhere.org.")], hosts=hosts
+        "i-123", "exp.nowhere.org", [_record("exp.nowhere.org.")], hosts=hosts
     )
     assert removed == []
     assert deleted_records == []
@@ -789,7 +792,7 @@ SAVED_ALICE = {
 }
 
 
-def _run_start_or_stop(command, zone=True, hosts=SAVED_ALICE, dns_error=None, args=()):
+def _run_start_or_stop(command, hosts=SAVED_ALICE, dns_error=None, args=()):
     """Run ``ec2 start`` (by ``--dns``) or ``ec2 stop`` (by ``--name``) with fakes.
 
     With ``hosts=None``, the saved server records are read from disk.
@@ -807,7 +810,6 @@ def _run_start_or_stop(command, zone=True, hosts=SAVED_ALICE, dns_error=None, ar
     mocks = {}
     with (
         mock.patch.object(ec2, "get_configured_hosts", side_effect=read_hosts),
-        mock.patch.object(ec2_cli, "has_route_53_zone", return_value=zone),
         mock.patch.object(ec2_cli, "_get_instance_row_from", return_value=stopped),
         mock.patch.object(
             ec2_cli, "wait_for_instance_state_change", side_effect=[stopped, running]
@@ -826,14 +828,12 @@ def _run_start_or_stop(command, zone=True, hosts=SAVED_ALICE, dns_error=None, ar
     return result, mocks
 
 
-@pytest.mark.parametrize("zone", [True, False])
-def test_ec2_start_uses_the_saved_dns_host(zone):
-    result, mocks = _run_start_or_stop("start", zone)
+def test_ec2_start_uses_the_saved_dns_host():
+    _, mocks = _run_start_or_stop("start")
     assert [call.args[1] for call in mocks["wait"].call_args_list] == ["alice"] * 2
     mocks["create_dns_records"].assert_called_once_with(
-        "alice.example.org" if zone else None, "alice", AWS_HOSTNAME
+        "alice.example.org", "alice", AWS_HOSTNAME
     )
-    assert ("No Route 53 hosted zone found" in result.output) != zone
 
 
 def test_ec2_stop_uses_the_saved_dns_host():
@@ -893,8 +893,6 @@ def test_ec2_start_and_stop_run_when_server_records_are_unreadable(
 def test_ec2_stop_deletes_only_this_instances_records_and_still_stops(
     dns_error, caplog
 ):
-    import importlib
-
     from click.testing import CliRunner
 
     from dallinger.command_line.lib import ec2
