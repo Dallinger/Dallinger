@@ -166,9 +166,9 @@ You can configure different amounts of storage or different instance types::
 
 Like ``dallinger docker-ssh servers add``, ``provision`` then starts the
 server's shared Caddy, Postgres and Dozzle services and prints the log viewer
-login once. It saves the server under its AWS hostname and, with
-``--dns-host``, under that name too. Both records keep the DNS host, so a
-deploy to either needs no ``--dns-host``. ``--server <aws_hostname>``
+login once. It saves a docker-ssh server entry under the instance's AWS
+hostname and, with ``--dns-host``, another under that name. Both entries keep
+the DNS host, so a deploy to either needs no ``--dns-host``. ``--server <aws_hostname>``
 connects over SSH straight away; ``--server <subdomain>.my-experiments.org``
 (or ``--server <subdomain>``) needs that name to resolve on your computer
 first. A classic deploy checks that the app's
@@ -224,11 +224,13 @@ rarely finds it; use ``--name``.
 ``stop`` deletes the instance's ``<subdomain>.my-experiments.org`` and
 ``*.<subdomain>.my-experiments.org`` records, and ``start`` points them at the
 instance's new AWS hostname. Both use the DNS host saved when the instance was
-provisioned with ``--dns-host``; for an instance provisioned without one, or
-by an older Dallinger, pass ``--dns-host <subdomain>.my-experiments.org``.
-``stop`` deletes only records that point at the instance, and if Route 53
-cleanup fails, it warns and still stops the instance. ``start`` skips a saved
-DNS host with a warning if it is not in a Route 53 hosted zone.
+provisioned with ``--dns-host``. For an instance provisioned by an older
+Dallinger, or for Route 53 records you made by hand, pass
+``--dns-host <subdomain>.my-experiments.org``. ``stop`` deletes only records
+that point at the instance, and if Route 53 cleanup fails, it warns and still
+stops the instance. If ``start`` can't update the records, for example because
+the DNS host has no Route 53 hosted zone, it warns which records to point at
+the instance by hand.
 
 Or restart a running instance::
 
@@ -254,12 +256,12 @@ Or by the instance's public AWS hostname::
 
     dallinger ec2 teardown --dns <aws_public_hostname> --region <region>
 
-Teardown removes both of the server's records from Dallinger's server list and deletes the
+Teardown removes both of the server's docker-ssh entries and deletes the
 Route 53 records for the ``--dns-host`` it was provisioned with, if they point
-at this instance. It warns about records that point elsewhere (for example a
-record left at an old hostname after ``ec2 stop`` and ``ec2 start``); check
-and delete those by hand. If Route 53 cleanup fails, teardown warns and still
-terminates the instance. Servers provisioned with older Dallinger versions
+at this instance. It keeps records that point elsewhere, which may belong to
+another server, and warns about them; delete one by hand only if no running
+server uses its target. If Route 53 cleanup fails, or the saved entries can't
+be read, teardown warns and still terminates the instance. Servers provisioned with older Dallinger versions
 also need ``--dns-host <subdomain>.my-experiments.org`` to delete the Route 53
 records.
 

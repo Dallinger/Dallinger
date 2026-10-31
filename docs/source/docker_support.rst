@@ -521,11 +521,11 @@ experiments are served under (``--dns-host``):
     dallinger docker-ssh servers add --user $SERVER_USER --host $SERVER_IP --dns-host $SERVER_IP.nip.io --contact-email you@example.org
 
 Experiments are served at subdomains of the server's DNS name, or at the name
-itself for a deploy without ``--app``. That name is the ``--dns-host`` saved
-with the server, for any server, including the records ``dallinger ec2
-provision`` saves. A server added by hostname without a saved DNS host uses its
-hostname. A server added by IP address without one needs ``--dns-host`` on
-every deployment. A ``--dns-host`` on
+itself for a deploy without ``--app``. If a DNS host is saved with the server,
+by ``servers add --dns-host`` or ``dallinger ec2 provision``, that is the
+server's DNS name. Otherwise a server added by hostname uses its hostname, and
+a server added by IP address needs ``--dns-host`` on every deployment. A
+``--dns-host`` on
 ``docker-ssh deploy`` or ``sandbox`` names that app's site instead of the saved
 DNS host.
 

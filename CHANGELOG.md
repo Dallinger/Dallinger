@@ -491,29 +491,14 @@
 
 ### Changed
 
-- `dallinger ec2 provision` saves the instance id with both of the server's
-  records (the AWS hostname and, with `--dns-host`, that name), so
-  `ec2 teardown` removes both records and the instance's Route 53 records
-  without `--dns-host`; it also still removes records registered by older
-  versions under the AWS hostname or an explicit `--dns-host`. Teardown
-  deletes only the Route 53 records that point at the instance, warns about
-  records that point elsewhere, and deletes them before terminating the
-  instance. If Route 53 cleanup fails (including a missing hosted zone), or
-  the saved server records can't be read, it warns and still terminates the
-  instance. `ec2 stop` and `ec2 start` also use the saved DNS host when
-  `--dns-host` is omitted. `stop` deletes only records that point at the
-  instance, with or without `--dns-host`, and still stops the instance if
-  Route 53 cleanup fails. `start` points the records at the instance's new
-  AWS hostname; if Route 53 fails or `--dns-host` has no hosted zone, it
-  warns which records to point there by hand. Both still run, without the saved DNS host, if the saved server
-  records can't be read. A saved `<ip>.nip.io` name is left alone. `ec2 start --dns`
-  no longer fails while waiting for the instance; the docs now recommend
-  `ec2 start --name`, since a stopped instance usually has no AWS hostname.
-- A classic-ingress deploy to a server registered by an IPv6 address without
-  a saved DNS host now says that classic ingress needs IPv4 and suggests
-  `--ingress cloudflare`, instead of suggesting nip.io. The private-network
-  warning's `servers add` command now gives only `--host` and
-  `--default-ingress cloudflare`, as re-adding keeps the saved user.
+- `dallinger ec2 stop`, `start` and `teardown` now use the DNS host saved when
+  the instance was provisioned, so they no longer need `--dns-host`. They
+  delete only the Route 53 records that point at that instance, and leave saved
+  `<ip>.nip.io` names alone. If Route 53 fails or the saved docker-ssh server
+  entries can't be read, they warn and say what to fix by hand, and teardown
+  still terminates the instance. A classic-ingress deploy to a server
+  registered by IPv6 address without a DNS host now says that classic ingress
+  needs IPv4 and suggests `--ingress cloudflare`.
 - Classic-ingress `dallinger docker-ssh deploy`, `sandbox` and `destroy` no
   longer rewrite a server's shared files (`Caddyfile`, `docker-compose.yml`,
   `dozzle-users.yml`) or restart its shared Caddy, Postgres and Dozzle, which
