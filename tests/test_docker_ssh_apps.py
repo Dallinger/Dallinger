@@ -958,7 +958,9 @@ def _root_domain_deploy(
         "_root_domain_preflight_required": lambda *args: True,
         "_check_compose_project_free": mock.Mock(),
         "_check_app_slot": mock.Mock(),
-        "Executor": mock.Mock(return_value=mock.Mock(run=lambda *a, **k: server_image)),
+        "Executor": mock.Mock(
+            return_value=mock.Mock(run=mock.Mock(return_value=server_image))
+        ),
         "_image_docker_client": lambda *args: contextlib.nullcontext(docker_client),
         "ensure_root_domain_ready": root_domain,
         "_built_image": build,
@@ -975,18 +977,33 @@ def _root_domain_deploy(
     return lambda: docker_ssh_module._deploy_in_mode(**kwargs), destroyed, build
 
 
-@pytest.mark.parametrize("local_build", [False, True])
-def test_configured_image_the_server_cant_pull_stops_before_root_domain_destroy(
-    monkeypatch, local_build
+@pytest.mark.parametrize(
+    "local_build, registry_error, message, server_command",
+    [
+        (False, None, "couldn't find or pull", "{ docker image inspect"),
+        # A local build pushed the image, so the server pulls the new copy.
+        (True, None, "couldn't find or pull", "{ docker pull -q"),
+        (True, RuntimeError("403"), "Couldn't confirm", None),
+    ],
+)
+def test_unconfirmed_configured_image_stops_before_root_domain_destroy(
+    monkeypatch, local_build, registry_error, message, server_command
 ):
-    """Any failed pull, such as a registry that answers 403, destroys nothing."""
+    """Any failed check, such as a registry that answers 403, destroys nothing."""
+    docker_client = mock.Mock()
+    docker_client.images.get_registry_data.side_effect = registry_error
     deploy, destroyed, build = _root_domain_deploy(
-        monkeypatch, mock.Mock(), server_image="", local_build=local_build
+        monkeypatch, docker_client, server_image="", local_build=local_build
     )
 
-    with pytest.raises(click.ClickException, match="couldn't find or pull"):
+    with pytest.raises(click.ClickException, match=message):
         deploy()
     destroyed.assert_not_called()
+    run = docker_ssh_module.Executor.return_value.run
+    if server_command:
+        assert run.call_args.args[0].startswith(server_command)
+    else:
+        run.assert_not_called()
 
 
 @pytest.mark.parametrize("app_name", ["my-app", "a" * 256])

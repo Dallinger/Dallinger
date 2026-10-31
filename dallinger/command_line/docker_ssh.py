@@ -2987,15 +2987,20 @@ def _deploy_in_mode(
     def check_configured_image():
         nonlocal image_usable
         image = config.get("docker_image_name")
-        if local_build:
-            # Pushes a copy that only local Docker has.
-            with _image_docker_client(server, local_build) as docker_client:
-                _image_usable_from_registry(docker_client, image)
         quoted = quote(image)
+        check = f"docker image inspect {quoted} || docker pull -q {quoted}"
+        if local_build:
+            # Pushes a copy that only local Docker has, which the server must
+            # then pull rather than reuse an older copy of the same tag.
+            with _image_docker_client(server, local_build) as docker_client:
+                if not _image_usable_from_registry(docker_client, image):
+                    raise click.ClickException(
+                        f"Couldn't confirm that the registry has {image}, so "
+                        "nothing was destroyed."
+                    )
+            check = f"docker pull -q {quoted}"
         found = slot_executor.run(
-            f"{{ docker image inspect {quoted} || docker pull -q {quoted}; }} "
-            ">/dev/null 2>&1 && echo found",
-            raise_=False,
+            f"{{ {check}; }} >/dev/null 2>&1 && echo found", raise_=False
         )
         if (found or "").strip() != "found":
             raise click.ClickException(
