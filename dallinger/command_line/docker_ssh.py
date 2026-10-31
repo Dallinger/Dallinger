@@ -2258,7 +2258,12 @@ def _manual_removal_commands(name):
 
 
 def ensure_root_domain_ready(
-    server, update, new_app=None, delete_data_command=None, before_destroy=None
+    server,
+    update,
+    new_app=None,
+    delete_data_command=None,
+    before_destroy=None,
+    keep_image=None,
 ):
     """Offer to destroy the server's classic apps before a root-domain deploy.
 
@@ -2275,7 +2280,8 @@ def ensure_root_domain_ready(
     a valid app name, nothing is destroyed and the error says how to remove
     that app by hand. ``before_destroy``, if given, is called with no
     arguments once the user agrees and before any app is destroyed; it can
-    raise to stop the deploy.
+    raise to stop the deploy. ``keep_image``, such as the image the deploy
+    reuses, is not removed with the destroyed apps.
     """
     if update:
         return True
@@ -2341,6 +2347,7 @@ def ensure_root_domain_ready(
             keep_data=True,
             delete_data_command=delete_data_command
             and delete_data_command.replace("{app}", name),
+            keep_image=keep_image,
         )
 
     executor = _executor_for_server(server)
@@ -3021,6 +3028,7 @@ def _deploy_in_mode(
                 if config.get("docker_image_name", None)
                 else None
             ),
+            keep_image=config.get("docker_image_name", None),
         )
     _check_app_slot(slot_executor, experiment_id, update, resolved_ingress)
 
@@ -4189,6 +4197,7 @@ def destroy(
     keep_data=False,
     yes=False,
     delete_data_command=None,
+    keep_image=None,
 ):
     """Tear down an experiment run on a server you control via ssh.
 
@@ -4197,6 +4206,7 @@ def destroy(
     another app on the server has the same Docker Compose project name (such
     as MyApp and myapp), destroy only runs if it keeps the data.
     """
+    # ``keep_image`` is for Python callers only: an image not to remove.
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
     if remove_data and keep_data:
@@ -4277,7 +4287,15 @@ def destroy(
         )
 
     if deployed:
-        _tear_down_app(executor, app, server, docker_compose_exists, manifest, ingress)
+        _tear_down_app(
+            executor,
+            app,
+            server,
+            docker_compose_exists,
+            manifest,
+            ingress,
+            keep_image=keep_image,
+        )
     delete_again = (
         delete_data_command
         or f"dallinger docker-ssh destroy --app {app} --server {server} --remove-data"
@@ -4301,8 +4319,13 @@ def destroy(
             )
 
 
-def _tear_down_app(executor, app, server, has_compose, manifest, ingress):
-    """Stop and remove a deployed app, keeping its data volumes and folder."""
+def _tear_down_app(
+    executor, app, server, has_compose, manifest, ingress, keep_image=None
+):
+    """Stop and remove a deployed app, keeping its data volumes and folder.
+
+    Its image is removed too unless another app uses it or it is ``keep_image``.
+    """
     quoted_app = quote(app)
 
     experiment_image = None
@@ -4350,7 +4373,8 @@ def _tear_down_app(executor, app, server, has_compose, manifest, ingress):
                 "Fix the problem and run destroy again."
             )
             raise click.Abort()
-    remove_unshared_experiment_image(executor, experiment_image, except_app=app)
+    if experiment_image != keep_image:
+        remove_unshared_experiment_image(executor, experiment_image, except_app=app)
     executor.run(f"rm -rf ~/dallinger/{quoted_app}/")
     print(f"App {app} removed.")
 

@@ -676,6 +676,7 @@ def test_root_domain_auto_destroy_uses_full_server_name(monkeypatch):
         app="old",
         keep_data=True,
         delete_data_command=None,
+        keep_image=None,
     )
 
     docker_ssh_module._host_caddy_apps.side_effect = [["old"], ["old"]]
@@ -897,6 +898,7 @@ def test_deploy_runs_its_checks_before_building_the_image(monkeypatch):
     ]
     assert root_domain.call_args.kwargs["new_app"] == app_slot.call_args.args[1]
     assert root_domain.call_args.kwargs["delete_data_command"] == "wrapper rm {app}"
+    assert root_domain.call_args.kwargs["keep_image"] == "registry.example/exp:1"
     for command in docker_ssh_module.deploy, docker_ssh_module.sandbox:
         assert "delete_data_command" in {param.name for param in command.params}
 
@@ -1321,11 +1323,14 @@ def _server_with_data(
     own_db="",
     tunnel_token=False,
     server_apps="myapp\n",
+    compose="",
 ):
     commands = []
 
     def run(cmd, raise_=True):
         commands.append(cmd)
+        if cmd == "cat ~/dallinger/myapp/docker-compose.yml":
+            return compose
         if cmd.startswith("ls -1 ~/dallinger/caddy.d"):
             return server_apps
         if cmd.startswith("test -f") and "cloudflare-tunnel-token" in cmd:
@@ -1507,6 +1512,27 @@ def test_declined_root_domain_teardown_skips_before_destroy(monkeypatch):
             "lab", update=False, before_destroy=before_destroy
         )
     before_destroy.assert_not_called()
+
+
+@pytest.mark.parametrize("keep_image", [None, "my-study:1"])
+def test_root_domain_teardown_keeps_the_image_the_deploy_reuses(
+    monkeypatch, keep_image
+):
+    commands = _server_with_data(
+        monkeypatch, compose="services:\n  web:\n    image: my-study:1\n"
+    )
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", mock.Mock())
+    monkeypatch.setattr(
+        docker_ssh_module, "_host_caddy_apps", mock.Mock(side_effect=[["myapp"], []])
+    )
+    monkeypatch.setattr(docker_ssh_module.click, "confirm", lambda *a, **k: True)
+
+    docker_ssh_module.ensure_root_domain_ready(
+        "test-server", update=False, keep_image=keep_image
+    )
+
+    removed = any("docker rmi my-study:1" in command for command in commands)
+    assert removed == (keep_image is None)
 
 
 def test_root_domain_teardown_destroys_nothing_if_an_app_name_is_invalid(
