@@ -533,6 +533,15 @@ experiments are served under (``--dns-host``):
 
     dallinger docker-ssh servers add --user $SERVER_USER --host $SERVER_IP --dns-host $SERVER_IP.nip.io --contact-email you@example.org
 
+Experiments are served at subdomains of the server's DNS name, or at the name
+itself for a deploy without ``--app``. If a DNS host is saved with the server,
+by ``servers add --dns-host`` or ``dallinger ec2 provision``, that is the
+server's DNS name. Otherwise a server added by hostname uses its hostname, and
+a server added by IP address needs ``--dns-host`` on every deployment. A
+``--dns-host`` on
+``docker-ssh deploy`` or ``sandbox`` names that app's site instead of the saved
+DNS host.
+
 The ``server_pem`` configuration will be used automatically for SSH authentication when connecting to the server.
 
 Re-running ``servers add`` for a saved server keeps its saved user, default

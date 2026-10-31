@@ -151,26 +151,24 @@ HIBERNATION_CONTROLLER = abspath_from_egg(
 ).read_text()
 
 
-def _read_controller_image(dockerfile: Path | None) -> str:
-    """Return the image named on the ``FROM`` line of ``Dockerfile.controller``."""
+def _read_pinned_image(name: str) -> str:
+    """Return the image named on the ``FROM`` line of ``ssh_templates/<name>``.
+
+    Nothing builds these Dockerfiles. They hold image pins that Dependabot
+    can update, which it cannot do inside the Jinja Compose templates.
+    """
+    path = f"dallinger/docker/ssh_templates/{name}"
+    dockerfile = abspath_from_egg("dallinger", path)
     if dockerfile is None:
-        raise RuntimeError(
-            "Dallinger's docker-ssh controller image file "
-            "(dallinger/docker/ssh_templates/Dockerfile.controller) is missing."
-        )
+        raise RuntimeError(f"Dallinger's docker-ssh image file ({path}) is missing.")
     match = re.search(r"(?m)^FROM\s+(\S+)", dockerfile.read_text())
     if match is None:
-        raise RuntimeError(
-            f"{dockerfile} has no FROM line naming the controller image."
-        )
+        raise RuntimeError(f"{dockerfile} has no FROM line naming an image.")
     return match.group(1)
 
 
-CONTROLLER_IMAGE = _read_controller_image(
-    abspath_from_egg(
-        "dallinger", "dallinger/docker/ssh_templates/Dockerfile.controller"
-    )
-)
+CONTROLLER_IMAGE = _read_pinned_image("Dockerfile.controller")
+CLOUDFLARED_IMAGE = _read_pinned_image("Dockerfile.cloudflared")
 
 
 CADDYFILE_SERVER = """
@@ -356,7 +354,7 @@ def register_server(
     if _is_email(contact_email):
         server_info["contact_email"] = contact_email
     store_host(server_info)
-    advice = classic and network_advice and _private_network_advice(host, user)
+    advice = classic and network_advice and _private_network_advice(server_info)
     if advice:
         print(f"{RED}Warning: {advice}{END}")
     if classic:
@@ -573,6 +571,13 @@ def _server_host(server_info, dns_host=None, *, deploy=False):
         return get_dns_host(split_ssh_host_port(server_info["host"])[0])
     if host:
         return host
+    if ":" in split_ssh_host_port(server_info["host"])[0]:
+        print(
+            f"{RED}Error: {server_info['host']} is an IPv6 address, and classic "
+            f"ingress needs IPv4.{END} Deploy with --ingress cloudflare, or "
+            "register the server under a DNS name with an A record."
+        )
+        raise click.Abort()
     print(
         f"{RED}Error: {server_info['host']} is an IP address, so classic ingress "
         f"needs a DNS name for the server.{END} Save one with "
@@ -1515,12 +1520,14 @@ def _resolve_ingress(server_info, ingress=None):
     return requested
 
 
-def _private_network_advice(host, user):
-    """Return advice against classic ingress if ``host`` has no public IPv4 address.
+def _private_network_advice(server_info):
+    """Return advice against classic ingress if the server has no public IPv4 address.
 
-    ``host`` may include an SSH port. Loopback and unspecified (``0.0.0.0``)
-    addresses count as public, for servers that are tunnelled to locally.
+    The server's ``host`` may include an SSH port. Loopback and unspecified
+    (``0.0.0.0``) addresses count as public, for servers that are tunnelled to
+    locally.
     """
+    host = server_info["host"]
     ip_addrs = _ipv4_addresses(split_ssh_host_port(host)[0])
     for ip_addr in ip_addrs:
         address = ipaddress.ip_address(ip_addr)
@@ -1529,13 +1536,12 @@ def _private_network_advice(host, user):
     if not ip_addrs:
         return None
     ip_addr = ip_addrs[0]
-    user_option = f" --user {user}" if user else ""
+    command = _servers_add_command(server_info, default_ingress=INGRESS_CLOUDFLARE)
     return (
         f"{host} has a private IP address ({ip_addr}), so Let's Encrypt cannot "
         "issue TLS certificates for it and participants outside its network "
         "cannot reach classic ingress. Deploy with --ingress cloudflare, or "
-        "re-register the server with `dallinger docker-ssh servers add "
-        f"--host {host}{user_option} --default-ingress cloudflare`. If the "
+        f"re-register the server with `{command}`. If the "
         "server's public DNS name points at a public IP that forwards ports 80 "
         "and 443 to it, deploy with --allow-private-ip instead."
     )
@@ -1546,9 +1552,7 @@ def _check_classic_ingress_reachable(server, ingress=None):
     server_info = CONFIGURED_HOSTS.get(server) or {}
     if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
         return
-    advice = _private_network_advice(
-        server_info.get("host", server), server_info.get("user")
-    )
+    advice = _private_network_advice(server_info or {"host": server})
     if advice:
         raise click.ClickException(advice)
 
@@ -5003,6 +5007,7 @@ def get_docker_compose_yml(
         idle_enabled=str(idle_enabled).lower(),
         idle_minutes=idle_minutes,
         controller_image=CONTROLLER_IMAGE,
+        cloudflared_image=CLOUDFLARED_IMAGE,
         compose_project=_compose_project(experiment_id),
         run_as_ssh_user=run_as_ssh_user,
     )
