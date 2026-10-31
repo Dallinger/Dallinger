@@ -1,7 +1,6 @@
 import codecs
 import netrc
 import os
-import re
 import secrets
 import subprocess
 import tempfile
@@ -141,25 +140,27 @@ def deploy(**kwargs):
 @require_exp_directory
 def build():
     """Build a docker image for this experiment."""
-    from dallinger.docker.tools import build_image
+    from dallinger.docker.tools import build_image, image_base_name
 
     config = get_config(load=True)
+    base_name = image_base_name(config, Path(os.getcwd()).name)
     _, tmp = setup_experiment(
         log=log,
         debug=True,
         local_checks=False,
         experiment_files=get_experiment_files(),
     )
-    build_image(tmp, config.get("docker_image_base_name"), Output(), force_build=True)
+    build_image(tmp, base_name, Output(), force_build=True)
 
 
 @docker.command()
 @click.option("--use-existing", is_flag=True, default=False)
 def push(use_existing: bool, **kwargs) -> str:
     """Build and push the docker image for this experiment."""
-    from dallinger.docker.tools import build_image
+    from dallinger.docker.tools import build_image, image_base_name
 
     config = get_config(load=True)
+    base_name = image_base_name(config, None, pushed_by="dallinger docker push")
     app_name = kwargs.get("app_name", None)
     _, tmp = setup_experiment(
         log=log,
@@ -170,7 +171,7 @@ def push(use_existing: bool, **kwargs) -> str:
     )
     image_name_with_tag = build_image(
         tmp,
-        config.get("docker_image_base_name"),
+        base_name,
         Output(),
         force_build=not use_existing,
     )
@@ -356,16 +357,32 @@ def _deploy_in_mode(mode, verbose, app=None):
 
     config = get_config(load=True)
     config.extend({"mode": mode, "logfile": "-"})
+    _heroku_image_base_name(config)
 
     run_pre_launch_checks(**locals())
 
     return deploy_heroku_docker(log=log, verbose=verbose, app=app)
 
 
+def _heroku_image_base_name(config):
+    """Return ``docker_image_base_name``, which Heroku Docker deploys require."""
+    from dallinger.docker.tools import image_base_name
+
+    return image_base_name(config, None, pushed_by="dallinger docker deploy/sandbox")
+
+
 def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
+    """Deploy the experiment to Heroku as a Docker image pushed to a registry.
+
+    The image is named by the required ``docker_image_base_name``, from
+    ``exp_config`` or the config.
+    """
     from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
 
     config = get_config(load=True)
+    base_name = _heroku_image_base_name(
+        exp_config if (exp_config or {}).get("docker_image_base_name") else config
+    )
     heroku_app_id, tmp = setup_experiment(
         log,
         debug=False,
@@ -383,7 +400,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     # cannot share or overwrite one image (the experiment is COPYd in, not mounted).
     image_name = build_image(
         tmp,
-        config.get("docker_image_base_name") or Path(os.getcwd()).name,
+        base_name,
         Output(),
         force_build=True,
         image_tag=docker_tag_from_experiment_id(config.get("id")),
@@ -529,25 +546,6 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         # "recruitment_msg": launch_data.get("recruitment_msg", None),
     }
     return result
-
-
-def add_image_name(config_path: str, image_name: str):
-    """Alters the text file at `config_path` to set the contents
-    of the variable `docker_image_name` to the passed `image_name`.
-    If a line is already present it will be replaced.
-    If it's not it will be added next to the line with the `docker_image_base_name` variable.
-    """
-    config = Path(config_path)
-    new_line = f"docker_image_name = {image_name}"
-    old_text = config.read_text()
-    if re.search("^docker_image_name =", old_text, re.M):
-        text = re.sub("docker_image_name = .*", new_line, old_text)
-    elif re.search("^docker_image_base_name =", old_text, re.M):
-        text = re.sub("(docker_image_base_name = .*)", r"\g<1>\n" + new_line, old_text)
-    else:
-        text = "".join((old_text, "\n" + new_line))
-
-    config.write_text(text)
 
 
 def heroku_addons_cmd(app_name):

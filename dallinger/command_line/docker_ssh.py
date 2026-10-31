@@ -107,7 +107,8 @@ class App:
     ingress : str
         ``classic`` host Caddy or ``cloudflare`` per-app tunnel.
     public_origin : str or None
-        HTTPS origin when known from a deployment manifest.
+        HTTPS origin from the app's deployment manifest or, for a classic app
+        without one, from the Caddy site that serves it.
     """
 
     name: str
@@ -150,26 +151,24 @@ HIBERNATION_CONTROLLER = abspath_from_egg(
 ).read_text()
 
 
-def _read_controller_image(dockerfile: Path | None) -> str:
-    """Return the image named on the ``FROM`` line of ``Dockerfile.controller``."""
+def _read_pinned_image(name: str) -> str:
+    """Return the image named on the ``FROM`` line of ``ssh_templates/<name>``.
+
+    Nothing builds these Dockerfiles. They hold image pins that Dependabot
+    can update, which it cannot do inside the Jinja Compose templates.
+    """
+    path = f"dallinger/docker/ssh_templates/{name}"
+    dockerfile = abspath_from_egg("dallinger", path)
     if dockerfile is None:
-        raise RuntimeError(
-            "Dallinger's docker-ssh controller image file "
-            "(dallinger/docker/ssh_templates/Dockerfile.controller) is missing."
-        )
+        raise RuntimeError(f"Dallinger's docker-ssh image file ({path}) is missing.")
     match = re.search(r"(?m)^FROM\s+(\S+)", dockerfile.read_text())
     if match is None:
-        raise RuntimeError(
-            f"{dockerfile} has no FROM line naming the controller image."
-        )
+        raise RuntimeError(f"{dockerfile} has no FROM line naming an image.")
     return match.group(1)
 
 
-CONTROLLER_IMAGE = _read_controller_image(
-    abspath_from_egg(
-        "dallinger", "dallinger/docker/ssh_templates/Dockerfile.controller"
-    )
-)
+CONTROLLER_IMAGE = _read_pinned_image("Dockerfile.controller")
+CLOUDFLARED_IMAGE = _read_pinned_image("Dockerfile.cloudflared")
 
 
 CADDYFILE_SERVER = """
@@ -355,7 +354,7 @@ def register_server(
     if _is_email(contact_email):
         server_info["contact_email"] = contact_email
     store_host(server_info)
-    advice = classic and network_advice and _private_network_advice(host, user)
+    advice = classic and network_advice and _private_network_advice(server_info)
     if advice:
         print(f"{RED}Warning: {advice}{END}")
     if classic:
@@ -572,6 +571,13 @@ def _server_host(server_info, dns_host=None, *, deploy=False):
         return get_dns_host(split_ssh_host_port(server_info["host"])[0])
     if host:
         return host
+    if ":" in split_ssh_host_port(server_info["host"])[0]:
+        print(
+            f"{RED}Error: {server_info['host']} is an IPv6 address, and classic "
+            f"ingress needs IPv4.{END} Deploy with --ingress cloudflare, or "
+            "register the server under a DNS name with an A record."
+        )
+        raise click.Abort()
     print(
         f"{RED}Error: {server_info['host']} is an IP address, so classic ingress "
         f"needs a DNS name for the server.{END} Save one with "
@@ -1049,7 +1055,8 @@ def resolve_server_option(ctx, param, value):
 option_app_name = click.option(
     "--app",
     "app_name",
-    help="Name to use for the app. If not provided a random one will be generated",
+    help="Name to use for the app. If not provided a random one will be generated. "
+    "To redeploy an app on the server's own host, pass its name with --update.",
 )
 option_archive = click.option(
     "--archive",
@@ -1061,7 +1068,8 @@ option_archive = click.option(
 option_config = click.option("--config", "-c", "config_options", nargs=2, multiple=True)
 option_dns_host = click.option(
     "--dns-host",
-    help="Classic Caddy DNS name for this app's site (<app>.<dns-host> with --app). "
+    help="Classic Caddy DNS name for this app's site (<app>.<dns-host> with --app, "
+    "except for --update of an app on the server's own host). "
     "Must resolve all its subdomains to the IP address specified as ssh host. "
     "Defaults to the server's DNS host. The server's own sites, including the "
     "log viewer, use its saved DNS host, or this one on a server registered by "
@@ -1375,26 +1383,98 @@ def _host_caddy_apps(executor):
 
 
 def _load_remote_manifests(executor, app_names):
-    """Read ``deployment.json`` for the given apps in one SSH call.
+    """Read ``deployment.json`` for the given apps in one SSH call."""
+    return _load_remote_app_records(executor, app_names)[0]
 
-    Each file is printed as one ``<app><TAB><json>`` line. Names that are not
-    valid app names (for example stray files) are skipped, not sent to the shell.
+
+# For each app, prints "<app>\t<deployment.json on one line>" and
+# "<app>\tsite\t<line>", the first site line of the Caddy file that routes it:
+# the Caddyfile for an app on the server's own host (root.d/<app>, or an older
+# Dallinger's Caddyfile route to the app), otherwise caddy.d/<app> if the
+# Caddyfile imports caddy.d. Older root Caddyfiles don't, so Caddy serves no
+# caddy.d site there, and without a Caddyfile it serves nothing.
+# Matches an active "reverse_proxy <app>_web:5000" line in $d/Caddyfile, not a
+# comment. App names may contain ".", which is escaped for the regex.
+_CADDYFILE_ROUTE_GREP = (
+    r'grep -qE "^[[:space:]]*reverse_proxy[[:space:]]+'
+    r'$(printf %s "$app" | sed "s/[.]/\\\\./g")_web:5000([[:space:]]|\$)" "$d/Caddyfile"'
+)
+_ROOT_ROUTE_TEST = f'[ -f "$d/root.d/$app" ] || {_CADDYFILE_ROUTE_GREP} 2>/dev/null'
+_CADDYFILE_IMPORTS_CADDY_D = (
+    r'grep -qE "^[[:space:]]*import[[:space:]]+caddy\\.d/\\*([[:space:]]|\$)" '
+    '"$d/Caddyfile" 2>/dev/null'
+)
+_APP_RECORDS_SCRIPT = (
+    """for app in {apps}; do d=~/dallinger
+  f=$d/$app/deployment.json
+  [ -f "$f" ] && printf '%s\\t' "$app" && tr -d '\\n' < "$f" && echo
+  f=
+  if """
+    + _ROOT_ROUTE_TEST.replace("{", "{{").replace("}", "}}")
+    + """; then f=$d/Caddyfile
+  elif """
+    + _CADDYFILE_IMPORTS_CADDY_D
+    + """; then f=$d/caddy.d/$app; fi
+  [ -f "$f" ] && printf '%s\\tsite\\t%s\\n' "$app" "$(grep -m1 -E '^[^#[:space:]{{(@][^{{#]*[{{]' "$f")"
+done; true"""
+)
+
+
+def _served_at_server_host(executor, app):
+    """Return whether classic ingress serves the existing ``app`` at the server's own host.
+
+    That is, whether ``~/dallinger/root.d`` or an older Dallinger's Caddyfile
+    routes it. Aborts if the server can't tell, rather than moving the app
+    to a subdomain.
+    """
+    # Exits 0 if served there, 1 if not, and otherwise if the check failed.
+    status, _, stderr = executor.run_with_status(
+        f"d=~/dallinger; app={quote(app)}; "
+        '[ -f "$d/$app/docker-compose.yml" ] || exit 1; '
+        '[ -f "$d/root.d/$app" ] && exit 0; '
+        '[ -x "$d/root.d" ] || [ ! -e "$d/root.d" ] || exit 2; '
+        '[ -e "$d/Caddyfile" ] || exit 1; ' + _CADDYFILE_ROUTE_GREP
+    )
+    if status not in (0, 1):
+        raise click.ClickException(
+            f"Could not check whether {app} is served at the server's own host "
+            f"(exit status {status}). {stderr.strip()}".strip()
+        )
+    return status == 0
+
+
+def _load_remote_app_records(executor, app_names):
+    """Read the given apps' manifests and Caddy sites in one SSH call.
+
+    Names that are not valid app names (for example stray files) are skipped,
+    not sent to the shell.
+
+    Returns
+    -------
+    tuple of dict
+        ``{app: DeploymentManifest}`` and ``{app: public origin}``, the
+        latter from the first address of the Caddy site that serves the app.
     """
     app_names = [name for name in app_names if APP_NAME_PATTERN.fullmatch(name)]
     if not app_names:
-        return {}
+        return {}, {}
     raw = executor.run(
-        f"for app in {' '.join(app_names)}; do f=~/dallinger/$app/deployment.json; "
-        '[ -f "$f" ] && printf "%s\\t" "$app" && tr -d "\\n" < "$f" && echo; done; true',
-        raise_=False,
+        _APP_RECORDS_SCRIPT.format(apps=" ".join(app_names)), raise_=False
     )
-    manifests = {}
+    manifests, origins = {}, {}
     for line in (raw or "").splitlines():
         name, _, text = line.partition("\t")
+        if name not in app_names:
+            continue
+        if text.startswith("site\t"):
+            names = _site_names(text[len("site\t") :])
+            if names:
+                origins[name] = public_origin_for_hostname(names[0])
+            continue
         manifest = DeploymentManifest.from_json(text)
-        if name in app_names and manifest is not None:
+        if manifest is not None:
             manifests[name] = manifest
-    return manifests
+    return manifests, origins
 
 
 def _upload_app_manifest(sftp, manifest: DeploymentManifest) -> None:
@@ -1440,12 +1520,14 @@ def _resolve_ingress(server_info, ingress=None):
     return requested
 
 
-def _private_network_advice(host, user):
-    """Return advice against classic ingress if ``host`` has no public IPv4 address.
+def _private_network_advice(server_info):
+    """Return advice against classic ingress if the server has no public IPv4 address.
 
-    ``host`` may include an SSH port. Loopback and unspecified (``0.0.0.0``)
-    addresses count as public, for servers that are tunnelled to locally.
+    The server's ``host`` may include an SSH port. Loopback and unspecified
+    (``0.0.0.0``) addresses count as public, for servers that are tunnelled to
+    locally.
     """
+    host = server_info["host"]
     ip_addrs = _ipv4_addresses(split_ssh_host_port(host)[0])
     for ip_addr in ip_addrs:
         address = ipaddress.ip_address(ip_addr)
@@ -1454,13 +1536,12 @@ def _private_network_advice(host, user):
     if not ip_addrs:
         return None
     ip_addr = ip_addrs[0]
-    user_option = f" --user {user}" if user else ""
+    command = _servers_add_command(server_info, default_ingress=INGRESS_CLOUDFLARE)
     return (
         f"{host} has a private IP address ({ip_addr}), so Let's Encrypt cannot "
         "issue TLS certificates for it and participants outside its network "
         "cannot reach classic ingress. Deploy with --ingress cloudflare, or "
-        "re-register the server with `dallinger docker-ssh servers add "
-        f"--host {host}{user_option} --default-ingress cloudflare`. If the "
+        f"re-register the server with `{command}`. If the "
         "server's public DNS name points at a public IP that forwards ports 80 "
         "and 443 to it, deploy with --allow-private-ip instead."
     )
@@ -1471,21 +1552,27 @@ def _check_classic_ingress_reachable(server, ingress=None):
     server_info = CONFIGURED_HOSTS.get(server) or {}
     if _resolve_ingress(server_info, ingress) == INGRESS_CLOUDFLARE:
         return
-    advice = _private_network_advice(
-        server_info.get("host", server), server_info.get("user")
-    )
+    advice = _private_network_advice(server_info or {"host": server})
     if advice:
         raise click.ClickException(advice)
+
+
+def _same_host(a, b):
+    """Return whether two hostnames name the same site; DNS ignores case."""
+    return a.lower() == b.lower()
 
 
 def _classic_hostname(server_info, app_name, archive_path, dns_host):
     """Return the public hostname of a classic-ingress app.
 
     ``dns_host`` (``--dns-host``) only names the app's own site. The server's
-    sites keep the host saved with the server.
+    sites keep the host saved with the server, in its saved spelling even if
+    ``dns_host`` differs from it only in case.
     """
     ssh_host = split_ssh_host_port(server_info["host"])[0]
-    dns_host = dns_host or _server_host(server_info, deploy=True)
+    server_host = _server_host(server_info, dns_host, deploy=True)
+    if not dns_host or _same_host(dns_host, server_host):
+        dns_host = server_host
     if dns_host == "nip.io":
         dns_host = get_dns_host(ssh_host)
         print(f"""{RED}Using {dns_host} as hostname. This might cause problems:{END}
@@ -1504,20 +1591,29 @@ def _classic_preflight(
 ):
     """Check DNS and the server's shared services for a classic deploy.
 
-    Runs before the image build. Returns the app's public hostname. An
-    ``update`` of an app deployed on the server's root keeps the root,
-    although ``--update`` needs ``--app``.
+    Runs before the image build. Returns the app's public hostname, which for
+    ``--update`` of an app on the server's own host is that host. A new
+    deploy whose ``--app`` names such an app is refused, since ``--app``
+    would put it on a subdomain.
     """
     server = resolve_server_name(server, CONFIGURED_HOSTS)
     server_info = CONFIGURED_HOSTS[server]
-    executor = _build_executor(server_info) if update else None
-    if update and _has_root_route(executor, app_name):
+    # Without --app, DNS is checked before connecting.
+    executor = _build_executor(server_info) if app_name else None
+    on_server_host = app_name and _served_at_server_host(executor, app_name)
+    if on_server_host:
         hostname = _server_host(server_info, dns_host, deploy=True)
+        if update and dns_host and not _same_host(dns_host, hostname):
+            print(
+                f"Ignoring --dns-host {dns_host}: {app_name} keeps its address "
+                f"at {hostname}, the server's own host."
+            )
     else:
         hostname = _classic_hostname(server_info, app_name, archive_path, dns_host)
     _check_experiment_hostname_dns(
         split_ssh_host_port(server_info["host"])[0], hostname, allow_private_ip
     )
+    # A server that still needs `servers upgrade` says so before the advice below.
     _check_server_setup(
         executor or _build_executor(server_info),
         server,
@@ -1526,26 +1622,14 @@ def _classic_preflight(
         dns_host,
         app_name,
     )
-    return hostname
-
-
-def _has_root_route(executor, app):
-    """Return whether ``app`` has a route in the server's ``~/dallinger/root.d``.
-
-    Aborts if the server can't tell, rather than moving the app to a subdomain.
-    """
-    status, _, stderr = executor.run_with_status(
-        f"f=~/dallinger/root.d/{quote(app)}; "
-        'if [ -f "$f" ]; then exit 0; '
-        "elif [ -x ~/dallinger/root.d ] || [ ! -e ~/dallinger/root.d ]; then exit 1; "
-        "else exit 2; fi"
-    )
-    if status not in (0, 1):
-        raise click.ClickException(
-            f"Could not check whether {app} has a route in ~/dallinger/root.d "
-            f"(exit status {status}). {stderr.strip()}".strip()
+    if on_server_host and not update:
+        raise click.BadParameter(
+            f"{app_name} is already deployed at {hostname}, the server's own "
+            "host. A new deploy with --app would move it to a subdomain. To "
+            f"update it in place, run the deploy with --update --app {app_name}.",
+            param_hint="'--app'",
         )
-    return status == 0
+    return hostname
 
 
 def _check_server_setup(
@@ -1598,7 +1682,7 @@ def _check_server_setup(
             problems.append(f"its Caddyfile does not serve {host}")
         if "import caddy.d/*" not in caddyfile:
             problems.append("its Caddyfile does not import caddy.d")
-        if hostname.lower() == host.lower() and not (
+        if _same_host(hostname, host) and not (
             "import root.d/*" in caddyfile and "/etc/caddy/root.d" in compose
         ):
             problems.append(f"it cannot route {host} to an app")
@@ -1904,8 +1988,11 @@ def _image_runs_as_ssh_user(executor, image_name):
     from dallinger.docker.tools import RUNS_AS_SSH_USER_LABEL
 
     image = quote(image_name)
+    pull = f"docker pull -q {image} >/dev/null 2>&1"
+    if not _may_be_registry_image(image_name):
+        pull = f"docker image inspect {image} >/dev/null 2>&1 || {pull}"
     label = executor.run(
-        f"docker pull -q {image} >/dev/null 2>&1; docker image inspect -f "
+        f"{pull}; docker image inspect -f "
         f"'{{{{index .Config.Labels \"{RUNS_AS_SSH_USER_LABEL}\"}}}}' {image}",
         raise_=False,
     )
@@ -1916,6 +2003,18 @@ def _image_runs_as_ssh_user(executor, image_name):
         "containers run as root. Rebuild the image to run as the SSH user."
     )
     return False
+
+
+def _may_be_registry_image(image_name):
+    """Return whether ``image_name`` could name an image that a registry updates.
+
+    A name without ``/`` (such as the default ``my-study:<launch id>``)
+    would resolve to an official Docker Hub image, which experiment images
+    never are, so a local copy is current and pulling only asks Docker Hub.
+    Any name with a ``/``, including Docker Hub ``user/repo`` names, may
+    have been pushed, so a local copy may be stale.
+    """
+    return "/" in image_name
 
 
 def _ssh_prefix(ssh_host, ssh_port, ssh_user):
@@ -2162,7 +2261,14 @@ def _manual_removal_commands(name):
     ]
 
 
-def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=None):
+def ensure_root_domain_ready(
+    server,
+    update,
+    new_app=None,
+    delete_data_command=None,
+    before_destroy=None,
+    keep_image=None,
+):
     """Offer to destroy the server's classic apps before a root-domain deploy.
 
     Without a terminal, refuses with the destroy commands to run first. The
@@ -2176,7 +2282,10 @@ def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=N
     data, with ``{app}`` standing for the app name; it defaults to
     ``dallinger docker-ssh destroy … --remove-data``. If an app's name is not
     a valid app name, nothing is destroyed and the error says how to remove
-    that app by hand.
+    that app by hand. ``before_destroy``, if given, is called with no
+    arguments once the user agrees and before any app is destroyed; it can
+    raise to stop the deploy. ``keep_image``, such as the image the deploy
+    reuses, is not removed with the destroyed apps.
     """
     if update:
         return True
@@ -2231,6 +2340,8 @@ def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=N
         default=False,
     ):
         raise click.Abort()
+    if before_destroy is not None:
+        before_destroy()
 
     for name in conflicts:
         print_bold(f"Destroying {name} on server {server}")
@@ -2240,6 +2351,7 @@ def ensure_root_domain_ready(server, update, new_app=None, delete_data_command=N
             keep_data=True,
             delete_data_command=delete_data_command
             and delete_data_command.replace("{app}", name),
+            keep_image=keep_image,
         )
 
     executor = _executor_for_server(server)
@@ -2327,45 +2439,17 @@ def _image_usable_from_registry(docker_client, image_name):
     return True
 
 
-def _build_and_push_image(
-    config, experiment_files, app_name, server, local_build, push_build
-):
-    """Return the experiment image to deploy, building and pushing it if needed."""
-    with _built_image(
-        config, experiment_files, app_name, server, local_build, push_build
-    ) as image_name:
-        return image_name
+_PUSH_OPTIONS = "--push-build or --local_build"
 
 
 @contextmanager
-def _built_image(
-    config,
-    experiment_files,
-    app_name,
-    server,
-    local_build,
-    push_build,
-    *,
-    remove_for_app=None,
-):
-    """Yield the experiment image to deploy, building and pushing it if needed.
+def _image_docker_client(server, local_build):
+    """Yield a client for the Docker daemon that builds the image.
 
-    Reuses ``docker_image_name`` when the registry has it. Otherwise
-    assembles the experiment and builds the image, on the server unless
-    ``local_build`` is set, and pushes it for a local build or with
-    ``push_build``. With ``remove_for_app``, the id of the new app the image
-    is for, an image built here is removed again if the block raises (see
-    ``_remove_aborted_build``).
+    That is the local daemon with ``local_build``, otherwise the server's
+    daemon over SSH.
     """
     import docker
-
-    from dallinger.command_line.docker import push_image
-    from dallinger.docker.tools import build_image, docker_tag_from_experiment_id
-
-    image_name = config.get("docker_image_name", None)
-
-    # If we build locally we have to push the image to the registry
-    push_build = push_build or local_build
 
     # Save any current values from environment so we can restore them
     original_docker_host = os.environ.get("DOCKER_HOST")
@@ -2392,7 +2476,63 @@ def _built_image(
         _ignore_docker_ssh_resource_warnings()
         # Avoid Paramiko by using the system ssh client
         docker_client = docker.from_env(use_ssh_client=True)
+        yield docker_client
+    finally:
+        # Close client first so the SSH connection tears down cleanly
+        if docker_client is not None:
+            try:
+                docker_client.close()
+            except Exception:
+                pass
 
+        # Restore DOCKER_HOST
+        if original_docker_host is None:
+            os.environ.pop("DOCKER_HOST", None)
+        else:
+            os.environ["DOCKER_HOST"] = original_docker_host
+
+
+@contextmanager
+def _built_image(
+    config,
+    experiment_files,
+    app_name,
+    server,
+    local_build,
+    push_build,
+    *,
+    app,
+    remove_for_app=None,
+    image_usable=False,
+):
+    """Yield the experiment image to deploy, building and pushing it if needed.
+
+    Reuses ``docker_image_name`` when the registry has it, or without
+    checking when ``image_usable`` says the caller already did. Otherwise
+    assembles the experiment and builds the image, on the server unless
+    ``local_build`` is set, and pushes it for a local build or with
+    ``push_build``. ``app`` is the deployed app name, which names the image
+    when ``docker_image_base_name`` is unset. With ``remove_for_app``, the id
+    of the new app the image is for, an image built here is removed again if
+    the block raises (see ``_remove_aborted_build``).
+    """
+    from dallinger.command_line.docker import push_image
+    from dallinger.docker.tools import (
+        build_image,
+        docker_tag_from_experiment_id,
+        image_base_name,
+    )
+
+    image_name = config.get("docker_image_name", None)
+
+    # If we build locally we have to push the image to the registry
+    push_build = push_build or local_build
+
+    if image_usable:
+        yield image_name
+        return
+
+    with _image_docker_client(server, local_build) as docker_client:
         if image_name and _image_usable_from_registry(docker_client, image_name):
             yield image_name
             return
@@ -2407,7 +2547,7 @@ def _built_image(
         )
         image_name = build_image(
             tmp_dir,
-            config.get("docker_image_base_name"),
+            image_base_name(config, app, _PUSH_OPTIONS if push_build else None),
             out=Output(),
             image_tag=docker_tag_from_experiment_id(config.get("id")),
             quiet=True,
@@ -2435,19 +2575,6 @@ def _built_image(
                     docker_client, built_image, server, local_build, remove_for_app
                 )
             raise
-    finally:
-        # Close client first so the SSH connection tears down cleanly
-        if docker_client is not None:
-            try:
-                docker_client.close()
-            except Exception:
-                pass
-
-        # Restore DOCKER_HOST
-        if original_docker_host is None:
-            os.environ.pop("DOCKER_HOST", None)
-        else:
-            os.environ["DOCKER_HOST"] = original_docker_host
 
 
 def _remove_aborted_build(docker_client, image_name, server, local_build, app):
@@ -2797,10 +2924,16 @@ def _deploy_in_mode(
 
     Building the image can take minutes, so every check that does not need
     the image runs first. The root-domain cleanup, which can destroy apps,
-    follows the other checks. Only the app-name check comes after it, since
-    the cleanup can free that name; the Compose project check comes before
-    it, since the cleanup keeps the data that a clashing name would share.
+    follows the other checks. Once the user agrees to the cleanup and before
+    it destroys anything, the server must have or pull a configured
+    ``docker_image_name`` (a local build first pushes a local-only copy);
+    otherwise the deploy stops. Only
+    the app-name check comes after the cleanup, since the cleanup can free
+    that name; the Compose project check comes before it, since the cleanup
+    keeps the data that a clashing name would share.
     """
+    from dallinger.docker.tools import image_base_name
+
     if app_name:
         _check_app_name_not_reserved(app_name)
     experiment_files = get_experiment_files(os.getcwd())
@@ -2810,6 +2943,8 @@ def _deploy_in_mode(
         _check_classic_ingress_reachable(server, ingress)
     config = get_config(load=True)
     config_options = _apply_config_options(config, config_options)
+    if (push_build or local_build) and not config.get("docker_image_name", None):
+        image_base_name(config, None, _PUSH_OPTIONS)
 
     run_pre_launch_checks(**locals())
 
@@ -2828,6 +2963,8 @@ def _deploy_in_mode(
     if not APP_NAME_PATTERN.fullmatch(experiment_id):
         raise click.UsageError(f"Invalid docker-ssh app name {experiment_id!r}.")
     _check_app_name_not_reserved(experiment_id)
+    # A long app id can't name a server-only image; find out before any cleanup.
+    image_base_name(config, experiment_id)
 
     resolved_ingress = _resolve_ingress(server_info, ingress)
     takes_root_domain = False
@@ -2847,8 +2984,8 @@ def _deploy_in_mode(
         experiment_hostname = _classic_preflight(
             server, app_name, archive_path, dns_host, allow_private_ip, update
         )
-        takes_server_root = (
-            experiment_hostname.lower() == _server_host(server_info, dns_host).lower()
+        takes_server_root = _same_host(
+            experiment_hostname, _server_host(server_info, dns_host)
         )
         takes_root_domain = takes_server_root and _root_domain_preflight_required(
             server, app_name, archive_path, ingress
@@ -2856,12 +2993,46 @@ def _deploy_in_mode(
 
     slot_executor = Executor(ssh_address, user=ssh_user, app=experiment_id)
     _check_compose_project_free(slot_executor, experiment_id, update)
+    image_usable = False
+
+    def check_configured_image():
+        nonlocal image_usable
+        image = config.get("docker_image_name")
+        quoted = quote(image)
+        check = f"docker image inspect {quoted} || docker pull -q {quoted}"
+        if local_build:
+            # Pushes a copy that only local Docker has, which the server must
+            # then pull rather than reuse an older copy of the same tag.
+            with _image_docker_client(server, local_build) as docker_client:
+                if not _image_usable_from_registry(docker_client, image):
+                    raise click.ClickException(
+                        f"Couldn't confirm that the registry has {image}, so "
+                        "nothing was destroyed."
+                    )
+            check = f"docker pull -q {quoted}"
+        found = slot_executor.run(
+            f"{{ {check}; }} >/dev/null 2>&1 && echo found", raise_=False
+        )
+        if (found or "").strip() != "found":
+            raise click.ClickException(
+                f"{server} couldn't find or pull {image}, so nothing was "
+                "destroyed. Check the image name and that the server can log "
+                "in to the image's registry."
+            )
+        image_usable = True
+
     if takes_root_domain:
         ensure_root_domain_ready(
             server=server,
             update=update,
             new_app=experiment_id,
             delete_data_command=delete_data_command,
+            before_destroy=(
+                check_configured_image
+                if config.get("docker_image_name", None)
+                else None
+            ),
+            keep_image=config.get("docker_image_name", None),
         )
     _check_app_slot(slot_executor, experiment_id, update, resolved_ingress)
 
@@ -2873,7 +3044,9 @@ def _deploy_in_mode(
         server,
         local_build,
         push_build,
+        app=experiment_id,
         remove_for_app=None if update else experiment_id,
+        image_usable=image_usable,
     ) as image_name:
         # Read after the build, which sets a dashboard password if config has none.
         dashboard_user = config.get("dashboard_user", "admin")
@@ -3415,7 +3588,8 @@ def get_apps(server):
     Returns
     -------
     list of App
-        App objects discovered on the server, each with ``name`` and ``state``.
+        App objects discovered on the server, each with ``name``, ``state``,
+        ``ingress`` and, when known, ``public_origin``.
 
     Raises
     ------
@@ -3427,12 +3601,13 @@ def get_apps(server):
 
     app_names = _discover_server_apps(executor)
     running_projects = _get_running_app_names(executor)
-    manifests = _load_remote_manifests(executor, app_names)
+    manifests, caddy_origins = _load_remote_app_records(executor, app_names)
     parked = _remote_hibernation_states(executor)
 
     apps = []
     for app_name in app_names:
         manifest = manifests.get(app_name)
+        public_origin = manifest.public_origin if manifest else None
         if app_name in parked:
             state = parked[app_name]
         elif app_name in running_projects:
@@ -3444,7 +3619,7 @@ def get_apps(server):
                 name=app_name,
                 state=state,
                 ingress=manifest.ingress if manifest else "classic",
-                public_origin=(manifest.public_origin or None) if manifest else None,
+                public_origin=public_origin or caddy_origins.get(app_name),
             )
         )
     return apps
@@ -4026,6 +4201,7 @@ def destroy(
     keep_data=False,
     yes=False,
     delete_data_command=None,
+    keep_image=None,
 ):
     """Tear down an experiment run on a server you control via ssh.
 
@@ -4034,6 +4210,7 @@ def destroy(
     another app on the server has the same Docker Compose project name (such
     as MyApp and myapp), destroy only runs if it keeps the data.
     """
+    # ``keep_image`` is for Python callers only: an image not to remove.
     if not APP_NAME_PATTERN.fullmatch(app):
         raise click.UsageError(f"Invalid docker-ssh app name {app!r}.")
     if remove_data and keep_data:
@@ -4114,7 +4291,15 @@ def destroy(
         )
 
     if deployed:
-        _tear_down_app(executor, app, server, docker_compose_exists, manifest, ingress)
+        _tear_down_app(
+            executor,
+            app,
+            server,
+            docker_compose_exists,
+            manifest,
+            ingress,
+            keep_image=keep_image,
+        )
     delete_again = (
         delete_data_command
         or f"dallinger docker-ssh destroy --app {app} --server {server} --remove-data"
@@ -4138,8 +4323,13 @@ def destroy(
             )
 
 
-def _tear_down_app(executor, app, server, has_compose, manifest, ingress):
-    """Stop and remove a deployed app, keeping its data volumes and folder."""
+def _tear_down_app(
+    executor, app, server, has_compose, manifest, ingress, keep_image=None
+):
+    """Stop and remove a deployed app, keeping its data volumes and folder.
+
+    Its image is removed too unless another app uses it or it is ``keep_image``.
+    """
     quoted_app = quote(app)
 
     experiment_image = None
@@ -4187,7 +4377,8 @@ def _tear_down_app(executor, app, server, has_compose, manifest, ingress):
                 "Fix the problem and run destroy again."
             )
             raise click.Abort()
-    remove_unshared_experiment_image(executor, experiment_image, except_app=app)
+    if experiment_image != keep_image:
+        remove_unshared_experiment_image(executor, experiment_image, except_app=app)
     executor.run(f"rm -rf ~/dallinger/{quoted_app}/")
     print(f"App {app} removed.")
 
@@ -4816,6 +5007,7 @@ def get_docker_compose_yml(
         idle_enabled=str(idle_enabled).lower(),
         idle_minutes=idle_minutes,
         controller_image=CONTROLLER_IMAGE,
+        cloudflared_image=CLOUDFLARED_IMAGE,
         compose_project=_compose_project(experiment_id),
         run_as_ssh_user=run_as_ssh_user,
     )

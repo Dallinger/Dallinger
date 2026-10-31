@@ -8,9 +8,38 @@
   `/recruiter-exit` link, so an experiment's exit page can check that the
   visitor is that participant. The new `dallinger.recruiterExitRoute()`
   returns the link. Dallinger's own exit page ignores the extra parameter.
+- `docker_image_base_name` is now optional for `dallinger docker-ssh deploy`
+  and `sandbox` when the image is built on the server and not pushed (the
+  default, without `--push-build` or `--local_build`). The image is then
+  named after the app, e.g. `my-study`. Previously these deploys failed with
+  a `KeyError` when the setting was unset.
+- Commands that build and push a new image (`dallinger docker push`,
+  `dallinger docker deploy`/`sandbox`, and docker-ssh with `--push-build` or
+  `--local_build`) now stop early with a clear `Error:` if
+  `docker_image_base_name` is unset or has no registry or namespace. A
+  valid pushed name looks like `ghcr.io/<you>/<name>` or
+  `<dockerhub-user>/<name>`. When `docker_image_name` is set, a docker-ssh
+  deploy that removes apps to take a server's root domain now first stops,
+  destroying nothing, unless the server has or can pull that image (with
+  `--local_build`, unless the image is confirmed on the registry and the
+  server pulls it), and removing those apps keeps that image.
+- Removed the internal helper `dallinger.command_line.docker.add_image_name`.
+- With `docker_image_base_name` unset, `dallinger docker build` now names
+  the image after the experiment directory (`My Study` becomes `my-study`)
+  instead of failing with a `KeyError`.
+- The bundled demos and the `tests/experiment` fixture now request Python
+  3.14 in `.python-version`, the version in Dallinger's Docker images, and
+  their `constraints.txt` files are compiled for it.
+  `scripts/update_experiments_constraints.py` now takes the Python version
+  from the root `Dockerfile` instead of from the interpreter that runs it,
+  so the demos follow future Docker image upgrades automatically.
 - Cloudflare Tunnel deployments now use cloudflared 2026.10.4, including the
   eMudhra certificate-compromise mitigation. Existing connectors require a
   separate image update and restart.
+- Dependabot now opens pull requests for new cloudflared releases. The
+  docker-ssh Cloudflare Tunnel image is pinned by tag and digest in
+  `dallinger/docker/ssh_templates/Dockerfile.cloudflared`, like the
+  hibernation controller image, instead of by tag in the Compose template.
 - `AGENTS.md` now says that behavior that never reached a final Dallinger
   release, such as behavior only on `master`, needs no
   backward-compatibility code.
@@ -507,6 +536,16 @@
 
 ### Changed
 
+- `dallinger ec2 stop`, `start` and `teardown` now use the DNS host saved when
+  the instance was provisioned, so they no longer need `--dns-host` (instances
+  provisioned by older Dallinger versions still do). `stop` and `teardown`
+  delete only the Route 53 records that point at that instance, and `start`
+  points the saved names at the new hostname; saved `<ip>.nip.io` names are
+  left alone. If Route 53 fails or the saved docker-ssh server
+  entries can't be read, they warn and say what to fix by hand, and teardown
+  still terminates the instance. A classic-ingress deploy to a server
+  registered by IPv6 address without a DNS host now says that classic ingress
+  needs IPv4 and suggests `--ingress cloudflare`.
 - Classic-ingress `dallinger docker-ssh deploy`, `sandbox` and `destroy` no
   longer rewrite a server's shared files (`Caddyfile`, `docker-compose.yml`,
   `dozzle-users.yml`) or restart its shared Caddy, Postgres and Dozzle, which
@@ -589,6 +628,29 @@
   root-domain app offline and can make Caddy request new certificates, a
   deploy stops before the image build and asks for `servers upgrade`;
   `destroy` warns and carries on.
+- `dallinger docker-ssh apps` and `get_apps()` now report the public origin
+  of every classic-ingress app, including apps without
+  `~/dallinger/<app>/deployment.json`, such as those deployed by Dallinger
+  12.4 or earlier. The origin comes from the app's Caddy route, read in the
+  same SSH command as the manifests: the server's own site for a root-domain
+  app (a `root.d/<app>` route, or an older Dallinger's `Caddyfile` route to
+  the app), otherwise the app's `caddy.d/<app>` site if the `Caddyfile`
+  imports `caddy.d`; an app with neither has no origin. `deployment.json` still
+  takes priority. A classic `docker-ssh deploy` or `sandbox` without
+  `--update` whose `--app` names an existing app on the server's own host
+  (such as `dlgr-…`, the name Dallinger generates for an app deployed without
+  `--app`) now stops before the build and suggests `--update --app <app>`
+  (or, on a server that needs it, `servers upgrade` first), instead of
+  failing later on the DNS check for `<app>.<host>` or the existing app.
+  `--update --app dlgr-…` updates such an app in place, and its
+  DNS check before the build now checks the server's own host. On a server
+  with a saved DNS host, a different `--dns-host` passed to such an update
+  is ignored, with a one-line note; on a server registered by IP address
+  without one, `--dns-host` still names the server's host.
+  If the server can't say whether an app is on its own host, the deploy
+  stops with an error rather than moving it to a subdomain. New `dlgr-…`
+  names still deploy to a subdomain, and `destroy`, `export`, `hibernate` and
+  `awaken` accept these names.
 - The HotAir recruiter's launch message is now just the single recruitment
   link, and the CLI and HotAir messages no longer start with a blank line.
   `dallinger debug` says that new participants will open in browser windows

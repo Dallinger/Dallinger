@@ -6,6 +6,8 @@ import click
 import docker
 import pytest
 
+from dallinger.docker.tools import image_base_name
+
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
 
 
@@ -65,24 +67,72 @@ def test_registry_image_is_deployed_without_building(monkeypatch):
         docker, "from_env", lambda **kwargs: _client(registry_data=mock.Mock())
     )
 
-    image_name = docker_ssh_module._build_and_push_image(
+    with docker_ssh_module._built_image(
+        {"docker_image_name": "img:1"}, [], "app", "server", True, False, app="app"
+    ) as image_name:
+        assert image_name == "img:1"
+    setup.assert_not_called()
+
+
+def test_image_found_by_the_caller_is_reused_without_a_docker_client(monkeypatch):
+    from_env = mock.Mock()
+    monkeypatch.setattr(docker, "from_env", from_env)
+
+    with docker_ssh_module._built_image(
         {"docker_image_name": "img:1"},
         [],
         "app",
-        "server",
-        local_build=True,
-        push_build=False,
-    )
+        "lab",
+        False,
+        False,
+        app="app",
+        image_usable=True,
+    ) as image_name:
+        assert image_name == "img:1"
+    from_env.assert_not_called()
 
-    assert image_name == "img:1"
-    setup.assert_not_called()
+
+class TestImageBaseName:
+    @pytest.mark.parametrize(
+        "app, expected",
+        [
+            ("bartlett1932", "bartlett1932"),
+            ("My_Study", "my_study"),
+            ("a..b._c---d___e.", "a-b-c---d-e"),
+        ],
+    )
+    def test_server_only_image_is_named_after_the_app(self, app, expected):
+        assert image_base_name({}, app) == expected
+
+    def test_configured_name_wins(self):
+        config = {"docker_image_base_name": "ghcr.io/org/exp"}
+
+        assert image_base_name(config, "app", "--push-build") == "ghcr.io/org/exp"
+
+    @pytest.mark.parametrize(
+        "app, push",
+        [("app", True), ("---", False), ("日本語", False), ("a" * 256, False)],
+    )
+    def test_image_needs_the_setting(self, app, push):
+        with pytest.raises(click.ClickException, match="docker_image_base_name"):
+            image_base_name({}, app, "--push-build" if push else None)
+
+    def test_pushed_image_needs_a_registry_or_namespace(self):
+        config = {"docker_image_base_name": "exp"}
+
+        assert image_base_name(config, "app") == "exp"
+        with pytest.raises(click.ClickException, match="no registry or namespace"):
+            image_base_name(config, "app", "--push-build")
 
 
 @pytest.mark.parametrize("remove", ["dlgr-1", None], ids=["new-app", "update"])
 def test_failed_new_deploy_removes_the_image_it_built(monkeypatch, capsys, remove):
     client = _client()
     config = mock.Mock()
-    config.get.side_effect = lambda key, default=None: {"id": "a" * 8}.get(key)
+    config.get.side_effect = lambda key, default=None: {
+        "id": "a" * 8,
+        "docker_image_base_name": "ghcr.io/org/exp",
+    }.get(key)
     config.as_dict.return_value = {}
     monkeypatch.setattr(docker, "from_env", lambda **kwargs: client)
     monkeypatch.setattr(
@@ -93,7 +143,7 @@ def test_failed_new_deploy_removes_the_image_it_built(monkeypatch, capsys, remov
         mock.patch("dallinger.command_line.docker.push_image", return_value="pushed"),
         pytest.raises(click.Abort),
         docker_ssh_module._built_image(
-            config, [], None, "lab", True, False, remove_for_app=remove
+            config, [], None, "lab", True, False, app="app", remove_for_app=remove
         ) as image_name,
     ):
         assert image_name == "pushed"

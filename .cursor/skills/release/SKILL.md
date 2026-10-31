@@ -216,13 +216,12 @@ This must happen **before** the next step so
 
 ## 6. Regenerate demo constraints
 
-The committed `.python-version` files request Python 3.13. The script
-rewrites each of those files to the minor version of the interpreter
-that runs it, then compiles `constraints.txt`. Run it with that same
-3.13 interpreter.
+The script sets each committed `.python-version` file to the Python
+minor version in the root `Dockerfile` (`FROM python:X.Y-...`), the
+image deployed experiments run on, then compiles `constraints.txt` for
+that version. Any Python that can import Dallinger can run it.
 
 ```bash
-python3 -c 'import sys; assert sys.version_info[:2] == (3, 13), sys.version'
 python3 scripts/update_experiments_constraints.py
 ```
 
@@ -240,14 +239,19 @@ grep -h "^dallinger==" demos/dlgr/demos/*/constraints.txt \
 git status --short
 ```
 
-`git status --short` must list only `constraints.txt` under
-`demos/dlgr/demos/` and `tests/experiment/`. If `.python-version` or
-`requirements.txt` is dirty, stop. The pins were compiled for the wrong
-Python, or the script did not restore `requirements.txt`. Do not commit
-those files.
+`git status --short` must list only `constraints.txt` and
+`.python-version` under `demos/dlgr/demos/` and `tests/experiment/`.
+Every `.python-version` must match the Python version the script
+printed from the `Dockerfile`. If `requirements.txt` is dirty, the
+script did not restore it. In either case, stop and do not commit.
 
 ```bash
-git add demos/dlgr/demos/*/constraints.txt tests/experiment/constraints.txt
+grep -h . demos/dlgr/demos/*/.python-version \
+    tests/experiment/.python-version | sort -u
+grep -m1 "^FROM python:" Dockerfile
+# the first command should print a single line: the X.Y in the second
+git add demos/dlgr/demos/*/constraints.txt demos/dlgr/demos/*/.python-version \
+    tests/experiment/constraints.txt tests/experiment/.python-version
 git commit -m "Update demos' constraints"
 git push
 ```
@@ -318,7 +322,8 @@ Before asking to merge, verify:
 - CHANGELOG heading, date, section order, and Migration Notes (if any)
   look right.
 - Every demo `constraints.txt` and `tests/experiment/constraints.txt`
-  pins `dallinger==X.Y.Z`.
+  pins `dallinger==X.Y.Z`, and every committed `.python-version` matches
+  the Python version in the root `Dockerfile`.
 - CI on `release-X.Y.Z` is green.
 
 ## 8. Merge
