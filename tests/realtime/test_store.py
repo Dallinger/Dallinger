@@ -282,6 +282,16 @@ class TestSessions:
 
         assert store.redis_conn.keys("realtime:*") == [store.RUNNERS.encode()]
 
+    def test_recreating_the_database_creates_the_tables_if_redis_is_down(self):
+        db.session.close()
+        with patch.object(
+            store.redis_conn, "scan_iter", side_effect=RedisConnectionError
+        ):
+            with pytest.raises(RedisConnectionError):
+                db.init_db(drop_all=True)
+
+        assert db.session.query(RealtimeSession).count() == 0
+
     def test_recreating_another_database_keeps_the_sessions(self):
         session_id = create_session(TurnTally, ["1"])
         other = db.create_db_engine(db.db_url)

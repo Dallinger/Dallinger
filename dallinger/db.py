@@ -13,6 +13,7 @@ from typing import NamedTuple, Union
 
 import psycopg2
 from psycopg2.extensions import TransactionRollbackError
+from redis import RedisError
 from rq import Queue
 from sqlalchemy import Table, create_engine, event
 from sqlalchemy.exc import OperationalError
@@ -305,17 +306,28 @@ def init_db(drop_all=False, bind=engine):
     try:
         if drop_all:
             Base.metadata.drop_all(bind=bind)
-            if bind is engine:
-                # Imported here because the store imports this module.
-                from dallinger.realtime.store import clear_realtime_sessions
-
-                clear_realtime_sessions()
         Base.metadata.create_all(bind=bind)
     except OperationalError as err:
         msg = 'password authentication failed for user "dallinger"'
         if msg in str(err):
             sys.stderr.write(db_user_warning)
         raise
+
+    if drop_all and bind is engine:
+        # Imported here because the store imports this module.
+        from dallinger.realtime.store import clear_realtime_sessions
+
+        try:
+            clear_realtime_sessions()
+        except RedisError:
+            # Fatal because session ids restart at 1 in the new tables, and
+            # runners would resume the stale sessions against them.
+            logger.error(
+                "Recreated the database tables but could not delete the old "
+                "real-time sessions from redis; clear them before running "
+                "the experiment."
+            )
+            raise
 
     return session
 
