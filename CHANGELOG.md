@@ -16,7 +16,9 @@
   as `ghcr.io/<you>/<name>` or `<dockerhub-user>/<name>`). Before a
   docker-ssh deploy removes apps to take a server's root domain, it now
   also stops, destroying nothing, unless the server has or can pull a
-  configured `docker_image_name`.
+  configured `docker_image_name` (with `--local_build`, unless the image is
+  confirmed on the registry and the server pulls it).
+- Removed the internal helper `dallinger.command_line.docker.add_image_name`.
 - With `docker_image_base_name` unset, `dallinger docker build` now names
   the image after the experiment directory (`My Study` becomes `my-study`)
   instead of failing with a `KeyError`.
