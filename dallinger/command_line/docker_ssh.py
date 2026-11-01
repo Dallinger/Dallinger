@@ -4620,7 +4620,7 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
         return client
 
 
-SSH_CONNECT_TIMEOUT = 10
+SSH_CONNECT_TIMEOUT = 15
 
 
 def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
@@ -4669,10 +4669,8 @@ def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
         key_filename=str(pem_path),
         allow_agent=False,  # don't use ssh-agent
         look_for_keys=False,  # don't scan ~/.ssh for keys
-        # Without these, a silently dropped port or a stalled handshake can hang.
+        # Paramiko bounds the banner and auth stages, but not the TCP connect.
         timeout=SSH_CONNECT_TIMEOUT,
-        banner_timeout=SSH_CONNECT_TIMEOUT,
-        auth_timeout=SSH_CONNECT_TIMEOUT,
     )
 
     connecting_to = ssh_host if ssh_port == 22 else f"{ssh_host}:{ssh_port}"

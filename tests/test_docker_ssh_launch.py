@@ -211,7 +211,7 @@ def test_printed_ssh_commands_quote_the_key_path(pem, port, expected, monkeypatc
     assert docker_ssh._ssh_prefix("lab", port, "me") == expected
 
 
-def test_ssh_connections_have_bounded_timeouts(tmp_path, monkeypatch):
+def test_ssh_connections_have_a_connect_timeout(tmp_path, monkeypatch):
     key = tmp_path / "key.pem"
     paramiko.RSAKey.generate(1024).write_private_key_file(str(key))
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -221,8 +221,7 @@ def test_ssh_connections_have_bounded_timeouts(tmp_path, monkeypatch):
         mock.patch.object(paramiko.SSHClient, "get_transport"),
     ):
         docker_ssh._connect_ssh_client("lab", "me")
-    timeouts = ("timeout", "banner_timeout", "auth_timeout")
-    assert all(connect.call_args.kwargs[name] for name in timeouts)
+    assert connect.call_args.kwargs["timeout"] == docker_ssh.SSH_CONNECT_TIMEOUT
 
 
 def test_printed_ssh_commands_use_the_users_alias_for_the_server(tmp_path, monkeypatch):
