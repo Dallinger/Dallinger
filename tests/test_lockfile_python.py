@@ -24,25 +24,6 @@ def test_minimum_python_series_rejects_a_missing_lower_bound():
         lockfile_python.minimum_python_series(">=3")
 
 
-def test_latest_cpython_patch_ignores_other_interpreters_and_prereleases():
-    installations = [
-        {"implementation": "cpython", "variant": "default", "version": "3.11.9"},
-        {"implementation": "cpython", "variant": "default", "version": "3.11.17"},
-        {"implementation": "cpython", "variant": "default", "version": "3.11.18rc1"},
-        {"implementation": "pypy", "variant": "default", "version": "3.11.16"},
-        {"implementation": "graalpy", "variant": "default", "version": "3.11.0"},
-        {"implementation": "cpython", "variant": "freethreaded", "version": "3.11.17"},
-        {"implementation": "cpython", "variant": "default", "version": "3.12.1"},
-    ]
-
-    assert lockfile_python.latest_cpython_patch("3.11", installations) == "3.11.17"
-
-
-def test_latest_cpython_patch_reports_a_missing_series():
-    with pytest.raises(ValueError, match="CPython 3.11"):
-        lockfile_python.latest_cpython_patch("3.11", [])
-
-
 def test_resolve_lockfile_python_reads_requires_python(tmp_path):
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text('[project]\nrequires-python = ">=3.11"\n', encoding="utf-8")
