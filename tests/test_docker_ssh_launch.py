@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -209,6 +210,32 @@ def test_ssh_command_keeps_the_remote_command_intact(remote, local):
 def test_printed_ssh_commands_quote_the_key_path(pem, port, expected, monkeypatch):
     monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: Path(pem))
     assert docker_ssh._ssh_prefix("lab", port, "me") == expected
+
+
+def test_ssh_connections_have_a_connect_timeout(tmp_path, monkeypatch):
+    key = tmp_path / "key.pem"
+    paramiko.RSAKey.generate(1024).write_private_key_file(str(key))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(docker_ssh, "get_server_pem_path", lambda: key)
+    with (
+        mock.patch.object(docker_ssh.socket, "create_connection") as open_socket,
+        mock.patch.object(paramiko.SSHClient, "connect") as connect,
+        mock.patch.object(paramiko.SSHClient, "get_transport"),
+    ):
+        docker_ssh._connect_ssh_client("lab", "me")
+    open_socket.assert_called_once_with(("lab", 22), docker_ssh.SSH_CONNECT_TIMEOUT)
+    assert connect.call_args.kwargs["sock"] is open_socket.return_value
+    assert "timeout" not in connect.call_args.kwargs
+
+
+def test_a_refused_ssh_port_is_still_explained():
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    with pytest.raises(paramiko.ssh_exception.NoValidConnectionsError) as error:
+        docker_ssh._open_ssh_socket("127.0.0.1", port)
+    message = docker_ssh._ssh_failure_message(error.value, f"127.0.0.1:{port}", "me")
+    assert f"nothing accepted the connection on port {port}" in message
 
 
 def test_printed_ssh_commands_use_the_users_alias_for_the_server(tmp_path, monkeypatch):

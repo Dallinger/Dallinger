@@ -507,6 +507,21 @@
 
 ### Fixed
 
+- `dallinger ec2` commands that manage Route 53 records now use the hosted
+  zone whose name is the longest suffix of the DNS host, preferring public
+  zones, and report an error if two zones tie (provisioning stops; `start`,
+  `stop` and `teardown` warn and skip the DNS step). They used the first zone
+  whose name merely contained the host's last two labels, which could be a
+  parent, private or unrelated zone. `ec2 start` now waits for the instance to
+  accept SSH connections (ten attempts, as provisioning does) and warns if it
+  isn't reachable. SSH connections from `docker-ssh` and `ec2` now give up
+  if the TCP connection isn't made within 15 seconds per address. `ec2 stop`,
+  `restart` and `teardown` say that the stop, reboot or termination was
+  requested rather than complete, DNS cleanup names every record it removed
+  (e.g. `exp.example.org and *.exp.example.org`), and `--name` is documented
+  as the instance's Name tag. The internal helpers `filter_zone_ids`,
+  `get_domain` and `get_subdomain` in `dallinger.command_line.lib.ec2` were
+  replaced by `find_hosted_zone_id`.
 - `dallinger.identity.uniqueId` keeps the participant's value on pages whose
   URL has no `workerId` and `assignmentId`, such as the ones `goToPage()`
   opens. It was set to `"undefined:undefined"` there.
