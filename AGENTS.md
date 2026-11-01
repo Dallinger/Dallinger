@@ -72,9 +72,8 @@ description so they match the committed branch diff.
 
 ## Recording follow-ups
 
-When a review or dogfood finds a small follow-up that is deliberately left
-out of the pull request (such as a Known limitations item worth doing later),
-open a GitHub issue for it (`gh issue create --repo Dallinger/Dallinger`) and
+When a review or dogfood leaves a small follow-up worth doing later (such as
+a Known limitations item), open a GitHub issue for it (`gh issue create --repo Dallinger/Dallinger`) and
 link the issue from the pull request description. Draft the issue and ask the
 user before creating it, unless they have already approved.
 
