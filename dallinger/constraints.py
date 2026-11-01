@@ -26,6 +26,7 @@ the experiment's .python-version file.
 """
 
 import contextlib
+import json
 import logging
 import os
 import platform
@@ -403,6 +404,54 @@ def _get_requested_python_version() -> str:
     return python_version_path.read_text().strip()
 
 
+_RELEASE = re.compile(r"\d+\.\d+\.\d+")
+
+
+def latest_cpython_patch(series: str, installations: list) -> str:
+    """Return the newest CPython patch in *series* from ``uv python list`` JSON."""
+    versions = []
+    prefix = f"{series}."
+    for row in installations:
+        if row.get("implementation") != "cpython":
+            continue
+        if row.get("variant") not in (None, "default"):
+            continue
+        version = row.get("version") or ""
+        if not version.startswith(prefix) or _RELEASE.fullmatch(version) is None:
+            continue
+        versions.append(tuple(int(part) for part in version.split(".")))
+    if not versions:
+        raise ValueError(f"uv did not report a CPython {series} patch release")
+    return ".".join(str(part) for part in max(versions))
+
+
+def _get_compile_python_version(requested_python_version: str) -> str:
+    """Return the Python version to pass to ``uv pip compile``.
+
+    uv reads a minor version such as ``3.11`` as 3.11.0, which excludes packages
+    that need a later 3.11 patch. A ``.python-version`` file that names only the
+    minor version compiles for the newest CPython patch uv knows of in that line.
+    """
+    if not re.fullmatch(r"\d+\.\d+", requested_python_version):
+        return requested_python_version
+    raw = subprocess.check_output(
+        [
+            "uv",
+            "python",
+            "list",
+            requested_python_version,
+            "--all-versions",
+            "--output-format",
+            "json",
+        ],
+        text=True,
+    )
+    try:
+        return latest_cpython_patch(requested_python_version, json.loads(raw))
+    except ValueError:
+        return requested_python_version
+
+
 def _get_dallinger_reference(
     input_path: Path, extras: Optional[List[str]] = None
 ) -> str:
@@ -527,8 +576,9 @@ def _compile_with_uv(
         "uv",
         "pip",
         "compile",
+        "--no-python-downloads",
         "--python-version",
-        requested_python_version,
+        _get_compile_python_version(requested_python_version),
     ]
     for extra in extras:
         cmd += ["--extra", extra]

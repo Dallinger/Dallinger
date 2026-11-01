@@ -507,6 +507,12 @@
 
 ### Fixed
 
+- `dallinger constraints generate` compiles for the newest patch release of
+  the Python version in `.python-version` when the file names only the minor
+  version, such as `3.11`. uv reads `3.11` as Python 3.11.0, so the compile
+  failed for packages that need a later 3.11 patch, such as
+  `soupsieve==3.0.4` in Dallinger's pins, which needs Python 3.11.5. It also
+  no longer downloads a Python interpreter to compile.
 - `dallinger.identity.uniqueId` keeps the participant's value on pages whose
   URL has no `workerId` and `assignmentId`, such as the ones `goToPage()`
   opens. It was set to `"undefined:undefined"` there.
