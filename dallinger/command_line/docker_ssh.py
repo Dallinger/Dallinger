@@ -1,4 +1,5 @@
 import base64
+import errno
 import hashlib
 import io
 import ipaddress
@@ -2758,10 +2759,12 @@ def _root_cause(exc, prefix=""):
 
 
 def _raised_by_paramiko(exc):
-    """Return True if ``exc`` was raised inside Paramiko."""
+    """Return True if ``exc`` was raised inside Paramiko or ``_open_ssh_socket``."""
     tb = exc.__traceback__
     while tb is not None:
         if tb.tb_frame.f_globals.get("__name__", "").startswith("paramiko."):
+            return True
+        if tb.tb_frame.f_code is _open_ssh_socket.__code__:
             return True
         tb = tb.tb_next
     return False
@@ -4623,6 +4626,25 @@ def get_connected_ssh_client(host, user=None) -> paramiko.SSHClient:
 SSH_CONNECT_TIMEOUT = 15
 
 
+def _open_ssh_socket(host, port):
+    """Open a TCP connection to an SSH server, giving up after ``SSH_CONNECT_TIMEOUT``.
+
+    Paramiko bounds the banner and auth stages but not the TCP connect, and
+    its own ``timeout`` would also cut the banner and key exchange. A refused
+    or unreachable port raises ``NoValidConnectionsError``, as in Paramiko, and
+    ``_raised_by_paramiko`` counts errors from here as Paramiko's.
+    """
+    try:
+        return socket.create_connection((host, port), SSH_CONNECT_TIMEOUT)
+    except OSError as exc:
+        unreachable = (errno.ECONNREFUSED, errno.EHOSTUNREACH)
+        if isinstance(exc, socket.gaierror) or exc.errno not in unreachable:
+            raise
+        raise paramiko.ssh_exception.NoValidConnectionsError(
+            {(host, port): exc}
+        ) from exc
+
+
 def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
     """Create and connect an SSH client with proper authentication.
 
@@ -4669,15 +4691,21 @@ def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
         key_filename=str(pem_path),
         allow_agent=False,  # don't use ssh-agent
         look_for_keys=False,  # don't scan ~/.ssh for keys
-        # Paramiko bounds the banner and auth stages, but not the TCP connect.
-        timeout=SSH_CONNECT_TIMEOUT,
     )
+
+    def connect(client):
+        sock = _open_ssh_socket(ssh_host, ssh_port)
+        try:
+            client.connect(sock=sock, **connect_kwargs)
+        except BaseException:
+            sock.close()
+            raise
 
     connecting_to = ssh_host if ssh_port == 22 else f"{ssh_host}:{ssh_port}"
     print(f"Connecting to {connecting_to}...", flush=True)
     with _spinner() as spinner:
         try:
-            client.connect(**connect_kwargs)
+            connect(client)
             spinner.ok("Connected.")
         except paramiko.ssh_exception.BadHostKeyException as exc:
             # Host key changed — common when an EC2 instance is rebuilt.
@@ -4710,7 +4738,7 @@ def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
                 pass
             client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             spinner.start()
-            client.connect(**connect_kwargs)
+            connect(client)
             spinner.ok("Connected (host key updated).")
         except paramiko.AuthenticationException:
             spinner.fail("✖ Authentication failed")
