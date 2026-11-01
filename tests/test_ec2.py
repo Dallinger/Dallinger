@@ -725,10 +725,51 @@ def test_teardown_removes_only_this_instances_server_entries(dns_host, also_remo
     assert removed == sorted([AWS_HOSTNAME, "alice.example.org", *also_removed])
 
 
-def test_teardown_deletes_this_instances_records_then_terminates():
+def test_teardown_deletes_this_instances_records_then_terminates(capsys):
     _, deleted, events = _teardown("i-123", None, ALICE_RECORDS)
     assert deleted == ["alice.example.org.", "*.alice.example.org."]
     assert events == ["dns", "dns", "ec2", AWS_HOSTNAME, "alice.example.org"]
+    assert (
+        "Removed DNS records alice.example.org and *.alice.example.org"
+        in capsys.readouterr().out
+    )
+
+
+ZONES = [
+    {"Id": "Zparent", "Name": "example.org."},
+    {"Id": "Zlab", "Name": "Lab.Example.org."},
+    {"Id": "Zprivate", "Name": "lab.example.org.", "Config": {"PrivateZone": True}},
+    {"Id": "Zother", "Name": "myexample.org."},
+]
+
+
+@pytest.mark.parametrize(
+    "dns_host, zones, zone_id",
+    [
+        ("exp.lab.example.org.", ZONES, "Zlab"),
+        ("*.exp.lab.example.org", ZONES, "Zlab"),
+        ("exp.example.org", ZONES, "Zparent"),
+        ("exp.nowhere.org", ZONES, None),
+        ("exp.lab.example.org", ZONES[2:3], "Zprivate"),
+        (
+            "exp.lab.example.org",
+            [*ZONES, {"Id": "Zdup", "Name": "lab.example.org"}],
+            "tie",
+        ),
+    ],
+)
+def test_hosted_zone_is_the_longest_public_suffix_of_the_dns_host(
+    dns_host, zones, zone_id
+):
+    from dallinger.command_line.lib.ec2 import find_hosted_zone_id
+
+    route_53 = mock.Mock()
+    route_53.list_hosted_zones_by_name.return_value = {"HostedZones": zones}
+    if zone_id == "tie":
+        with pytest.raises(click.ClickException, match="Zlab, Zdup"):
+            find_hosted_zone_id(dns_host, route_53)
+    else:
+        assert find_hosted_zone_id(dns_host, route_53) == zone_id
 
 
 @pytest.mark.parametrize(
@@ -792,7 +833,9 @@ SAVED_ALICE = {
 }
 
 
-def _run_start_or_stop(command, hosts=SAVED_ALICE, dns_error=None, args=()):
+def _run_start_or_stop(
+    command, hosts=SAVED_ALICE, dns_error=None, args=(), ssh_error=None
+):
     """Run ``ec2 start`` (by ``--dns``) or ``ec2 stop`` (by ``--name``) with fakes.
 
     With ``hosts=None``, the saved server records are read from disk.
@@ -822,6 +865,9 @@ def _run_start_or_stop(command, hosts=SAVED_ALICE, dns_error=None, args=()):
         mock.patch.object(ec2_cli, "remove_instance_dns_records") as mocks[
             "remove_records"
         ],
+        mock.patch.object(ec2_cli, "wait_for_instance", side_effect=ssh_error) as mocks[
+            "wait_for_ssh"
+        ],
     ):
         result = CliRunner().invoke(ec2_cli.ec2, [command, *selector, *args])
     assert result.exit_code == 0, result.output
@@ -834,6 +880,14 @@ def test_ec2_start_uses_the_saved_dns_host():
     mocks["create_dns_records"].assert_called_once_with(
         "alice.example.org", "alice", AWS_HOSTNAME
     )
+
+
+@pytest.mark.parametrize("ssh_error", [None, TimeoutError("timed out")])
+def test_ec2_start_waits_for_ssh_and_only_warns_if_it_is_not_up(ssh_error):
+    result, mocks = _run_start_or_stop("start", ssh_error=ssh_error)
+    mocks["wait_for_ssh"].assert_called_once_with(AWS_HOSTNAME, "alice")
+    assert ("did not accept SSH connections yet" in result.output) == bool(ssh_error)
+    assert (f"alice is ready at {AWS_HOSTNAME}." in result.output) != bool(ssh_error)
 
 
 def test_ec2_stop_uses_the_saved_dns_host():
@@ -1003,7 +1057,7 @@ def test_dns_records_are_created_without_connecting_through_them(monkeypatch, ca
     }
     route_53.get_change.return_value = {"ChangeInfo": {"Status": "INSYNC"}}
     monkeypatch.setattr(lib, "get_53_client", lambda: route_53)
-    monkeypatch.setattr(lib, "filter_zone_ids", lambda *a: ["zone"])
+    monkeypatch.setattr(lib, "find_hosted_zone_id", lambda *a: "zone")
     # A fresh name may not resolve locally yet, so nothing may connect to it.
     monkeypatch.setattr(lib, "Executor", mock.Mock(side_effect=AssertionError))
 
