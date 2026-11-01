@@ -512,9 +512,10 @@
   zones, and stop with an error if two zones tie. They used the first zone
   whose name merely contained the host's last two labels, which could be a
   parent, private or unrelated zone. `ec2 start` now waits for the instance to
-  accept SSH connections (ten attempts, as provisioning does), and only warns
-  if it doesn't,
-  so the next `docker-ssh` command doesn't fail with a timeout. `ec2 stop`,
+  accept SSH connections (ten attempts, as provisioning does) and warns if it
+  isn't reachable. SSH connections from `docker-ssh` and `ec2` give up after
+  10 seconds of connecting, waiting for the SSH banner or authenticating,
+  instead of possibly waiting forever. `ec2 stop`,
   `restart` and `teardown` say that the stop, reboot or termination was
   requested rather than complete, DNS cleanup names every record it removed
   (e.g. `exp.example.org and *.exp.example.org`), and `--name` is documented

@@ -308,8 +308,8 @@ def ec2__start(ctx, dns, name, region, dns_host):
         wait_for_instance(host, user).close()
     except Exception as e:
         print(
-            f"Warning: {host} did not accept SSH connections yet ({e!r}). Wait a "
-            "minute before running `dallinger docker-ssh` commands."
+            f"Warning: Couldn't connect over SSH to {host} yet ({e!r}). If it "
+            "doesn't come up within a few minutes, check server_pem and the SSH user."
         )
     else:
         print(f"{name} is ready at {host}.")

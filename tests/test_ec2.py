@@ -886,7 +886,7 @@ def test_ec2_start_uses_the_saved_dns_host():
 def test_ec2_start_waits_for_ssh_and_only_warns_if_it_is_not_up(ssh_error):
     result, mocks = _run_start_or_stop("start", ssh_error=ssh_error)
     mocks["wait_for_ssh"].assert_called_once_with(AWS_HOSTNAME, "alice")
-    assert ("did not accept SSH connections yet" in result.output) == bool(ssh_error)
+    assert ("Couldn't connect over SSH" in result.output) == bool(ssh_error)
     assert (f"alice is ready at {AWS_HOSTNAME}." in result.output) != bool(ssh_error)
 
 
