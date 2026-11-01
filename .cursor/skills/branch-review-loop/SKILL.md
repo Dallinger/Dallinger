@@ -40,7 +40,8 @@ for the user's approval. They may prefer fewer reviews or other models.
 - Between reviews, fix high and medium issues, and lows that are clearly
   worth it (cheap test gaps, small local fixes).
   Note lows that need a design decision for the final PR description, as
-  known limitations.
+  known limitations, and record those worth doing later as described in
+  `AGENTS.md` ("Recording follow-ups").
 - The loop has converged when two reviews in a row, each by a fresh agent
   and from different families if two were approved, review the whole diff
   at the current head and find no high or medium issues. Their lows don't

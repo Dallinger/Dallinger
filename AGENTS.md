@@ -70,6 +70,13 @@ format.
 When running `/branch-review`, always update the pull request title and
 description so they match the committed branch diff.
 
+## Recording follow-ups
+
+When a review or dogfood leaves a small follow-up worth doing later (such as
+a Known limitations item), open a GitHub issue for it (`gh issue create --repo Dallinger/Dallinger`) and
+link the issue from the pull request description. Draft the issue and ask the
+user before creating it, unless they have already approved.
+
 ## Backward compatibility
 
 Behavior that never reached a final Dallinger release (only on `master`, an
