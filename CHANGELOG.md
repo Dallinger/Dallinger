@@ -509,7 +509,8 @@
 
 - `dallinger ec2` commands that manage Route 53 records now use the hosted
   zone whose name is the longest suffix of the DNS host, preferring public
-  zones, and stop with an error if two zones tie. They used the first zone
+  zones, and report an error if two zones tie (provisioning stops; `start`,
+  `stop` and `teardown` warn and skip the DNS step). They used the first zone
   whose name merely contained the host's last two labels, which could be a
   parent, private or unrelated zone. `ec2 start` now waits for the instance to
   accept SSH connections (ten attempts, as provisioning does) and warns if it
