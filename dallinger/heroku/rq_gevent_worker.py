@@ -18,6 +18,7 @@ import signal
 import gevent
 import gevent.pool
 from rq import Worker
+from rq.defaults import DEFAULT_WORKER_TTL
 from rq.exceptions import DequeueTimeout, StopRequested
 from rq.job import JobStatus
 from rq.logutils import green, setup_loghandlers
@@ -90,6 +91,13 @@ class GeventWorker(Worker):
 
     def set_current_job_id(self, job_id, pipeline=None):
         pass
+
+    def get_heartbeat_ttl(self, job, working_time=0.0):
+        # Nothing refreshes a greenlet's execution while its job runs, so
+        # the execution has to outlive the job's timeout, as in SimpleWorker.
+        if job.timeout == -1:
+            return DEFAULT_WORKER_TTL
+        return int(job.timeout or DEFAULT_WORKER_TTL) + 60
 
     def _work(self, burst=False, logging_level=logging.INFO):
         """Starts the work loop.
@@ -179,7 +187,9 @@ class GeventWorker(Worker):
             if job.get_status() == JobStatus.FINISHED:
                 queue.enqueue_dependents(job)
 
-        child_greenlet = self.gevent_pool.spawn(self.perform_job, job, queue)
+        child_greenlet = self.gevent_pool.spawn(
+            self.perform_job, job, queue, self.prepare_execution(job)
+        )
         child_greenlet.link(job_done)
         self.children.append(child_greenlet)
 
