@@ -43,6 +43,10 @@
 - `AGENTS.md` now says that behavior that never reached a final Dallinger
   release, such as behavior only on `master`, needs no
   backward-compatibility code.
+- `AGENTS.md`, `/branch-review` and the `branch-review-loop` skill now ask
+  agents to record small follow-ups worth doing later, such as known
+  limitations, as GitHub issues linked from the pull request description,
+  drafting each issue and asking before creating it.
 - Before finalizing a feature pull request, agents now ask whether to run
   a single `/branch-review` or the new `branch-review-loop` skill. The loop
   repeats `/branch-review` as a separate agent, preferably with a different
