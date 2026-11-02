@@ -1,4 +1,5 @@
 import json
+import socket
 import time
 from unittest.mock import Mock, patch
 
@@ -88,11 +89,13 @@ class Parked:
 
     close_reason = None
     close_message = None
+    mode = "werkzeug"
 
     def __init__(self):
         self.connected = True
         self.event = Event()
         self.closed_with = None
+        self.sock = Mock()
 
     def receive(self):
         while self.connected:
@@ -810,6 +813,7 @@ class TestShutdown:
         assert all(each.dead for each in serving)
         going_away = (sockets.GOING_AWAY_CLOSE_CODE, "server shutting down")
         assert player.closed_with == bystander.closed_with == going_away
+        player.sock.shutdown.assert_called_once_with(socket.SHUT_WR)
         assert types_of(session_id) == ["join", "leave"]
         assert not sockets.chat_backend.open_clients
 
