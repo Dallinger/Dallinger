@@ -43,6 +43,10 @@
 - `AGENTS.md` now says that behavior that never reached a final Dallinger
   release, such as behavior only on `master`, needs no
   backward-compatibility code.
+- `AGENTS.md`, `/branch-review` and the `branch-review-loop` skill now ask
+  agents to record small follow-ups worth doing later, such as known
+  limitations, as GitHub issues linked from the pull request description,
+  drafting each issue and asking before creating it.
 - Before finalizing a feature pull request, agents now ask whether to run
   a single `/branch-review` or the new `branch-review-loop` skill. The loop
   repeats `/branch-review` as a separate agent, preferably with a different
@@ -522,6 +526,9 @@
   as the instance's Name tag. The internal helpers `filter_zone_ids`,
   `get_domain` and `get_subdomain` in `dallinger.command_line.lib.ec2` were
   replaced by `find_hosted_zone_id`.
+- `init_db(drop_all=True)` now checks that redis is reachable before
+  dropping any tables, and raises with the database left unchanged if it
+  isn't, instead of leaving the database with no tables.
 - `dallinger.identity.uniqueId` keeps the participant's value on pages whose
   URL has no `workerId` and `assignmentId`, such as the ones `goToPage()`
   opens. It was set to `"undefined:undefined"` there.

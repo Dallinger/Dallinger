@@ -282,6 +282,16 @@ class TestSessions:
 
         assert store.redis_conn.keys("realtime:*") == [store.RUNNERS.encode()]
 
+    def test_recreating_the_database_without_redis_changes_nothing(self, caplog):
+        session_id = create_session(TurnTally, ["1"])
+        db.session.commit()
+        with patch.object(store.redis_conn, "ping", side_effect=RedisConnectionError):
+            with pytest.raises(RedisConnectionError):
+                db.init_db(drop_all=True)
+
+        assert db.session.query(RealtimeSession.id).all() == [(session_id,)]
+        assert "rerun this command" in caplog.text
+
     def test_recreating_another_database_keeps_the_sessions(self):
         session_id = create_session(TurnTally, ["1"])
         other = db.create_db_engine(db.db_url)
