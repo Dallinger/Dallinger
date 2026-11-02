@@ -15,9 +15,11 @@ from dallinger.constraints import (
     _get_constraints_signature,
     _get_explicit_dallinger_github_requirement,
     _get_explicit_dallinger_numbered_release,
+    _newest_cpython_patch,
     check_constraints,
     ensure_constraints_file_presence,
     generate_constraints,
+    latest_cpython_patch,
     working_directory,
 )
 from dallinger.utils import check_output
@@ -166,6 +168,68 @@ def test_constraints_run_from_wrong_directory(tempdir, python_version_file):
 
     with working_directory(tempdir):
         _compile_with_uv(Path("requirements.txt"), Path("constraints.txt"))
+
+
+@pytest.mark.parametrize(
+    "requested, compiled_for", [("3.11", "3.11.17"), ("3.11.4", "3.11.4")]
+)
+def test_compile_targets_latest_patch_for_minor_python_version(
+    in_tempdir, requested, compiled_for
+):
+    Path(".python-version").write_text(f"{requested}\n")
+    Path("requirements.txt").write_text("flask\n")
+
+    with (
+        patch("dallinger.constraints.latest_cpython_patch", return_value="3.11.17"),
+        patch("dallinger.constraints.subprocess.check_output") as mock_check,
+    ):
+        _compile_with_uv(Path("requirements.txt"), Path("constraints.txt"))
+
+    cmd = mock_check.call_args.args[0]
+    assert cmd[cmd.index("--python-version") + 1] == compiled_for
+    compile_info = mock_check.call_args.kwargs["env"]["UV_CUSTOM_COMPILE_COMMAND"]
+    assert compile_info.endswith(f"requesting Python {requested}")
+
+
+def test_compile_falls_back_to_minor_python_version_when_uv_lookup_fails(
+    in_tempdir, caplog
+):
+    Path(".python-version").write_text("3.11\n")
+    Path("requirements.txt").write_text("flask\n")
+
+    with (
+        patch(
+            "dallinger.constraints.latest_cpython_patch",
+            side_effect=ValueError("uv did not report a CPython 3.11 patch release"),
+        ),
+        patch("dallinger.constraints.subprocess.check_output") as mock_check,
+        caplog.at_level(logging.WARNING, logger="dallinger.constraints"),
+    ):
+        _compile_with_uv(Path("requirements.txt"), Path("constraints.txt"))
+
+    cmd = mock_check.call_args.args[0]
+    assert cmd[cmd.index("--python-version") + 1] == "3.11"
+    assert "Could not find the latest CPython 3.11 patch" in caplog.text
+
+
+def test_latest_cpython_patch_asks_uv():
+    assert re.fullmatch(r"3\.11\.\d+", latest_cpython_patch("3.11"))
+
+
+def test_newest_cpython_patch_ignores_other_interpreters_and_prereleases():
+    installations = [
+        {"implementation": "cpython", "variant": "default", "version": "3.11.9"},
+        {"implementation": "cpython", "variant": "default", "version": "3.11.17"},
+        {"implementation": "cpython", "variant": "default", "version": "3.11.18rc1"},
+        {"implementation": "pypy", "variant": "default", "version": "3.11.16"},
+        {"implementation": "graalpy", "variant": "default", "version": "3.11.0"},
+        {"implementation": "cpython", "variant": "freethreaded", "version": "3.11.17"},
+        {"implementation": "cpython", "variant": "default", "version": "3.12.1"},
+    ]
+
+    assert _newest_cpython_patch("3.11", installations) == "3.11.17"
+    with pytest.raises(ValueError, match="CPython 3.11"):
+        _newest_cpython_patch("3.11", [])
 
 
 def test_get_explicit_dallinger_github_requirement(in_tempdir):

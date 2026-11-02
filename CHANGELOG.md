@@ -511,6 +511,13 @@
 
 ### Fixed
 
+- `dallinger constraints generate` now compiles an experiment whose
+  `.python-version` names only a minor version (such as `3.11`) for the
+  latest CPython patch of that line (such as `3.11.18`), which is what
+  `python:3.11` Docker images run. It compiled for Python 3.11.0, so
+  experiments on Python 3.11 failed to resolve Dallinger's own pins, such as
+  `soupsieve==3.0.4`, which needs Python 3.11.5. A `.python-version` with a
+  full version such as `3.11.4` is still used as written.
 - `dallinger ec2` commands that manage Route 53 records now use the hosted
   zone whose name is the longest suffix of the DNS host, preferring public
   zones, and report an error if two zones tie (provisioning stops; `start`,

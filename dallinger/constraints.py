@@ -26,6 +26,8 @@ the experiment's .python-version file.
 """
 
 import contextlib
+import functools
+import json
 import logging
 import os
 import platform
@@ -403,6 +405,59 @@ def _get_requested_python_version() -> str:
     return python_version_path.read_text().strip()
 
 
+def _get_compile_python_version() -> str:
+    """Return the Python version passed to ``uv pip compile``.
+
+    ``uv pip compile --python-version 3.11`` resolves as Python 3.11.0, which
+    rejects pins that need a later 3.11 patch. A ``.python-version`` naming only
+    a minor version therefore compiles for the latest CPython patch of that
+    line, which is what ``python:3.11`` Docker images run.
+    """
+    requested = _get_requested_python_version()
+    if re.fullmatch(r"\d+\.\d+", requested) is None:
+        return requested
+    try:
+        return latest_cpython_patch(requested)
+    except (OSError, ValueError, subprocess.CalledProcessError) as e:
+        logger.warning(
+            f"Could not find the latest CPython {requested} patch with "
+            f"'uv python list' ({e}); compiling for Python {requested}."
+        )
+        return requested
+
+
+@functools.cache
+def latest_cpython_patch(series: str) -> str:
+    """Return the newest CPython patch release in *series* known to ``uv``."""
+    result = subprocess.run(
+        ["uv", "python", "list", series, "--all-versions", "--output-format", "json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return _newest_cpython_patch(series, json.loads(result.stdout))
+
+
+def _newest_cpython_patch(series: str, installations: list) -> str:
+    """Return the newest CPython patch in *series* from ``uv python list`` JSON."""
+    versions = []
+    prefix = f"{series}."
+    for row in installations:
+        if row.get("implementation") != "cpython":
+            continue
+        if row.get("variant") not in (None, "default"):
+            continue
+        version = row.get("version") or ""
+        if not version.startswith(prefix) or not re.fullmatch(
+            r"\d+\.\d+\.\d+", version
+        ):
+            continue
+        versions.append(tuple(int(part) for part in version.split(".")))
+    if not versions:
+        raise ValueError(f"uv did not report a CPython {series} patch release")
+    return ".".join(str(part) for part in max(versions))
+
+
 def _get_dallinger_reference(
     input_path: Path, extras: Optional[List[str]] = None
 ) -> str:
@@ -528,7 +583,7 @@ def _compile_with_uv(
         "pip",
         "compile",
         "--python-version",
-        requested_python_version,
+        _get_compile_python_version(),
     ]
     for extra in extras:
         cmd += ["--extra", extra]
