@@ -143,6 +143,22 @@ def test_worker_start_up_cancels_startup_timeout(tmp_path):
     assert "exiting" not in result.stderr
 
 
+def test_worker_runs_jobs_and_keeps_their_executions_past_the_job_timeout(tmp_path):
+    result = run_worker(
+        tmp_path,
+        """
+        job = self.queues[0].enqueue("time.sleep", 0, job_timeout=600)
+        failing = self.queues[0].enqueue("math.sqrt", -1)
+        real_work(self, burst=True, logging_level=logging_level)
+        assert job.get_status() == "finished", job.get_status()
+        assert failing.get_status() == "failed", failing.get_status()
+        assert self.get_heartbeat_ttl(job) > job.timeout
+        """,
+        startup_timeout="60",
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_default_startup_timeout_matches_global_config_defaults():
     defaults = configparser.ConfigParser()
     defaults.read(

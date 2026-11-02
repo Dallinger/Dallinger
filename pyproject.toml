@@ -56,7 +56,6 @@ dependencies = [
     "redis",
     "requests",
     "rich",
-    "rpds-py<2026.5.1",
     "rq",
     "selenium",
     "sqlalchemy<2",
