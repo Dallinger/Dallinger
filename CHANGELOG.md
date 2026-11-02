@@ -227,6 +227,11 @@
   `/recruiter-exit` request, for example when its `unique_id` parameter
   doesn't match the participant, by returning a response to send instead of
   the exit page. The default returns `None`, which shows the exit page.
+- `Experiment.check_worker_status(participant)` does the same for
+  `/worker_complete` and `/worker_failed`: returning a response refuses the
+  request without recording the participant's status. The default returns
+  `None`. `dallinger.submitAssignment()` and Dallinger's bots now send the
+  participant's `unique_id` to these routes, so an experiment can require it.
 - `dallinger docker-ssh destroy` now makes you choose what happens to the
   experiment's data: its database (with its Postgres user for classic
   ingress), its Redis volume and its data folder `~/dallinger-data/<app>`.

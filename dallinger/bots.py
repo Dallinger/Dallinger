@@ -101,6 +101,12 @@ class BotBase:
     def log(self, msg):
         logger.info("{}: {}".format(self.participant_id, msg))
 
+    def _worker_status_query(self):
+        """Query string identifying this bot to ``/worker_complete`` or ``/worker_failed``."""
+        return parse.urlencode(
+            {"participant_id": self.participant_id, "unique_id": self.unique_id}
+        )
+
     @cached_property
     def driver(self):
         """Returns a Selenium WebDriver instance of the type requested in the
@@ -234,8 +240,12 @@ class BotBase:
 
         url = self.driver.current_url
         p = parse.urlparse(url)
-        complete_url = "%s://%s/%s?participant_id=%s"
-        complete_url = complete_url % (p.scheme, p.netloc, status, self.participant_id)
+        complete_url = "%s://%s/%s?%s" % (
+            p.scheme,
+            p.netloc,
+            status,
+            self._worker_status_query(),
+        )
         self.driver.get(complete_url)
         logger.info("Forced call to %s: %s" % (status, complete_url))
 
@@ -327,8 +337,8 @@ class HighPerformanceBotBase(BotBase):
         """
         self.log("Bot player completing experiment. Status: {}".format(status))
         while True:
-            url = "{host}/{status}?participant_id={participant_id}".format(
-                host=self.host, participant_id=self.participant_id, status=status
+            url = "{host}/{status}?{query}".format(
+                host=self.host, status=status, query=self._worker_status_query()
             )
             try:
                 result = requests.get(url)

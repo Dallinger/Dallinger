@@ -211,6 +211,7 @@ class TestHighPerformanceBot:
         response = bot.complete_experiment("worker_complete")
         req_get.assert_called_once_with(
             "https://dallinger.io/worker_complete?participant_id=1"
+            "&unique_id=worker1%3Aassignment1"
         )
         # returns the response object
         assert response.dummy == 1

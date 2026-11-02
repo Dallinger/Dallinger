@@ -344,6 +344,24 @@ class TestWorkerComplete:
         )
         assert resp.status_code == 200
 
+    def test_experiment_can_refuse_with_its_own_response(self, a, webapp):
+        participant = a.participant()
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as Experiment:
+            Experiment.return_value.check_worker_status.return_value = (
+                "Refused by the experiment",
+                403,
+            )
+            resp = webapp.post(
+                "/worker_complete", data={"participant_id": participant.id}
+            )
+
+        Experiment.return_value.check_worker_status.assert_called_once_with(participant)
+        Experiment.return_value.participant_task_completed.assert_not_called()
+        assert resp.status_code == 403
+        assert resp.data == b"Refused by the experiment"
+
     def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()
         webapp.post("/worker_complete", data={"participant_id": participant.id})
@@ -408,6 +426,7 @@ class TestWorkerComplete:
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as Experiment:
+            Experiment.return_value.check_worker_status.return_value = None
             webapp.post(
                 "/worker_complete",
                 data={"participant_id": participant.id},
@@ -641,6 +660,20 @@ class TestWorkerFailed:
     def test_with_valid_participant_id_returns_success(self, a, webapp):
         resp = webapp.get("/worker_failed?participant_id={}".format(a.participant().id))
         assert resp.status_code == 200
+
+    def test_experiment_can_refuse_with_its_own_response(self, a, webapp, db_session):
+        participant = a.participant()
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as Experiment:
+            Experiment.return_value.check_worker_status.return_value = (
+                "Refused by the experiment",
+                403,
+            )
+            resp = webapp.get("/worker_failed?participant_id={}".format(participant.id))
+
+        assert resp.status_code == 403
+        assert db_session.merge(participant).end_time is None
 
     def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()

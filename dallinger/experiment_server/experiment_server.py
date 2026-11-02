@@ -1910,6 +1910,10 @@ def worker_complete():
             error_type="bad request", error_text="participantId parameter is required"
         )
 
+    refusal = _worker_status_refusal(participant_id)
+    if refusal is not None:
+        return refusal
+
     try:
         _worker_complete(participant_id)
     except KeyError:
@@ -1918,6 +1922,17 @@ def worker_complete():
         )
 
     return success_response(status="success")
+
+
+def _worker_status_refusal(participant_id):
+    """Return the experiment's response refusing a status update, or ``None``.
+
+    An unknown ``participant_id`` returns ``None`` so the route reports it.
+    """
+    participant = session.query(models.Participant).filter_by(id=participant_id).first()
+    if participant is None:
+        return None
+    return Experiment().check_worker_status(participant)
 
 
 def _worker_complete(participant_id):
@@ -1974,6 +1989,10 @@ def worker_failed():
         return error_response(
             error_type="bad request", error_text="participantId parameter is required"
         )
+
+    refusal = _worker_status_refusal(participant_id)
+    if refusal is not None:
+        return refusal
 
     try:
         _worker_failed(participant_id)

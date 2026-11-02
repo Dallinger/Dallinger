@@ -236,6 +236,15 @@ describe('recruiterExitRoute', function () {
     }
     expect(opener.location).toBe('/exit-sentinel');
   });
+
+  test('is sent with the unique_id to /worker_complete', () => {
+    dlgr.identity.participantId = 7;
+    dlgr.post = jest.fn(() => $.Deferred().promise());
+    dlgr.submitAssignment();
+    expect(dlgr.post).toHaveBeenCalledWith(
+      '/worker_complete', {participant_id: 7, unique_id: 'WWW:AAA'}
+    );
+  });
 });
 
 describe('loadParticipant', function () {
