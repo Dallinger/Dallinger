@@ -33,7 +33,7 @@
   `scripts/update_experiments_constraints.py` now takes the Python version
   from the root `Dockerfile` instead of from the interpreter that runs it,
   so the demos follow future Docker image upgrades automatically.
-- Cloudflare Tunnel deployments now use cloudflared 2026.10.4, including the
+- Cloudflare Tunnel deployments now use cloudflared 2026.10.5, including the
   eMudhra certificate-compromise mitigation. Existing connectors require a
   separate image update and restart.
 - Dependabot now opens pull requests for new cloudflared releases. The
