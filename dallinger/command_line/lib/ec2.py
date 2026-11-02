@@ -199,13 +199,11 @@ def get_instance_details(instance_types, region_name=None):
 def get_instances(region_name, show_spinner=True, boto_config=None):
     display_region = region_name or _resolve_default_region_name()
     if show_spinner:
-        with yaspin(
-            text=f"Retrieving instances in {display_region}...", color="green"
-        ) as sp:
+        # No success mark: the caller's lookup in the instances can still fail.
+        with yaspin(text=f"Retrieving instances in {display_region}...", color="green"):
             reservations = get_ec2_client(
                 region_name, boto_config
             ).describe_instances()["Reservations"]
-            sp.ok("✔")
     else:
         reservations = get_ec2_client(region_name, boto_config).describe_instances()[
             "Reservations"
@@ -583,11 +581,18 @@ def _is_retryable(exc: BaseException) -> bool:
 
 
 def wait_for_instance(host, user="ubuntu", n_tries=10):
+    """Return an ``Executor`` for ``host`` once it accepts SSH connections.
+
+    Transient connection errors are retried ``n_tries`` times, five seconds
+    apart; the last error is then raised.
+    """
+
     @retry(
         stop=stop_after_attempt(n_tries),
         wait=wait_fixed(5),
         retry=retry_if_exception(_is_retryable),
         before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
     )
     def _wait_for_instance():
         return Executor(host, user)
@@ -866,22 +871,49 @@ def increase_storage(
     return host, user, ip_address, executor
 
 
-def filter_zone_ids(zone_name, route_53=None):
+def find_hosted_zone_id(dns_host, route_53=None):
+    """Return the id of the Route 53 hosted zone that holds ``dns_host``.
+
+    Parameters
+    ----------
+    dns_host : str
+        The DNS name to look up, e.g. ``exp.lab.example.org``.
+    route_53 : optional
+        A Route 53 client; a new one is made if omitted.
+
+    Returns
+    -------
+    str or None
+        The id of the zone whose name is the longest suffix of ``dns_host``
+        (at a label boundary), or ``None`` if no zone matches. Public zones
+        are preferred to private ones.
+
+    Raises
+    ------
+    click.ClickException
+        If two zones with the same name match equally well.
+    """
     if route_53 is None:
         route_53 = get_53_client()
-    return [
-        item.get("Id")
-        for item in route_53.list_hosted_zones_by_name()["HostedZones"]
-        if zone_name in item.get("Name", "")
-    ]
-
-
-def get_domain(dns_host):
-    return ".".join(dns_host.split(".")[-2:])
-
-
-def get_subdomain(dns_host):
-    return dns_host.split(".")[0]
+    host = dns_host.rstrip(".").lower()
+    zones = []
+    for zone in route_53.list_hosted_zones_by_name()["HostedZones"]:
+        name = zone.get("Name", "").rstrip(".").lower()
+        if name and (host == name or host.endswith(f".{name}")):
+            zones.append((name, zone))
+    public = [z for z in zones if not z[1].get("Config", {}).get("PrivateZone")]
+    zones = public or zones
+    if not zones:
+        return None
+    longest = max(len(name) for name, _ in zones)
+    best = [zone for name, zone in zones if len(name) == longest]
+    if len(best) > 1:
+        ids = ", ".join(zone["Id"] for zone in best)
+        raise click.ClickException(
+            f"Several Route 53 hosted zones could hold {dns_host} ({ids}). Delete "
+            "the duplicates or manage its DNS records by hand."
+        )
+    return best[0]["Id"]
 
 
 def _managed_record_names(dns_host):
@@ -983,7 +1015,11 @@ def remove_dns_records(zone_id, dns_host, route_53=None, confirm=False, target=N
                     "Changes": [{"Action": "DELETE", "ResourceRecordSet": record}]
                 },
             )
-        print(f"Removed DNS record {dns_host}")
+        names = dict.fromkeys(
+            r["Name"].rstrip(".").replace("\\052", "*") for r in filtered_records
+        )
+        plural = "s" if len(names) > 1 else ""
+        print(f"Removed DNS record{plural} {' and '.join(names)}")
 
 
 def create_dns_record(dns_host, user, host, route_53=None):
@@ -995,10 +1031,9 @@ def create_dns_record(dns_host, user, host, route_53=None):
     if route_53 is None:
         route_53 = get_53_client()
 
-    filtered_hosts = filter_zone_ids(get_domain(dns_host), route_53)
-    if not filtered_hosts:
+    hosted_zone_id = find_hosted_zone_id(dns_host, route_53)
+    if hosted_zone_id is None:
         raise click.ClickException(f"No Route 53 hosted zone found for {dns_host}.")
-    hosted_zone_id = filtered_hosts[0]
     response = route_53.change_resource_record_sets(
         HostedZoneId=hosted_zone_id,
         ChangeBatch={
@@ -1056,10 +1091,9 @@ def prepare_instance(
 
     if dns_host is not None:
         route_53 = get_53_client()
-        domain = get_domain(dns_host)
 
         msg = f"""
-        Hosted zone {domain} not found in Route 53.
+        No Route 53 hosted zone found for {dns_host}.
         To set it up, you need a DNS record for your experiment server.
         On the AWS online console, navigate to the Route 53 service.
         On the Dashboard you can register a domain name. Note that different domain names
@@ -1067,10 +1101,10 @@ def prepare_instance(
         Before proceeding with the next steps, please wait until the AWS console tells you that the registration
         is complete.
         """
-        filtered_ids = filter_zone_ids(domain, route_53)
-        assert len(filtered_ids) == 1, msg
+        zone_id = find_hosted_zone_id(dns_host, route_53)
+        assert zone_id is not None, msg
 
-        remove_dns_records(filtered_ids[0], dns_host, route_53, confirm=True)
+        remove_dns_records(zone_id, dns_host, route_53, confirm=True)
 
         with open(os.path.expanduser("~/.ssh/known_hosts"), "r") as f:
             known_hosts = f.readlines()
@@ -1311,7 +1345,7 @@ def get_instance_id_from_name(region_name, instance_name):
 def restart(region_name, instance_id):
     logger.info(f"Restarting {instance_id}...")
     get_ec2_client(region_name).reboot_instances(InstanceIds=[instance_id])
-    logger.info(f"Restarting of {instance_id} complete!")
+    logger.info(f"Requested a reboot of {instance_id}.")
 
 
 def start(region_name, instance_id):
@@ -1326,7 +1360,7 @@ def stop(region_name, instance_id):
     )
     logger.info(f"Stopping {instance_id}...")
     get_ec2_client(region_name).stop_instances(InstanceIds=[instance_id])
-    logger.info(f"Stopping of {instance_id} complete!")
+    logger.info(f"Requested a stop of {instance_id}; it takes a minute or two.")
 
 
 def _configured_hosts_or_warn(consequence):
@@ -1382,14 +1416,14 @@ def remove_instance_dns_records(dns_host, public_dns_name):
         return
     try:
         route_53 = get_53_client()
-        zone_ids = filter_zone_ids(get_domain(dns_host), route_53)
-        if not zone_ids:
+        zone_id = find_hosted_zone_id(dns_host, route_53)
+        if zone_id is None:
             print(
                 f"Warning: No Route 53 hosted zone found for {dns_host}; "
                 "no DNS records were removed."
             )
             return
-        remove_dns_records(zone_ids[0], dns_host, route_53, target=public_dns_name)
+        remove_dns_records(zone_id, dns_host, route_53, target=public_dns_name)
     except ROUTE_53_ERRORS as e:
         logger.warning(
             f"Could not delete the Route 53 records for {dns_host} ({e}). Delete "
@@ -1433,4 +1467,7 @@ def teardown(region_name, instance_id, public_dns_name, dns_host):
         get_ec2_client(region_name).terminate_instances(InstanceIds=[instance_id])
     for host in owned:
         dallinger_remove_host(host)
-    logger.info(f"Termination of {instance_id} complete!")
+    logger.info(
+        f"Requested termination of {instance_id}; it takes a minute or two to "
+        "shut down."
+    )
