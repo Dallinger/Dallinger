@@ -1311,6 +1311,11 @@
   Paramiko with an unrelated message such as `dmq1 must be odd`. To replace
   the key, check it with `ssh-keygen -l -f`, install a new public key through
   a login that already works, and point `server_pem` at the new private key.
+- The gevent worker now supports RQ 3 as well as RQ 2. Under RQ 3 it passes
+  each job its execution and keeps that execution alive for the job's whole
+  timeout, so jobs no longer fail with `perform_job() missing 1 required
+  positional argument: 'execution'`.
+
 ### Removed
 
 - Removed the Vagrant development environment (``Vagrantfile`` and the Vagrant
