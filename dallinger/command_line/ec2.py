@@ -22,6 +22,7 @@ from .lib.ec2 import (
     start,
     stop,
     teardown,
+    wait_for_instance,
     wait_for_instance_state_change,
 )
 
@@ -210,7 +211,9 @@ def ec2__provision(
     default=None,
     help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
 )
-@click.option("--name", default=None, help="Instance ID")
+@click.option(
+    "--name", default=None, help="Instance name (its Name tag). Use this OR --dns."
+)
 @click.option("--region", default=None, help="Region name")
 @click.option("--storage", required=True, type=int, help="Storage in GB")
 @click.pass_context
@@ -231,7 +234,9 @@ def ec2__increase_storage(ctx, dns, name, region, storage):
     default=None,
     help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
 )
-@click.option("--name", default=None, help="Instance ID")
+@click.option(
+    "--name", default=None, help="Instance name (its Name tag). Use this OR --dns."
+)
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
@@ -258,7 +263,9 @@ def ec2__stop(ctx, dns, name, region, dns_host):
     default=None,
     help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
 )
-@click.option("--name", default=None, help="Instance ID")
+@click.option(
+    "--name", default=None, help="Instance name (its Name tag). Use this OR --dns."
+)
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",
@@ -296,6 +303,16 @@ def ec2__start(ctx, dns, name, region, dns_host):
             f"Warning: Could not update the Route 53 records for {dns_host} ({e}). "
             f"Point {dns_host} and *.{dns_host} at {host} by hand."
         )
+    print(f"Waiting for {host} to accept SSH connections...")
+    try:
+        wait_for_instance(host, user).close()
+    except Exception as e:
+        print(
+            f"Warning: Couldn't connect over SSH to {host} yet ({e!r}). If it "
+            "doesn't come up within a few minutes, check server_pem and the SSH user."
+        )
+    else:
+        print(f"{name} is ready at {host}.")
 
 
 @ec2.command("restart")
@@ -304,7 +321,9 @@ def ec2__start(ctx, dns, name, region, dns_host):
     default=None,
     help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
 )
-@click.option("--name", default=None, help="Instance ID")
+@click.option(
+    "--name", default=None, help="Instance name (its Name tag). Use this OR --dns."
+)
 @click.option("--region", default=None, help="Region name")
 @click.pass_context
 def ec2__restart(ctx, dns, name, region):
@@ -322,7 +341,9 @@ def ec2__restart(ctx, dns, name, region):
     default=None,
     help="Public DNS of the EC2 instance (AWS hostname). Use this OR --name.",
 )
-@click.option("--name", default=None, help="Instance ID")
+@click.option(
+    "--name", default=None, help="Instance name (its Name tag). Use this OR --dns."
+)
 @click.option("--region", default=None, help="Region name")
 @click.option(
     "--dns-host",

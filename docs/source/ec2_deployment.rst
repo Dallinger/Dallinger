@@ -95,7 +95,9 @@ Note that this variable should be specified as a full path (e.g. ``~/.ssh/my-ec2
 A new instance accepts only the ``ec2_default_pem`` key pair, and Dallinger
 logs in to every server with ``server_pem``, so ``server_pem`` must be that
 key pair's private key, without a passphrase; ``provision`` checks this
-before booting an instance.
+before booting an instance. A ``server_pem`` set up for other docker-ssh
+servers, such as ``~/.ssh/id_rsa``, fails this check: set ``server_pem`` to the
+``.pem`` file of the key pair named by ``ec2_default_pem``.
 
 **Both configuration values are required** for EC2-based deployments. If either is missing
 or if the PEM file doesn't exist at the specified path, the deployment will fail with an error message.

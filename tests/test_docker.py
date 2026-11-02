@@ -901,6 +901,7 @@ def test_get_connected_ssh_client_reuses_one_quiet_connection(
             assert Path(filename).exists()
 
     monkeypatch.setattr(docker_ssh.paramiko, "SSHClient", DummyClient)
+    monkeypatch.setattr(docker_ssh.socket, "create_connection", mock.Mock())
 
     client = docker_ssh.get_connected_ssh_client("localhost:2222", user="root")
     assert isinstance(client, DummyClient)

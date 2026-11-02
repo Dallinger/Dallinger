@@ -99,6 +99,8 @@ Always update the open pull request title and description to match the committed
 branch diff. Do this even if the current title or description looks close.
 
 - Find the PR: `gh pr view --json number,title,url,body`
+- For findings left for later, first apply "Recording follow-ups" in
+  `AGENTS.md`
 - Title: a concise, accurate summary of the committed change
 - Description: follow `.github/PULL_REQUEST_TEMPLATE.md` and keep every section
   current (LLM use, motivation, behavior, implementation details, known
