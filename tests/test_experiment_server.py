@@ -435,6 +435,7 @@ class TestWorkerComplete:
         Experiment.return_value.participant_task_completed.assert_called_once_with(
             participant
         )
+        assert Experiment.call_args_list.count(mock.call()) == 1
 
 
 @pytest.mark.usefixtures("experiment_dir")
