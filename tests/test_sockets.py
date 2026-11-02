@@ -2,6 +2,7 @@ import json
 import numbers
 import re
 import socket
+import threading
 import time
 from datetime import datetime
 from decimal import Decimal
@@ -952,6 +953,7 @@ class TestExperimentSocket:
     def test_binary_frame_closes_the_connection(self, sockets, scripted_socket):
         exp = Mock()
         ws = scripted_socket(b'game:{"action": "rock"}', "game:never read")
+        ws.mode = "werkzeug"
         client = self.sync_client(sockets, ws, exp)
 
         client.publish()
@@ -959,6 +961,7 @@ class TestExperimentSocket:
         ws.close.assert_called_once_with(
             sockets.UNSUPPORTED_DATA_CLOSE_CODE, "text frames only"
         )
+        ws.sock.shutdown.assert_called_once_with(socket.SHUT_WR)
         exp.handle_websocket_message.assert_not_called()
         assert ws.receive.call_count == 1
 
@@ -1125,6 +1128,7 @@ class TestExperimentSocketConnection:
             sockets.chat(ws)
 
     def test_unknown_participant_is_refused(self, sockets, admission, mocksocket):
+        mocksocket.mode = "werkzeug"
         with patch.object(admission, "resolve_participant_id", return_value=None):
             with patch.object(admission, "Experiment") as experiment_factory:
                 self.connect(
@@ -1137,6 +1141,7 @@ class TestExperimentSocketConnection:
         mocksocket.close.assert_called_once_with(
             sockets.REFUSED_CLOSE_CODE, "unknown participant"
         )
+        mocksocket.sock.shutdown.assert_called_once_with(socket.SHUT_WR)
         experiment_factory.assert_not_called()
         assert "special" not in sockets.chat_backend.channels
 
@@ -2358,3 +2363,57 @@ class TestSubscriptionHandshake:
         # is what makes the channel relayable again.
         second.subscribe.assert_called_once_with([b"custom"])
         assert channel.listening.is_set()
+
+
+class TestCloseWebsocket:
+    def received_after_handshake(self, port):
+        client = socket.create_connection(("127.0.0.1", port), timeout=5)
+        client.sendall(
+            b"GET /close HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"Upgrade: websocket\r\n"
+            b"Connection: Upgrade\r\n"
+            b"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+            b"Sec-WebSocket-Version: 13\r\n\r\n"
+        )
+        received = b""
+        with client:
+            while chunk := client.recv(4096):
+                received += chunk
+        handshake, _, frames = received.partition(b"\r\n\r\n")
+        assert handshake.startswith(b"HTTP/1.1 101")
+        return frames
+
+    def test_other_servers_keep_the_socket_open_for_writing(self):
+        from dallinger.experiment_server import sockets
+
+        ws = Mock(mode="gunicorn")
+        sockets._close_websocket(ws, sockets.REFUSED_CLOSE_CODE, "refused")
+
+        ws.close.assert_called_once_with(sockets.REFUSED_CLOSE_CODE, "refused")
+        ws.sock.shutdown.assert_not_called()
+
+    def test_the_development_server_sends_only_the_close_frame(self):
+        from flask import Flask
+        from flask_sock import Sock
+        from werkzeug.serving import make_server
+
+        from dallinger.experiment_server import sockets
+
+        app = Flask(__name__)
+
+        @Sock(app).route("/close")
+        def close(ws):
+            sockets._close_websocket(ws, sockets.REFUSED_CLOSE_CODE, "refused")
+
+        server = make_server("127.0.0.1", 0, app, threaded=True)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            frames = self.received_after_handshake(server.server_port)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        # An unmasked close frame: FIN and opcode 8, the payload length, then
+        # the code and reason.
+        assert frames == b"\x88\x09" + (1008).to_bytes(2, "big") + b"refused"
