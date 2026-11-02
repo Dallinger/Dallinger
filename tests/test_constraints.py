@@ -216,12 +216,26 @@ def test_compile_python_version_keeps_a_full_version():
     mock_check.assert_not_called()
 
 
-def test_compile_python_version_keeps_a_minor_version_uv_has_no_patch_for():
+def test_compile_python_version_warns_and_keeps_a_minor_version_uv_has_no_patch_for(
+    caplog,
+):
     with patch(
         "dallinger.constraints.subprocess.check_output",
         return_value=_uv_python_list(),
     ):
-        assert _get_compile_python_version("3.99") == "3.99"
+        with caplog.at_level(logging.WARNING, logger="dallinger.constraints"):
+            assert _get_compile_python_version("3.99") == "3.99"
+
+    assert "compiled for Python 3.99.0" in caplog.text
+
+
+def test_compile_python_version_raises_on_malformed_uv_output():
+    with patch(
+        "dallinger.constraints.subprocess.check_output",
+        return_value="not json",
+    ):
+        with pytest.raises(json.JSONDecodeError):
+            _get_compile_python_version("3.11")
 
 
 def test_compile_passes_the_latest_patch_for_a_minor_python_version(in_tempdir):

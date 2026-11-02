@@ -446,9 +446,18 @@ def _get_compile_python_version(requested_python_version: str) -> str:
         ],
         text=True,
     )
+    installations = json.loads(raw)
     try:
-        return latest_cpython_patch(requested_python_version, json.loads(raw))
+        return latest_cpython_patch(requested_python_version, installations)
     except ValueError:
+        logger.warning(
+            "uv lists no CPython %s release, so constraints are compiled for "
+            "Python %s.0. Put a full version such as %s.9 in .python-version "
+            "if a package needs a later patch.",
+            requested_python_version,
+            requested_python_version,
+            requested_python_version,
+        )
         return requested_python_version
 
 
