@@ -262,7 +262,7 @@ def test_compile_passes_the_latest_patch_for_a_minor_python_version(in_tempdir):
 
 
 @pytest.mark.slow
-def test_compile_for_a_minor_python_version_accepts_later_patch_requirements(
+def test_minor_python_version_compiles_later_patch_requirements_and_passes_check(
     in_tempdir,
 ):
     # soupsieve 3.0.4 requires Python >=3.11.5.
@@ -272,6 +272,7 @@ def test_compile_for_a_minor_python_version_accepts_later_patch_requirements(
     _compile_with_uv(Path("requirements.txt"), Path("constraints.txt"))
 
     assert "soupsieve==3.0.4" in Path("constraints.txt").read_text()
+    check_constraints()
 
 
 def test_get_explicit_dallinger_github_requirement(in_tempdir):
