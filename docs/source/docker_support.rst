@@ -479,6 +479,8 @@ Set the ``server_pem`` configuration variable in your experiment's ``config.txt`
 * This is the private key corresponding to the public key configured on your server;
   this could be a PEM file that you downloaded from AWS, or it might be
   one you generated yourself, located perhaps at ``~/.ssh/id_rsa`` or ``~/.ssh/id_ed25519``.
+  For servers made with ``dallinger ec2 provision``, it must be the ``.pem`` file of the
+  key pair named by ``ec2_default_pem`` (see :doc:`ec2_deployment`).
 * Best practice: Store PEM files in ``~/.ssh/`` directory (the standard location for SSH keys)
 
 Server Prerequisites

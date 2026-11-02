@@ -43,6 +43,10 @@
 - `AGENTS.md` now says that behavior that never reached a final Dallinger
   release, such as behavior only on `master`, needs no
   backward-compatibility code.
+- `AGENTS.md`, `/branch-review` and the `branch-review-loop` skill now ask
+  agents to record small follow-ups worth doing later, such as known
+  limitations, as GitHub issues linked from the pull request description,
+  drafting each issue and asking before creating it.
 - Before finalizing a feature pull request, agents now ask whether to run
   a single `/branch-review` or the new `branch-review-loop` skill. The loop
   repeats `/branch-review` as a separate agent, preferably with a different
@@ -513,6 +517,24 @@
   failed for packages that need a later 3.11 patch, such as
   `soupsieve==3.0.4` in Dallinger's pins, which needs Python 3.11.5. It also
   no longer downloads a Python interpreter to compile.
+- `dallinger ec2` commands that manage Route 53 records now use the hosted
+  zone whose name is the longest suffix of the DNS host, preferring public
+  zones, and report an error if two zones tie (provisioning stops; `start`,
+  `stop` and `teardown` warn and skip the DNS step). They used the first zone
+  whose name merely contained the host's last two labels, which could be a
+  parent, private or unrelated zone. `ec2 start` now waits for the instance to
+  accept SSH connections (ten attempts, as provisioning does) and warns if it
+  isn't reachable. SSH connections from `docker-ssh` and `ec2` now give up
+  if the TCP connection isn't made within 15 seconds per address. `ec2 stop`,
+  `restart` and `teardown` say that the stop, reboot or termination was
+  requested rather than complete, DNS cleanup names every record it removed
+  (e.g. `exp.example.org and *.exp.example.org`), and `--name` is documented
+  as the instance's Name tag. The internal helpers `filter_zone_ids`,
+  `get_domain` and `get_subdomain` in `dallinger.command_line.lib.ec2` were
+  replaced by `find_hosted_zone_id`.
+- `init_db(drop_all=True)` now checks that redis is reachable before
+  dropping any tables, and raises with the database left unchanged if it
+  isn't, instead of leaving the database with no tables.
 - `dallinger.identity.uniqueId` keeps the participant's value on pages whose
   URL has no `workerId` and `assignmentId`, such as the ones `goToPage()`
   opens. It was set to `"undefined:undefined"` there.
