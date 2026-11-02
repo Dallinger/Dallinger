@@ -1311,6 +1311,12 @@
   Paramiko with an unrelated message such as `dmq1 must be odd`. To replace
   the key, check it with `ssh-keygen -l -f`, install a new public key through
   a login that already works, and point `server_pem` at the new private key.
+- Updated Python dependencies (regenerated `requirements.txt`,
+  `dev-requirements.txt`, and `constraints.txt`; bumped the ruff pre-commit
+  hook to v0.17.3). Runtime updates include RQ 3.0.0, WTForms 3.3.2, certifi
+  2026.10.23, boto3/botocore 1.43.123, and uv 0.13.6. Removed the
+  `rpds-py<2026.5.1` dependency, which Dallinger listed only to cap the
+  version; dev installs now get rpds-py 2026.9.1 through `jsonschema`.
 - The gevent worker now supports RQ 3 as well as RQ 2. Under RQ 3 it passes
   each job its execution and keeps that execution alive for the job's whole
   timeout, so jobs no longer fail with `perform_job() missing 1 required
