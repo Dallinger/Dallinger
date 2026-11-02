@@ -507,6 +507,9 @@
 
 ### Fixed
 
+- `init_db(drop_all=True)` now checks that redis is reachable before
+  dropping any tables, and raises with the database left unchanged if it
+  isn't, instead of leaving the database with no tables.
 - `dallinger.identity.uniqueId` keeps the participant's value on pages whose
   URL has no `workerId` and `assignmentId`, such as the ones `goToPage()`
   opens. It was set to `"undefined:undefined"` there.
