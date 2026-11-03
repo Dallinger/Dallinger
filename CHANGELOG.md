@@ -249,7 +249,12 @@
   carrying on with the server running. Once a server restarts with an empty
   `dashboard_password`, the old password no longer opens the dashboard or
   launches the experiment, and existing dashboard sessions and remember-me
-  cookies stop working. When
+  cookies stop working (Codespaces still logs the dashboard in
+  automatically). New helpers: `handle_launch_data()` takes `app_id=` for
+  the destroy hint, and `dallinger.deployment.launch_auth()`,
+  `dallinger.utils.fill_dashboard_login()` and
+  `dallinger.utils.fill_config_dashboard_login()` read or fill the login.
+  When
   `dashboard_user` or `dashboard_password` is unset or empty, every
   deploy command uses `admin` and a new random password, including
   `docker deploy-image` and `docker-ssh` deploys that reuse a prebuilt
