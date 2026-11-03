@@ -664,6 +664,18 @@ class TestHandleError:
 
         assert db_session.merge(participant).end_time is not None
 
+    def test_prefers_the_assignment_to_a_repeat_workers_earlier_row(
+        self, a, webapp, db_session
+    ):
+        a.participant(worker_id="worker-x", assignment_id="assignment-1")
+        current = a.participant(worker_id="worker-x", assignment_id="assignment-2")
+        webapp.post(
+            "/handle-error",
+            data={"worker_id": "worker-x", "assignment_id": "assignment-2"},
+        )
+
+        assert db_session.merge(current).end_time is not None
+
     def test_experiment_can_refuse_completing_the_participant(
         self, a, webapp, db_session
     ):

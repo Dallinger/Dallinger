@@ -463,16 +463,6 @@ def handle_error():
     details["error_type"] = error_type
     details["error_text"] = error_text
 
-    if participant_id is None and worker_id:
-        participants = (
-            session.query(models.Participant).filter_by(worker_id=worker_id).all()
-        )
-        if participants:
-            participant = participants[0]
-            participant_id = participant.id
-            if not assignment_id:
-                assignment_id = participant.assignment_id
-
     if participant_id is None and assignment_id:
         participants = (
             session.query(models.Participant)
@@ -484,6 +474,16 @@ def handle_error():
             participant_id = participant.id
             if not worker_id:
                 worker_id = participant.worker_id
+
+    if participant_id is None and worker_id:
+        participants = (
+            session.query(models.Participant).filter_by(worker_id=worker_id).all()
+        )
+        if participants:
+            participant = participants[0]
+            participant_id = participant.id
+            if not assignment_id:
+                assignment_id = participant.assignment_id
 
     if participant_id is not None:
         exp = Experiment()

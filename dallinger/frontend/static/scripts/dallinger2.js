@@ -402,8 +402,9 @@ var dallinger = (function () {
       $form = $('<form>').attr('action', '/error-page').attr('method', 'POST');
       $('body').append($form);
     }
-    if (rejection.data.participant_id) {
-      add_hidden_input($form, 'participant_id', rejection.data.participant_id);
+    var participantId = rejection.data.participant_id || dlgr.identity.participantId;
+    if (participantId) {
+      add_hidden_input($form, 'participant_id', participantId);
     }
     add_hidden_input($form, 'request_data', rejection.requestJSON);
     for (var prop in hit_params) {
