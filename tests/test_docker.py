@@ -248,6 +248,7 @@ def test_deploy_heroku_docker_reports_the_configured_dashboard_login(
             docker_cli, "handle_launch_data", return_value={"recruitment_msg": "ok"}
         ),
     ):
+        heroku_app.return_value.name = "dlgr-uid"
         heroku_app.return_value._result.return_value = ""
         result = docker_cli.deploy_heroku_docker(log=log, verbose=False)
 
