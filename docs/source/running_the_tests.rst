@@ -83,7 +83,8 @@ add the ``mturkfull`` option when running the tests::
 
   pytest --mturkfull --runslow
 
-To run the JavaScript tests, run::
+The JavaScript tests need Node.js 22.15 or later. Install the JavaScript
+packages once with ``npm ci``, then run the tests::
 
   npm run test --coverage
 
