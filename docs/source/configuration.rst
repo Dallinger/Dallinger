@@ -139,7 +139,7 @@ General
 
 ``dashboard_password`` *unicode*
     An optional password for accessing the Dallinger Dashboard interface. If not
-    specified, a random password will be generated. Dallinger's deploy
+    specified, or empty, a random password will be generated. Dallinger's deploy
     commands also use the dashboard login to call the ``/launch`` route.
 
 ``dashboard_user`` *unicode*
