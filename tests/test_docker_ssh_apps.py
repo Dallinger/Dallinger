@@ -2093,7 +2093,9 @@ def test_compose_environment_gets_the_dashboard_password(stub_config, option):
     )
     password = env["dashboard_password"]
     assert password == stub_config.get("dashboard_password")
-    assert password == (option or password) and password
+    assert password
+    if option:
+        assert password == option
 
 
 def test_deploy_validates_config_options_before_deploying(monkeypatch):

@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest import mock
 
 import click
+import click.testing
 import pexpect
 import pytest
 import requests
@@ -1702,16 +1703,6 @@ class Testhandle_launch_data:
 
         mock_post.assert_called_once()
 
-
-def test_fill_dashboard_login_replaces_an_empty_login():
-    from dallinger.deployment import fill_dashboard_login
-
-    login = fill_dashboard_login({"dashboard_user": "", "dashboard_password": ""})
-    assert login["dashboard_user"] == "admin"
-    assert login["dashboard_password"]
-    kept = {"dashboard_user": "me", "dashboard_password": "pw"}
-    assert fill_dashboard_login(dict(kept)) == kept
-
     def test_https_wait_progress_is_status_not_error(self):
         from dallinger.deployment import _HTTPS_WAIT_BAR_STYLE, _https_wait_progress
 
@@ -1994,6 +1985,16 @@ def test_fill_dashboard_login_replaces_an_empty_login():
             mock_print.assert_not_called()
 
 
+def test_fill_dashboard_login_replaces_an_empty_login():
+    from dallinger.deployment import fill_dashboard_login
+
+    login = fill_dashboard_login({"dashboard_user": "", "dashboard_password": ""})
+    assert login["dashboard_user"] == "admin"
+    assert login["dashboard_password"]
+    kept = {"dashboard_user": "me", "dashboard_password": "pw"}
+    assert fill_dashboard_login(dict(kept)) == kept
+
+
 @pytest.mark.parametrize("preset", ["preset-key", "", None])
 def test_debug_deployment_keeps_preset_flask_secret_key(monkeypatch, preset):
     from dallinger.deployment import DebugDeployment
@@ -2012,6 +2013,25 @@ def test_debug_deployment_keeps_preset_flask_secret_key(monkeypatch, preset):
         assert key == preset
     else:
         assert len(key) == 32
+
+
+def test_debug_deployment_reports_a_refused_launch():
+    from dallinger.deployment import DebugDeployment, LaunchRefused
+
+    debugger = DebugDeployment(
+        mock.Mock(), verbose=False, bot=False, proxy_port=None, exp_config={}
+    )
+    heroku = mock.Mock()
+    with (
+        mock.patch("dallinger.deployment.get_base_url", return_value="http://x"),
+        mock.patch(
+            "dallinger.deployment.handle_launch_data",
+            side_effect=LaunchRefused("refused (HTTP 403)"),
+        ),
+        pytest.raises(LaunchRefused),
+    ):
+        debugger.execute(heroku)
+    heroku.monitor.assert_not_called()
 
 
 @pytest.mark.parametrize("signame", ["SIGTERM", "SIGHUP"])

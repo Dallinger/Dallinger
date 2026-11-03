@@ -337,9 +337,10 @@ def _send_launch(executor, target, command):
             return json.loads(body)
         if status == 403:
             raise click.ClickException(
-                f"{target.app} refused the launch (HTTP 403): the web container's "
-                "dashboard_user and dashboard_password were not accepted. The "
-                "experiment was not launched and recruitment has not started."
+                f"The server refused the launch of {target.app} (HTTP 403), most "
+                "likely because it did not accept the web container's "
+                "dashboard_user and dashboard_password. The experiment was not "
+                "launched and recruitment has not started."
             )
         raise _LaunchSent(
             f"The launch request to {target.app} returned HTTP {status}:\n{body}"

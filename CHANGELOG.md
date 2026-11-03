@@ -229,6 +229,24 @@
   so Flask (deployed), werkzeug's debugger (`dallinger develop debug`), RQ or
   APScheduler reports the error with its traceback. This applies to deployed
   experiments too.
+- `POST /launch` now requires the dashboard login (`dashboard_user` and
+  `dashboard_password`) with HTTP Basic authentication and answers 403
+  without it. Previously anyone could call it on a deployed experiment to
+  rerun its setup and reopen recruitment, which on Prolific could publish
+  another study. `dallinger debug`, `develop`, `sandbox`/`deploy`, `docker`
+  and `docker-ssh` send the login for you, and `handle_launch_data()` sends
+  the loaded config's login unless given `auth=(user, password)`. A 403
+  stops the deploy with an error, without retrying, and `dallinger debug`
+  reports it instead of carrying on with the server running. Heroku apps
+  now get `dashboard_user` and `dashboard_password` as config vars. When
+  `dashboard_user` or `dashboard_password` is unset or empty,
+  `docker deploy-image` and `docker-ssh` deploys use `admin` and a new
+  random password, also when they reuse a prebuilt `docker_image_name`.
+  This breaks code that called the `launch` view directly, outside a
+  request: call the new `launch_experiment()` instead, as the `webapp`
+  pytest fixture now does. It also breaks scripts that POST `/launch`
+  themselves: add the login, e.g.
+  `curl -u "admin:<password>" -X POST <app URL>/launch`.
 
 ### Added
 
@@ -525,21 +543,6 @@
 
 ### Fixed
 
-- `POST /launch` now requires the dashboard login (`dashboard_user` and
-  `dashboard_password`) with HTTP Basic authentication and answers 403
-  without it. Previously anyone could call it on a deployed experiment to
-  rerun its setup and reopen recruitment, which on Prolific could publish
-  another study. `dallinger debug`, `develop`, `sandbox`/`deploy`, `docker`
-  and `docker-ssh` send the login for you, and `handle_launch_data()` sends
-  the loaded config's login unless given `auth=(user, password)`. Heroku
-  apps now get `dashboard_user` and `dashboard_password` as config vars.
-  When `dashboard_user` or `dashboard_password` is unset or empty,
-  `docker deploy-image` and `docker-ssh` deploys use `admin` and a new
-  random password, also when they reuse a prebuilt `docker_image_name`.
-  Code that called the `launch` view directly, outside a request, should
-  call the new `launch_experiment()` instead, as the `webapp` pytest
-  fixture now does. Scripts that POST `/launch` themselves must add the
-  login, e.g. `curl -u "admin:<password>" -X POST <app URL>/launch`.
 - Error pages show a participant's worker, assignment and HIT ids only to a
   request that carries the participant's `unique_id`, or their worker and
   assignment ids. Requests that name only a

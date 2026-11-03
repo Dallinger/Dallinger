@@ -111,6 +111,10 @@ def _announce_https_wait(announced, context=None):
     return True
 
 
+class LaunchRefused(click.ClickException):
+    """The server answered ``/launch`` with HTTP 403, so it was not launched."""
+
+
 def launch_auth(config=None):
     """Return the ``(user, password)`` that ``/launch`` requires.
 
@@ -208,10 +212,11 @@ def handle_launch_data(
 
             if request_happened and launch_request.status_code == 403:
                 progress.update(task_id, visible=False)
-                raise click.ClickException(
-                    f"{url} refused the launch (HTTP 403): the server did not "
-                    "accept this deploy's dashboard_user and dashboard_password. "
-                    "The experiment was not launched."
+                raise LaunchRefused(
+                    f"The server refused the launch (HTTP 403) at {url}, most "
+                    "likely because it did not accept this deploy's "
+                    "dashboard_user and dashboard_password. The experiment was "
+                    "not launched."
                 )
 
             if request_happened:
@@ -697,6 +702,8 @@ class DebugDeployment(HerokuLocalDeployment):
             result = handle_launch_data(
                 "{}/launch".format(base_url), error=self.out.error, attempts=1
             )
+        except LaunchRefused:
+            raise
         except Exception:
             # Show output from server
             self.dispatch[r"POST /launch"] = "launch_request_complete"
