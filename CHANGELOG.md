@@ -525,6 +525,10 @@
 
 ### Fixed
 
+- The Monitoring and Database dashboards escape the JSON they write into
+  their scripts. Previously a participant answer or other database value
+  containing `</script>` could end the script and run HTML in the admin's
+  browser when they opened `/dashboard/monitoring`.
 - Error pages show a participant's worker, assignment and HIT ids only to a
   request that carries the participant's `unique_id`, or their worker and
   assignment ids. Requests that name only a

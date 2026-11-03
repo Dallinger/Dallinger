@@ -514,6 +514,17 @@ class TestDashboardMonitorRoute:
             resp_text = resp.data.decode("utf8")
             assert '"custom_vis_option": 3' in resp_text
 
+    def test_network_structure_cannot_close_the_script(self, webapp_admin):
+        with mock.patch(
+            "dallinger.experiment.Experiment.network_structure"
+        ) as network_structure:
+            network_structure.return_value = {"answer": "</script><img src=x>"}
+            resp = webapp_admin.get("/dashboard/monitoring")
+            assert resp.status_code == 200
+            resp_text = resp.data.decode("utf8")
+            assert "</script><img" not in resp_text
+            assert "\\u003c/script\\u003e\\u003cimg src=x\\u003e" in resp_text
+
 
 @pytest.mark.usefixtures("experiment_dir_merged", "webapp")
 class TestDashboardNetworkInfo:
