@@ -198,7 +198,8 @@ which tells the client to try again later: a participant lookup that raises, an
 experiment class that fails to build, and an ``accept_websocket_connection``
 that raises.
 
-A socket opened with ``dallinger.openExperimentSocket`` stops reconnecting when
+A socket opened with ``dallinger.openExperimentSocket`` or
+``dallinger.openChatSocket`` stops reconnecting when
 the server refuses it, and passes the close code and reason to its
 ``onRefused`` callbacks, or logs them to the console if there are none::
 

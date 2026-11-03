@@ -402,8 +402,8 @@ def open_connection_session(args, participant, scope, games, checked, describe):
     :param scope: the connection's scope
     :param games: the experiment's game types, as
         :func:`~dallinger.realtime.store.experiment_games` returns them
-    :param checked: whether the experiment checked the connection, as it does
-        on ``/experiment-socket``
+    :param checked: whether the connection is an ``/experiment-socket`` one,
+        which ``wait_for_game`` needs
     :param describe: what warnings call the connection
     :raises Refusal: as the module docstring describes
     """

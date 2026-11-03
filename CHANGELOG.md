@@ -525,7 +525,8 @@
   an effect and an `Info`, and only the moves that collect a coin or touch
   another player are saved. Its README walks through building the game.
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
-  experiment refuse an `/experiment-socket` connection when it opens. A falsy
+  experiment refuse an `/experiment-socket` connection, or a `/chat` one that
+  names a participant, when it opens. A falsy
   return closes the socket with code `1008`, and Dallinger's client helpers
   stop reconnecting.
 - `db.run_after_commit` runs a function once the outermost transaction

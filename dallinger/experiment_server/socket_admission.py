@@ -41,7 +41,7 @@ _process_experiment_lock = Semaphore()
 
 
 def process_experiment():
-    """The one ``Experiment`` this process hands to its experiment-socket clients.
+    """The one ``Experiment`` this process checks websocket connections with and hands experiment-socket messages to.
 
     ``Experiment.__init__`` runs ``configure()``, which is experiment code and
     may query, so the constructor can yield and two connections would otherwise
@@ -78,8 +78,9 @@ def resolve_participant_id(participant_id):
 def admit(requested_id, scope):
     """The participant id and the experiment for a new connection.
 
-    Every message is handed to the experiment as coming from a participant, so
-    a connection that names none is refused. The id is checked for existence
+    ``/experiment-socket`` hands every message to the experiment as coming
+    from a participant, so it refuses a connection that names none; ``/chat``
+    calls this only for a connection that names one. The id is checked for existence
     only: the route is unauthenticated, so it says which participant the
     connection claims to be, not who is on the other end. The experiment's hook
     is where an experiment can check more. The session is removed after each
