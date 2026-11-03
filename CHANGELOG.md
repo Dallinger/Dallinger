@@ -237,8 +237,8 @@
   and `docker-ssh` send the login for you, and `handle_launch_data()` sends
   the loaded config's login unless given `auth=(user, password)`. A 403
   stops the deploy with an error, without retrying, and `dallinger debug`
-  reports it instead of carrying on with the server running. Heroku apps
-  now get `dashboard_user` and `dashboard_password` as config vars. When
+  reports it instead of carrying on with the server running. Clearing
+  `dashboard_password` now also revokes the old password. When
   `dashboard_user` or `dashboard_password` is unset or empty, every
   deploy command uses `admin` and a new random password, including
   `docker deploy-image` and `docker-ssh` deploys that reuse a prebuilt
