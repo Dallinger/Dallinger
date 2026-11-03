@@ -234,8 +234,9 @@
 - `Experiment.check_worker_status(participant)` does the same for
   `/worker_complete`, `/worker_failed` and `/handle-error`: returning a
   response refuses the request without recording the participant's status.
-  `/handle-error` still saves the error report but doesn't complete the
-  participant. The default returns `None`. `dallinger.submitAssignment()`,
+  `/handle-error` instead saves the error report and shows its usual
+  confirmation page, but doesn't complete the participant. The default
+  returns `None`. `dallinger.submitAssignment()`,
   `dallinger.error()`, the error page's form and Dallinger's bots now send
   the participant's `unique_id` to these routes, so an experiment can
   require it.

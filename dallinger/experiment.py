@@ -417,8 +417,9 @@ class Experiment:
         ``/worker_complete``, ``/worker_failed`` and ``/handle-error`` call
         this after loading the participant named by their ``participant_id``
         parameter, or, for ``/handle-error``, by its ``worker_id`` or
-        ``assignment_id``. ``/handle-error`` still records the error report
-        when this refuses, but doesn't complete the participant.
+        ``assignment_id``. When this refuses, ``/handle-error`` still records
+        the error report and shows its usual confirmation page instead of
+        the response, but doesn't complete the participant.
         ``dallinger.submitAssignment()``, ``dallinger.error()``, the error
         page and Dallinger's bots also send the participant's ``unique_id``,
         which an experiment can require::
