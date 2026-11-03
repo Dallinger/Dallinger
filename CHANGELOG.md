@@ -4,6 +4,11 @@
 
 ### Changed
 
+- Dallinger's JavaScript tooling now targets Node.js 22 LTS instead of
+  Node 20, which reached end of life in April 2026. Contributors building
+  the documentation or running the JavaScript tests need Node 22.15 or
+  later; CI takes its Node version from `.nvmrc`. Experiments and
+  deployments do not use Node and are unaffected.
 - `dallinger.submitAssignment()` adds the participant's `unique_id` to the
   `/recruiter-exit` link, so an experiment's exit page can check that the
   visitor is that participant. The new `dallinger.recruiterExitRoute()`
