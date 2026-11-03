@@ -266,7 +266,7 @@ describe('error', function () {
     store.clear();
   });
 
-  test('posts the unique_id to /error-page when there is no error html', () => {
+  test('posts the unique_id and participant_id to /error-page when there is no error html', () => {
     global.$ = global.jQuery = require('./jquery-4.0.0.min');
     window.history.pushState({}, 'Test Title',
       'test.html?recruiter=hotair&hitId=HHH&assignmentId=AAA&workerId=WWW&mode=debug'
@@ -274,10 +274,12 @@ describe('error', function () {
     var dlgr = require('./dallinger2').dallinger;
     var submit = jest.spyOn(HTMLFormElement.prototype, 'submit')
       .mockImplementation(() => {});
+    dlgr.identity.participantId = 7;
     dlgr.error({data: {}, requestJSON: '{}'});
     var $form = $('form[action="/error-page"]');
     expect(submit).toHaveBeenCalled();
     expect($form.find('input[name=unique_id]').val()).toBe('WWW:AAA');
+    expect($form.find('input[name=participant_id]').val()).toBe('7');
     submit.mockRestore();
     store.clear();
   });
