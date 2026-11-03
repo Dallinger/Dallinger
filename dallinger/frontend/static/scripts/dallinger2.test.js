@@ -68,6 +68,7 @@ describe('AjaxRejection', function () {
   });
 
   test('handles unparseable responses without an error code', () => {
+    var log = jest.spyOn(console, 'log').mockImplementation(() => {});
     var dlgr = require('./dallinger2').dallinger;
     var rejection = dlgr.AjaxRejection({
       route: '/load-participant',
@@ -81,6 +82,8 @@ describe('AjaxRejection', function () {
     expect(rejection.errorCode).toBeUndefined();
     expect(rejection.html).toBe('');
     expect(rejection.response).toEqual({});
+    expect(log).toHaveBeenCalledWith('Error response not parseable.');
+    log.mockRestore();
   });
 
   test.each([['null'], ['"a string"'], ['[1, 2]']])(
