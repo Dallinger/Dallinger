@@ -94,12 +94,12 @@ def admit(requested_id, scope):
         participant_id = resolve_participant_id(requested_id)
     except SQLAlchemyError:
         logger.exception(
-            "Could not look up participant %r for an experiment socket.", requested_id
+            "Could not look up participant %r for a websocket connection.", requested_id
         )
         raise Refused("participant lookup failed", retry=True)
     if participant_id is None:
         logger.warning(
-            "Refusing experiment socket for unknown participant %r.", requested_id
+            "Refusing a websocket connection for unknown participant %r.", requested_id
         )
         raise Refused("unknown participant")
     try:

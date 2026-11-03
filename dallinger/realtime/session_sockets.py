@@ -77,9 +77,11 @@ the session's players, and closes the socket with code ``1008`` and the reason
 session is looked up or joined, it closes the socket with ``1013``, which
 tells the page to try again later. Dallinger's sockets don't authenticate
 anyone, so a page that names another player's participant id can play as that
-player. An experiment can check ``/experiment-socket`` connections itself with
-:func:`~dallinger.experiment.Experiment.accept_websocket_connection`, but a
-``/chat`` connection can join a session without that check.
+player. An experiment can check connections itself with
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection`, which
+runs for every ``/experiment-socket`` connection and every ``/chat``
+connection that names a participant. A ``/chat`` connection that names no
+participant can't join a session.
 """
 
 import json
