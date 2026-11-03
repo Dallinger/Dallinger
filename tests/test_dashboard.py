@@ -907,6 +907,25 @@ class TestDashboardDatabase:
         assert any(o["label"] == o["value"].capitalize() for o in opts)
         assert all({"label", "value", "total", "count"} <= set(o.keys()) for o in opts)
 
+    def test_table_search_panes_escape_labels(self, a, db_session):
+        from dallinger.experiment_server.experiment_server import Experiment
+
+        a.participant(worker_id="<img src=x>", hit_id="H1")
+
+        panes = Experiment().table_search_panes(
+            table="participant",
+            polymorphic_identity=None,
+            search_value="",
+            pane_columns=["worker_id"],
+            column_filters={},
+            threshold=1.0,
+            max_distinct=200,
+        )
+
+        [option] = panes["options"]["worker_id"]
+        assert option["label"] == "&lt;img src=x&gt;"
+        assert option["value"] == "<img src=x>"
+
     def test_table_columns_for_network_and_node(self, a, db_session):
         """Smoke-test columns for other tables and that schema order is preserved,
         and that only non-empty json-exposed columns are kept."""

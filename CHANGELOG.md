@@ -525,10 +525,12 @@
 
 ### Fixed
 
-- The Monitoring and Database dashboards escape the JSON they write into
-  their scripts. Previously a participant answer or other database value
-  containing `</script>` could end the script and run HTML in the admin's
-  browser when they opened `/dashboard/monitoring`.
+- The Monitoring and Database dashboards escape participant data before
+  the browser reads it as HTML. Previously a participant answer or other
+  database value containing HTML could run in the admin's browser: on
+  `/dashboard/monitoring` by closing the page's script with `</script>`, and
+  on `/dashboard/database` through the table's search-pane filter labels.
+  `Experiment.table_search_panes` now returns HTML-escaped labels.
 - Error pages show a participant's worker, assignment and HIT ids only to a
   request that carries the participant's `unique_id`, or their worker and
   assignment ids. Requests that name only a
