@@ -4,6 +4,15 @@
 
 ### Changed
 
+- `/prolific-submission-listener` refuses, with a 403, a request whose
+  `assignmentId` isn't the participant's, and calls
+  `Experiment.check_worker_status`, so an experiment can also require the
+  `unique_id`, which Dallinger's Prolific exit page now sends. It used to mark
+  any `participantId` submitted, which approves and pays them.
+- A signup that reuses a working participant's `assignment_id` with a
+  different `worker_id` is refused with a 403. It used to replace and fail
+  the working participant. The same worker signing up again with
+  `allow_repeat_worker_ids` still replaces their earlier row.
 - `dallinger.submitAssignment()` adds the participant's `unique_id` to the
   `/recruiter-exit` link, so an experiment's exit page can check that the
   visitor is that participant. The new `dallinger.recruiterExitRoute()`
@@ -1362,6 +1371,10 @@
   a login that already works, and point `server_pem` at the new private key.
 ### Removed
 
+- The `/notifications` and `/mturk-sns-listener` routes are gone, since
+  MTurk has closed. They queued participant events, such as marking a
+  participant abandoned or submitted, for anyone who sent a guessable
+  `participant_id` or an assignment id.
 - Removed the Vagrant development environment (``Vagrantfile`` and the Vagrant
   setup documentation). It targeted Ubuntu 16.04, Python 3.6, and PostgreSQL
   9.5 and could not install current Dallinger. Use a normal install or Docker
