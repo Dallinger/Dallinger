@@ -1346,6 +1346,13 @@
   Paramiko with an unrelated message such as `dmq1 must be odd`. To replace
   the key, check it with `ssh-keygen -l -f`, install a new public key through
   a login that already works, and point `server_pem` at the new private key.
+- Updated the JavaScript development tooling (``webpack`` 5.112, ``webpack-cli``
+  7.3) and the npm overrides to patched ``follow-redirects``, ``fast-uri``,
+  ``markdown-it``, ``glob`` 14 and, for Jest's coverage tooling, ``minimatch``
+  11. ``npm audit`` still reports ``deepmerge`` (no patched release yet) and
+  ``resp-modifier``, which needs ``minimatch`` 3 and only runs in the
+  ``npm run dev`` proxy.
+
 ### Removed
 
 - Removed the Vagrant development environment (``Vagrantfile`` and the Vagrant
