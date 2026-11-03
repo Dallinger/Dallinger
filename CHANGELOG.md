@@ -1395,7 +1395,9 @@
 - Dallinger now requires RQ 3 (`rq>=3,<4`) and pins RQ 3.0.0. The
   gevent worker passes each job its execution and keeps that execution alive
   for the job's whole timeout, so jobs no longer fail with `perform_job()
-  missing 1 required positional argument: 'execution'`. Experiments whose
+  missing 1 required positional argument: 'execution'`. Under RQ 2, for
+  example in a Docker image built from a local Dallinger checkout, the worker
+  now refuses to start instead of losing every job. Experiments whose
   `constraints.txt` pins RQ 2 must regenerate it with `dallinger constraints
   generate` before using this version.
 

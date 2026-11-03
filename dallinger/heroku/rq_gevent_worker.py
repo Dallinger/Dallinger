@@ -26,6 +26,15 @@ from rq.timeouts import BaseDeathPenalty, JobTimeoutException
 from rq.version import VERSION
 from rq.worker import WorkerStatus
 
+# Installing Dallinger with --no-deps (as local-wheel Docker builds do) skips
+# its RQ requirement, and under RQ 2 every job would fail inside its greenlet.
+if int(VERSION.split(".")[0]) < 3:
+    raise RuntimeError(
+        f"Dallinger's worker requires RQ 3, but RQ {VERSION} is installed. "
+        "Pin RQ 3 in the experiment's constraints.txt, for example by "
+        "regenerating it with `dallinger constraints generate`."
+    )
+
 
 class GeventDeathPenalty(BaseDeathPenalty):
     def setup_death_penalty(self):
