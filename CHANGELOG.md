@@ -4,6 +4,11 @@
 
 ### Changed
 
+- Dallinger's Docker images (`dallinger` and `dallinger-bot`) are now based
+  on Debian 13 (Trixie) instead of Debian 12 (Bookworm). The `python3`
+  command in the image is still Python 3.14. Library packages that Debian
+  renamed for 64-bit time, such as `libasound2`, still install under the
+  old name: the new package (`libasound2t64`) provides it.
 - Dallinger's JavaScript tooling now targets Node.js 22 LTS instead of
   Node 20, which reached end of life in April 2026. Contributors building
   the documentation or running the JavaScript tests need Node 22.15 or
