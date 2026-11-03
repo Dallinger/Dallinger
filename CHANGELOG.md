@@ -520,8 +520,9 @@
 
 ### Fixed
 
-- Error pages no longer show a participant's worker, assignment and HIT ids
-  to a request that didn't send them. Requests that name only a
+- Error pages show a participant's worker, assignment and HIT ids only to a
+  request that carries the participant's `unique_id`, or their worker and
+  assignment ids. Requests that name only a
   `participant_id` or `node_id`, such as `/error-page` or a failing
   `/node/<node_id>/...` call, used to reveal them, and with them the
   participant's `unique_id`. In the participant's browser,
