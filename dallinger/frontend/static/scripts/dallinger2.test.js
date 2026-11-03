@@ -265,6 +265,22 @@ describe('error', function () {
     expect($('#error-worker-id').text()).toBe('WWW');
     store.clear();
   });
+
+  test('posts the unique_id to /error-page when there is no error html', () => {
+    global.$ = global.jQuery = require('./jquery-4.0.0.min');
+    window.history.pushState({}, 'Test Title',
+      'test.html?recruiter=hotair&hitId=HHH&assignmentId=AAA&workerId=WWW&mode=debug'
+    );
+    var dlgr = require('./dallinger2').dallinger;
+    var submit = jest.spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => {});
+    dlgr.error({data: {}, requestJSON: '{}'});
+    var $form = $('form[action="/error-page"]');
+    expect(submit).toHaveBeenCalled();
+    expect($form.find('input[name=unique_id]').val()).toBe('WWW:AAA');
+    submit.mockRestore();
+    store.clear();
+  });
 });
 
 describe('loadParticipant', function () {
