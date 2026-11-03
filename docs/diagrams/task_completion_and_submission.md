@@ -24,6 +24,11 @@ d2->>es: /question/<participant ID>
 es-->>d2: HTTP Response
 d2->>d2: submitAssignment()
 d2->>es: /worker_complete POST
+es->>ex: check_worker_status(participant)
+opt experiment refuses the request
+ex-->>es: <response>
+es-->>d2: <response>
+end
 es->>part: end_time
 es->>ex: participant_task_completed()
 ex->>rec: assign_experiment_qualifications()

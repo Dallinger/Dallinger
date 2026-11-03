@@ -411,6 +411,29 @@ class Experiment:
         """
         return None
 
+    def check_worker_status(self, participant):
+        """Return a response to send instead of recording the participant's status.
+
+        ``/worker_complete``, ``/worker_failed`` and ``/handle-error`` call
+        this after loading the participant named by their ``participant_id``
+        parameter, or, for ``/handle-error``, by its ``worker_id`` or
+        ``assignment_id``. When this refuses, ``/handle-error`` still records
+        the error report and shows its usual confirmation page instead of
+        the response, but doesn't complete the participant.
+        ``dallinger.submitAssignment()``, ``dallinger.error()``, the error
+        page and Dallinger's bots also send the participant's ``unique_id``,
+        which an experiment can require::
+
+            def check_worker_status(self, participant):
+                if flask.request.values.get("unique_id") != participant.unique_id:
+                    return "Not your assignment", 403
+
+        :param participant: the ``Participant`` the request names
+        :returns: ``None`` to record the status, or anything a Flask view
+            can return, sent instead. The default returns ``None``.
+        """
+        return None
+
     def calculate_qualifications(self, participant):
         """All the qualifications we want to assign to a worker.
 

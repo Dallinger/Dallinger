@@ -236,6 +236,15 @@
   `/recruiter-exit` request, for example when its `unique_id` parameter
   doesn't match the participant, by returning a response to send instead of
   the exit page. The default returns `None`, which shows the exit page.
+- `Experiment.check_worker_status(participant)` does the same for
+  `/worker_complete`, `/worker_failed` and `/handle-error`: returning a
+  response refuses the request without recording the participant's status.
+  `/handle-error` instead saves the error report and shows its usual
+  confirmation page, but doesn't complete the participant. The default
+  returns `None`. `dallinger.submitAssignment()`,
+  `dallinger.error()`, the error page's form and Dallinger's bots now send
+  the participant's `unique_id` to these routes, so an experiment can
+  require it.
 - `dallinger docker-ssh destroy` now makes you choose what happens to the
   experiment's data: its database (with its Postgres user for classic
   ingress), its Redis volume and its data folder `~/dallinger-data/<app>`.
@@ -516,6 +525,18 @@
 
 ### Fixed
 
+- Error pages show a participant's worker, assignment and HIT ids only to a
+  request that carries the participant's `unique_id`, or their worker and
+  assignment ids. Requests that name only a
+  `participant_id` or `node_id`, such as `/error-page` or a failing
+  `/node/<node_id>/...` call, used to reveal them, and with them the
+  participant's `unique_id`. In the participant's browser,
+  `dallinger.error()` fills the ids back in.
+- `/handle-error` finds the participant from a `worker_id` or
+  `assignment_id` when the report has no `participant_id`, and completes
+  them. It used to skip completing them, unless their worker and assignment
+  ids happened to be equal. The error page's form now also sends the
+  `participant_id`, and its worker and assignment ids even without a HIT id.
 - Under the development server (`dallinger develop debug`, and tools such as
   PsyNet that run `flask run` locally), a websocket the server closes, for
   example one refused by `accept_websocket_connection`, now reaches the

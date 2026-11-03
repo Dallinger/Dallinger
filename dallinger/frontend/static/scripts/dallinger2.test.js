@@ -242,6 +242,53 @@ describe('recruiterExitRoute', function () {
     }
     expect(opener.location).toBe('/exit-sentinel');
   });
+
+  test('is sent with the unique_id to /worker_complete', () => {
+    dlgr.identity.participantId = 7;
+    dlgr.post = jest.fn(() => $.Deferred().promise());
+    dlgr.submitAssignment();
+    expect(dlgr.post).toHaveBeenCalledWith(
+      '/worker_complete', {participant_id: 7, unique_id: 'WWW:AAA'}
+    );
+  });
+});
+
+describe('error', function () {
+  test('adds the unique_id to the error form and fills in withheld ids', () => {
+    global.$ = global.jQuery = require('./jquery-4.0.0.min');
+    window.history.pushState({}, 'Test Title',
+      'test.html?recruiter=hotair&hitId=HHH&assignmentId=AAA&workerId=WWW&mode=debug'
+    );
+    var dlgr = require('./dallinger2').dallinger;
+    dlgr.error({
+      html: '<form id="error-response"></form>' +
+        '<span id="error-assignment-id"></span><span id="error-worker-id"></span>',
+      data: {participant_id: 7},
+      requestJSON: '{}',
+    });
+    expect($('form#error-response input[name=unique_id]').val()).toBe('WWW:AAA');
+    expect($('#error-assignment-id').text()).toBe('AAA');
+    expect($('#error-worker-id').text()).toBe('WWW');
+    store.clear();
+  });
+
+  test('posts the unique_id and participant_id to /error-page when there is no error html', () => {
+    global.$ = global.jQuery = require('./jquery-4.0.0.min');
+    window.history.pushState({}, 'Test Title',
+      'test.html?recruiter=hotair&hitId=HHH&assignmentId=AAA&workerId=WWW&mode=debug'
+    );
+    var dlgr = require('./dallinger2').dallinger;
+    var submit = jest.spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => {});
+    dlgr.identity.participantId = 7;
+    dlgr.error({data: {}, requestJSON: '{}'});
+    var $form = $('form[action="/error-page"]');
+    expect(submit).toHaveBeenCalled();
+    expect($form.find('input[name=unique_id]').val()).toBe('WWW:AAA');
+    expect($form.find('input[name=participant_id]').val()).toBe('7');
+    submit.mockRestore();
+    store.clear();
+  });
 });
 
 describe('loadParticipant', function () {

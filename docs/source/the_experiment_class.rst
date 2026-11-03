@@ -83,6 +83,8 @@ what to do with the database when the server receives requests from outside.
 
   .. automethod:: check_recruiter_exit
 
+  .. automethod:: check_worker_status
+
   .. automethod:: collect
 
   .. automethod:: create_network

@@ -463,18 +463,11 @@ def handle_error():
     details["error_type"] = error_type
     details["error_text"] = error_text
 
-    if participant_id is None and worker_id:
-        participants = (
-            session.query(models.Participant).filter_by(worker_id=worker_id).all()
-        )
-        if participants:
-            participant = participants[0]
-            if not assignment_id:
-                assignment_id = participant.assignment_id
-
     if participant_id is None and assignment_id:
         participants = (
-            session.query(models.Participant).filter_by(worker_id=assignment_id).all()
+            session.query(models.Participant)
+            .filter_by(assignment_id=assignment_id)
+            .all()
         )
         if participants:
             participant = participants[0]
@@ -482,9 +475,21 @@ def handle_error():
             if not worker_id:
                 worker_id = participant.worker_id
 
+    if participant_id is None and worker_id:
+        participants = (
+            session.query(models.Participant).filter_by(worker_id=worker_id).all()
+        )
+        if participants:
+            participant = participants[0]
+            participant_id = participant.id
+            if not assignment_id:
+                assignment_id = participant.assignment_id
+
     if participant_id is not None:
-        _worker_complete(participant_id)
-        completed = True
+        exp = Experiment()
+        if _worker_status_refusal(exp, participant_id) is None:
+            _worker_complete(participant_id, exp=exp)
+            completed = True
 
     details["request_data"].update(
         {"worker_id": worker_id, "hit_id": hit_id, "participant_id": participant_id}
@@ -1910,8 +1915,13 @@ def worker_complete():
             error_type="bad request", error_text="participantId parameter is required"
         )
 
+    exp = Experiment()
+    refusal = _worker_status_refusal(exp, participant_id)
+    if refusal is not None:
+        return refusal
+
     try:
-        _worker_complete(participant_id)
+        _worker_complete(participant_id, exp=exp)
     except KeyError:
         return error_response(
             error_type="ParticipantId not found: {}".format(participant_id)
@@ -1920,10 +1930,22 @@ def worker_complete():
     return success_response(status="success")
 
 
-def _worker_complete(participant_id):
+def _worker_status_refusal(exp, participant_id):
+    """Return ``exp``'s response refusing a status update, or ``None``.
+
+    An unknown ``participant_id`` returns ``None`` so the route reports it.
+    """
+    participant = session.query(models.Participant).filter_by(id=participant_id).first()
+    if participant is None:
+        return None
+    return exp.check_worker_status(participant)
+
+
+def _worker_complete(participant_id, exp=None):
     # Lock the participant row, then check and update status to avoid
     # double-submits:
-    exp = Experiment()
+    if exp is None:
+        exp = Experiment()
 
     participant = (
         session.query(models.Participant)
@@ -1974,6 +1996,10 @@ def worker_failed():
         return error_response(
             error_type="bad request", error_text="participantId parameter is required"
         )
+
+    refusal = _worker_status_refusal(Experiment(), participant_id)
+    if refusal is not None:
+        return refusal
 
     try:
         _worker_failed(participant_id)

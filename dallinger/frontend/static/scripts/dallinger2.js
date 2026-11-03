@@ -385,6 +385,7 @@ var dallinger = (function () {
           'hit_id': dlgr.identity.hitId,
           'worker_id': dlgr.identity.workerId,
           'assignment_id': dlgr.identity.assignmentId,
+          'unique_id': dlgr.identity.uniqueId,
           'fingerprint_hash': dlgr.identity.fingerprintHash,
         },
         $form;
@@ -394,12 +395,16 @@ var dallinger = (function () {
     if (rejection.html) {
       $('html').html(rejection.html);
       $form = $('form#error-response');
+      $('#error-hit-id:empty').text(hit_params.hit_id || '');
+      $('#error-assignment-id:empty').text(hit_params.assignment_id || '');
+      $('#error-worker-id:empty').text(hit_params.worker_id || '');
     } else {
       $form = $('<form>').attr('action', '/error-page').attr('method', 'POST');
       $('body').append($form);
     }
-    if (rejection.data.participant_id) {
-      add_hidden_input($form, 'participant_id', rejection.data.participant_id);
+    var participantId = rejection.data.participant_id || dlgr.identity.participantId;
+    if (participantId) {
+      add_hidden_input($form, 'participant_id', participantId);
     }
     add_hidden_input($form, 'request_data', rejection.requestJSON);
     for (var prop in hit_params) {
@@ -418,12 +423,16 @@ var dallinger = (function () {
    * @returns {string} The exit page's path and query string.
    */
   dlgr.recruiterExitRoute = function() {
+    return "/recruiter-exit?" + $.param(participantParams());
+  };
+
+  function participantParams() {
     var params = {participant_id: dlgr.identity.participantId};
     if (dlgr.identity.uniqueId) {
       params.unique_id = dlgr.identity.uniqueId;
     }
-    return "/recruiter-exit?" + $.param(params);
-  };
+    return params;
+  }
 
   /**
    * Notify the experiment that the participant's assignment is complete.
@@ -442,12 +451,9 @@ var dallinger = (function () {
    */
   dlgr.submitAssignment = function() {
     var deferred = $.Deferred(),
-        participantId = dlgr.identity.participantId,
         exitRoute = dlgr.recruiterExitRoute();
 
-    dlgr.post('/worker_complete', {
-        'participant_id': participantId
-    }).done(function () {
+    dlgr.post('/worker_complete', participantParams()).done(function () {
       deferred.resolve();
       dlgr.allowExit();
 

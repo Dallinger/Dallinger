@@ -1,3 +1,4 @@
+import hmac
 import logging
 import sys
 from datetime import timedelta
@@ -242,7 +243,7 @@ def error_page(
     if error_text is None:
         error_text = "There has been an error and so you are unable to continue, sorry!"
 
-    if participant is not None:
+    if participant is not None and _request_identifies(participant):
         hit_id = participant.hit_id
         assignment_id = participant.assignment_id
         worker_id = participant.worker_id
@@ -252,6 +253,8 @@ def error_page(
         assignment_id = request.form.get("assignment_id", "")
         worker_id = request.form.get("worker_id", "")
         participant_id = request.form.get("participant_id", None)
+        if participant is not None:
+            participant_id = participant.id
 
     if participant_id:
         try:
@@ -273,6 +276,26 @@ def error_page(
             participant_id=participant_id,
         ),
         500,
+    )
+
+
+def _request_identifies(participant):
+    """Return whether the request already carries ``participant``'s identifiers.
+
+    Error pages are reachable with a bare, guessable ``participant_id``, so
+    they only show a participant's worker and assignment ids, which make up
+    their ``unique_id``, to a request that sent them.
+    """
+
+    def matches(name, value):
+        return bool(value) and any(
+            hmac.compare_digest(supplied.encode(), value.encode())
+            for supplied in request.values.getlist(name)
+        )
+
+    return matches("unique_id", participant.unique_id) or (
+        matches("worker_id", participant.worker_id)
+        and matches("assignment_id", participant.assignment_id)
     )
 
 

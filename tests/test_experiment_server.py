@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from unittest import mock
 
+import flask
 import pytest
 
 from dallinger import db, models
@@ -344,6 +345,24 @@ class TestWorkerComplete:
         )
         assert resp.status_code == 200
 
+    def test_experiment_can_refuse_with_its_own_response(self, a, webapp):
+        participant = a.participant()
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as Experiment:
+            Experiment.return_value.check_worker_status.return_value = (
+                "Refused by the experiment",
+                403,
+            )
+            resp = webapp.post(
+                "/worker_complete", data={"participant_id": participant.id}
+            )
+
+        Experiment.return_value.check_worker_status.assert_called_once_with(participant)
+        Experiment.return_value.participant_task_completed.assert_not_called()
+        assert resp.status_code == 403
+        assert resp.data == b"Refused by the experiment"
+
     def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()
         webapp.post("/worker_complete", data={"participant_id": participant.id})
@@ -408,6 +427,7 @@ class TestWorkerComplete:
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as Experiment:
+            Experiment.return_value.check_worker_status.return_value = None
             webapp.post(
                 "/worker_complete",
                 data={"participant_id": participant.id},
@@ -416,6 +436,7 @@ class TestWorkerComplete:
         Experiment.return_value.participant_task_completed.assert_called_once_with(
             participant
         )
+        assert Experiment.call_args_list.count(mock.call()) == 1
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -530,7 +551,7 @@ class TestHandleError:
         assert notifi.details["feedback"] == "Some feedback"
 
     def test_looks_up_participant_from_assignment(self, a, webapp):
-        participant = a.participant()
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
         assignment_id = participant.assignment_id
         participant_id = participant.id
         webapp.post("/handle-error", data={"assignment_id": assignment_id})
@@ -545,7 +566,7 @@ class TestHandleError:
         )
 
     def test_looks_up_participant_from_worker(self, a, webapp):
-        participant = a.participant()
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
         assignment_id = participant.assignment_id
         participant_id = participant.id
         webapp.post("/handle-error", data={"worker_id": participant.worker_id})
@@ -560,7 +581,7 @@ class TestHandleError:
         )
 
     def test_looks_up_hit_in_request_data(self, a, webapp):
-        participant = a.participant()
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
         assignment_id = participant.assignment_id
         worker_id = participant.worker_id
         hit_id = participant.hit_id
@@ -588,7 +609,7 @@ class TestHandleError:
         )
 
     def test_looks_up_hit_in_nested_request_data(self, a, webapp):
-        participant = a.participant()
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
         assignment_id = participant.assignment_id
         worker_id = participant.worker_id
         hit_id = participant.hit_id
@@ -624,6 +645,74 @@ class TestHandleError:
         webapp.post("/handle-error", data={})
         mock_messenger.send.assert_called_once()
 
+    def test_completes_a_participant_whose_unique_id_a_strict_hook_requires(
+        self, a, webapp, db_session
+    ):
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as Experiment:
+            Experiment.return_value.check_worker_status.side_effect = lambda p: (
+                None
+                if flask.request.values.get("unique_id") == p.unique_id
+                else ("No", 403)
+            )
+            webapp.post(
+                "/handle-error",
+                data={"worker_id": "worker-x", "unique_id": "worker-x:assignment-x"},
+            )
+
+        assert db_session.merge(participant).end_time is not None
+
+    def test_prefers_the_assignment_to_a_repeat_workers_earlier_row(
+        self, a, webapp, db_session
+    ):
+        a.participant(worker_id="worker-x", assignment_id="assignment-1")
+        current = a.participant(worker_id="worker-x", assignment_id="assignment-2")
+        webapp.post(
+            "/handle-error",
+            data={"worker_id": "worker-x", "assignment_id": "assignment-2"},
+        )
+
+        assert db_session.merge(current).end_time is not None
+
+    def test_experiment_can_refuse_completing_the_participant(
+        self, a, webapp, db_session
+    ):
+        participant = a.participant()
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as Experiment:
+            Experiment.return_value.check_worker_status.return_value = ("No", 403)
+            resp = webapp.post("/handle-error", data={"participant_id": participant.id})
+
+        assert resp.status_code == 200
+        assert db_session.merge(participant).end_time is None
+        assert models.Notification.query.one().event_type == "ExperimentError"
+
+
+@pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.slow
+class TestErrorPage:
+    @pytest.mark.parametrize(
+        "sent, shown",
+        [
+            ({}, False),
+            ({"worker_id": "worker-x"}, False),
+            ({"unique_id": "worker-x:assignment-x"}, True),
+            ({"worker_id": "worker-x", "assignment_id": "assignment-x"}, True),
+        ],
+    )
+    def test_shows_identifiers_only_to_a_request_that_sent_them(
+        self, a, webapp, sent, shown
+    ):
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
+        resp = webapp.post(
+            "/error-page", data={"participant_id": participant.id, **sent}
+        )
+
+        assert ("assignment-x" in resp.text) == shown
+
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
@@ -641,6 +730,20 @@ class TestWorkerFailed:
     def test_with_valid_participant_id_returns_success(self, a, webapp):
         resp = webapp.get("/worker_failed?participant_id={}".format(a.participant().id))
         assert resp.status_code == 200
+
+    def test_experiment_can_refuse_with_its_own_response(self, a, webapp, db_session):
+        participant = a.participant()
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as Experiment:
+            Experiment.return_value.check_worker_status.return_value = (
+                "Refused by the experiment",
+                403,
+            )
+            resp = webapp.get("/worker_failed?participant_id={}".format(participant.id))
+
+        assert resp.status_code == 403
+        assert db_session.merge(participant).end_time is None
 
     def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()
@@ -1351,9 +1454,8 @@ class TestParticipantNodeCreationRoute:
 
         error_report = resp.data.decode("utf8")
         assert "Error type: /node POST, status = submitted" in error_report
-        assert "HIT id: h_id" in error_report
-        assert "Assignment id: a_id" in error_report
-        assert "Worker id: w_id" in error_report
+        assert "a_id" not in error_report
+        assert "w_id" not in error_report
 
     def test_no_network_for_participant_returns_error(self, a, db_session, webapp):
         with db.sessions_scope(commit=True) as session:
