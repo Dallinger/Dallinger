@@ -98,9 +98,6 @@ class GeventWorker(Worker):
         gevent.signal_handler(signal.SIGINT, request_stop)
         gevent.signal_handler(signal.SIGTERM, request_stop)
 
-    def set_current_job_id(self, job_id, pipeline=None):
-        pass
-
     def get_heartbeat_ttl(self, job, working_time=0.0):
         # Nothing refreshes a greenlet's execution while its job runs, so
         # the execution has to outlive the job's timeout, as in SimpleWorker.
@@ -141,13 +138,7 @@ class GeventWorker(Worker):
                         self.log.info("Stopping on request.")
                         break
 
-                    try:
-                        worker_ttl = self.worker_ttl
-                    except AttributeError:
-                        # For back-compatibility with rq < 1.13.0
-                        worker_ttl = self.default_worker_ttl
-
-                    timeout = None if burst else max(1, worker_ttl - 60)
+                    timeout = None if burst else max(1, self.worker_ttl - 60)
 
                     result = self.dequeue_job_and_maintain_ttl(timeout)
                     if result is None and burst:
