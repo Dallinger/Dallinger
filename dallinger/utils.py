@@ -27,7 +27,6 @@ from unicodedata import normalize
 from urllib.parse import unquote, urlparse
 
 import redis
-from faker import Faker
 from flask import request
 from pythonjsonlogger import jsonlogger
 from sqlalchemy import exc as sa_exc
@@ -109,8 +108,6 @@ def setup_warning_hooks():
         "default", _FORK_WARNING_MESSAGE, category=DeprecationWarning
     )
 
-
-fake = Faker()
 
 JSON_LOGFILE = "logs.jsonl"
 
