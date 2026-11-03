@@ -2,7 +2,6 @@ import codecs
 import json
 import os
 import re
-import secrets
 import signal
 import sys
 import threading
@@ -128,20 +127,6 @@ def launch_auth(config=None):
         config.get("dashboard_user", None) or "admin",
         config.get("dashboard_password", ""),
     )
-
-
-def fill_dashboard_login(values):
-    """Fill in an empty or missing dashboard login in the dict ``values``.
-
-    ``dashboard_user`` becomes ``admin`` and ``dashboard_password`` a new
-    random password, so the server and the launch request get the same
-    login; ``/launch`` never accepts an empty password. Returns ``values``.
-    """
-    values["dashboard_user"] = values.get("dashboard_user") or "admin"
-    values["dashboard_password"] = values.get(
-        "dashboard_password"
-    ) or secrets.token_urlsafe(16)
-    return values
 
 
 def handle_launch_data(
@@ -394,7 +379,7 @@ def deploy_sandbox_shared_setup(
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
         "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
-        "dashboard_user": config.get("dashboard_user", None) or "admin",
+        "dashboard_user": config["dashboard_user"],
         "dashboard_password": config["dashboard_password"],
     }
 

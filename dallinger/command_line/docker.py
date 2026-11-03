@@ -27,11 +27,12 @@ from dallinger.command_line.utils import (
     verify_id,
 )
 from dallinger.config import get_config
-from dallinger.deployment import fill_dashboard_login, handle_launch_data
+from dallinger.deployment import handle_launch_data
 from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import (
     GitClient,
     abspath_from_egg,
+    fill_dashboard_login,
     setup_experiment,
 )
 
@@ -465,7 +466,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
-        "dashboard_user": config.get("dashboard_user", None) or "admin",
+        "dashboard_user": config["dashboard_user"],
         "dashboard_password": config["dashboard_password"],
         "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
         "docker_image_name": image_name,
@@ -547,8 +548,8 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
-        "dashboard_user": result["dashboard_user"],
-        "dashboard_password": result["dashboard_password"],
+        "dashboard_user": config["dashboard_user"],
+        "dashboard_password": config["dashboard_password"],
         "dashboard_url": "{}/dashboard/".format(heroku_app.url),
         # "recruitment_msg": launch_data.get("recruitment_msg", None),
     }

@@ -158,6 +158,12 @@ class TestDashboard:
         assert load_user("admin") is admin_user
         assert load_user("user") is None
 
+    def test_load_user_after_the_password_is_cleared(self, admin_user):
+        from dallinger.experiment_server.dashboard import load_user
+
+        admin_user.password = ""
+        assert load_user("admin") is None
+
     @staticmethod
     def create_request(*args, **kw):
         from werkzeug.test import create_environ

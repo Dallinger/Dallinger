@@ -2098,6 +2098,16 @@ def test_compose_environment_gets_the_dashboard_password(stub_config, option):
         assert password == option
 
 
+def test_compose_environment_gets_admin_for_an_empty_dashboard_user(stub_config):
+    options = docker_ssh_module._apply_config_options(
+        stub_config, {"dashboard_user": ""}
+    )
+    env = docker_ssh_module._compose_environment(
+        stub_config, options, "live", "uuid", "image:tag", "flask-key"
+    )
+    assert env["dashboard_user"] == "admin"
+
+
 def test_deploy_validates_config_options_before_deploying(monkeypatch):
     config = Configuration()
     config._reset(register_defaults=True)

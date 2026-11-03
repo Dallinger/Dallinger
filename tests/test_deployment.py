@@ -1988,7 +1988,7 @@ class Testhandle_launch_data:
 
 
 def test_fill_dashboard_login_replaces_an_empty_login():
-    from dallinger.deployment import fill_dashboard_login
+    from dallinger.utils import fill_dashboard_login
 
     login = fill_dashboard_login({"dashboard_user": "", "dashboard_password": ""})
     assert login["dashboard_user"] == "admin"

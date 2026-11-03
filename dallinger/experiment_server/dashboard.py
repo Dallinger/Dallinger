@@ -266,8 +266,14 @@ dashboard_tabs = DashboardTabs(
 
 
 def load_user(userid):
+    """Return the admin user for a session's ``userid``.
+
+    ``None`` once the server has no dashboard password, so clearing it ends
+    existing sessions and remember-me cookies. In Codespaces,
+    ``load_user_from_request`` still logs the admin in.
+    """
     admin_user = current_app.config.get("ADMIN_USER")
-    if userid != admin_user.id:
+    if userid != admin_user.id or not admin_user.password:
         return
     return admin_user
 

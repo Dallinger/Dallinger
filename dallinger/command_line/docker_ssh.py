@@ -47,7 +47,7 @@ from dallinger.command_line.utils import (
 from dallinger.config import ConfigSource, get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
-from dallinger.deployment import fill_dashboard_login, setup_experiment
+from dallinger.deployment import setup_experiment
 from dallinger.hibernation import STATE_HIBERNATING as HIBERNATING
 from dallinger.hibernation import STATE_WAKING as WAKING
 from dallinger.utils import (
@@ -57,6 +57,7 @@ from dallinger.utils import (
     JSON_LOGFILE,
     RED,
     abspath_from_egg,
+    fill_config_dashboard_login,
     print_bold,
 )
 
@@ -2249,10 +2250,7 @@ def _apply_config_options(config, config_options):
         raise click.ClickException(
             f"Could not read {exc.filename}: {exc.strerror}"
         ) from exc
-    login = fill_dashboard_login(
-        {key: config.get(key, None) for key in ("dashboard_user", "dashboard_password")}
-    )
-    config.extend(login)
+    login = fill_config_dashboard_login(config)
     config_options.update({key: login[key] for key in login if key in config_options})
     return config_options
 

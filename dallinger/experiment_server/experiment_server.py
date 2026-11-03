@@ -535,6 +535,13 @@ def launch():
     deploy commands send the dashboard user and password with HTTP Basic
     authentication.
     """
+    if _is_cross_site_request():
+        app.logger.warning("Refused a cross-site POST /launch.")
+        return error_response(
+            error_text="The experiment can't be launched from another site's page.",
+            status=403,
+            simple=True,
+        )
     if not dashboard.is_admin_authorization(request.authorization):
         app.logger.warning("Refused an unauthenticated POST /launch.")
         return error_response(
@@ -544,6 +551,22 @@ def launch():
             simple=True,
         )
     return launch_experiment()
+
+
+def _is_cross_site_request():
+    """Return whether a browser sent the request from another site's page.
+
+    Browsers attach saved HTTP Basic credentials, such as the dashboard login
+    ``dallinger debug`` opens, to cross-site form posts too. Deploy clients
+    (requests, curl) send neither ``Sec-Fetch-Site`` nor ``Origin``.
+    """
+    fetch_site = request.headers.get("Sec-Fetch-Site")
+    if fetch_site is not None:
+        return fetch_site not in ("same-origin", "none")
+    origin = request.headers.get("Origin")
+    if origin is None:
+        return False
+    return origin.rstrip("/").lower() != request.host_url.rstrip("/").lower()
 
 
 def launch_experiment():

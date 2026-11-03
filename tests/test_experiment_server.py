@@ -1951,8 +1951,7 @@ class TestTransformationPost:
 class TestLaunchRoute:
     DEPLOYER = ("admin", "DUMBPASSWORD")
 
-    def post(self, webapp, credentials=DEPLOYER):
-        headers = {}
+    def post(self, webapp, credentials=DEPLOYER, **headers):
         if credentials:
             encoded = base64.b64encode(":".join(credentials).encode()).decode()
             headers["Authorization"] = f"Basic {encoded}"
@@ -1968,6 +1967,26 @@ class TestLaunchRoute:
             resp = self.post(webapp, credentials)
         assert resp.status_code == 403
         mock_class.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "headers",
+        [
+            {"Sec-Fetch-Site": "cross-site"},
+            {"Origin": "https://attacker.example"},
+        ],
+    )
+    def test_refuses_cross_site_browser_posts_with_the_login(self, webapp, headers):
+        assert self.post(webapp, **headers).status_code == 403
+
+    @pytest.mark.parametrize(
+        "headers", [{"Sec-Fetch-Site": "same-origin"}, {"Origin": "http://localhost"}]
+    )
+    def test_allows_same_origin_browser_posts(self, webapp, headers):
+        assert self.post(webapp, **headers).status_code == 200
+
+    def test_empty_dashboard_user_means_admin(self, webapp, active_config):
+        active_config.extend({"dashboard_user": ""})
+        assert self.post(webapp).status_code == 200
 
     @pytest.mark.parametrize(
         "password, credentials", [("", ("admin", "")), ("DUMBPASSWORD", None)]

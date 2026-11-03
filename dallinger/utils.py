@@ -8,6 +8,7 @@ import numbers
 import os
 import random
 import re
+import secrets
 import shutil
 import signal
 import socket
@@ -576,12 +577,26 @@ def develop_target_path(config):
     return develop_path
 
 
-def _fill_dashboard_login(config):
-    """Fill in an empty dashboard login in ``config`` (see ``fill_dashboard_login``)."""
-    from dallinger.deployment import fill_dashboard_login
+def fill_dashboard_login(values):
+    """Fill in an empty or missing dashboard login in the dict ``values``.
 
+    ``dashboard_user`` becomes ``admin`` and ``dashboard_password`` a new
+    random password, so the server and the launch request get the same
+    login; ``/launch`` never accepts an empty password. Returns ``values``.
+    """
+    values["dashboard_user"] = values.get("dashboard_user") or "admin"
+    values["dashboard_password"] = values.get(
+        "dashboard_password"
+    ) or secrets.token_urlsafe(16)
+    return values
+
+
+def fill_config_dashboard_login(config):
+    """Fill in an empty dashboard login in ``config``; return the login dict."""
     keys = ("dashboard_user", "dashboard_password")
-    config.extend(fill_dashboard_login({key: config.get(key, None) for key in keys}))
+    login = fill_dashboard_login({key: config.get(key, None) for key in keys})
+    config.extend(login)
+    return login
 
 
 def bootstrap_development_session(
@@ -608,7 +623,7 @@ def bootstrap_development_session(
             "heroku_app_id_root": str(experiment_uid),
         }
     )
-    _fill_dashboard_login(config)
+    fill_config_dashboard_login(config)
 
     source_path = Path(dallinger_package_path()) / "dev_server"
     destination_path = develop_target_path(config)
@@ -702,7 +717,7 @@ def setup_experiment(
         }
     )
 
-    _fill_dashboard_login(config)
+    fill_config_dashboard_login(config)
 
     temp_dir = assemble_experiment_temp_dir(
         log,
