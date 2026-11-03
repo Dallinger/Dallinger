@@ -414,10 +414,13 @@ class Experiment:
     def check_worker_status(self, participant):
         """Return a response to send instead of recording the participant's status.
 
-        ``/worker_complete`` and ``/worker_failed`` call this after loading
-        the participant named by their ``participant_id`` parameter.
-        ``dallinger.submitAssignment()`` and Dallinger's bots also send the
-        participant's ``unique_id``, which an experiment can require::
+        ``/worker_complete``, ``/worker_failed`` and ``/handle-error`` call
+        this after loading the participant named by their ``participant_id``
+        parameter. ``/handle-error`` still records the error report when this
+        refuses, but doesn't complete the participant.
+        ``dallinger.submitAssignment()``, ``dallinger.error()``, the error
+        page and Dallinger's bots also send the participant's ``unique_id``,
+        which an experiment can require::
 
             def check_worker_status(self, participant):
                 if flask.request.values.get("unique_id") != participant.unique_id:

@@ -15,6 +15,9 @@
                     <input type="hidden" name="hit_id" value="{{ hit_id }}" />
                     <input type="hidden" name="assignment_id" value="{{ assignment_id }}" />
                     <input type="hidden" name="worker_id" value="{{ worker_id }}" />
+                    {% if worker_id and assignment_id %}
+                    <input type="hidden" name="unique_id" value="{{ worker_id }}:{{ assignment_id }}" />
+                    {% endif %}
                     {% endif %}
                     {% if request_data %}
                     <input type="hidden" name="request_data" value="{{ request_data }}" />
@@ -30,9 +33,9 @@
                 <p>To enquire about compensation, please contact the researcher at <a href="mailto:{{contact_address}}">{{contact_address}}</a> and quote the following information.</p>
                 <p>
                     Error type: {{ error_type }}<br>
-                    HIT id: {{ hit_id }}<br>
-                    Assignment id: {{ assignment_id }}<br>
-                    Worker id: {{ worker_id }}<br>
+                    HIT id: <span id="error-hit-id">{{ hit_id }}</span><br>
+                    Assignment id: <span id="error-assignment-id">{{ assignment_id }}</span><br>
+                    Worker id: <span id="error-worker-id">{{ worker_id }}</span><br>
                 </p>
                 {% endif %}
             </div>

@@ -247,6 +247,26 @@ describe('recruiterExitRoute', function () {
   });
 });
 
+describe('error', function () {
+  test('adds the unique_id to the error form and fills in withheld ids', () => {
+    global.$ = global.jQuery = require('./jquery-4.0.0.min');
+    window.history.pushState({}, 'Test Title',
+      'test.html?recruiter=hotair&hitId=HHH&assignmentId=AAA&workerId=WWW&mode=debug'
+    );
+    var dlgr = require('./dallinger2').dallinger;
+    dlgr.error({
+      html: '<form id="error-response"></form>' +
+        '<span id="error-assignment-id"></span><span id="error-worker-id"></span>',
+      data: {participant_id: 7},
+      requestJSON: '{}',
+    });
+    expect($('form#error-response input[name=unique_id]').val()).toBe('WWW:AAA');
+    expect($('#error-assignment-id').text()).toBe('AAA');
+    expect($('#error-worker-id').text()).toBe('WWW');
+    store.clear();
+  });
+});
+
 describe('loadParticipant', function () {
   var dlgr;
 

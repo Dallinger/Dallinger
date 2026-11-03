@@ -483,8 +483,10 @@ def handle_error():
                 worker_id = participant.worker_id
 
     if participant_id is not None:
-        _worker_complete(participant_id)
-        completed = True
+        exp = Experiment()
+        if _worker_status_refusal(exp, participant_id) is None:
+            _worker_complete(participant_id, exp=exp)
+            completed = True
 
     details["request_data"].update(
         {"worker_id": worker_id, "hit_id": hit_id, "participant_id": participant_id}

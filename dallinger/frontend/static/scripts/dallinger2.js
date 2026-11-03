@@ -385,6 +385,7 @@ var dallinger = (function () {
           'hit_id': dlgr.identity.hitId,
           'worker_id': dlgr.identity.workerId,
           'assignment_id': dlgr.identity.assignmentId,
+          'unique_id': dlgr.identity.uniqueId,
           'fingerprint_hash': dlgr.identity.fingerprintHash,
         },
         $form;
@@ -394,6 +395,9 @@ var dallinger = (function () {
     if (rejection.html) {
       $('html').html(rejection.html);
       $form = $('form#error-response');
+      $('#error-hit-id:empty').text(hit_params.hit_id || '');
+      $('#error-assignment-id:empty').text(hit_params.assignment_id || '');
+      $('#error-worker-id:empty').text(hit_params.worker_id || '');
     } else {
       $form = $('<form>').attr('action', '/error-page').attr('method', 'POST');
       $('body').append($form);

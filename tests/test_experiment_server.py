@@ -644,6 +644,44 @@ class TestHandleError:
         webapp.post("/handle-error", data={})
         mock_messenger.send.assert_called_once()
 
+    def test_experiment_can_refuse_completing_the_participant(
+        self, a, webapp, db_session
+    ):
+        participant = a.participant()
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as Experiment:
+            Experiment.return_value.check_worker_status.return_value = ("No", 403)
+            resp = webapp.post("/handle-error", data={"participant_id": participant.id})
+
+        assert resp.status_code == 200
+        assert db_session.merge(participant).end_time is None
+        assert models.Notification.query.one().event_type == "ExperimentError"
+
+
+@pytest.mark.usefixtures("experiment_dir", "db_session")
+@pytest.mark.slow
+class TestErrorPage:
+    def test_withholds_identifiers_from_a_bare_participant_id(self, a, webapp):
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
+        resp = webapp.post("/error-page", data={"participant_id": participant.id})
+
+        assert participant.worker_id not in resp.text
+        assert participant.assignment_id not in resp.text
+
+    def test_shows_identifiers_to_a_request_that_sent_them(self, a, webapp):
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
+        resp = webapp.post(
+            "/error-page",
+            data={
+                "participant_id": participant.id,
+                "unique_id": participant.unique_id,
+            },
+        )
+
+        assert participant.worker_id in resp.text
+        assert participant.assignment_id in resp.text
+
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
@@ -1385,9 +1423,8 @@ class TestParticipantNodeCreationRoute:
 
         error_report = resp.data.decode("utf8")
         assert "Error type: /node POST, status = submitted" in error_report
-        assert "HIT id: h_id" in error_report
-        assert "Assignment id: a_id" in error_report
-        assert "Worker id: w_id" in error_report
+        assert "a_id" not in error_report
+        assert "w_id" not in error_report
 
     def test_no_network_for_participant_returns_error(self, a, db_session, webapp):
         with db.sessions_scope(commit=True) as session:

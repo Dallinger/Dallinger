@@ -232,10 +232,13 @@
   doesn't match the participant, by returning a response to send instead of
   the exit page. The default returns `None`, which shows the exit page.
 - `Experiment.check_worker_status(participant)` does the same for
-  `/worker_complete` and `/worker_failed`: returning a response refuses the
-  request without recording the participant's status. The default returns
-  `None`. `dallinger.submitAssignment()` and Dallinger's bots now send the
-  participant's `unique_id` to these routes, so an experiment can require it.
+  `/worker_complete`, `/worker_failed` and `/handle-error`: returning a
+  response refuses the request without recording the participant's status.
+  `/handle-error` still saves the error report but doesn't complete the
+  participant. The default returns `None`. `dallinger.submitAssignment()`,
+  `dallinger.error()`, the error page's form and Dallinger's bots now send
+  the participant's `unique_id` to these routes, so an experiment can
+  require it.
 - `dallinger docker-ssh destroy` now makes you choose what happens to the
   experiment's data: its database (with its Postgres user for classic
   ingress), its Redis volume and its data folder `~/dallinger-data/<app>`.
@@ -516,6 +519,12 @@
 
 ### Fixed
 
+- Error pages no longer show a participant's worker, assignment and HIT ids
+  to a request that didn't send them. Requests that name only a
+  `participant_id` or `node_id`, such as `/error-page` or a failing
+  `/node/<node_id>/...` call, used to reveal them, and with them the
+  participant's `unique_id`. In the participant's browser,
+  `dallinger.error()` fills the ids back in.
 - `dallinger constraints generate` compiles for the newest patch release of
   the Python version in `.python-version` when the file names only the minor
   version, such as `3.11`. uv reads `3.11` as Python 3.11.0, so the compile
