@@ -276,6 +276,8 @@ def deploy_image(image_name, mode, config_options):
         "DALLINGER_UID": dallinger_uid,
     }
     config_dict.update(config_options)
+    dashboard_user = config_dict["dashboard_user"]
+    dashboard_password = config_dict["dashboard_password"]
     heroku_conn = Heroku3Client(session=requests.session())
     print(f"Creating Heroku app in {mode} mode")
     app_name = "dlgr-" + dallinger_uid.split("-")[0]
@@ -350,7 +352,7 @@ def deploy_image(image_name, mode, config_options):
     print(launch_data.get("recruitment_msg"))
 
     print(
-        f"You can login to {app_url}/dashboard using this password {dashboard_password} and the username 'admin'"
+        f"You can login to {app_url}/dashboard using this password {dashboard_password} and the username '{dashboard_user}'"
     )
 
 

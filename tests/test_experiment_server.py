@@ -1965,11 +1965,9 @@ class TestLaunchRoute:
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
-            mock_class.return_value = mock_exp = mock.Mock(protected_routes=[])
             resp = self.post(webapp, credentials)
         assert resp.status_code == 403
-        mock_exp.setup.assert_not_called()
-        mock_exp.recruiter.open_recruitment.assert_not_called()
+        mock_class.assert_not_called()
 
     def assert_launch_error(self, resp, message):
         assert resp.status_code == 500

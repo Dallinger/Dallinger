@@ -136,6 +136,9 @@ def check_for_protected_routes():
         active_rule = request.url_rule.rule
     except AttributeError:
         return
+    if active_rule == "/launch":
+        # ``launch`` checks its own credentials before any experiment code runs.
+        return
 
     protected = Experiment(no_configure=True).protected_routes
     if active_rule in protected:
