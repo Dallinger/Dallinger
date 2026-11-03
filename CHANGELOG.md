@@ -1352,10 +1352,12 @@
   the key, check it with `ssh-keygen -l -f`, install a new public key through
   a login that already works, and point `server_pem` at the new private key.
 - Updated the JavaScript development tooling (`webpack` 5.112, `webpack-cli`
-  7.3) and the npm overrides to patched `follow-redirects`, `fast-uri`,
-  `markdown-it`, `glob` 14 and, for Jest's coverage tooling, `minimatch` 11.
-  `npm audit` still reports `deepmerge` (no patched release yet) and
-  `resp-modifier`, which needs `minimatch` 3 and only runs in the
+  7.3) and cut the npm overrides from 18 to the two that still change what
+  npm installs: `glob` 14 and, for Jest's coverage tooling, `minimatch` 11.
+  The packages the removed overrides covered now resolve to patched releases
+  within their dependents' own version ranges, including `immutable` 3.8.4 for
+  `browser-sync`. `npm audit` still reports `deepmerge` (no patched release
+  yet) and `resp-modifier`, which needs `minimatch` 3 and only runs in the
   `npm run dev` proxy.
 
 ### Removed
