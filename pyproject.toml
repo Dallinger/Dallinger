@@ -56,7 +56,7 @@ dependencies = [
     "redis",
     "requests",
     "rich",
-    "rq>=3",
+    "rq>=3,<4",
     "selenium",
     "sqlalchemy<2",
     "tenacity",

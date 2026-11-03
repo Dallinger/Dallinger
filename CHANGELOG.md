@@ -1392,7 +1392,7 @@
   2026.10.23, boto3/botocore 1.43.123, and uv 0.13.6. Removed the
   `rpds-py<2026.5.1` dependency, which Dallinger listed only to cap the
   version; dev installs now get rpds-py 2026.9.1 through `jsonschema`.
-- Dallinger now requires RQ 3 or newer (`rq>=3`) and pins RQ 3.0.0. The
+- Dallinger now requires RQ 3 (`rq>=3,<4`) and pins RQ 3.0.0. The
   gevent worker passes each job its execution and keeps that execution alive
   for the job's whole timeout, so jobs no longer fail with `perform_job()
   missing 1 required positional argument: 'execution'`. Experiments whose
