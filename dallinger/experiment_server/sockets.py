@@ -1023,8 +1023,25 @@ def _join_session(client):
 
 
 def chat(ws):
-    """Relay messages between a client and redis."""
-    _serve(ws, participant_id=request.args.get("participant_id"))
+    """Relay messages between a client and redis.
+
+    A connection that names a participant is sent that participant's directed
+    messages and may join their real-time sessions, so it is admitted like an
+    experiment socket first. One that names none can still subscribe, send
+    and receive broadcasts.
+    """
+    requested_id = request.args.get("participant_id")
+    if requested_id in (None, ""):
+        _serve(ws)
+        return
+    try:
+        participant_id, _ = socket_admission.admit(
+            requested_id, request.args.get("scope")
+        )
+    except socket_admission.Refused as refusal:
+        _refuse(ws, refusal)
+        return
+    _serve(ws, participant_id=participant_id)
 
 
 def experiment_socket(ws):

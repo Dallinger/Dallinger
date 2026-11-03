@@ -4,6 +4,12 @@
 
 ### Changed
 
+- A `/chat` connection that names a participant goes through the same check
+  as an `/experiment-socket` one: the participant must exist and
+  `Experiment.accept_websocket_connection` must accept it. It used to be sent
+  any participant's directed messages, and join their real-time sessions,
+  just by naming them. A `/chat` connection without a participant is still
+  unchecked, and still subscribes and receives broadcasts.
 - `/prolific-submission-listener` refuses, with a 403, a request whose
   `assignmentId` isn't the participant's, and calls
   `Experiment.check_worker_status`, so an experiment can also require the

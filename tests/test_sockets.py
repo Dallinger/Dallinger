@@ -75,6 +75,21 @@ def admission(sockets):
 
 
 @pytest.fixture
+def admitted(admission):
+    """Admit every connection that names a well-formed participant id."""
+    from dallinger.utils import normalized_participant_id
+
+    with (
+        patch.object(
+            admission, "resolve_participant_id", side_effect=normalized_participant_id
+        ),
+        patch.object(admission, "process_experiment") as experiment,
+    ):
+        experiment.return_value.accept_websocket_connection.return_value = True
+        yield experiment.return_value
+
+
+@pytest.fixture
 def chat(sockets):
     return sockets.chat_backend
 
@@ -1281,15 +1296,29 @@ class TestExperimentSocketConnection:
         assert admission._process_experiment is None
         assert "special" not in sockets.chat_backend.channels
 
-    def test_the_chat_route_does_not_look_up_the_participant(
+    def test_a_chat_connection_naming_no_participant_is_not_checked(
         self, sockets, admission, mocksocket
     ):
-        with patch.object(admission, "resolve_participant_id") as lookup:
-            self.connect_chat(
-                sockets, mocksocket, channel="special", participant_id="nonsense"
-            )
+        with patch.object(admission, "admit") as admit:
+            self.connect_chat(sockets, mocksocket, channel="special")
 
-        lookup.assert_not_called()
+        admit.assert_not_called()
+        mocksocket.close.assert_not_called()
+
+    def test_a_chat_connection_naming_a_participant_is_checked(
+        self, sockets, admitted, mocksocket
+    ):
+        admitted.accept_websocket_connection.return_value = False
+
+        self.connect_chat(
+            sockets, mocksocket, channel="special", participant_id="42", scope="page"
+        )
+
+        admitted.accept_websocket_connection.assert_called_once_with("42", "page")
+        mocksocket.close.assert_called_once_with(
+            sockets.REFUSED_CLOSE_CODE, "refused by the experiment"
+        )
+        assert "special" not in sockets.chat_backend.channels
 
 
 class TestAcceptWebsocketConnection:
@@ -1533,6 +1562,7 @@ def envelope_message(sockets, envelope):
     }
 
 
+@pytest.mark.usefixtures("admitted")
 class TestParticipantRegistry:
     def test_a_chat_connection_is_addressable(self, sockets, mocksocket):
         addressed = []
@@ -2248,6 +2278,7 @@ class TestSubscriptionHandshake:
         assert ws.receive.call_count > 0
 
     @pytest.mark.timeout(10)
+    @pytest.mark.usefixtures("admitted")
     def test_an_addressable_connection_waits_for_the_direct_listener(
         self, sockets, pubsub, scripted_socket
     ):
@@ -2275,6 +2306,7 @@ class TestSubscriptionHandshake:
         assert ws.receive.call_count > 0
 
     @pytest.mark.timeout(10)
+    @pytest.mark.usefixtures("admitted")
     def test_the_wait_is_bounded(self, sockets, pubsub, scripted_socket):
         def silent_listen():
             Event().wait()

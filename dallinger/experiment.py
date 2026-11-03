@@ -613,7 +613,12 @@ class Experiment:
         self.send("{}:{}".format(channel_name, message))
 
     def accept_websocket_connection(self, participant_id, scope):
-        """Decide whether a ``/experiment-socket`` connection may open.
+        """Decide whether a websocket connection that names a participant may open.
+
+        Every ``/experiment-socket`` connection names one. A ``/chat``
+        connection that names none isn't checked: it can subscribe and
+        receive broadcasts, but it isn't sent directed messages and can't
+        join a real-time session.
 
         Called once per connection, after the participant has been found and
         before the connection subscribes to anything or joins a real-time
@@ -622,13 +627,11 @@ class Experiment:
         falsy return refuses, including ``None``, so remember to return
         ``True``. The default accepts every connection.
 
-        ``/experiment-socket`` doesn't check who is on the other end, so use
-        this to check something only the participant's page knows, such as a
-        token the server signed when it rendered the page, passed as
-        ``scope``. :doc:`Using WebSockets in Dallinger Experiments
-        <using_websockets>` has an example, and says where the scope is
-        logged and saved. ``/chat`` connections don't call it, and can still
-        join a real-time session as any of its players.
+        Neither route checks who is on the other end, so use this to check
+        something only the participant's page knows, such as a token the
+        server signed when it rendered the page, passed as ``scope``.
+        :doc:`Using WebSockets in Dallinger Experiments <using_websockets>`
+        has an example, and says where the scope is logged and saved.
 
         If this raises, the connection is closed with code 1013 and the
         browser tries again. Like

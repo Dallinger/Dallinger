@@ -18,6 +18,7 @@ from dallinger.models import RealtimeSession
 from dallinger.realtime import delivery, session_sockets, store
 from dallinger.realtime.core import run_pass
 from dallinger.realtime.jobs import write_ending
+from dallinger.utils import normalized_participant_id
 from tests.realtime.helpers import CLOCK, TurnTally, create_session
 
 pytestmark = pytest.mark.usefixtures("redis_conn", "realtime_experiment")
@@ -56,6 +57,10 @@ def sockets(pubsub, monkeypatch):
     sockets.pubsub_conn.pubsub.return_value = pubsub
     monkeypatch.setattr(sockets, "chat_backend", sockets.ChatBackend())
     monkeypatch.setattr(socket_admission, "_process_experiment", None)
+    # These tests name players by id without creating their participants.
+    monkeypatch.setattr(
+        socket_admission, "resolve_participant_id", normalized_participant_id
+    )
     monkeypatch.setattr(sockets, "_process_games", None)
     yield sockets
     gevent.wait()

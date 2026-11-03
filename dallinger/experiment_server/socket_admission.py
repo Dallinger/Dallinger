@@ -1,4 +1,6 @@
-"""Deciding whether an ``/experiment-socket`` connection may open.
+"""Deciding whether a websocket connection that names a participant may open.
+
+Every ``/experiment-socket`` connection names one; a ``/chat`` connection may.
 
 A connection must name a participant that exists, the experiment must build,
 and the experiment's

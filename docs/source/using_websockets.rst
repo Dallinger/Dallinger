@@ -187,8 +187,11 @@ another participant, not someone who can read the logs or the data.
 
 A falsy return closes the socket with code ``1008`` and the reason
 ``refused by the experiment``, before it subscribes to any channel or joins a
-real-time session. ``/chat`` connections are not checked, so a page that opens
-one can still join a real-time session as any of its players without a token.
+real-time session. A ``/chat`` connection that names a participant, as
+:js:func:`dallinger.openChatSocket` does once the page knows its participant, is
+checked the same way, so pass it the same token. One that names no participant
+isn't checked: it can subscribe to channels and receive their broadcasts, but it
+isn't sent directed messages and can't join a real-time session.
 
 Three failures that are not the client's fault close with ``1013`` instead,
 which tells the client to try again later: a participant lookup that raises, an
@@ -393,15 +396,17 @@ This replaces the pattern of giving each participant a channel named after
 them, such as ``participant_12_channel``. Named channels remain the natural
 choice for a group of participants who should all receive the same messages.
 
-A directed message is no more confidential than the channel name it replaces.
-Neither WebSocket route is authenticated. ``/experiment-socket`` checks that
-the participant exists and ``/chat`` checks nothing, so a connection is
-addressed by the ``participant_id`` it claims rather than by one it has proved
-it owns, and anyone who can guess a participant id can open a socket naming it
-and be sent that participant's directed messages. Guessing
-``participant_12_channel`` took the same knowledge. Treat the id as Dallinger
-treats every other ``participant_id``, and keep out of a payload anything
-another participant must not read.
+Neither WebSocket route is authenticated by default. Both check only that the
+participant a connection names exists, so a connection is addressed by the
+``participant_id`` it claims rather than by one it has proved it owns, and
+anyone who can guess a participant id can open a socket naming it and be sent
+that participant's directed messages. An experiment that overrides
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection` to check a
+token, as above, makes directed messages private to the participant's own
+pages. Without that check, treat the id as Dallinger treats every other
+``participant_id``, and keep out of a payload anything another participant must
+not read. Channel broadcasts are never private: any connection may subscribe to
+any channel that isn't reserved.
 
 Naming a participant who has no open connection, or who is not connected to this
 deployment at all, delivers nothing and is not an error. As with a broadcast, no

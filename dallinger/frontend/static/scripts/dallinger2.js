@@ -1168,7 +1168,9 @@ var dallinger = (function () {
    * Open a WebSocket connection to the ``/chat`` route, which publishes each
    * message it is sent to the channel the message names.
    *
-   * The connection identifies the participant from ``dallinger.identity``.
+   * The connection identifies the participant from ``dallinger.identity``,
+   * if there is one. The server then refuses it if that participant does not
+   * exist or the experiment's ``accept_websocket_connection`` method says no.
    *
    * @example
    * var chatroom = dallinger.openChatSocket({channel: 'chatroom'});

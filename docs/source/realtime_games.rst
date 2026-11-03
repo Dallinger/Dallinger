@@ -643,8 +643,7 @@ A page that also uses a chat channel waits for its session with
 :js:func:`dallinger.waitForRealtimeSession`, which resolves with the session's
 id, and joins it by passing :js:func:`dallinger.openChatSocket` that id as its
 ``session`` option and the game type's channel as its ``gameChannel``. The
-waiting connection is checked as above, but a ``/chat`` connection can join a
-session without ``accept_websocket_connection``'s check.
+waiting connection and the ``/chat`` connection are both checked as above.
 
 Views and Messages
 ~~~~~~~~~~~~~~~~~~
