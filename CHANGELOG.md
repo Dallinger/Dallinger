@@ -19,6 +19,11 @@
   different `worker_id` is refused with a 403. It used to replace and fail
   the working participant. The same worker signing up again with
   `allow_repeat_worker_ids` still replaces their earlier row.
+- Dallinger's JavaScript tooling now targets Node.js 22 LTS instead of
+  Node 20, which reached end of life in April 2026. Contributors building
+  the documentation or running the JavaScript tests need Node 22.15 or
+  later; CI takes its Node version from `.nvmrc`. Experiments and
+  deployments do not use Node and are unaffected.
 - `dallinger.submitAssignment()` adds the participant's `unique_id` to the
   `/recruiter-exit` link, so an experiment's exit page can check that the
   visitor is that participant. The new `dallinger.recruiterExitRoute()`
@@ -48,7 +53,7 @@
   `scripts/update_experiments_constraints.py` now takes the Python version
   from the root `Dockerfile` instead of from the interpreter that runs it,
   so the demos follow future Docker image upgrades automatically.
-- Cloudflare Tunnel deployments now use cloudflared 2026.10.4, including the
+- Cloudflare Tunnel deployments now use cloudflared 2026.10.6, including the
   eMudhra certificate-compromise mitigation. Existing connectors require a
   separate image update and restart.
 - Dependabot now opens pull requests for new cloudflared releases. The
@@ -1383,6 +1388,16 @@
   Paramiko with an unrelated message such as `dmq1 must be odd`. To replace
   the key, check it with `ssh-keygen -l -f`, install a new public key through
   a login that already works, and point `server_pem` at the new private key.
+- Updated the JavaScript development tooling (`webpack` 5.112, `webpack-cli`
+  7.3) and cut the npm overrides from 17 to the two that still change what
+  npm installs: `glob` 14 and, for Jest's coverage tooling, `minimatch` 11.
+  The lockfile now resolves patched `follow-redirects`, `fast-uri` and
+  `markdown-it` releases, and the packages the removed overrides covered
+  resolve to patched releases within their dependents' own version ranges,
+  including `immutable` 3.8.4 for `browser-sync`. `npm audit` still reports
+  `deepmerge` (no patched release yet) and `resp-modifier`, which needs
+  `minimatch` 3 and only runs in the `npm run dev` proxy.
+
 ### Removed
 
 - The `/notifications` and `/mturk-sns-listener` routes are gone, since
