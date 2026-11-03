@@ -700,6 +700,7 @@ class TestProlificRecruiter:
             study_id="abcdefghijklmnopqrstuvwx", number_to_add=1
         )
 
+    @pytest.mark.usefixtures("experiment_dir_merged")
     def test_submission_listener_updates_status_and_enqueues_notification(
         self, a, queue, webapp, db_session
     ):
@@ -758,6 +759,7 @@ class TestProlificRecruiter:
         assert db_session.merge(participant).status == "working"
         queue.enqueue.assert_not_called()
 
+    @pytest.mark.usefixtures("experiment_dir_merged")
     def test_submission_listener_prevents_double_processing(self, a, queue, webapp):
         participant = a.participant(assignment_id="some assignment ID")
         participant_id = participant.id
