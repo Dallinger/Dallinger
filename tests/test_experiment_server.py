@@ -1969,6 +1969,25 @@ class TestLaunchRoute:
         assert resp.status_code == 403
         mock_class.assert_not_called()
 
+    @pytest.mark.parametrize(
+        "password, credentials", [("", ("admin", "")), ("DUMBPASSWORD", None)]
+    )
+    def test_codespaces_auto_login_does_not_authorize_a_launch(
+        self, webapp, active_config, password, credentials
+    ):
+        active_config.extend({"dashboard_password": password})
+        with mock.patch(
+            "dallinger.experiment_server.dashboard.is_running_in_codespaces",
+            return_value=True,
+        ):
+            resp = self.post(webapp, credentials)
+        assert resp.status_code == 403
+
+    def test_a_dashboard_session_does_not_authorize_a_launch(self, webapp_admin):
+        with webapp_admin.session_transaction() as session:
+            assert session["_user_id"] == "admin"
+        assert self.post(webapp_admin, credentials=None).status_code == 403
+
     def assert_launch_error(self, resp, message):
         assert resp.status_code == 500
         data = json.loads(resp.get_data())

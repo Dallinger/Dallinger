@@ -2,6 +2,7 @@ import codecs
 import json
 import os
 import re
+import secrets
 import signal
 import sys
 import threading
@@ -125,6 +126,20 @@ def launch_auth(config=None):
     )
 
 
+def fill_dashboard_login(values):
+    """Fill in an empty or missing dashboard login in the dict ``values``.
+
+    ``dashboard_user`` becomes ``admin`` and ``dashboard_password`` a new
+    random password, so the server and the launch request get the same
+    login; ``/launch`` never accepts an empty password. Returns ``values``.
+    """
+    values["dashboard_user"] = values.get("dashboard_user") or "admin"
+    values["dashboard_password"] = values.get(
+        "dashboard_password"
+    ) or secrets.token_urlsafe(16)
+    return values
+
+
 def handle_launch_data(
     url,
     error,
@@ -191,6 +206,14 @@ def handle_launch_data(
                     url, launch_request.status_code, launch_request.text
                 )
 
+            if request_happened and launch_request.status_code == 403:
+                progress.update(task_id, visible=False)
+                raise click.ClickException(
+                    f"{url} refused the launch (HTTP 403): the server did not "
+                    "accept this deploy's dashboard_user and dashboard_password. "
+                    "The experiment was not launched."
+                )
+
             if request_happened:
                 try:
                     launch_data = launch_request.json()
@@ -219,14 +242,6 @@ def handle_launch_data(
             if request_happened and launch_request.ok:
                 progress.update(task_id, total=1, completed=1)
                 return launch_data
-
-            if request_happened and launch_request.status_code == 403:
-                progress.update(task_id, visible=False)
-                raise click.ClickException(
-                    f"{url} refused the launch (HTTP 403): the server did not "
-                    "accept this deploy's dashboard_user and dashboard_password. "
-                    "The experiment was not launched."
-                )
 
             if request_happened:
                 saw_application_error = True

@@ -2084,6 +2084,18 @@ def test_compose_environment_falls_back_to_num_dynos_worker(stub_config):
     assert env["worker_processes"] == 3
 
 
+@pytest.mark.parametrize("option", [None, "", "pw"])
+def test_compose_environment_gets_the_dashboard_password(stub_config, option):
+    options = {} if option is None else {"dashboard_password": option}
+    options = docker_ssh_module._apply_config_options(stub_config, options)
+    env = docker_ssh_module._compose_environment(
+        stub_config, options, "live", "uuid", "image:tag", "flask-key"
+    )
+    password = env["dashboard_password"]
+    assert password == stub_config.get("dashboard_password")
+    assert password == (option or password) and password
+
+
 def test_deploy_validates_config_options_before_deploying(monkeypatch):
     config = Configuration()
     config._reset(register_defaults=True)

@@ -27,7 +27,7 @@ from dallinger.command_line.utils import (
     verify_id,
 )
 from dallinger.config import get_config
-from dallinger.deployment import handle_launch_data
+from dallinger.deployment import fill_dashboard_login, handle_launch_data
 from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import (
     GitClient,
@@ -256,8 +256,6 @@ REGISTRY_UNAUTHORIZED_HELP_TEXT = [
 def deploy_image(image_name, mode, config_options):
     """Deploy Heroku app using a docker image and MTurk."""
     config = get_config(load=True)
-    dashboard_user = config.get("dashboard_user", "admin")
-    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
     dallinger_uid = str(uuid.uuid4())
     config_dict = {
         "AWS_ACCESS_KEY_ID": config.get("aws_access_key_id"),
@@ -269,13 +267,14 @@ def deploy_image(image_name, mode, config_options):
         "smtp_password": config.get("smtp_password"),
         "whimsical": config.get("whimsical"),
         "FLASK_SECRET_KEY": secrets.token_urlsafe(16),
-        "dashboard_user": dashboard_user,
-        "dashboard_password": dashboard_password,
+        "dashboard_user": config.get("dashboard_user", None),
+        "dashboard_password": config.get("dashboard_password", None),
         "mode": mode,
         "CREATOR": netrc.netrc().hosts["api.heroku.com"][0],
         "DALLINGER_UID": dallinger_uid,
     }
     config_dict.update(config_options)
+    fill_dashboard_login(config_dict)
     dashboard_user = config_dict["dashboard_user"]
     dashboard_password = config_dict["dashboard_password"]
     heroku_conn = Heroku3Client(session=requests.session())

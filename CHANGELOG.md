@@ -533,6 +533,9 @@
   and `docker-ssh` send the login for you, and `handle_launch_data()` sends
   the loaded config's login unless given `auth=(user, password)`. Heroku
   apps now get `dashboard_user` and `dashboard_password` as config vars.
+  When `dashboard_user` or `dashboard_password` is unset or empty,
+  `docker deploy-image` and `docker-ssh` deploys use `admin` and a new
+  random password, also when they reuse a prebuilt `docker_image_name`.
   Code that called the `launch` view directly, outside a request, should
   call the new `launch_experiment()` instead, as the `webapp` pytest
   fixture now does. Scripts that POST `/launch` themselves must add the

@@ -47,7 +47,7 @@ from dallinger.command_line.utils import (
 from dallinger.config import ConfigSource, get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
-from dallinger.deployment import setup_experiment
+from dallinger.deployment import fill_dashboard_login, setup_experiment
 from dallinger.hibernation import STATE_HIBERNATING as HIBERNATING
 from dallinger.hibernation import STATE_WAKING as WAKING
 from dallinger.utils import (
@@ -2234,7 +2234,10 @@ def check_deploy_credentials(server=None, ingress=None, config_options=None):
 def _apply_config_options(config, config_options):
     """Apply ``-c`` options to ``config``, expanding ``file:`` values.
 
-    Returns the options keyed by their canonical config names.
+    Also fills in an empty dashboard login (see ``fill_dashboard_login``),
+    in both ``config`` and the options, so the web container gets the
+    password that the deploy prints and sends to ``/launch``. Returns the
+    options keyed by their canonical config names.
     """
     config_options = {
         config.canonical_key(key): value
@@ -2246,6 +2249,11 @@ def _apply_config_options(config, config_options):
         raise click.ClickException(
             f"Could not read {exc.filename}: {exc.strerror}"
         ) from exc
+    login = fill_dashboard_login(
+        {key: config.get(key, None) for key in ("dashboard_user", "dashboard_password")}
+    )
+    config.extend(login)
+    config_options.update({key: login[key] for key in login if key in config_options})
     return config_options
 
 
@@ -3051,9 +3059,8 @@ def _deploy_in_mode(
         remove_for_app=None if update else experiment_id,
         image_usable=image_usable,
     ) as image_name:
-        # Read after the build, which sets a dashboard password if config has none.
-        dashboard_user = config.get("dashboard_user", "admin")
-        dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
+        dashboard_user = config.get("dashboard_user")
+        dashboard_password = config.get("dashboard_password")
 
         if cloudflare_settings is not None:
             return _deploy_cloudflare_in_mode(

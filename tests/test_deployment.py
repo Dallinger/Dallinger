@@ -1,5 +1,6 @@
 import configparser
 import gc
+import json
 import os
 import re
 import shutil
@@ -1577,8 +1578,8 @@ class TestDeploySandboxSharedSetupNoExternalCalls:
             AWS_DEFAULT_REGION="us-east-1",
             AWS_SECRET_ACCESS_KEY="fake aws secret",
             FLASK_SECRET_KEY=mock.ANY,  # password is random
-            dashboard_user=mock.ANY,
-            dashboard_password=mock.ANY,
+            dashboard_user="admin",
+            dashboard_password="DUMBPASSWORD",
             smtp_password="fake email password",
             smtp_username="fake email username",
             whimsical=True,
@@ -1691,12 +1692,25 @@ class Testhandle_launch_data:
     def test_refused_launch_is_not_retried(self, handler):
         with mock.patch("dallinger.deployment.requests.post") as mock_post:
             mock_post.return_value = mock.Mock(
-                ok=False, status_code=403, json=mock.Mock(return_value={})
+                ok=False,
+                status_code=403,
+                text="<h1>Forbidden</h1>",
+                json=mock.Mock(side_effect=json.decoder.JSONDecodeError("", "", 0)),
             )
             with pytest.raises(click.ClickException, match="HTTP 403"):
                 handler("/some-launch-url", error=mock.Mock(), auth=("u", "p"))
 
         mock_post.assert_called_once()
+
+
+def test_fill_dashboard_login_replaces_an_empty_login():
+    from dallinger.deployment import fill_dashboard_login
+
+    login = fill_dashboard_login({"dashboard_user": "", "dashboard_password": ""})
+    assert login["dashboard_user"] == "admin"
+    assert login["dashboard_password"]
+    kept = {"dashboard_user": "me", "dashboard_password": "pw"}
+    assert fill_dashboard_login(dict(kept)) == kept
 
     def test_https_wait_progress_is_status_not_error(self):
         from dallinger.deployment import _HTTPS_WAIT_BAR_STYLE, _https_wait_progress
