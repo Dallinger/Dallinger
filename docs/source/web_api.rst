@@ -161,6 +161,13 @@ deploy commands send them for you. To launch by hand, for example::
 
     curl -X POST -u "admin:<dashboard password>" https://<app host>/launch
 
+The route also answers ``403``, even with the credentials, to a request that a
+browser sends from another site's page, which it detects from the
+``Sec-Fetch-Site`` or ``Origin`` header. Browsers attach saved HTTP Basic
+credentials to cross-site form posts, so without this check another page could
+launch the experiment. Clients such as ``curl`` and ``requests`` send neither
+header and are not affected.
+
 ::
 
     GET /network/<network_id>

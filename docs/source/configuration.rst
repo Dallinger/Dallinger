@@ -144,7 +144,7 @@ General
 
 ``dashboard_user`` *unicode*
     An optional login name for accessing the Dallinger Dashboard interface. If not
-    specified ``admin`` will be used.
+    specified, or empty, ``admin`` will be used.
 
 ``protected_routes`` *unicode - JSON formatted*
     An optional JSON array of Flask route rule names which should be made inaccessible.

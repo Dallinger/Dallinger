@@ -1972,14 +1972,21 @@ class TestLaunchRoute:
         "headers",
         [
             {"Sec-Fetch-Site": "cross-site"},
+            {"Sec-Fetch-Site": "same-site"},
             {"Origin": "https://attacker.example"},
+            {"Origin": "null"},
         ],
     )
     def test_refuses_cross_site_browser_posts_with_the_login(self, webapp, headers):
         assert self.post(webapp, **headers).status_code == 403
 
     @pytest.mark.parametrize(
-        "headers", [{"Sec-Fetch-Site": "same-origin"}, {"Origin": "http://localhost"}]
+        "headers",
+        [
+            {"Sec-Fetch-Site": "same-origin"},
+            {"Sec-Fetch-Site": "none"},
+            {"Origin": "http://localhost"},
+        ],
     )
     def test_allows_same_origin_browser_posts(self, webapp, headers):
         assert self.post(webapp, **headers).status_code == 200

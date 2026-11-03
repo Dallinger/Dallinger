@@ -516,7 +516,9 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     log("Launching the experiment on the remote server and starting recruitment...")
     launch_url = "{}/launch".format(heroku_app.url)
     log("Calling {}".format(launch_url), chevrons=False)
-    launch_data = handle_launch_data(launch_url, error=log, context="heroku")
+    launch_data = handle_launch_data(
+        launch_url, error=log, context="heroku", app_id=heroku_app_id
+    )
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,

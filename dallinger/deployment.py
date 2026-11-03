@@ -40,6 +40,8 @@ from dallinger.utils import (
 DEFAULT_DELAY = 1
 BACKOFF_FACTOR = 2
 MAX_ATTEMPTS = 6
+# How much of a refused launch's response body to show.
+LAUNCH_REFUSED_BODY_LENGTH = 200
 # 530 is Cloudflare's answer while a new tunnel's connector registers.
 STARTUP_STATUS_CODES = frozenset({502, 503, 504, 530})
 HTTPS_WAIT_MESSAGE = "Waiting for the experiment URL to become reachable"
@@ -139,6 +141,7 @@ def handle_launch_data(
     context=None,
     verify=True,
     auth=None,
+    app_id=None,
 ):
     """POST to ``url`` (``/launch``), retrying with exponential backoff.
 
@@ -163,6 +166,8 @@ def handle_launch_data(
         auth: ``(user, password)`` for HTTP Basic authentication; defaults
             to the dashboard credentials in the loaded config (see
             ``launch_auth``).
+        app_id: The Heroku app's experiment id; a refused launch then
+            shows the ``dallinger destroy`` command for the app.
     """
     if auth is None:
         auth = launch_auth()
@@ -197,12 +202,19 @@ def handle_launch_data(
 
             if request_happened and launch_request.status_code == 403:
                 progress.update(task_id, visible=False)
-                raise LaunchRefused(
-                    f"The server refused the launch (HTTP 403) at {url}, most "
-                    "likely because it did not accept this deploy's "
-                    "dashboard_user and dashboard_password. The experiment was "
-                    "not launched."
+                message = (
+                    f"The server refused the launch (HTTP 403) at {url}. The "
+                    "app may not have accepted this deploy's dashboard_user "
+                    "and dashboard_password, or a proxy in front of it refused "
+                    "the request. The experiment was not launched. Response: "
+                    f"{launch_request.text[:LAUNCH_REFUSED_BODY_LENGTH]}"
                 )
+                if app_id:
+                    message += (
+                        "\nTo destroy the app, use the command "
+                        f'"dallinger destroy --app {app_id}"'
+                    )
+                raise LaunchRefused(message)
 
             if request_happened:
                 try:
@@ -440,7 +452,7 @@ def deploy_sandbox_shared_setup(
     log("Launching the experiment on the remote server and starting recruitment...")
     launch_url = "{}/launch".format(heroku_app.url)
     log("Calling {}".format(launch_url), chevrons=False)
-    launch_data = handle_launch_data(launch_url, error=log)
+    launch_data = handle_launch_data(launch_url, error=log, app_id=heroku_app_id)
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,

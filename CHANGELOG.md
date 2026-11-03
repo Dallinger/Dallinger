@@ -233,16 +233,20 @@
   `dashboard_password`) with HTTP Basic authentication and answers 403
   without it. Previously anyone could call it on a deployed experiment to
   rerun its setup and reopen recruitment, which on Prolific could publish
-  another study. `dallinger debug`, `develop`, `sandbox`/`deploy`, `docker`
-  and `docker-ssh` send the login for you, and `handle_launch_data()` sends
+  another study. `dallinger debug`, `develop`, `sandbox`/`deploy`, `load`
+  (when replaying), `docker` and `docker-ssh` send the login for you, and
+  `handle_launch_data()` sends
   the loaded config's login unless given `auth=(user, password)`. The
   server also refuses, with 403, a launch that a browser sends from another
   site's page, even with the login, because browsers attach saved HTTP
   Basic credentials, such as those `dallinger debug` opens the dashboard
   with, to cross-site form posts. A 403 stops the deploy with the new
   `dallinger.deployment.LaunchRefused` error (a `click.ClickException`),
-  without retrying, and `dallinger debug` reports it instead of carrying on
-  with the server running. Once a server restarts with an empty
+  without retrying, and shows the start of the server's response.
+  `sandbox`/`deploy`, `docker sandbox`/`deploy` and `docker-ssh` also show
+  how to remove the app, and
+  `dallinger debug` and `dallinger load` report the error instead of
+  carrying on with the server running. Once a server restarts with an empty
   `dashboard_password`, the old password no longer opens the dashboard or
   launches the experiment, and existing dashboard sessions and remember-me
   cookies stop working. When

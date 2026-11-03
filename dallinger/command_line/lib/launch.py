@@ -45,6 +45,7 @@ import requests
 from dallinger.deployment import (
     BACKOFF_FACTOR,
     DEFAULT_DELAY,
+    LAUNCH_REFUSED_BODY_LENGTH,
     MAX_ATTEMPTS,
     LaunchRefused,
 )
@@ -294,6 +295,7 @@ def launch_from_server(executor, target):
     """
     command = internal_launch_command(target)
     sent = None
+    refused = None
     try:
         for _ in _attempts():
             data = _send_launch(executor, target, command)
@@ -302,6 +304,8 @@ def launch_from_server(executor, target):
     except _LaunchSent as exc:
         sent = exc
         print(exc)
+    except LaunchRefused as exc:
+        refused = exc
     print_bold("Check the web container logs:")
     print(target.ssh(f"docker compose -f {target.compose_file} logs web"))
     if sent:
@@ -311,6 +315,8 @@ def launch_from_server(executor, target):
     print(target.ssh(command))
     print_bold("Or remove the app:")
     print(target.destroy_command)
+    if refused:
+        raise refused
     if sent:
         raise click.ClickException(
             f"The launch request may have reached {target.app} but did not "
@@ -342,10 +348,11 @@ def _send_launch(executor, target, command):
             return json.loads(body)
         if status == 403:
             raise LaunchRefused(
-                f"The server refused the launch of {target.app} (HTTP 403), most "
-                "likely because it did not accept the web container's "
-                "dashboard_user and dashboard_password. The experiment was not "
-                "launched and recruitment has not started."
+                f"The server refused the launch of {target.app} (HTTP 403). The "
+                "app may not have accepted the web container's dashboard_user "
+                "and dashboard_password, or a proxy in front of it refused the "
+                "request. The experiment was not launched and recruitment has "
+                f"not started. Response: {body[:LAUNCH_REFUSED_BODY_LENGTH]}"
             )
         raise _LaunchSent(
             f"The launch request to {target.app} returned HTTP {status}:\n{body}"

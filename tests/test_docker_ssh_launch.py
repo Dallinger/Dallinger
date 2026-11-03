@@ -152,11 +152,15 @@ def test_only_an_undelivered_launch_is_sent_again(not_sent, no_sleep):
     assert executor.events == ["launch", "launch"]
 
 
-def test_a_refused_launch_is_not_sent_again(no_sleep):
-    executor = FakeExecutor([(0, reply(403, {"status": "error"}), "")])
-    with pytest.raises(LaunchRefused, match="refused the launch"):
+def test_a_refused_launch_is_not_sent_again(no_sleep, capsys):
+    executor = FakeExecutor([(0, reply(403, {"status": "forbidden"}), "")])
+    with pytest.raises(LaunchRefused, match="refused the launch.*forbidden"):
         launch.launch_from_server(executor, TARGET)
     assert executor.events == ["launch"]
+    out = capsys.readouterr().out
+    assert TARGET.ssh(f"docker compose -f {TARGET.compose_file} logs web") in out
+    assert "Retry the launch:" in out
+    assert TARGET.destroy_command in out
 
 
 def test_proxied_launch_headers_give_the_public_base_url():
