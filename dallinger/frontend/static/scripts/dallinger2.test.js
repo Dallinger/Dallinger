@@ -47,6 +47,10 @@ describe('getUrlParameter', function () {
 });
 
 describe('AjaxRejection', function () {
+  afterEach(function () {
+    jest.restoreAllMocks();
+  });
+
   test('exposes structured server error codes', () => {
     var dlgr = require('./dallinger2').dallinger;
     var rejection = dlgr.AjaxRejection({
@@ -68,6 +72,7 @@ describe('AjaxRejection', function () {
   });
 
   test('handles unparseable responses without an error code', () => {
+    var log = jest.spyOn(console, 'log').mockImplementation(() => {});
     var dlgr = require('./dallinger2').dallinger;
     var rejection = dlgr.AjaxRejection({
       route: '/load-participant',
@@ -81,6 +86,7 @@ describe('AjaxRejection', function () {
     expect(rejection.errorCode).toBeUndefined();
     expect(rejection.html).toBe('');
     expect(rejection.response).toEqual({});
+    expect(log).toHaveBeenCalledWith('Error response not parseable.');
   });
 
   test.each([['null'], ['"a string"'], ['[1, 2]']])(
