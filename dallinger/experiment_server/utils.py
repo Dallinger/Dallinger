@@ -288,8 +288,10 @@ def _request_identifies(participant):
     """
 
     def matches(name, value):
-        supplied = request.values.get(name) or ""
-        return bool(value) and hmac.compare_digest(supplied.encode(), value.encode())
+        return bool(value) and any(
+            hmac.compare_digest(supplied.encode(), value.encode())
+            for supplied in request.values.getlist(name)
+        )
 
     return matches("unique_id", participant.unique_id) or (
         matches("worker_id", participant.worker_id)

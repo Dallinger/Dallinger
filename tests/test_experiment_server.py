@@ -550,7 +550,7 @@ class TestHandleError:
         assert notifi.details["feedback"] == "Some feedback"
 
     def test_looks_up_participant_from_assignment(self, a, webapp):
-        participant = a.participant()
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
         assignment_id = participant.assignment_id
         participant_id = participant.id
         webapp.post("/handle-error", data={"assignment_id": assignment_id})
@@ -565,7 +565,7 @@ class TestHandleError:
         )
 
     def test_looks_up_participant_from_worker(self, a, webapp):
-        participant = a.participant()
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
         assignment_id = participant.assignment_id
         participant_id = participant.id
         webapp.post("/handle-error", data={"worker_id": participant.worker_id})
@@ -580,7 +580,7 @@ class TestHandleError:
         )
 
     def test_looks_up_hit_in_request_data(self, a, webapp):
-        participant = a.participant()
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
         assignment_id = participant.assignment_id
         worker_id = participant.worker_id
         hit_id = participant.hit_id
@@ -608,7 +608,7 @@ class TestHandleError:
         )
 
     def test_looks_up_hit_in_nested_request_data(self, a, webapp):
-        participant = a.participant()
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
         assignment_id = participant.assignment_id
         worker_id = participant.worker_id
         hit_id = participant.hit_id

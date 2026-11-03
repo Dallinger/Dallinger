@@ -469,12 +469,15 @@ def handle_error():
         )
         if participants:
             participant = participants[0]
+            participant_id = participant.id
             if not assignment_id:
                 assignment_id = participant.assignment_id
 
     if participant_id is None and assignment_id:
         participants = (
-            session.query(models.Participant).filter_by(worker_id=assignment_id).all()
+            session.query(models.Participant)
+            .filter_by(assignment_id=assignment_id)
+            .all()
         )
         if participants:
             participant = participants[0]
