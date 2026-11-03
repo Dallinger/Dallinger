@@ -84,6 +84,28 @@ def process_token():
     return _process_token
 
 
+def _close_websocket(ws, code, reason):
+    """Close ``ws`` with ``code`` and ``reason``, and send nothing after the
+    close frame.
+
+    Under Flask's development server, flask-sock answers the upgrade request
+    with an ordinary HTTP response once the route returns, on the same socket.
+    A browser that reads it after the close frame reports code 1006 instead
+    of ``code``, so a refused page keeps reconnecting. Shutting down the
+    socket's sending side stops that response from going out. Under
+    gunicorn, flask-sock writes nothing after the route returns.
+
+    :raises simple_websocket.ConnectionClosed: if ``ws`` is already closed
+    """
+    ws.close(code, reason)
+    if ws.mode != "werkzeug":
+        return
+    try:
+        ws.sock.shutdown(socket.SHUT_WR)
+    except OSError:
+        pass
+
+
 #: RFC 6455 going away. Sent to every connection when the web process shuts
 #: down, so the browser reconnects to another one.
 GOING_AWAY_CLOSE_CODE = 1001
@@ -659,7 +681,7 @@ class Client:
         """Close the connection because the web process is shutting down."""
         try:
             with self.send_lock:
-                self.ws.close(GOING_AWAY_CLOSE_CODE, "server shutting down")
+                _close_websocket(self.ws, GOING_AWAY_CLOSE_CODE, "server shutting down")
         except ConnectionClosed:
             return
         # receive() waits on this event, and simple_websocket's reader thread
@@ -722,7 +744,9 @@ class Client:
                         level="warning",
                     )
                     with self.send_lock:
-                        self.ws.close(UNSUPPORTED_DATA_CLOSE_CODE, "text frames only")
+                        _close_websocket(
+                            self.ws, UNSUPPORTED_DATA_CLOSE_CODE, "text frames only"
+                        )
                     self.publish_disconnected(
                         UNSUPPORTED_DATA_CLOSE_CODE, "text frames only"
                     )
@@ -907,7 +931,7 @@ def _serve(ws, participant_id=None, experiment=None):
 
 def _refuse(ws, refusal):
     code = UNAVAILABLE_CLOSE_CODE if refusal.retry else REFUSED_CLOSE_CODE
-    ws.close(code, refusal.reason)
+    _close_websocket(ws, code, refusal.reason)
 
 
 def _open_client(ws, participant_id, experiment):

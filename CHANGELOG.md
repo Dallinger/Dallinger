@@ -541,6 +541,13 @@
   them. It used to skip completing them, unless their worker and assignment
   ids happened to be equal. The error page's form now also sends the
   `participant_id`, and its worker and assignment ids even without a HIT id.
+- Under the development server (`dallinger develop debug`, and tools such as
+  PsyNet that run `flask run` locally), a websocket the server closes, for
+  example one refused by `accept_websocket_connection`, now reaches the
+  browser with its close code. The development server wrote an HTTP
+  response after the close frame, so browsers reported code 1006, and a
+  refused connection reconnected about twice a second for as long as the
+  page stayed open. Deployed servers, which run gunicorn, were not affected.
 - `dallinger constraints generate` compiles for the newest patch release of
   the Python version in `.python-version` when the file names only the minor
   version, such as `3.11`. uv reads `3.11` as Python 3.11.0, so the compile
