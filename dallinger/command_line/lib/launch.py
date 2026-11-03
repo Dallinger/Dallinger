@@ -42,7 +42,12 @@ import click
 import paramiko
 import requests
 
-from dallinger.deployment import BACKOFF_FACTOR, DEFAULT_DELAY, MAX_ATTEMPTS
+from dallinger.deployment import (
+    BACKOFF_FACTOR,
+    DEFAULT_DELAY,
+    MAX_ATTEMPTS,
+    LaunchRefused,
+)
 from dallinger.hibernation import STATE_HIBERNATING, STATE_WAKING
 from dallinger.utils import print_bold
 
@@ -336,7 +341,7 @@ def _send_launch(executor, target, command):
         if 200 <= status < 300 and _is_json_object(body):
             return json.loads(body)
         if status == 403:
-            raise click.ClickException(
+            raise LaunchRefused(
                 f"The server refused the launch of {target.app} (HTTP 403), most "
                 "likely because it did not accept the web container's "
                 "dashboard_user and dashboard_password. The experiment was not "

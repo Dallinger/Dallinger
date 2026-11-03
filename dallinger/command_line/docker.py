@@ -465,7 +465,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
-        "dashboard_user": config.get("dashboard_user", "admin"),
+        "dashboard_user": config.get("dashboard_user", None) or "admin",
         "dashboard_password": config["dashboard_password"],
         "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
         "docker_image_name": image_name,

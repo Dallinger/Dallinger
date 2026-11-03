@@ -1983,6 +1983,14 @@ class TestLaunchRoute:
             resp = self.post(webapp, credentials)
         assert resp.status_code == 403
 
+    def test_clearing_the_password_stops_authorizing_a_launch(
+        self, webapp, active_config
+    ):
+        assert self.post(webapp).status_code == 200
+        active_config.extend({"dashboard_password": ""})
+        assert self.post(webapp).status_code == 403
+        assert self.post(webapp, ("admin", "")).status_code == 403
+
     def test_a_dashboard_session_does_not_authorize_a_launch(self, webapp_admin):
         with webapp_admin.session_transaction() as session:
             assert session["_user_id"] == "admin"
@@ -2008,14 +2016,16 @@ class TestLaunchRoute:
 
         self.assert_launch_error(resp, "config exploded")
 
-    def test_launch_reports_protected_route_load_error(self, webapp):
+    def test_launch_reports_experiment_load_error(self, webapp):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment",
-            side_effect=TypeError("unexpected keyword argument 'no_configure'"),
+            side_effect=TypeError("experiment exploded"),
         ):
             resp = self.post(webapp)
 
-        self.assert_launch_error(resp, "unexpected keyword argument 'no_configure'")
+        self.assert_launch_error(
+            resp, "Failed to load experiment in /launch: experiment exploded"
+        )
 
     def test_launch_reports_before_request_error(self, webapp):
         from dallinger.experiment_server import experiment_server

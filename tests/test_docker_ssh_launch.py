@@ -22,6 +22,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.test import Client
 
 from dallinger.command_line.lib import launch
+from dallinger.deployment import LaunchRefused
 from dallinger.utils import get_base_url
 
 docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
@@ -153,7 +154,7 @@ def test_only_an_undelivered_launch_is_sent_again(not_sent, no_sleep):
 
 def test_a_refused_launch_is_not_sent_again(no_sleep):
     executor = FakeExecutor([(0, reply(403, {"status": "error"}), "")])
-    with pytest.raises(click.ClickException, match="refused the launch"):
+    with pytest.raises(LaunchRefused, match="refused the launch"):
         launch.launch_from_server(executor, TARGET)
     assert executor.events == ["launch"]
 

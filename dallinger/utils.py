@@ -579,6 +579,14 @@ def develop_target_path(config):
     return develop_path
 
 
+def _fill_dashboard_login(config):
+    """Fill in an empty dashboard login in ``config`` (see ``fill_dashboard_login``)."""
+    from dallinger.deployment import fill_dashboard_login
+
+    keys = ("dashboard_user", "dashboard_password")
+    config.extend(fill_dashboard_login({key: config.get(key, None) for key in keys}))
+
+
 def bootstrap_development_session(
     exp_config,
     experiment_path,
@@ -603,8 +611,7 @@ def bootstrap_development_session(
             "heroku_app_id_root": str(experiment_uid),
         }
     )
-    if not config.get("dashboard_password", None):
-        config.set("dashboard_password", fake.password(length=20, special_chars=False))
+    _fill_dashboard_login(config)
 
     source_path = Path(dallinger_package_path()) / "dev_server"
     destination_path = develop_target_path(config)
@@ -698,8 +705,7 @@ def setup_experiment(
         }
     )
 
-    if not config.get("dashboard_password", None):
-        config.set("dashboard_password", fake.password(length=20, special_chars=False))
+    _fill_dashboard_login(config)
 
     temp_dir = assemble_experiment_temp_dir(
         log,

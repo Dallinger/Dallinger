@@ -125,19 +125,16 @@ def _load_config():
 
 
 @app.before_request
-@launch_error_guard(
-    "Failed to load experiment before /launch while checking protected routes"
-)
 def check_for_protected_routes():
-    if current_user.is_authenticated:
-        return
-
     try:
         active_rule = request.url_rule.rule
     except AttributeError:
         return
     if active_rule == "/launch":
         # ``launch`` checks its own credentials; don't instantiate the experiment.
+        return
+
+    if current_user.is_authenticated:
         return
 
     protected = Experiment(no_configure=True).protected_routes
@@ -148,16 +145,14 @@ def check_for_protected_routes():
 
 
 def _config():
-    from .dashboard import should_auto_authenticate
-
     app.secret_key = app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
     config = get_config(load=True)
 
-    if should_auto_authenticate() or config.get("dashboard_password", None):
-        app.config["ADMIN_USER"] = dashboard.User(
-            userid=config.get("dashboard_user", "admin"),
-            password=config.get("dashboard_password", ""),
-        )
+    # Set every time so it tracks the config; an empty password matches nothing.
+    app.config["ADMIN_USER"] = dashboard.User(
+        userid=config.get("dashboard_user", None) or "admin",
+        password=config.get("dashboard_password", None) or "",
+    )
 
     return config
 

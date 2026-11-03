@@ -125,7 +125,7 @@ def launch_auth(config=None):
     if not config.ready:
         config.load()
     return (
-        config.get("dashboard_user", "admin"),
+        config.get("dashboard_user", None) or "admin",
         config.get("dashboard_password", ""),
     )
 
@@ -394,8 +394,7 @@ def deploy_sandbox_shared_setup(
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
         "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
-        # config.txt leaves out sensitive values; /launch needs these.
-        "dashboard_user": config.get("dashboard_user", "admin"),
+        "dashboard_user": config.get("dashboard_user", None) or "admin",
         "dashboard_password": config["dashboard_password"],
     }
 

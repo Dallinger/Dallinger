@@ -1691,6 +1691,8 @@ class Testhandle_launch_data:
         assert mock_post.call_args.kwargs["auth"] == ("admin", "DUMBPASSWORD")
 
     def test_refused_launch_is_not_retried(self, handler):
+        from dallinger.deployment import LaunchRefused
+
         with mock.patch("dallinger.deployment.requests.post") as mock_post:
             mock_post.return_value = mock.Mock(
                 ok=False,
@@ -1698,7 +1700,7 @@ class Testhandle_launch_data:
                 text="<h1>Forbidden</h1>",
                 json=mock.Mock(side_effect=json.decoder.JSONDecodeError("", "", 0)),
             )
-            with pytest.raises(click.ClickException, match="HTTP 403"):
+            with pytest.raises(LaunchRefused, match="HTTP 403"):
                 handler("/some-launch-url", error=mock.Mock(), auth=("u", "p"))
 
         mock_post.assert_called_once()
