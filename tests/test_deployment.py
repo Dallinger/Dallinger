@@ -1577,6 +1577,8 @@ class TestDeploySandboxSharedSetupNoExternalCalls:
             AWS_DEFAULT_REGION="us-east-1",
             AWS_SECRET_ACCESS_KEY="fake aws secret",
             FLASK_SECRET_KEY=mock.ANY,  # password is random
+            dashboard_user=mock.ANY,
+            dashboard_password=mock.ANY,
             smtp_password="fake email password",
             smtp_username="fake email username",
             whimsical=True,
@@ -1673,9 +1675,28 @@ class Testhandle_launch_data:
                 ok=True, json=mock.Mock(return_value={"message": "msg!"})
             )
             mock_post.return_value = result
-            handler("/some-launch-url", error=log, verify=False)
+            handler("/some-launch-url", error=log, verify=False, auth=("u", "p"))
 
-        mock_post.assert_called_once_with("/some-launch-url", verify=False)
+        mock_post.assert_called_once_with(
+            "/some-launch-url", verify=False, auth=("u", "p")
+        )
+
+    def test_sends_the_dashboard_credentials(self, handler, dashboard_config):
+        with mock.patch("dallinger.deployment.requests.post") as mock_post:
+            mock_post.return_value = mock.Mock(ok=True, json=mock.Mock(return_value={}))
+            handler("/some-launch-url", error=mock.Mock())
+
+        assert mock_post.call_args.kwargs["auth"] == ("admin", "DUMBPASSWORD")
+
+    def test_refused_launch_is_not_retried(self, handler):
+        with mock.patch("dallinger.deployment.requests.post") as mock_post:
+            mock_post.return_value = mock.Mock(
+                ok=False, status_code=403, json=mock.Mock(return_value={})
+            )
+            with pytest.raises(click.ClickException, match="HTTP 403"):
+                handler("/some-launch-url", error=mock.Mock(), auth=("u", "p"))
+
+        mock_post.assert_called_once()
 
     def test_https_wait_progress_is_status_not_error(self):
         from dallinger.deployment import _HTTPS_WAIT_BAR_STYLE, _https_wait_progress

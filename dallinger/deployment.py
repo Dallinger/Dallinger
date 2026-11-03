@@ -110,6 +110,21 @@ def _announce_https_wait(announced, context=None):
     return True
 
 
+def launch_auth(config=None):
+    """Return the ``(user, password)`` that ``/launch`` requires.
+
+    ``/launch`` accepts only the dashboard credentials, which every deploy
+    command already gives the server.
+    """
+    config = config or get_config()
+    if not config.ready:
+        config.load()
+    return (
+        config.get("dashboard_user", "admin"),
+        config.get("dashboard_password", ""),
+    )
+
+
 def handle_launch_data(
     url,
     error,
@@ -119,6 +134,7 @@ def handle_launch_data(
     dozzle_password=None,
     context=None,
     verify=True,
+    auth=None,
 ):
     """POST to ``url`` (``/launch``), retrying with exponential backoff.
 
@@ -140,7 +156,12 @@ def handle_launch_data(
         context: Deployment context ('heroku', 'ssh', 'local', etc.).
             'local' disables the live bar, because a local server writes its
             log to the same terminal.
+        auth: ``(user, password)`` for HTTP Basic authentication; defaults
+            to the dashboard credentials in the loaded config (see
+            ``launch_auth``).
     """
+    if auth is None:
+        auth = launch_auth()
     launch_data = None
     launch_request = None
     last_startup_error = None
@@ -152,7 +173,7 @@ def handle_launch_data(
         for remaining_attempt in sorted(range(attempts), reverse=True):
             startup_failure = False
             try:
-                launch_request = requests.post(url, verify=verify)
+                launch_request = requests.post(url, verify=verify, auth=auth)
                 request_happened = True
             except requests.exceptions.RequestException as err:
                 request_happened = False
@@ -198,6 +219,14 @@ def handle_launch_data(
             if request_happened and launch_request.ok:
                 progress.update(task_id, total=1, completed=1)
                 return launch_data
+
+            if request_happened and launch_request.status_code == 403:
+                progress.update(task_id, visible=False)
+                raise click.ClickException(
+                    f"{url} refused the launch (HTTP 403): the server did not "
+                    "accept this deploy's dashboard_user and dashboard_password. "
+                    "The experiment was not launched."
+                )
 
             if request_happened:
                 saw_application_error = True
@@ -345,6 +374,9 @@ def deploy_sandbox_shared_setup(
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
         "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
+        # config.txt leaves out sensitive values; /launch needs these.
+        "dashboard_user": config.get("dashboard_user", "admin"),
+        "dashboard_password": config["dashboard_password"],
     }
 
     # Set up the preferred class as an environment variable, if one is set

@@ -530,7 +530,26 @@ def handle_error():
 
 @app.route("/launch", methods=["POST"])
 def launch():
-    """Launch the experiment."""
+    """Launch the experiment, if the request has the dashboard credentials.
+
+    Launching runs the experiment's setup and opens recruitment, which can
+    publish studies and spend money, so only the deployer may call it. The
+    deploy commands send the dashboard user and password with HTTP Basic
+    authentication.
+    """
+    if not dashboard.is_admin_authorization(request.authorization):
+        app.logger.warning("Refused an unauthenticated POST /launch.")
+        return error_response(
+            error_text="Launching the experiment requires the dashboard "
+            "user and password (HTTP Basic authentication).",
+            status=403,
+            simple=True,
+        )
+    return launch_experiment()
+
+
+def launch_experiment():
+    """Set up the experiment, open recruitment and start background tasks."""
     try:
         db.init_db(drop_all=False)
         exp = Experiment()

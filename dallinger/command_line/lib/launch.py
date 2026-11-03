@@ -16,7 +16,8 @@ checks for it, and for a 2xx from the app's own ``/health``, before waiting
 for the public URL. The front door trusts forwarded headers from private
 networks, Caddy passes ``Host`` through, and the app runs behind ``ProxyFix``,
 so the app computes its public base URL and recruitment links as if the
-request had come from outside.
+request had come from outside. ``/launch`` requires the dashboard
+credentials, which the container's shell reads from its environment.
 
 ``/launch`` is not idempotent: it can open recruitment on MTurk or Prolific
 and then fail in a later step, and a gateway error can follow a request the
@@ -142,6 +143,9 @@ def internal_launch_command(target):
     """Return the server-side command that POSTs ``/launch`` to the front door.
 
     curl prints the response body, then the HTTP status on its own last line.
+    The web container's shell fills in the dashboard credentials that
+    ``/launch`` requires from the container's environment, so the command
+    holds no secret and can be printed.
     """
     origin = urlsplit(target.public_origin)
     args = [
@@ -159,7 +163,10 @@ def internal_launch_command(target):
         "\\n%{http_code}\\n",
         FRONT_DOOR_LAUNCH_URL,
     ]
-    return target.compose_exec("curl " + " ".join(quote(arg) for arg in args))
+    script = 'exec curl -u "${dashboard_user:-admin}:${dashboard_password}" ' + " ".join(
+        quote(arg) for arg in args
+    )
+    return target.compose_exec(f"sh -c {quote(script)}")
 
 
 def _split_status(stdout):
@@ -328,6 +335,12 @@ def _send_launch(executor, target, command):
     if status is not None:
         if 200 <= status < 300 and _is_json_object(body):
             return json.loads(body)
+        if status == 403:
+            raise click.ClickException(
+                f"{target.app} refused the launch (HTTP 403): the web container's "
+                "dashboard_user and dashboard_password were not accepted. The "
+                "experiment was not launched and recruitment has not started."
+            )
         raise _LaunchSent(
             f"The launch request to {target.app} returned HTTP {status}:\n{body}"
         )

@@ -525,6 +525,18 @@
 
 ### Fixed
 
+- `POST /launch` now requires the dashboard login (`dashboard_user` and
+  `dashboard_password`) with HTTP Basic authentication and answers 403
+  without it. Previously anyone could call it on a deployed experiment to
+  rerun its setup and reopen recruitment, which on Prolific could publish
+  another study. `dallinger debug`, `develop`, `sandbox`/`deploy`, `docker`
+  and `docker-ssh` send the login for you, and `handle_launch_data()` sends
+  the loaded config's login unless given `auth=(user, password)`. Heroku
+  apps now get `dashboard_user` and `dashboard_password` as config vars.
+  Code that called the `launch` view directly, outside a request, should
+  call the new `launch_experiment()` instead, as the `webapp` pytest
+  fixture now does. Scripts that POST `/launch` themselves must add the
+  login, e.g. `curl -u "admin:<password>" -X POST <app URL>/launch`.
 - Error pages show a participant's worker, assignment and HIT ids only to a
   request that carries the participant's `unique_id`, or their worker and
   assignment ids. Requests that name only a

@@ -1,3 +1,4 @@
+import base64
 import json
 from datetime import datetime
 from unittest import mock
@@ -1945,9 +1946,31 @@ class TestTransformationPost:
         assert b"/transformation POST failed" in resp.data
 
 
-@pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.usefixtures("experiment_dir", "dashboard_config")
 @pytest.mark.slow
 class TestLaunchRoute:
+    DEPLOYER = ("admin", "DUMBPASSWORD")
+
+    def post(self, webapp, credentials=DEPLOYER):
+        headers = {}
+        if credentials:
+            encoded = base64.b64encode(":".join(credentials).encode()).decode()
+            headers["Authorization"] = f"Basic {encoded}"
+        return webapp.post("/launch", headers=headers)
+
+    @pytest.mark.parametrize(
+        "credentials", [None, ("admin", "wrong"), ("intruder", "DUMBPASSWORD")]
+    )
+    def test_refuses_callers_without_the_dashboard_login(self, webapp, credentials):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as mock_class:
+            mock_class.return_value = mock_exp = mock.Mock(protected_routes=[])
+            resp = self.post(webapp, credentials)
+        assert resp.status_code == 403
+        mock_exp.setup.assert_not_called()
+        mock_exp.recruiter.open_recruitment.assert_not_called()
+
     def assert_launch_error(self, resp, message):
         assert resp.status_code == 500
         data = json.loads(resp.get_data())
@@ -1955,7 +1978,7 @@ class TestLaunchRoute:
         assert message in data["message"]
 
     def test_launch(self, webapp):
-        resp = webapp.post("/launch", data={})
+        resp = self.post(webapp)
         data = json.loads(resp.get_data())
         assert "recruitment_msg" in data
 
@@ -1964,7 +1987,7 @@ class TestLaunchRoute:
             "dallinger.experiment_server.experiment_server._config",
             side_effect=RuntimeError("config exploded"),
         ):
-            resp = webapp.post("/launch", data={})
+            resp = self.post(webapp)
 
         self.assert_launch_error(resp, "config exploded")
 
@@ -1973,7 +1996,7 @@ class TestLaunchRoute:
             "dallinger.experiment_server.experiment_server.Experiment",
             side_effect=TypeError("unexpected keyword argument 'no_configure'"),
         ):
-            resp = webapp.post("/launch", data={})
+            resp = self.post(webapp)
 
         self.assert_launch_error(resp, "unexpected keyword argument 'no_configure'")
 
@@ -1984,7 +2007,7 @@ class TestLaunchRoute:
         mock_exp_klass.before_request.side_effect = RuntimeError("hook exploded")
         mock_exp_klass.after_request.side_effect = lambda request, response: response
         with mock.patch.object(experiment_server, "exp_klass", mock_exp_klass):
-            resp = webapp.post("/launch", data={})
+            resp = self.post(webapp)
 
         self.assert_launch_error(resp, "hook exploded")
 
@@ -2001,7 +2024,7 @@ class TestLaunchRoute:
                 "message": "a message",
             }
             mock_class.return_value = mock_exp
-            resp = webapp.post("/launch", data={})
+            resp = self.post(webapp)
         assert resp.status_code == 200
         mock_exp.recruiter.open_recruitment.assert_called()
 
@@ -2015,7 +2038,7 @@ class TestLaunchRoute:
                 "message": "Single recruitment link: x",
             }
             mock_class.return_value = mock_exp
-            resp = webapp.post("/launch", data={})
+            resp = self.post(webapp)
         message = json.loads(resp.get_data())["recruitment_msg"]
         assert message == "Additional details:\nSingle recruitment link: x"
 
@@ -2035,7 +2058,7 @@ class TestLaunchRoute:
             with mock.patch(
                 "dallinger.experiment_server.sockets.chat_backend"
             ) as mock_chat:
-                webapp.post("/launch", data={})
+                self.post(webapp)
                 # We should have subscribed the experiment to the specified
                 # channel and the experiment control channel.
                 assert mock_chat.subscribe.call_count == 2
@@ -2061,7 +2084,7 @@ class TestLaunchRoute:
             with mock.patch(
                 "dallinger.experiment_server.sockets.chat_backend"
             ) as mock_chat:
-                webapp.post("/launch", data={})
+                self.post(webapp)
                 assert mock_chat.subscribe.call_count == 0
 
 
