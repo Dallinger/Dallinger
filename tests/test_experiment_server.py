@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from unittest import mock
 
+import flask
 import pytest
 
 from dallinger import db, models
@@ -644,6 +645,25 @@ class TestHandleError:
         webapp.post("/handle-error", data={})
         mock_messenger.send.assert_called_once()
 
+    def test_completes_a_participant_whose_unique_id_a_strict_hook_requires(
+        self, a, webapp, db_session
+    ):
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as Experiment:
+            Experiment.return_value.check_worker_status.side_effect = lambda p: (
+                None
+                if flask.request.values.get("unique_id") == p.unique_id
+                else ("No", 403)
+            )
+            webapp.post(
+                "/handle-error",
+                data={"worker_id": "worker-x", "unique_id": "worker-x:assignment-x"},
+            )
+
+        assert db_session.merge(participant).end_time is not None
+
     def test_experiment_can_refuse_completing_the_participant(
         self, a, webapp, db_session
     ):
@@ -662,25 +682,24 @@ class TestHandleError:
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
 class TestErrorPage:
-    def test_withholds_identifiers_from_a_bare_participant_id(self, a, webapp):
-        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
-        resp = webapp.post("/error-page", data={"participant_id": participant.id})
-
-        assert participant.worker_id not in resp.text
-        assert participant.assignment_id not in resp.text
-
-    def test_shows_identifiers_to_a_request_that_sent_them(self, a, webapp):
+    @pytest.mark.parametrize(
+        "sent, shown",
+        [
+            ({}, False),
+            ({"worker_id": "worker-x"}, False),
+            ({"unique_id": "worker-x:assignment-x"}, True),
+            ({"worker_id": "worker-x", "assignment_id": "assignment-x"}, True),
+        ],
+    )
+    def test_shows_identifiers_only_to_a_request_that_sent_them(
+        self, a, webapp, sent, shown
+    ):
         participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
         resp = webapp.post(
-            "/error-page",
-            data={
-                "participant_id": participant.id,
-                "unique_id": participant.unique_id,
-            },
+            "/error-page", data={"participant_id": participant.id, **sent}
         )
 
-        assert participant.worker_id in resp.text
-        assert participant.assignment_id in resp.text
+        assert ("assignment-x" in resp.text) == shown
 
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")

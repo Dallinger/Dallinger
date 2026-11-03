@@ -528,7 +528,8 @@
 - `/handle-error` finds the participant from a `worker_id` or
   `assignment_id` when the report has no `participant_id`, and completes
   them. It used to skip completing them, unless their worker and assignment
-  ids happened to be equal.
+  ids happened to be equal. The error page's form now also sends the
+  `participant_id`, and its worker and assignment ids even without a HIT id.
 - `dallinger constraints generate` compiles for the newest patch release of
   the Python version in `.python-version` when the file names only the minor
   version, such as `3.11`. uv reads `3.11` as Python 3.11.0, so the compile

@@ -11,13 +11,16 @@
                 <form id="error-response" action="/handle-error" method="POST">
                     <input type="hidden" name="error_type" value="{{ error_type }}" />
                     <input type="hidden" name="error_text" value="{{ error_text }}" />
+                    {% if participant_id %}
+                    <input type="hidden" name="participant_id" value="{{ participant_id }}" />
+                    {% endif %}
                     {% if hit_id %}
                     <input type="hidden" name="hit_id" value="{{ hit_id }}" />
+                    {% endif %}
+                    {% if worker_id and assignment_id %}
                     <input type="hidden" name="assignment_id" value="{{ assignment_id }}" />
                     <input type="hidden" name="worker_id" value="{{ worker_id }}" />
-                    {% if worker_id and assignment_id %}
                     <input type="hidden" name="unique_id" value="{{ worker_id }}:{{ assignment_id }}" />
-                    {% endif %}
                     {% endif %}
                     {% if request_data %}
                     <input type="hidden" name="request_data" value="{{ request_data }}" />
