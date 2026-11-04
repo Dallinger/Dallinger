@@ -538,6 +538,7 @@ class Bench:
 
     def run(self, views_on, cpu_load):
         from dallinger import db
+        from dallinger.models import Participant
         from dallinger.realtime import create_realtime_session, end_realtime_session
         from dallinger.realtime.store import experiment_games
 
@@ -547,8 +548,21 @@ class Bench:
         players = []
         session_ids = []
         for _ in range(args.sessions):
-            members = [str(self.next_player + each) for each in range(args.players)]
+            # /chat refuses a connection naming a participant that doesn't exist.
+            participants = [
+                Participant(
+                    recruiter_id="hotair",
+                    worker_id="bench",
+                    assignment_id=str(self.next_player + each),
+                    hit_id="bench",
+                    mode="debug",
+                )
+                for each in range(args.players)
+            ]
             self.next_player += args.players
+            db.session.add_all(participants)
+            db.session.flush()
+            members = [str(participant.id) for participant in participants]
             session_id = create_realtime_session(game_type, members)
             session_ids.append(session_id)
             players += [

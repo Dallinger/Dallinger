@@ -19,6 +19,9 @@ def realtime_experiment(monkeypatch, db_session):
         channel = None
         realtime_games = [TurnTally]
 
+        def accept_websocket_connection(self, participant_id, scope):
+            return True
+
     monkeypatch.setattr(experiment, "load", lambda: Loaded)
     return Loaded
 

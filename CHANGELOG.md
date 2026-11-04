@@ -4,6 +4,21 @@
 
 ### Changed
 
+- A `/chat` connection that names a participant goes through the same check
+  as an `/experiment-socket` one: the participant must exist and
+  `Experiment.accept_websocket_connection` must accept it. It used to be sent
+  any participant's directed messages, and join their real-time sessions,
+  just by naming them. A `/chat` connection without a participant is still
+  unchecked, and still subscribes and receives broadcasts, but its
+  `dallinger_control` events no longer report the `worker_id` from its URL,
+  which nothing checks. The waiting room's
+  socket (`dallinger.waitForQuorum`) now names no participant, so an
+  experiment whose check requires a token still lets participants out of the
+  waiting room; its `dallinger_control` events no longer identify the
+  participant. Code that builds a `/chat` URL by hand should leave out
+  `participant_id` when the page doesn't know it, since a URL naming
+  `undefined` is now refused, and wrap the socket in
+  `dallinger.stopReconnectingIfRefused` so a refusal isn't retried forever.
 - `/prolific-submission-listener` refuses, with a 403, a request whose
   `assignmentId` isn't the participant's, and calls
   `Experiment.check_worker_status`, so an experiment can also require the
@@ -530,7 +545,8 @@
   an effect and an `Info`, and only the moves that collect a coin or touch
   another player are saved. Its README walks through building the game.
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
-  experiment refuse an `/experiment-socket` connection when it opens. A falsy
+  experiment refuse an `/experiment-socket` connection, or a `/chat` one that
+  names a participant, when it opens. A falsy
   return closes the socket with code `1008`, and Dallinger's client helpers
   stop reconnecting.
 - `db.run_after_commit` runs a function once the outermost transaction
