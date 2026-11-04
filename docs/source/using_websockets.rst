@@ -187,15 +187,21 @@ another participant, not someone who can read the logs or the data.
 
 A falsy return closes the socket with code ``1008`` and the reason
 ``refused by the experiment``, before it subscribes to any channel or joins a
-real-time session. ``/chat`` connections are not checked, so a page that opens
-one can still join a real-time session as any of its players without a token.
+real-time session. A ``/chat`` connection that names a participant, as
+:js:func:`dallinger.openChatSocket` does once the page knows its participant, is
+checked the same way, so pass it the same token. One that names no participant
+isn't checked: it can subscribe to channels and receive their broadcasts, but it
+isn't sent directed messages and can't join a real-time session. The waiting
+room's connection (:js:func:`dallinger.waitForQuorum`) names no participant,
+so a token check doesn't hold it up.
 
 Three failures that are not the client's fault close with ``1013`` instead,
 which tells the client to try again later: a participant lookup that raises, an
 experiment class that fails to build, and an ``accept_websocket_connection``
 that raises.
 
-A socket opened with ``dallinger.openExperimentSocket`` stops reconnecting when
+A socket opened with ``dallinger.openExperimentSocket`` or
+``dallinger.openChatSocket`` stops reconnecting when
 the server refuses it, and passes the close code and reason to its
 ``onRefused`` callbacks, or logs them to the console if there are none::
 
@@ -393,15 +399,22 @@ This replaces the pattern of giving each participant a channel named after
 them, such as ``participant_12_channel``. Named channels remain the natural
 choice for a group of participants who should all receive the same messages.
 
-A directed message is no more confidential than the channel name it replaces.
-Neither WebSocket route is authenticated. ``/experiment-socket`` checks that
-the participant exists and ``/chat`` checks nothing, so a connection is
-addressed by the ``participant_id`` it claims rather than by one it has proved
-it owns, and anyone who can guess a participant id can open a socket naming it
-and be sent that participant's directed messages. Guessing
-``participant_12_channel`` took the same knowledge. Treat the id as Dallinger
-treats every other ``participant_id``, and keep out of a payload anything
-another participant must not read.
+Neither WebSocket route is authenticated by default. Both check only that the
+participant a connection names exists, so a connection is addressed by the
+``participant_id`` it claims rather than by one it has proved it owns, and
+anyone who can guess a participant id can open a socket naming it and be sent
+that participant's directed messages. An experiment that overrides
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection` to check a
+token, as above, makes directed messages private to the participant's own
+pages. Without that check, treat the id as Dallinger treats every other
+``participant_id``, and keep out of a payload anything another participant must
+not read. Channel broadcasts are never private: any connection may subscribe to
+any channel that isn't reserved. Nor do they say who sent them: a message
+published through ``/chat`` is relayed as the client wrote it, so a sender or
+participant id in its payload is whatever the client put there. For messages
+attributed to their sender, use ``/experiment-socket``, where
+:func:`~dallinger.experiment.Experiment.handle_websocket_message` is given the
+admitted participant's id.
 
 Naming a participant who has no open connection, or who is not connected to this
 deployment at all, delivers nothing and is not an error. As with a broadcast, no
@@ -564,7 +577,10 @@ Both functions include the participant's ``worker_id`` and ``participant_id``
 in the connection url, along with the connection's ``scope``. Those values will
 be included in the automatically generated JSON messages alerting the experiment
 to WebSocket connection, disconnection, subscription, and un-subscription events
-over the ``"dallinger_control"`` channel. The full interface is listed in the
+over the ``"dallinger_control"`` channel. The server checks only that the
+``participant_id`` exists, and the experiment's hook may check the ``scope``.
+The ``worker_id`` is never checked, so don't rely on it, and a connection
+without a ``participant_id`` reports none. The full interface is listed in the
 :doc:`Javascript API <javascript_api>`.
 
 Connecting Without the Helpers
@@ -574,14 +590,23 @@ Any WebSocket client may connect to either route directly, using the query
 parameters described in :doc:`The Web API <web_api>`. Every message in either
 direction is a channel name followed by ``:`` and the payload, so a client
 reading messages itself will need to check each message's channel prefix before
-parsing its payload::
+parsing its payload. A connection that names a participant is checked like an
+experiment socket, so pass its ``scope``, leave ``participant_id`` out when the
+page doesn't know it, and wrap the socket in
+``dallinger.stopReconnectingIfRefused`` so that a refused connection is not
+retried::
 
     var ws_scheme = (location.protocol === 'https:') ? 'wss://' : 'ws://';
-    var socket = new ReconnectingWebSocket(
-        ws_scheme + location.host + '/chat' +
-            '?channel=' + encodeURIComponent(channel_id) +
-            '&worker_id=' + dallinger.identity.workerId +
-            '&participant_id=' + dallinger.identity.participantId
+    var url = ws_scheme + location.host + '/chat' +
+        '?channel=' + encodeURIComponent(channel_id) +
+        '&scope=' + encodeURIComponent(dallinger.pageScope);
+    if (dallinger.identity.participantId) {
+        url += '&worker_id=' + encodeURIComponent(dallinger.identity.workerId) +
+            '&participant_id=' + encodeURIComponent(dallinger.identity.participantId);
+    }
+    var socket = dallinger.stopReconnectingIfRefused(
+        new ReconnectingWebSocket(url),
+        function (code, reason) { console.error('Refused: ' + reason); }
     );
     socket.onmessage = function (msg) {
         // Ignore messages not from the subscribed channel
@@ -633,17 +658,18 @@ messages that the experiment itself sends over that channel.
 Multiple Client Channels
 ------------------------
 
-If it's important for an experiment to have participant and/or group specific
-channels, e.g. to ensure messages are only ever seen by their targets, or to
-reduce the total number of messages sent to or processed by clients, then
-clients can subscribe to multiple channels.
+If an experiment needs group specific channels, e.g. to reduce the total number
+of messages sent to or processed by clients, then clients can subscribe to
+multiple channels. Channels organise traffic but don't keep it private: any
+connection may subscribe to any channel that isn't reserved, so a client that
+skips the filtering described below still receives a group's messages.
 
 For example, after launch an experiment could broadcast a `create_chatroom` type
 message with a `chatroom` property set to e.g. `"room_1"` and an array of
 `participant_ids`. Clients could then subscribe to the `"room_1"` channel using
 the `/chat` route only if their `participant_id` matches one of the values in
-`participant_ids`. That way only the clients with the matching
-`participant_ids` would receive messages for `"room_1"`.
+`participant_ids`. That way the other clients' pages would not be sent messages
+for `"room_1"`, though nothing stops them subscribing.
 
 If these chat room messages need to be handled by the experiment code, then the
 clients could also send these messages to the "experiment control channel", with
@@ -653,12 +679,13 @@ duplicate messages can be avoided by having the experiment subscribe to all
 chatrooms in :func:`~dallinger.experiment.Experiment.on_launch` or using
 :func:`~dallinger.experiment.Experiment.background_tasks`.
 
-Similarly, if the experiment needs to send messages privately to specific
-participants, then every client could use the `/chat` route to subscribe to a
-unique channel like `"participant_${participant_id}_channel"`, to which the
-experiment instance could send private messages using
-`self.publish_to_subscribers(payload, channel_name=channel)` or
-`redis_conn.publish(f"participant_${participant_id}_channel", payload)`.
+Don't give each participant a channel of their own to send them private
+messages: anyone could subscribe to it. Send them directed messages with
+:func:`~dallinger.experiment.Experiment.publish_to_participants` instead (see
+`Sending to Specific Participants`_), and override
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection` to check a
+token, as described above, so that only the participant's own pages receive
+them.
 
 
 Connection Limits

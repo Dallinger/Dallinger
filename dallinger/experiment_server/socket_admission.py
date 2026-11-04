@@ -1,4 +1,6 @@
-"""Deciding whether an ``/experiment-socket`` connection may open.
+"""Deciding whether a websocket connection that names a participant may open.
+
+Every ``/experiment-socket`` connection names one; a ``/chat`` connection may.
 
 A connection must name a participant that exists, the experiment must build,
 and the experiment's
@@ -39,7 +41,9 @@ _process_experiment_lock = Semaphore()
 
 
 def process_experiment():
-    """The one ``Experiment`` this process hands to its experiment-socket clients.
+    """Return the one ``Experiment`` this process checks websocket connections with.
+
+    It also handles messages sent through ``/experiment-socket``.
 
     ``Experiment.__init__`` runs ``configure()``, which is experiment code and
     may query, so the constructor can yield and two connections would otherwise
@@ -76,8 +80,9 @@ def resolve_participant_id(participant_id):
 def admit(requested_id, scope):
     """The participant id and the experiment for a new connection.
 
-    Every message is handed to the experiment as coming from a participant, so
-    a connection that names none is refused. The id is checked for existence
+    ``/experiment-socket`` hands every message to the experiment as coming
+    from a participant, so it refuses a connection that names none; ``/chat``
+    calls this only for a connection that names one. The id is checked for existence
     only: the route is unauthenticated, so it says which participant the
     connection claims to be, not who is on the other end. The experiment's hook
     is where an experiment can check more. The session is removed after each
@@ -92,12 +97,12 @@ def admit(requested_id, scope):
         participant_id = resolve_participant_id(requested_id)
     except SQLAlchemyError:
         logger.exception(
-            "Could not look up participant %r for an experiment socket.", requested_id
+            "Could not look up participant %r for a websocket connection.", requested_id
         )
         raise Refused("participant lookup failed", retry=True)
     if participant_id is None:
         logger.warning(
-            "Refusing experiment socket for unknown participant %r.", requested_id
+            "Refusing a websocket connection for unknown participant %r.", requested_id
         )
         raise Refused("unknown participant")
     try:

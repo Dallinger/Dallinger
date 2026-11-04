@@ -62,7 +62,10 @@ them from any other. A ``channel`` argument naming any of the four is refused.
 A connection which supplies a ``participant_id`` also receives any message sent
 to that participant with ``Experiment.publish_to_participants``, prefixed with
 the ``dallinger_direct`` channel name, whether or not it subscribed to a
-channel of its own.
+channel of its own. Such a connection goes through the same participant check
+as an experiment socket, described below, and is closed with ``1008`` or
+``1013`` in the same cases. A connection without a ``participant_id`` isn't
+checked.
 
 ``tolerance`` is accepted and ignored; it once capped delivery lag. Sending it
 raises no error and no deprecation warning, so existing client code needs no
@@ -70,8 +73,9 @@ change.
 
 ``channel`` is optional: a connection without one receives nothing, and can
 still send. ``scope`` is optional too, reported unaltered in the ``client``
-payload of every control channel event. A binary frame closes the connection
-with code ``1003``.
+payload of every control channel event. ``worker_id`` is reported there too,
+unverified, and only for a connection with a ``participant_id``. A binary
+frame closes the connection with code ``1003``.
 
 ::
 
