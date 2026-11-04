@@ -525,6 +525,10 @@
 
 ### Fixed
 
+- EC2 commands now read instance names from the `Name` tag rather than the
+  first tag. Instances without a `Name` tag are shown as `Unnamed`, and an
+  empty tag list no longer prevents listing or selecting other instances.
+
 - Error pages show a participant's worker, assignment and HIT ids only to a
   request that carries the participant's `unique_id`, or their worker and
   assignment ids. Requests that name only a

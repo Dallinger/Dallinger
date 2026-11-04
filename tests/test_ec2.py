@@ -17,6 +17,7 @@ from dallinger.command_line.lib.ec2 import (
     get_ec2_client,
     get_image_id,
     get_instance_details,
+    get_instances,
     get_keys,
     get_pem_path,
     register_key_pair,
@@ -97,6 +98,64 @@ def test_exported_temporary_credentials_keep_their_session_token(
 
 
 @pytest.mark.parametrize(
+    "tags, expected_name",
+    [
+        ({"Tags": [{"Key": "Name", "Value": "experiment"}]}, "experiment"),
+        (
+            {
+                "Tags": [
+                    {"Key": "Environment", "Value": "production"},
+                    {"Key": "Name", "Value": "experiment"},
+                ]
+            },
+            "experiment",
+        ),
+        ({}, "Unnamed"),
+        ({"Tags": []}, "Unnamed"),
+        ({"Tags": [{"Key": "Environment", "Value": "production"}]}, "Unnamed"),
+        ({"Tags": [{"Key": "Name", "Value": ""}]}, ""),
+    ],
+    ids=[
+        "name-only",
+        "name-not-first",
+        "missing-tags",
+        "empty-tags",
+        "no-name",
+        "empty-name",
+    ],
+)
+def test_get_instances_uses_name_tag(tags, expected_name):
+    instance = {
+        **tags,
+        "InstanceId": "i-1",
+        "InstanceType": "t3.micro",
+        "State": {"Name": "running"},
+        "PublicDnsName": "ec2-1-2-3-4.compute.amazonaws.com",
+        "KeyName": "dallinger",
+        "LaunchTime": pd.Timestamp.now(tz="UTC"),
+    }
+    neighbor = {
+        **instance,
+        "InstanceId": "i-2",
+        "Tags": [{"Key": "Name", "Value": "neighbor"}],
+    }
+    client = mock.Mock()
+    client.describe_instances.return_value = {
+        "Reservations": [{"Instances": [instance, neighbor]}]
+    }
+
+    with mock.patch(
+        "dallinger.command_line.lib.ec2.get_ec2_client", return_value=client
+    ):
+        instances = get_instances("us-east-1", show_spinner=False)
+
+    assert instances[["instance_id", "name"]].to_dict("records") == [
+        {"instance_id": "i-1", "name": expected_name},
+        {"instance_id": "i-2", "name": "neighbor"},
+    ]
+
+
+@pytest.mark.parametrize(
     "code, skipped",
     [
         ("AuthFailure", True),
@@ -132,7 +191,7 @@ def test_all_regions_skips_regions_the_account_cannot_use(
     reservation = {
         "Instances": [
             {
-                "Tags": [{"Value": "kept"}],
+                "Tags": [{"Key": "Name", "Value": "kept"}],
                 "InstanceId": "i-1",
                 "InstanceType": "t3.micro",
                 "State": {"Name": "running"},
