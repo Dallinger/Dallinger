@@ -540,6 +540,13 @@
 
 ### Fixed
 
+- The database dashboard's "Compensate Command" button now quotes the
+  recruiter, worker id and dollar amount in the `dallinger compensate`
+  commands it copies, so pasting them into a shell can no longer run
+  commands hidden in a worker id that a participant chose. It refuses to
+  build a command for a missing value, one containing control characters,
+  which a terminal could act on when pasted, or one containing a backslash,
+  which the fish shell treats as an escape inside single quotes.
 - The dashboard's database view no longer fails with a server error when the
   URL names a table such as `info` or `node` without a
   `polymorphic_identity`; it now lists every row of that table, and can show
