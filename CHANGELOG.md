@@ -527,7 +527,8 @@
 
 - The dashboard's database view no longer fails with a server error when the
   URL names a table such as `info` or `node` without a
-  `polymorphic_identity`; it now lists every row of that table. An unknown
+  `polymorphic_identity`; it now lists every row of that table, with the
+  columns of every class stored in it. An unknown
   table or polymorphic identity returns a 404 instead of a server error.
 - Error pages show a participant's worker, assignment and HIT ids only to a
   request that carries the participant's `unique_id`, or their worker and

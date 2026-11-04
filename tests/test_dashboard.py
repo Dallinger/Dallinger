@@ -2,9 +2,27 @@ import codecs
 from unittest import mock
 
 import pytest
+from sqlalchemy import Column, Integer, String
 
-from dallinger.db import sessions_scope
+from dallinger.db import Base, sessions_scope
 from dallinger.experiment_server.dashboard import DashboardTab
+
+
+class DashboardAnimal(Base):
+    """A polymorphic table whose subclass declares its own column, as PsyNet's do."""
+
+    __tablename__ = "dashboard_test_animal"
+    id = Column(Integer, primary_key=True)
+    type = Column(String(50))
+    __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "animal"}
+
+    def __json__(self):
+        return {"id": self.id, "type": self.type, "sound": getattr(self, "sound", None)}
+
+
+class DashboardDog(DashboardAnimal):
+    __mapper_args__ = {"polymorphic_identity": "dog"}
+    sound = Column(String(50))
 
 
 class TestDashboardTabs:
@@ -970,13 +988,46 @@ class TestDashboardDatabase:
             ("gene", "a gene"),
         }
 
+    def test_table_without_polymorphic_identity_uses_subclass_columns(self, db_session):
+        from dallinger.experiment_server.experiment_server import Experiment
+
+        DashboardAnimal.__table__.create(db_session.get_bind(), checkfirst=True)
+        db_session.add_all([DashboardDog(sound="woof"), DashboardDog(sound="arf")])
+        db_session.commit()
+        exp = Experiment()
+        table = "dashboard_test_animal"
+
+        assert "sound" in [c["name"] for c in exp.table_columns(table=table)]
+        data = exp.table_data(
+            0, 10, table=table, search_value="woo", order_column="sound"
+        )
+        assert [row["sound"] for row in data["data"]] == ["woof"]
+        data = exp.table_data(0, 10, table=table, order_column="sound")
+        assert [row["sound"] for row in data["data"]] == ["arf", "woof"]
+        panes = exp.table_search_panes(
+            table, None, "", ["sound"], {"sound": ["arf"]}, threshold=1
+        )
+        assert {o["value"]: o["count"] for o in panes["options"]["sound"]} == {
+            "arf": 1,
+            "woof": 0,
+        }
+
     @pytest.mark.parametrize(
-        "query", ["table=nonexistent", "table=info&polymorphic_identity=nonexistent"]
+        "query, message",
+        [
+            ("table=nonexistent", "Unknown table: nonexistent"),
+            (
+                "table=info&polymorphic_identity=nonexistent",
+                "Unknown polymorphic identity for table info: nonexistent",
+            ),
+        ],
     )
     def test_unknown_table_or_polymorphic_identity(
-        self, active_config, webapp_admin, query
+        self, active_config, webapp_admin, query, message
     ):
-        assert webapp_admin.get(f"/dashboard/database?{query}").status_code == 404
+        resp = webapp_admin.get(f"/dashboard/database?{query}")
+        assert resp.status_code == 404
+        assert message in resp.get_data(as_text=True)
 
     def test_database_output_initial_page(self, a, active_config, mock_renderer):
         """Initial /database render should produce template args with ajax wiring
