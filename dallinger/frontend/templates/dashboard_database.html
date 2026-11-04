@@ -24,6 +24,7 @@
 {% block libs %}
   {{ super() }}
   <script type="text/javascript" src="https://cdn.datatables.net/v/bs5/dt-1.13.11/b-2.4.2/b-html5-2.4.2/b-print-2.4.2/fh-3.4.0/r-2.5.0/sp-2.3.1/sl-1.7.0/datatables.min.js"></script>
+  <script src="{{ url_for('static', filename='scripts/compensate-command.js') }}"></script>
   <script>
     function templateGlobals() {
       // Values inscribed by Jinja2 when this template is rendered.
@@ -149,12 +150,6 @@
         }
       };
 
-      function buildCompensateCommand(participant, dollarAmount) {
-        const sandboxOption = globals.isSandbox ? " --sandbox" : "";
-        const command = "dallinger compensate --recruiter " + participant.recruiter + " --worker_id " + participant.worker_id + " --dollars " + dollarAmount + sandboxOption;
-        return command;
-      }
-
       $.fn.dataTable.ext.buttons.compensate = {
         text: 'Compensate Command',
         avaliable: function (dt, config) {
@@ -177,8 +172,8 @@
             return;
           }
           const dollars = Number(window.prompt("How much would additional compensation would you like to give to these participants (in US dollars)?", "0.00"));
-          if (!dollars || dollars < 0) {
-            flashMessage('You must enter a valid number for the compensation amount.')
+          if (!Number.isFinite(dollars) || dollars <= 0) {
+            flashMessage('You must enter a valid number for the compensation amount.', 'danger');
             return;
           }
           for (i = 0; i < selected.length; i++) {
@@ -187,7 +182,7 @@
               flashMessage('Non-participants found in selection, please correct.', 'danger');
               return;
             }
-            commands.push(buildCompensateCommand(participant, dollars));
+            commands.push(dallingerCompensate.buildCompensateCommand(participant, dollars, globals.isSandbox));
           }
           copyBox(commands.join('; '));
         }
