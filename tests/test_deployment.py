@@ -1,5 +1,6 @@
 import configparser
 import gc
+import json
 import os
 import re
 import shutil
@@ -13,6 +14,7 @@ from pathlib import Path
 from unittest import mock
 
 import click
+import click.testing
 import pexpect
 import pytest
 import requests
@@ -1577,6 +1579,8 @@ class TestDeploySandboxSharedSetupNoExternalCalls:
             AWS_DEFAULT_REGION="us-east-1",
             AWS_SECRET_ACCESS_KEY="fake aws secret",
             FLASK_SECRET_KEY=mock.ANY,  # password is random
+            dashboard_user="admin",
+            dashboard_password="DUMBPASSWORD",
             smtp_password="fake email password",
             smtp_username="fake email username",
             whimsical=True,
@@ -1613,7 +1617,9 @@ class TestDeploySandboxSharedSetupNoExternalCalls:
     def test_calls_launch(self, dsss, heroku_mock, launch):
         log = mock.Mock()
         dsss(log=log)
-        launch.assert_called_once_with("fake-web-url/launch", error=log)
+        launch.assert_called_once_with(
+            "fake-web-url/launch", error=log, app_id=mock.ANY
+        )
 
     def test_heroku_sanity_check(self, dsss, heroku_mock, active_config):
         log = mock.Mock()
@@ -1673,9 +1679,54 @@ class Testhandle_launch_data:
                 ok=True, json=mock.Mock(return_value={"message": "msg!"})
             )
             mock_post.return_value = result
-            handler("/some-launch-url", error=log, verify=False)
+            handler("/some-launch-url", error=log, verify=False, auth=("u", "p"))
 
-        mock_post.assert_called_once_with("/some-launch-url", verify=False)
+        mock_post.assert_called_once_with(
+            "/some-launch-url", verify=False, auth=(b"u", b"p")
+        )
+
+    def test_sends_the_dashboard_credentials(self, handler, dashboard_config):
+        with mock.patch("dallinger.deployment.requests.post") as mock_post:
+            mock_post.return_value = mock.Mock(ok=True, json=mock.Mock(return_value={}))
+            handler("/some-launch-url", error=mock.Mock())
+
+        assert mock_post.call_args.kwargs["auth"] == (b"admin", b"DUMBPASSWORD")
+
+    @pytest.mark.parametrize("password", ["pässwörd", "密码"])
+    def test_server_decodes_a_non_ascii_password(self, handler, password):
+        from werkzeug.datastructures import Authorization
+
+        with mock.patch("dallinger.deployment.requests.post") as mock_post:
+            mock_post.return_value = mock.Mock(ok=True, json=mock.Mock(return_value={}))
+            handler("/some-launch-url", error=mock.Mock(), auth=("admin", password))
+
+        sent = requests.Request(
+            "POST", "http://localhost/launch", auth=mock_post.call_args.kwargs["auth"]
+        ).prepare()
+        received = Authorization.from_header(sent.headers["Authorization"])
+        assert (received.username, received.password) == ("admin", password)
+
+    def test_refused_launch_is_not_retried(self, handler):
+        from dallinger.deployment import LaunchRefused
+
+        with mock.patch("dallinger.deployment.requests.post") as mock_post:
+            mock_post.return_value = mock.Mock(
+                ok=False,
+                status_code=403,
+                text="<h1>Forbidden</h1>",
+                json=mock.Mock(side_effect=json.decoder.JSONDecodeError("", "", 0)),
+            )
+            with pytest.raises(LaunchRefused, match="HTTP 403") as refused:
+                handler(
+                    "/some-launch-url",
+                    error=mock.Mock(),
+                    auth=("u", "p"),
+                    app_id="my-app",
+                )
+
+        mock_post.assert_called_once()
+        assert "<h1>Forbidden</h1>" in refused.value.message
+        assert '"dallinger destroy --app my-app"' in refused.value.message
 
     def test_https_wait_progress_is_status_not_error(self):
         from dallinger.deployment import _HTTPS_WAIT_BAR_STYLE, _https_wait_progress
@@ -1959,6 +2010,16 @@ class Testhandle_launch_data:
             mock_print.assert_not_called()
 
 
+def test_fill_dashboard_login_replaces_an_empty_login():
+    from dallinger.utils import fill_dashboard_login
+
+    login = fill_dashboard_login({"dashboard_user": "", "dashboard_password": ""})
+    assert login["dashboard_user"] == "admin"
+    assert login["dashboard_password"]
+    kept = {"dashboard_user": "me", "dashboard_password": "pw"}
+    assert fill_dashboard_login(dict(kept)) == kept
+
+
 @pytest.mark.parametrize("preset", ["preset-key", "", None])
 def test_debug_deployment_keeps_preset_flask_secret_key(monkeypatch, preset):
     from dallinger.deployment import DebugDeployment
@@ -1977,6 +2038,48 @@ def test_debug_deployment_keeps_preset_flask_secret_key(monkeypatch, preset):
         assert key == preset
     else:
         assert len(key) == 32
+
+
+def test_debug_deployment_reports_a_refused_launch():
+    from dallinger.deployment import DebugDeployment, LaunchRefused
+
+    debugger = DebugDeployment(
+        mock.Mock(), verbose=False, bot=False, proxy_port=None, exp_config={}
+    )
+    heroku = mock.Mock()
+    with (
+        mock.patch("dallinger.deployment.get_base_url", return_value="http://x"),
+        mock.patch(
+            "dallinger.deployment.handle_launch_data",
+            side_effect=LaunchRefused("refused (HTTP 403)"),
+        ),
+        pytest.raises(LaunchRefused),
+    ):
+        debugger.execute(heroku)
+    heroku.monitor.assert_not_called()
+
+
+def test_replay_stops_on_a_refused_launch():
+    from dallinger.deployment import LaunchRefused, LoaderDeployment
+
+    loader = LoaderDeployment(
+        "app", mock.Mock(), verbose=False, exp_config={"replay": True}
+    )
+    loader.zip_path = "export.zip"
+    heroku = mock.Mock()
+    with (
+        mock.patch("dallinger.deployment.db.init_db"),
+        mock.patch("dallinger.deployment.data.ingest_zip"),
+        mock.patch("dallinger.deployment.time.sleep"),
+        mock.patch("dallinger.deployment.get_base_url", return_value="http://x"),
+        mock.patch(
+            "dallinger.deployment.handle_launch_data",
+            side_effect=LaunchRefused("refused (HTTP 403)"),
+        ),
+        pytest.raises(LaunchRefused),
+    ):
+        loader.execute(heroku)
+    heroku.monitor.assert_not_called()
 
 
 @pytest.mark.parametrize("signame", ["SIGTERM", "SIGHUP"])

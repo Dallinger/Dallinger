@@ -215,6 +215,50 @@ def test_deploy_heroku_docker_pushes_without_reassembling(tmp_path, in_exp_confi
     push_image.assert_called_once_with("registry/exp:tag")
 
 
+def test_deploy_heroku_docker_reports_the_configured_dashboard_login(
+    tmp_path, monkeypatch
+):
+    docker_cli = importlib.import_module("dallinger.command_line.docker")
+    # The deploy changes directory; restore it afterwards.
+    monkeypatch.chdir(tmp_path)
+
+    values = {
+        "mode": "debug",
+        "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "docker_image_base_name": "registry/exp",
+        "dashboard_user": "lab",
+        "dashboard_password": "s3cret",
+    }
+    config = mock.MagicMock()
+    config.get.side_effect = lambda key, default=None: values.get(key, default)
+    config.__getitem__.side_effect = lambda key: values.get(key)
+    log = mock.Mock()
+
+    with (
+        mock.patch.object(docker_cli, "get_config", return_value=config),
+        mock.patch.object(docker_cli, "get_experiment_files"),
+        mock.patch.object(
+            docker_cli, "setup_experiment", return_value=("uid", str(tmp_path))
+        ),
+        mock.patch.dict(sys.modules, {"dallinger.docker.tools": mock.Mock()}),
+        mock.patch.object(docker_cli, "push_image"),
+        mock.patch.object(docker_cli, "heroku"),
+        mock.patch.object(docker_cli, "HerokuApp") as heroku_app,
+        mock.patch.object(
+            docker_cli, "handle_launch_data", return_value={"recruitment_msg": "ok"}
+        ),
+    ):
+        heroku_app.return_value.name = "dlgr-uid"
+        heroku_app.return_value._result.return_value = ""
+        result = docker_cli.deploy_heroku_docker(log=log, verbose=False)
+
+    assert result["dashboard_user"] == "lab"
+    assert result["dashboard_password"] == "s3cret"
+    printed = [call.args[0] for call in log.call_args_list]
+    assert "Dashboard user: lab" in printed
+    assert "Dashboard password: s3cret" in printed
+
+
 @pytest.fixture
 def docker_cli_without_base_name(tmp_path, monkeypatch):
     from dallinger.config import Configuration

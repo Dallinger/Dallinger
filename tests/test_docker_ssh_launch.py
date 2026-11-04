@@ -1,3 +1,4 @@
+import base64
 import dataclasses
 import importlib
 import json
@@ -21,6 +22,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.test import Client
 
 from dallinger.command_line.lib import launch
+from dallinger.deployment import LaunchRefused
 from dallinger.utils import get_base_url
 
 docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
@@ -84,7 +86,12 @@ def test_launch_runs_curl_in_web_with_the_public_host(monkeypatch, tmp_path):
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             proto = self.headers["X-Forwarded-Proto"]
-            body = json.dumps({"recruitment_msg": f"{proto}://{self.headers['Host']}"})
+            body = json.dumps(
+                {
+                    "recruitment_msg": f"{proto}://{self.headers['Host']}",
+                    "auth": self.headers["Authorization"],
+                }
+            )
             self.send_response(200)
             self.end_headers()
             self.wfile.write(body.encode())
@@ -105,7 +112,12 @@ def test_launch_runs_curl_in_web_with_the_public_host(monkeypatch, tmp_path):
 
     class LocalExecutor:
         def run_with_status(self, cmd):
-            env = {**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"}
+            env = {
+                **os.environ,
+                "PATH": f"{tmp_path}:{os.environ['PATH']}",
+                "dashboard_password": "pa ss$word",
+            }
+            env.pop("dashboard_user", None)
             done = subprocess.run(
                 ["bash", "-c", cmd], capture_output=True, text=True, env=env
             )
@@ -117,6 +129,10 @@ def test_launch_runs_curl_in_web_with_the_public_host(monkeypatch, tmp_path):
         server.shutdown()
         server.server_close()
     assert data["recruitment_msg"] == "https://myapp.x.org"
+    # The container's environment supplies the credentials; the command has none.
+    expected = "Basic " + base64.b64encode(b"admin:pa ss$word").decode()
+    assert data["auth"] == expected
+    assert "pa ss" not in launch.internal_launch_command(TARGET)
 
 
 @pytest.mark.parametrize(
@@ -134,6 +150,17 @@ def test_only_an_undelivered_launch_is_sent_again(not_sent, no_sleep):
     )
     assert launch.launch_from_server(executor, TARGET) == {"recruitment_msg": "open"}
     assert executor.events == ["launch", "launch"]
+
+
+def test_a_refused_launch_is_not_sent_again(no_sleep, capsys):
+    executor = FakeExecutor([(0, reply(403, {"status": "forbidden"}), "")])
+    with pytest.raises(LaunchRefused, match="refused the launch.*forbidden"):
+        launch.launch_from_server(executor, TARGET)
+    assert executor.events == ["launch"]
+    out = capsys.readouterr().out
+    assert TARGET.ssh(f"docker compose -f {TARGET.compose_file} logs web") in out
+    assert "Retry the launch:" in out
+    assert TARGET.destroy_command in out
 
 
 def test_proxied_launch_headers_give_the_public_base_url():

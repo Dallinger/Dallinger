@@ -259,6 +259,46 @@
   so Flask (deployed), werkzeug's debugger (`dallinger develop debug`), RQ or
   APScheduler reports the error with its traceback. This applies to deployed
   experiments too.
+- `POST /launch` now requires the dashboard login (`dashboard_user` and
+  `dashboard_password`) with HTTP Basic authentication and answers 403
+  without it. Previously anyone could call it on a deployed experiment to
+  rerun its setup and reopen recruitment, which on Prolific could publish
+  another study. `dallinger debug`, `develop`, `sandbox`/`deploy`, `load`
+  (when replaying), `docker` and `docker-ssh` send the login for you, and
+  `handle_launch_data()` sends
+  the loaded config's login unless given `auth=(user, password)`. The
+  server also refuses, with 403, a launch that a browser sends from another
+  site's page, even with the login, because browsers attach saved HTTP
+  Basic credentials, such as those `dallinger debug` opens the dashboard
+  with, to cross-site form posts. A 403 stops the deploy with the new
+  `dallinger.deployment.LaunchRefused` error (a `click.ClickException`),
+  without retrying, and shows the start of the server's response.
+  `sandbox`/`deploy`, `docker sandbox`/`deploy` and `docker-ssh` also show
+  how to remove the app, and
+  `dallinger debug` and `dallinger load` report the error instead of
+  carrying on with the server running. Once a server restarts with an empty
+  `dashboard_password`, the old password no longer opens the dashboard or
+  launches the experiment, and existing dashboard sessions and remember-me
+  cookies stop working (Codespaces still logs the dashboard in
+  automatically). New helpers: `handle_launch_data()` takes `app_id=` for
+  the destroy hint, and `dallinger.deployment.launch_auth()`,
+  `dallinger.utils.fill_dashboard_login()` and
+  `dallinger.utils.fill_config_dashboard_login()` read or fill the login.
+  When
+  `dashboard_user` or `dashboard_password` is unset or empty, every
+  deploy command, including `dallinger debug` and `develop`, uses `admin`
+  and a new random password, including
+  `docker deploy-image` and `docker-ssh` deploys that reuse a prebuilt
+  `docker_image_name`, and the experiment server takes an empty
+  `dashboard_user` to mean `admin`. An empty `dashboard_user` or
+  `dashboard_password` environment variable now counts as unset, so it no
+  longer overrides `config.txt` or `~/.dallingerconfig`. The launch request
+  sends the login as UTF-8, so passwords with non-ASCII characters work.
+  This breaks code that called the `launch` view directly, outside a
+  request: call the new `launch_experiment()` instead, as the `webapp`
+  pytest fixture now does. It also breaks scripts that POST `/launch`
+  themselves: add the login, e.g.
+  `curl -u "admin:<password>" -X POST <app URL>/launch`.
 
 ### Added
 
@@ -578,6 +618,10 @@
   string, are escaped the same way as a precaution.
   `Experiment.table_search_panes` now returns HTML-escaped labels;
   experiments that override it should escape their own labels too.
+- `dallinger docker sandbox` and `dallinger docker deploy` (Heroku with
+  Docker) no longer fail with a
+  `KeyError` after a successful launch when it reports the dashboard
+  login.
 - Error pages show a participant's worker, assignment and HIT ids only to a
   request that carries the participant's `unique_id`, or their worker and
   assignment ids. Requests that name only a

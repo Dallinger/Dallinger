@@ -9,7 +9,6 @@ import threading
 from pathlib import Path
 
 import pytest
-import requests
 
 from dallinger import db
 from dallinger.models import RealtimeEvent, RealtimeSession
@@ -19,6 +18,7 @@ from .live_server import (
     demo_server,
     frames,
     game_message,
+    launch,
     sign_up,
     wait_for,
     wait_for_session,
@@ -94,7 +94,7 @@ def test_two_players_play_a_session_to_its_saved_outcome(coins_server):
     from dallinger.realtime import store
 
     base = "http://127.0.0.1:{}".format(coins_server)
-    requests.post(base + "/launch").raise_for_status()
+    launch(base)
     # The second player's node fills the group, which starts the session
     players = [sign_up(base, number) for number in (1, 2)]
     outs = {player: {} for player in players}

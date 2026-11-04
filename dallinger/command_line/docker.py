@@ -32,6 +32,7 @@ from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import (
     GitClient,
     abspath_from_egg,
+    fill_dashboard_login,
     setup_experiment,
 )
 
@@ -256,8 +257,6 @@ REGISTRY_UNAUTHORIZED_HELP_TEXT = [
 def deploy_image(image_name, mode, config_options):
     """Deploy Heroku app using a docker image and MTurk."""
     config = get_config(load=True)
-    dashboard_user = config.get("dashboard_user", "admin")
-    dashboard_password = config.get("dashboard_password", secrets.token_urlsafe(8))
     dallinger_uid = str(uuid.uuid4())
     config_dict = {
         "AWS_ACCESS_KEY_ID": config.get("aws_access_key_id"),
@@ -269,13 +268,16 @@ def deploy_image(image_name, mode, config_options):
         "smtp_password": config.get("smtp_password"),
         "whimsical": config.get("whimsical"),
         "FLASK_SECRET_KEY": secrets.token_urlsafe(16),
-        "dashboard_user": dashboard_user,
-        "dashboard_password": dashboard_password,
+        "dashboard_user": config.get("dashboard_user", None),
+        "dashboard_password": config.get("dashboard_password", None),
         "mode": mode,
         "CREATOR": netrc.netrc().hosts["api.heroku.com"][0],
         "DALLINGER_UID": dallinger_uid,
     }
     config_dict.update(config_options)
+    fill_dashboard_login(config_dict)
+    dashboard_user = config_dict["dashboard_user"]
+    dashboard_password = config_dict["dashboard_password"]
     heroku_conn = Heroku3Client(session=requests.session())
     print(f"Creating Heroku app in {mode} mode")
     app_name = "dlgr-" + dallinger_uid.split("-")[0]
@@ -341,11 +343,16 @@ def deploy_image(image_name, mode, config_options):
 
     print("Launching the experiment...")
     app_url = f"https://{app_hostname}"
-    launch_data = handle_launch_data(f"{app_url}/launch", print, context="heroku")
+    launch_data = handle_launch_data(
+        f"{app_url}/launch",
+        print,
+        context="heroku",
+        auth=(dashboard_user, dashboard_password),
+    )
     print(launch_data.get("recruitment_msg"))
 
     print(
-        f"You can login to {app_url}/dashboard using this password {dashboard_password} and the username 'admin'"
+        f"You can login to {app_url}/dashboard using this password {dashboard_password} and the username '{dashboard_user}'"
     )
 
 
@@ -459,6 +466,7 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
         "smtp_username": config["smtp_username"],
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
+        "dashboard_user": config["dashboard_user"],
         "dashboard_password": config["dashboard_password"],
         "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
         "docker_image_name": image_name,
@@ -508,7 +516,9 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     log("Launching the experiment on the remote server and starting recruitment...")
     launch_url = "{}/launch".format(heroku_app.url)
     log("Calling {}".format(launch_url), chevrons=False)
-    launch_data = handle_launch_data(launch_url, error=log, context="heroku")
+    launch_data = handle_launch_data(
+        launch_url, error=log, context="heroku", app_id=heroku_app_id
+    )
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
@@ -540,8 +550,8 @@ def deploy_heroku_docker(log, verbose=True, app=None, exp_config=None):
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
-        "dashboard_user": result["dashboard_user"],
-        "dashboard_password": result["dashboard_password"],
+        "dashboard_user": config["dashboard_user"],
+        "dashboard_password": config["dashboard_password"],
         "dashboard_url": "{}/dashboard/".format(heroku_app.url),
         # "recruitment_msg": launch_data.get("recruitment_msg", None),
     }

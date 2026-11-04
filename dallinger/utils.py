@@ -8,6 +8,7 @@ import numbers
 import os
 import random
 import re
+import secrets
 import shutil
 import signal
 import socket
@@ -27,7 +28,6 @@ from unicodedata import normalize
 from urllib.parse import unquote, urlparse
 
 import redis
-from faker import Faker
 from flask import request
 from pythonjsonlogger import jsonlogger
 from sqlalchemy import exc as sa_exc
@@ -109,8 +109,6 @@ def setup_warning_hooks():
         "default", _FORK_WARNING_MESSAGE, category=DeprecationWarning
     )
 
-
-fake = Faker()
 
 JSON_LOGFILE = "logs.jsonl"
 
@@ -579,6 +577,28 @@ def develop_target_path(config):
     return develop_path
 
 
+def fill_dashboard_login(values):
+    """Fill in an empty or missing dashboard login in the dict ``values``.
+
+    ``dashboard_user`` becomes ``admin`` and ``dashboard_password`` a new
+    random password, so the server and the launch request get the same
+    login; ``/launch`` never accepts an empty password. Returns ``values``.
+    """
+    values["dashboard_user"] = values.get("dashboard_user") or "admin"
+    values["dashboard_password"] = values.get(
+        "dashboard_password"
+    ) or secrets.token_urlsafe(16)
+    return values
+
+
+def fill_config_dashboard_login(config):
+    """Fill in an empty dashboard login in ``config``; return the login dict."""
+    keys = ("dashboard_user", "dashboard_password")
+    login = fill_dashboard_login({key: config.get(key, None) for key in keys})
+    config.extend(login)
+    return login
+
+
 def bootstrap_development_session(
     exp_config,
     experiment_path,
@@ -603,8 +623,7 @@ def bootstrap_development_session(
             "heroku_app_id_root": str(experiment_uid),
         }
     )
-    if not config.get("dashboard_password", None):
-        config.set("dashboard_password", fake.password(length=20, special_chars=False))
+    fill_config_dashboard_login(config)
 
     source_path = Path(dallinger_package_path()) / "dev_server"
     destination_path = develop_target_path(config)
@@ -698,8 +717,7 @@ def setup_experiment(
         }
     )
 
-    if not config.get("dashboard_password", None):
-        config.set("dashboard_password", fake.password(length=20, special_chars=False))
+    fill_config_dashboard_login(config)
 
     temp_dir = assemble_experiment_temp_dir(
         log,
