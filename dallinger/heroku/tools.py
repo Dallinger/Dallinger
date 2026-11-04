@@ -838,7 +838,9 @@ def local_worker_processes(database_url=None):
             if not _is_local_worker_process(process):
                 continue
             url = process.environ().get("DATABASE_URL", db_url_default)
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        # On macOS, psutil can raise SystemError for a process that exits
+        # while it is being read.
+        except (psutil.Error, OSError, SystemError):
             continue
         if corrected_db_url(url) == database_url:
             processes.append(process)

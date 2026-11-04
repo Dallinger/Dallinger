@@ -556,6 +556,11 @@
 
 ### Fixed
 
+- `local_worker_processes()`, which the `clear_workers` pytest fixture and
+  PsyNet's debug start-up use to find leftover local workers, skips a
+  process that exits while it is being read. Before, psutil could raise
+  `SystemError` for such a process on macOS, and the calling command
+  crashed.
 - The database dashboard's "Compensate Command" button now quotes the
   recruiter, worker id and dollar amount in the `dallinger compensate`
   commands it copies, so pasting them into a shell can no longer run
