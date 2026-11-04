@@ -1093,6 +1093,22 @@ class TestClientInfo:
         assert events
         assert all(event["client"]["scope"] == "page-7" for event in events)
 
+    def test_a_connection_naming_no_participant_reports_no_worker_id(
+        self, sockets, scripted_socket
+    ):
+        with patch.object(
+            sockets, "request", Mock(args={"channel": "special", "worker_id": "w1"})
+        ):
+            sockets.chat(scripted_socket())
+
+        events = [
+            json.loads(call.args[1])
+            for call in sockets.redis_conn.publish.mock_calls
+            if call.args[0] == sockets.CONTROL_CHANNEL
+        ]
+        assert events
+        assert all(event["client"]["worker_id"] is None for event in events)
+
 
 def channel_events(sockets):
     """The subscribe/unsubscribe bookkeeping a channel announces."""

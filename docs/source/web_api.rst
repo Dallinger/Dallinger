@@ -73,8 +73,9 @@ change.
 
 ``channel`` is optional: a connection without one receives nothing, and can
 still send. ``scope`` is optional too, reported unaltered in the ``client``
-payload of every control channel event. A binary frame closes the connection
-with code ``1003``.
+payload of every control channel event. ``worker_id`` is reported there too,
+unverified, and only for a connection with a ``participant_id``. A binary
+frame closes the connection with code ``1003``.
 
 ::
 

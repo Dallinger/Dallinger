@@ -577,7 +577,10 @@ Both functions include the participant's ``worker_id`` and ``participant_id``
 in the connection url, along with the connection's ``scope``. Those values will
 be included in the automatically generated JSON messages alerting the experiment
 to WebSocket connection, disconnection, subscription, and un-subscription events
-over the ``"dallinger_control"`` channel. The full interface is listed in the
+over the ``"dallinger_control"`` channel. The server checks only that the
+``participant_id`` exists, and the experiment's hook may check the ``scope``.
+The ``worker_id`` is never checked, so don't rely on it, and a connection
+without a ``participant_id`` reports none. The full interface is listed in the
 :doc:`Javascript API <javascript_api>`.
 
 Connecting Without the Helpers

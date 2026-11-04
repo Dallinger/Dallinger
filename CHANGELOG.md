@@ -9,7 +9,9 @@
   `Experiment.accept_websocket_connection` must accept it. It used to be sent
   any participant's directed messages, and join their real-time sessions,
   just by naming them. A `/chat` connection without a participant is still
-  unchecked, and still subscribes and receives broadcasts. The waiting room's
+  unchecked, and still subscribes and receives broadcasts, but its
+  `dallinger_control` events no longer report the `worker_id` from its URL,
+  which nothing checks. The waiting room's
   socket (`dallinger.waitForQuorum`) now names no participant, so an
   experiment whose check requires a token still lets participants out of the
   waiting room; its `dallinger_control` events no longer identify the

@@ -951,7 +951,7 @@ def _open_client(ws, participant_id, experiment):
         raise socket_admission.Refused("experiment unavailable", retry=True)
     client = Client(
         ws,
-        worker_id=request.args.get("worker_id"),
+        worker_id=None if participant_id is None else request.args.get("worker_id"),
         participant_id=participant_id,
         scope=request.args.get("scope"),
         experiment=experiment,
@@ -963,7 +963,7 @@ def _open_client(ws, participant_id, experiment):
             client.addressable_id,
             client.scope,
             games,
-            checked=experiment is not None,
+            experiment_socket=experiment is not None,
             describe=client.client_info(),
         )
     except session_sockets.Refusal as refusal:
