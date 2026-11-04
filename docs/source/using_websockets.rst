@@ -409,7 +409,12 @@ token, as above, makes directed messages private to the participant's own
 pages. Without that check, treat the id as Dallinger treats every other
 ``participant_id``, and keep out of a payload anything another participant must
 not read. Channel broadcasts are never private: any connection may subscribe to
-any channel that isn't reserved.
+any channel that isn't reserved. Nor do they say who sent them: a message
+published through ``/chat`` is relayed as the client wrote it, so a sender or
+participant id in its payload is whatever the client put there. For messages
+attributed to their sender, use ``/experiment-socket``, where
+:func:`~dallinger.experiment.Experiment.handle_websocket_message` is given the
+admitted participant's id.
 
 Naming a participant who has no open connection, or who is not connected to this
 deployment at all, delivers nothing and is not an error. As with a broadcast, no
@@ -582,14 +587,23 @@ Any WebSocket client may connect to either route directly, using the query
 parameters described in :doc:`The Web API <web_api>`. Every message in either
 direction is a channel name followed by ``:`` and the payload, so a client
 reading messages itself will need to check each message's channel prefix before
-parsing its payload::
+parsing its payload. A connection that names a participant is checked like an
+experiment socket, so pass its ``scope``, leave ``participant_id`` out when the
+page doesn't know it, and wrap the socket in
+``dallinger.stopReconnectingIfRefused`` so that a refused connection is not
+retried::
 
     var ws_scheme = (location.protocol === 'https:') ? 'wss://' : 'ws://';
-    var socket = new ReconnectingWebSocket(
-        ws_scheme + location.host + '/chat' +
-            '?channel=' + encodeURIComponent(channel_id) +
-            '&worker_id=' + dallinger.identity.workerId +
-            '&participant_id=' + dallinger.identity.participantId
+    var url = ws_scheme + location.host + '/chat' +
+        '?channel=' + encodeURIComponent(channel_id) +
+        '&scope=' + encodeURIComponent(dallinger.pageScope);
+    if (dallinger.identity.participantId) {
+        url += '&worker_id=' + encodeURIComponent(dallinger.identity.workerId) +
+            '&participant_id=' + encodeURIComponent(dallinger.identity.participantId);
+    }
+    var socket = dallinger.stopReconnectingIfRefused(
+        new ReconnectingWebSocket(url),
+        function (code, reason) { console.error('Refused: ' + reason); }
     );
     socket.onmessage = function (msg) {
         // Ignore messages not from the subscribed channel

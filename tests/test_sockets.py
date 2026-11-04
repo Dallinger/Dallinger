@@ -1296,14 +1296,28 @@ class TestExperimentSocketConnection:
         assert admission._process_experiment is None
         assert "special" not in sockets.chat_backend.channels
 
+    @pytest.mark.parametrize("named", [{}, {"participant_id": ""}])
     def test_a_chat_connection_naming_no_participant_is_not_checked(
-        self, sockets, admission, mocksocket
+        self, sockets, admission, mocksocket, named
     ):
         with patch.object(admission, "admit") as admit:
-            self.connect_chat(sockets, mocksocket, channel="special")
+            self.connect_chat(sockets, mocksocket, channel="special", **named)
 
         admit.assert_not_called()
         mocksocket.close.assert_not_called()
+
+    def test_a_chat_connection_naming_an_unknown_participant_is_refused(
+        self, sockets, admission, mocksocket
+    ):
+        with patch.object(admission, "resolve_participant_id", return_value=None):
+            self.connect_chat(
+                sockets, mocksocket, channel="special", participant_id="999"
+            )
+
+        mocksocket.close.assert_called_once_with(
+            sockets.REFUSED_CLOSE_CODE, "unknown participant"
+        )
+        assert "special" not in sockets.chat_backend.channels
 
     def test_a_chat_connection_naming_a_participant_is_checked(
         self, sockets, admitted, mocksocket
