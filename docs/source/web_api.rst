@@ -62,7 +62,10 @@ them from any other. A ``channel`` argument naming any of the four is refused.
 A connection which supplies a ``participant_id`` also receives any message sent
 to that participant with ``Experiment.publish_to_participants``, prefixed with
 the ``dallinger_direct`` channel name, whether or not it subscribed to a
-channel of its own.
+channel of its own. Such a connection goes through the same participant check
+as an experiment socket, described below, and is closed with ``1008`` or
+``1013`` in the same cases. A connection without a ``participant_id`` isn't
+checked.
 
 ``tolerance`` is accepted and ignored; it once capped delivery lag. Sending it
 raises no error and no deprecation warning, so existing client code needs no
@@ -70,8 +73,9 @@ change.
 
 ``channel`` is optional: a connection without one receives nothing, and can
 still send. ``scope`` is optional too, reported unaltered in the ``client``
-payload of every control channel event. A binary frame closes the connection
-with code ``1003``.
+payload of every control channel event. ``worker_id`` is reported there too,
+unverified, and only for a connection with a ``participant_id``. A binary
+frame closes the connection with code ``1003``.
 
 ::
 
@@ -295,20 +299,6 @@ following experiment methods:
 ``add_node_to_network(node, network)``, and
 ``node_post_request(participant, node)``. Returns a JSON description of
 the created node as ``node``.
-
-::
-
-    POST /notifications
-    GET /notifications
-
-This is the route to which notifications from AWS are sent. It is also
-possible to send your own notifications to this route, thereby
-simulating notifications from AWS. Necessary arguments are
-``Event.1.EventType``, which can be ``AssignmentAccepted``,
-``AssignmentAbandoned``, ``AssignmentReturned`` or
-``AssignmentSubmitted``, and ``Event.1.AssignmentId``, which is the id
-of the relevant assignment. In addition, Dallinger uses a custom event
-type of ``NotificationMissing``.
 
 ::
 

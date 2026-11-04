@@ -77,9 +77,11 @@ the session's players, and closes the socket with code ``1008`` and the reason
 session is looked up or joined, it closes the socket with ``1013``, which
 tells the page to try again later. Dallinger's sockets don't authenticate
 anyone, so a page that names another player's participant id can play as that
-player. An experiment can check ``/experiment-socket`` connections itself with
-:func:`~dallinger.experiment.Experiment.accept_websocket_connection`, but a
-``/chat`` connection can join a session without that check.
+player. An experiment can check connections itself with
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection`, which
+runs for every ``/experiment-socket`` connection and every ``/chat``
+connection that names a participant. A ``/chat`` connection that names no
+participant can't join a session.
 """
 
 import json
@@ -389,7 +391,9 @@ def open_session_socket(requested, participant, scope, games, describe):
     return SessionSocket(session_id, game, participant, scope, describe)
 
 
-def open_connection_session(args, participant, scope, games, checked, describe):
+def open_connection_session(
+    args, participant, scope, games, experiment_socket, describe
+):
     """Return the session side of a new connection: a :class:`SessionSocket`
     for one that asks for a ``session``, a :class:`SessionWait` for one that
     waits for a game type's session, otherwise a :class:`NoSession`.
@@ -400,15 +404,15 @@ def open_connection_session(args, participant, scope, games, checked, describe):
     :param scope: the connection's scope
     :param games: the experiment's game types, as
         :func:`~dallinger.realtime.store.experiment_games` returns them
-    :param checked: whether the experiment checked the connection, as it does
-        on ``/experiment-socket``
+    :param experiment_socket: whether the connection is an
+        ``/experiment-socket`` one, which ``wait_for_game`` needs
     :param describe: what warnings call the connection
     :raises Refusal: as the module docstring describes
     """
     requested = args.get("session")
     waiting_for = args.get("wait_for_game")
     if waiting_for is not None:
-        if not checked:
+        if not experiment_socket:
             raise Refusal("wait_for_game needs /experiment-socket")
         if requested is not None:
             raise Refusal("session and wait_for_game together")

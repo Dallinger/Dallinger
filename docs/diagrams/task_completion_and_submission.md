@@ -59,6 +59,11 @@ else asynchronous recruiters
 rec-->>es: <rendered template specific to Recruiter>
 es-->>hw: <rendered template specific to Recruiter>
 hw->>rec: /prolific-submission-listener POST (Recruiter-specific route)
+rec->>ex: check_worker_status(participant)
+opt experiment refuses the request
+ex-->>rec: <response>
+rec-->>d2: <response>
+end
 rec->>part: status="submitted"
 note over rec: COMMIT
 rec-)wf: ASYNC __call__("RecruiterSubmissionComplete", args...) (see below)

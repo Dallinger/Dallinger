@@ -421,15 +421,26 @@ def get_mapped_classes(table: Union[str, Table]):
 
 def get_mapped_class(table: Union[str, Table]):
     """
-    Returns the single class that maps to the provided table.
+    Returns the base class that maps to the provided table.
+    For tables with polymorphic identities (e.g. Info, which has a ``type``
+    column), this is the class that the other mapped classes inherit from,
+    so querying it returns every row of the table.
     Throws an ``AssertionError`` if there is not exactly one such class.
-    This function is therefore only intended for tables that do not implement
-    polymorphic identities, i.e. they do not include a ``type`` column.
-    An example is the Notification table.
     """
-    mappers = get_mapped_classes(table)
-    assert len(mappers) == 1
-    return mappers[0]
+    table_name = table if isinstance(table, str) else table.name
+    classes = [
+        mapper.class_
+        for mapper in get_mappers(table)
+        if mapper.local_table.name == table_name
+        # The topmost mapper of this table, which also covers the table of a
+        # joined-table subclass.
+        and (
+            mapper.inherits is None
+            or mapper.inherits.local_table is not mapper.local_table
+        )
+    ]
+    assert len(classes) == 1
+    return classes[0]
 
 
 def serialized(func):
