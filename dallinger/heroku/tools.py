@@ -838,8 +838,9 @@ def local_worker_processes(database_url=None):
             if not _is_local_worker_process(process):
                 continue
             url = process.environ().get("DATABASE_URL", db_url_default)
-        # On macOS, psutil can raise SystemError for a process that exits
-        # while it is being read.
+        # On macOS, reading a process that exits mid-read can raise OSError
+        # or SystemError instead of a psutil error, depending on the psutil
+        # version.
         except (psutil.Error, OSError, SystemError):
             continue
         if corrected_db_url(url) == database_url:
