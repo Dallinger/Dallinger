@@ -24,8 +24,6 @@ from dallinger.db import get_queue, redis_conn, scoped_session_decorator, sessio
 from dallinger.experiment_server.utils import (
     crossdomain,
     error_response,
-    participant_token_refusal,
-    request_authenticates,
     success_response,
 )
 from dallinger.experiment_server.worker_events import worker_function
@@ -479,9 +477,6 @@ def prolific_submission_listener():
             error_type="/prolific-submission-listener: unknown participant or assignment",
             status=403,
         )
-    if not request_authenticates(participant):
-        session.rollback()
-        return participant_token_refusal()
     refusal = Experiment().check_worker_status(participant)
     if refusal is not None:
         session.rollback()

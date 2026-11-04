@@ -71,13 +71,12 @@ A page measures its clock against the server's with frames on
 
 A socket with no session gets no answers, and its reports are dropped.
 
-A socket that names a participant must carry that participant's token, so
-:mod:`~dallinger.experiment_server.socket_admission` has already checked who
-the connection is when the session is looked up, and the experiment's
+By the time a session is looked up, the experiment's
 :func:`~dallinger.experiment.Experiment.accept_websocket_connection` has
-accepted it. The web process then checks that the participant is one of the
-session's players, and closes the socket with code ``1008`` and the reason
-``not a player in this session`` if not. If redis or Postgres fails while a
+accepted the connection, which by default means that it carried the
+participant's token. The web process then checks that the participant is one
+of the session's players, and closes the socket with code ``1008`` and the
+reason ``not a player in this session`` if not. If redis or Postgres fails while a
 session is looked up or joined, it closes the socket with ``1013``, which
 tells the page to try again later. A ``/chat`` connection that names no
 participant can't join a session.

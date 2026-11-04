@@ -36,7 +36,7 @@ from dallinger.utils import normalized_participant_id
 
 from . import socket_admission
 from .experiment_server import app
-from .utils import PARTICIPANT_TOKEN_PARAMETER, date_handler
+from .utils import date_handler
 
 sock = Sock(app)
 
@@ -1027,8 +1027,8 @@ def chat(ws):
 
     A connection that names a participant is sent that participant's directed
     messages and may join their real-time sessions, so it is admitted like an
-    experiment socket first, including the participant's token. One that names
-    none can still subscribe, send and receive broadcasts.
+    experiment socket first. One that names none can still subscribe, send
+    and receive broadcasts.
     """
     requested_id = request.args.get("participant_id")
     if requested_id in (None, ""):
@@ -1036,9 +1036,7 @@ def chat(ws):
         return
     try:
         participant_id, _ = socket_admission.admit(
-            requested_id,
-            request.args.get("scope"),
-            request.args.get(PARTICIPANT_TOKEN_PARAMETER),
+            requested_id, request.args.get("scope")
         )
     except socket_admission.Refused as refusal:
         _refuse(ws, refusal)
@@ -1050,9 +1048,7 @@ def experiment_socket(ws):
     """Hand each inbound message to the experiment running in this process."""
     try:
         participant_id, experiment = socket_admission.admit(
-            request.args.get("participant_id"),
-            request.args.get("scope"),
-            request.args.get(PARTICIPANT_TOKEN_PARAMETER),
+            request.args.get("participant_id"), request.args.get("scope")
         )
     except socket_admission.Refused as refusal:
         _refuse(ws, refusal)

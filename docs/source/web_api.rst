@@ -30,6 +30,14 @@ show it again. Routes that read or act for a participant require that token:
   the token the error is still recorded.
 * ``/experiment-socket``, and ``/chat`` when it names a ``participant_id``
 
+The routes in the last three items check the token in the default
+implementations of
+:func:`~dallinger.experiment.Experiment.check_worker_status`,
+:func:`~dallinger.experiment.Experiment.check_recruiter_exit` and
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection`, so an
+experiment that authenticates its participants in its own way can override
+these to check its own credential instead. The others always check it.
+
 Send the token in the ``X-Dallinger-Participant-Token`` header, or, for a page
 navigation, a form or a WebSocket, as the ``participant_token`` parameter.
 Other routes refuse a missing or wrong token with status ``403`` and the
@@ -90,9 +98,8 @@ addresses to any of the first three are discarded. The server handles those on
 them from any other. A ``channel`` argument naming any of the four is refused.
 
 A connection that supplies a ``participant_id`` goes through the same
-participant check as an experiment socket, described below, including the
-participant's ``participant_token``, and is closed with ``1008`` or ``1013`` in
-the same cases. It also receives any message sent to that participant with
+participant check as an experiment socket, described below, and is closed with
+``1008`` or ``1013`` in the same cases. It also receives any message sent to that participant with
 ``Experiment.publish_to_participants``, prefixed with the ``dallinger_direct``
 channel name, whether or not it subscribed to a channel of its own. A
 connection without a ``participant_id`` isn't checked.
@@ -119,10 +126,10 @@ names, the directed messages a connection supplying a ``participant_id``
 receives, and the optional ``channel`` the connection still receives broadcasts
 on. In the browser, ``dallinger.openExperimentSocket`` opens this connection.
 
-An experiment socket must carry a ``participant_id`` that exists and that
-participant's ``participant_token``, and the experiment's
-``accept_websocket_connection`` method must accept it, or the server closes the
-connection with code ``1008``. If the participant lookup
+An experiment socket must carry a ``participant_id`` that exists, and the
+experiment's ``accept_websocket_connection`` method must accept it, which by
+default means that it carries that participant's ``participant_token``, or the
+server closes the connection with code ``1008``. If the participant lookup
 raises, the experiment class cannot be built, or ``accept_websocket_connection``
 raises, the server closes with ``1013`` instead, which means the client should
 try again later.

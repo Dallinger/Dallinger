@@ -140,25 +140,28 @@ binary frame has no prefix to split on, so the connection is closed with code
 ``1003`` and the reason ``text frames only``.
 
 An experiment socket must name a participant that exists, because every message
-is reported to the method as coming from someone, and it must carry that
-participant's secret token (see :ref:`participant-tokens`), so that the
-participant id says who is sending the messages.
-``dallinger.openExperimentSocket`` sends the token from
-``dallinger.identity.participantToken``. Dallinger closes the socket
-otherwise, with code ``1008`` and the reason
-``unknown participant or wrong token``. A ``/chat`` connection that names a
-participant is checked the same way, and one that names none connects
-anonymously.
+is reported to the method as coming from someone, or Dallinger closes it with
+code ``1008`` and the reason ``unknown participant``. Dallinger then asks
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection` whether the
+connection may open. It is given the participant id and the connection's
+``scope``. By default it accepts a connection that carries the participant's
+secret token (see :ref:`participant-tokens`), so that the participant id says
+who is sending the messages. ``dallinger.openExperimentSocket`` sends the token
+from ``dallinger.identity.participantToken``.
 
-An experiment that needs more can check each connection as it opens, by
-overriding :func:`~dallinger.experiment.Experiment.accept_websocket_connection`.
-It is given the participant id and the connection's ``scope``, for example to
-refuse a participant who has already finished::
+An experiment that needs more can override the method. An override replaces the
+token check, so call ``super()`` to keep it, as here, to also refuse a
+participant who has already finished::
 
     class MyExperiment(Experiment):
         def accept_websocket_connection(self, participant_id, scope):
+            if not super().accept_websocket_connection(participant_id, scope):
+                return False
             participant = db.session.get(Participant, int(participant_id))
             return participant.status == "working"
+
+An experiment that authenticates its participants in its own way can check its
+own credential instead, passed as ``scope``.
 
 A falsy return closes the socket with code ``1008`` and the reason
 ``refused by the experiment``, before it subscribes to any channel or joins a
@@ -374,8 +377,9 @@ This replaces the pattern of giving each participant a channel named after
 them, such as ``participant_12_channel``. Named channels remain the natural
 choice for a group of participants who should all receive the same messages.
 
-A connection is addressed only by the ``participant_id`` whose token it
-carried, so another participant's page can't be sent their directed messages.
+A connection is addressed only by the ``participant_id`` it was admitted for,
+which by default needs that participant's token, so another participant's page
+can't be sent their directed messages.
 Channel broadcasts are never private: any connection may subscribe to any
 channel that isn't reserved, so a named channel such as
 ``participant_12_channel`` offers no such protection. Nor do broadcasts say who
@@ -546,9 +550,8 @@ Both functions include the participant's ``worker_id``, ``participant_id`` and
 ``participant_token`` in the connection url, along with the connection's
 ``scope``. All but the token will be included in the automatically generated JSON messages alerting the experiment
 to WebSocket connection, disconnection, subscription, and un-subscription events
-over the ``"dallinger_control"`` channel. The server checks the
-``participant_id`` against the token, and the experiment's hook may check the
-``scope``.
+over the ``"dallinger_control"`` channel. The experiment's hook checks the
+token by default, and may check the ``scope``.
 The ``worker_id`` is never checked, so don't rely on it, and a connection
 without a ``participant_id`` reports none. The full interface is listed in the
 :doc:`Javascript API <javascript_api>`.
@@ -654,10 +657,10 @@ chatrooms in :func:`~dallinger.experiment.Experiment.on_launch` or using
 Don't give each participant a channel of their own to send them private
 messages: anyone could subscribe to it. Send them directed messages with
 :func:`~dallinger.experiment.Experiment.publish_to_participants` instead (see
-`Sending to Specific Participants`_), and override
-:func:`~dallinger.experiment.Experiment.accept_websocket_connection` to check a
-token, as described above, so that only the participant's own pages receive
-them.
+`Sending to Specific Participants`_). The default
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection` checks the
+participant's token, as described above, so only the participant's own pages
+receive them.
 
 
 Connection Limits

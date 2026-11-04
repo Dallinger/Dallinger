@@ -751,8 +751,6 @@ def recruiter_exit():
             ),
             status=404,
         )
-    if not request_authenticates(participant):
-        return participant_token_refusal()
 
     refusal = exp.check_recruiter_exit(participant)
     if refusal is not None:
@@ -2000,17 +1998,13 @@ def worker_complete():
 
 
 def _worker_status_refusal(exp, participant_id):
-    """Return the response refusing a status update, or ``None``.
+    """Return ``exp``'s response refusing a status update, or ``None``.
 
-    The request must carry the participant's token, and ``exp`` may refuse
-    it as well. An unknown ``participant_id`` returns ``None`` so the route
-    reports it.
+    An unknown ``participant_id`` returns ``None`` so the route reports it.
     """
     participant = session.query(models.Participant).filter_by(id=participant_id).first()
     if participant is None:
         return None
-    if not request_authenticates(participant):
-        return participant_token_refusal()
     return exp.check_worker_status(participant)
 
 

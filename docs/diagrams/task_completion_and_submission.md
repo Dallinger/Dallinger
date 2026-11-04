@@ -24,8 +24,8 @@ d2->>es: /question/<participant ID>
 es-->>d2: HTTP Response
 d2->>d2: submitAssignment()
 d2->>es: /worker_complete POST
-note over es: refuses a request without the participant's token
 es->>ex: check_worker_status(participant)
+note over ex: by default, refuses a request without the participant's token
 opt experiment refuses the request
 ex-->>es: <response>
 es-->>d2: <response>
@@ -44,8 +44,8 @@ end
 es-->>d2: HTTP Response
 d2-->>hw: location=/recruiter-exit?participant_id=…&participant_token=…&unique_id=…
 hw->>es: /recruiter-exit GET
-note over es: refuses a request without the participant's token
 es->>ex: check_recruiter_exit(participant)
+note over ex: by default, refuses a request without the participant's token
 opt experiment refuses the request
 ex-->>es: <response>
 es-->>hw: <response>
@@ -61,8 +61,8 @@ else asynchronous recruiters
 rec-->>es: <rendered template specific to Recruiter>
 es-->>hw: <rendered template specific to Recruiter>
 hw->>rec: /prolific-submission-listener POST (Recruiter-specific route)
-note over rec: refuses a request without the participant's token
 rec->>ex: check_worker_status(participant)
+note over ex: by default, refuses a request without the participant's token
 opt experiment refuses the request
 ex-->>rec: <response>
 rec-->>d2: <response>

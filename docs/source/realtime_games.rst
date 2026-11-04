@@ -634,10 +634,10 @@ while the earlier load is still connected can have its messages mixed up with
 that load's.
 
 Dallinger refuses a connection to a session from a participant who isn't one
-of its players. It doesn't check who is on the other end of a connection, so
-an experiment that needs to can check connections itself with
-:meth:`~dallinger.experiment.Experiment.accept_websocket_connection`, which
-also checks the connection ``joinRealtimeSession`` waits on.
+of its players, and, through the default
+:meth:`~dallinger.experiment.Experiment.accept_websocket_connection`, one that
+doesn't carry the participant's token. That method also checks the connection
+``joinRealtimeSession`` waits on.
 
 A page that also uses a chat channel waits for its session with
 :js:func:`dallinger.waitForRealtimeSession`, which resolves with the session's

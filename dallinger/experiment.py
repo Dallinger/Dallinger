@@ -49,7 +49,11 @@ from dallinger.db import (
     get_polymorphic_mapping,
     init_db,
 )
-from dallinger.experiment_server.utils import date_handler
+from dallinger.experiment_server.utils import (
+    date_handler,
+    participant_token_refusal,
+    request_authenticates,
+)
 from dallinger.heroku.tools import HerokuApp
 from dallinger.information import Gene, Meme, State
 from dallinger.models import Info, Network, Node, Participant, Transformation
@@ -413,19 +417,29 @@ class Experiment:
         """Return a response to send instead of the participant's exit page.
 
         ``/recruiter-exit`` calls this after loading the participant named by
-        its ``participant_id`` parameter and checking that the request carries
-        the participant's token. ``dallinger.submitAssignment()`` also adds the
-        participant's ``unique_id`` to the link, which an experiment can
-        require as well::
+        its ``participant_id`` parameter. The default refuses a request that
+        doesn't carry the participant's token. An override replaces that
+        check, so call ``super()`` to keep it, as here, where
+        ``dallinger.submitAssignment()`` also adds the participant's
+        ``unique_id`` to the link::
 
             def check_recruiter_exit(self, participant):
-                if flask.request.args.get("unique_id") != participant.unique_id:
-                    return "Not your exit page", 403
+                refusal = super().check_recruiter_exit(participant)
+                if refusal is None and (
+                    flask.request.args.get("unique_id") != participant.unique_id
+                ):
+                    refusal = "Not your exit page", 403
+                return refusal
+
+        An experiment that authenticates its participants in its own way can
+        check its own credential instead.
 
         :param participant: the ``Participant`` named by ``participant_id``
         :returns: ``None`` to show the recruiter's exit page, or anything a
-            Flask view can return, sent instead. The default returns ``None``.
+            Flask view can return, sent instead
         """
+        if not request_authenticates(participant):
+            return participant_token_refusal()
         return None
 
     def check_worker_status(self, participant):
@@ -435,22 +449,34 @@ class Experiment:
         ``/prolific-submission-listener`` call this after loading the
         participant named by their ``participant_id`` (``participantId``)
         parameter, or, for ``/handle-error``, by its ``worker_id`` or
-        ``assignment_id``, and checking that the request carries the
-        participant's token. When either check refuses, ``/handle-error``
-        still records the error report and shows its usual confirmation page
-        instead of the response, but doesn't complete the participant.
-        ``dallinger.submitAssignment()``, ``dallinger.error()``, the error
+        ``assignment_id``. When this refuses, ``/handle-error`` still records
+        the error report and shows its usual confirmation page instead of the
+        response, but doesn't complete the participant.
+
+        The default refuses a request that doesn't carry the participant's
+        token. An override replaces that check, so call ``super()`` to keep
+        it. ``dallinger.submitAssignment()``, ``dallinger.error()``, the error
         page, the Prolific exit page and Dallinger's bots also send the
-        participant's ``unique_id``, which an experiment can require as well::
+        participant's ``unique_id``, which an experiment can require as
+        well::
 
             def check_worker_status(self, participant):
-                if flask.request.values.get("unique_id") != participant.unique_id:
-                    return "Not your assignment", 403
+                refusal = super().check_worker_status(participant)
+                if refusal is None and (
+                    flask.request.values.get("unique_id") != participant.unique_id
+                ):
+                    refusal = "Not your assignment", 403
+                return refusal
+
+        An experiment that authenticates its participants in its own way can
+        check its own credential instead.
 
         :param participant: the ``Participant`` the request names
         :returns: ``None`` to record the status, or anything a Flask view
-            can return, sent instead. The default returns ``None``.
+            can return, sent instead
         """
+        if not request_authenticates(participant):
+            return participant_token_refusal()
         return None
 
     def calculate_qualifications(self, participant):
@@ -637,15 +663,17 @@ class Experiment:
         join a real-time session.
 
         Called once per connection, after the participant has been found and
-        the connection's ``participant_token`` checked, and before the
-        connection subscribes to anything or joins a real-time session.
-        Return ``False`` to refuse it: the connection is closed with code
-        1008, and Dallinger's client helpers stop reconnecting. Any falsy
+        before the connection subscribes to anything or joins a real-time
+        session. Return ``False`` to refuse it: the connection is closed with
+        code 1008, and Dallinger's client helpers stop reconnecting. Any falsy
         return refuses, including ``None``, so remember to return ``True``.
-        The default accepts every connection.
 
-        Use this to check more than the participant's token, such as a value
-        the server signed when it rendered the page, passed as ``scope``.
+        The default accepts a connection that carries the participant's
+        token in its ``participant_token`` query parameter, as Dallinger's
+        socket helpers send it. An override replaces that check, so call
+        ``super()`` to keep it. Use this to check more, or, in an experiment
+        that authenticates its participants in its own way, to check its own
+        credential, passed as ``scope``.
         :doc:`Using WebSockets in Dallinger Experiments <using_websockets>`
         has an example, and says where the scope is logged and saved.
 
@@ -665,7 +693,7 @@ class Experiment:
         :returns: whether to accept the connection
         :rtype: bool
         """
-        return True
+        return request_authenticates(Participant.query.get(int(participant_id)))
 
     @classmethod
     def handle_recruitment_error(cls, error, **kwargs):

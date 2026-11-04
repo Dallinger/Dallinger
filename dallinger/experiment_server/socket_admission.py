@@ -2,12 +2,11 @@
 
 Every ``/experiment-socket`` connection names one; a ``/chat`` connection may.
 
-The participant must exist, the connection must carry that participant's
-token in the ``participant_token`` query parameter, the experiment must
-build, and the experiment's
+A connection must name a participant that exists, the experiment must build,
+and the experiment's
 :func:`~dallinger.experiment.Experiment.accept_websocket_connection` must
-accept it. :func:`admit` checks all of these before the connection subscribes
-to anything, and raises :class:`Refused` otherwise.
+accept it. :func:`admit` checks all three before the connection subscribes to
+anything, and raises :class:`Refused` otherwise.
 """
 
 import logging
@@ -60,43 +59,42 @@ def process_experiment():
     return _process_experiment
 
 
-def resolve_participant_id(participant_id, token):
+def resolve_participant_id(participant_id):
     """The id of the participant ``participant_id`` names, or ``None``.
 
-    ``None`` is also returned when ``token`` isn't that participant's token.
-    The participant is looked up by the normalized id, so a value the column
+    Existence is checked against the normalized id, so a value the column
     cannot hold is refused before a query is made with it.
     """
     normalized = normalized_participant_id(participant_id)
     if normalized is None:
         return None
     try:
-        token_hash = (
-            session.query(models.Participant.auth_token_hash)
-            .filter_by(id=int(normalized))
-            .scalar()
-        )
+        found = session.query(
+            session.query(models.Participant).filter_by(id=int(normalized)).exists()
+        ).scalar()
     finally:
         session.remove()
-    return normalized if models.auth_token_matches(token_hash, token) else None
+    return normalized if found else None
 
 
-def admit(requested_id, scope, token):
+def admit(requested_id, scope):
     """The participant id and the experiment for a new connection.
 
     ``/experiment-socket`` hands every message to the experiment as coming
     from a participant, so it refuses a connection that names none; ``/chat``
-    calls this only for a connection that names one. The connection must carry
-    that participant's ``token``. The experiment's hook is where an experiment
-    can check more. The session is removed after each step, because an
-    accepted connection can then idle in ``receive()`` indefinitely.
+    calls this only for a connection that names one. The id is checked for existence
+    only: the route is unauthenticated, so it says which participant the
+    connection claims to be, not who is on the other end. The experiment's hook
+    is where an experiment can check more. The session is removed after each
+    step, because an accepted connection can then idle in ``receive()``
+    indefinitely.
 
-    :raises Refused: for an unknown participant, a wrong token or a
-        connection the experiment refuses, and with ``retry`` set when a
-        lookup, the experiment or its hook fails
+    :raises Refused: for an unknown participant or a connection the
+        experiment refuses, and with ``retry`` set when a lookup, the
+        experiment or its hook fails
     """
     try:
-        participant_id = resolve_participant_id(requested_id, token)
+        participant_id = resolve_participant_id(requested_id)
     except SQLAlchemyError:
         logger.exception(
             "Could not look up participant %r for a websocket connection.", requested_id
@@ -104,11 +102,9 @@ def admit(requested_id, scope, token):
         raise Refused("participant lookup failed", retry=True)
     if participant_id is None:
         logger.warning(
-            "Refusing a websocket connection for participant %r: unknown "
-            "participant or wrong token.",
-            requested_id,
+            "Refusing a websocket connection for unknown participant %r.", requested_id
         )
-        raise Refused("unknown participant or wrong token")
+        raise Refused("unknown participant")
     try:
         experiment = process_experiment()
     except Exception:

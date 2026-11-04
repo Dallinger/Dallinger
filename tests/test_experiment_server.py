@@ -380,6 +380,18 @@ class TestWorkerComplete:
         assert resp.status_code == 403
         assert db_session.merge(participant).end_time is None
 
+    def test_an_experiment_can_replace_the_token_check(self, a, webapp):
+        participant = a.participant()
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as Experiment:
+            Experiment.return_value.check_worker_status.return_value = None
+            resp = webapp.post(
+                "/worker_complete", data={"participant_id": participant.id}
+            )
+
+        assert resp.status_code == 200
+
     def test_experiment_can_refuse_with_its_own_response(self, a, webapp):
         participant = a.participant()
         authenticate_as(webapp, participant)

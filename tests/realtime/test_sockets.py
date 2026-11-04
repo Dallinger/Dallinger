@@ -114,17 +114,7 @@ class Parked:
 
 
 def chat(sockets, ws, **args):
-    """Connect ``ws`` to ``/chat`` as a page that holds the named participant's token."""
-    with (
-        patch.object(
-            socket_admission,
-            "resolve_participant_id",
-            side_effect=lambda participant_id, token: normalized_participant_id(
-                participant_id
-            ),
-        ),
-        patch.object(sockets, "request", Mock(args=args)),
-    ):
+    with patch.object(sockets, "request", Mock(args=args)):
         sockets.chat(ws)
 
 

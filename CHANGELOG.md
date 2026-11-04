@@ -10,17 +10,22 @@
   `participant_token`, of which only a hash is stored, and
   `dallinger.createParticipant` keeps it in
   `dallinger.identity.participantToken`. These now require it:
-  `GET /participant/<id>`, `/question`, `POST /node/<participant_id>`, every
-  `/node/<node_id>`, `/info`, `/tracking_event` and `/transformation` route
-  (for a node of that participant, so nodes without a participant can't be
-  used through them), `/worker_complete`, `/worker_failed`,
-  `/recruiter-exit`, `/prolific-submission-listener`, `/experiment-socket`,
-  and `/chat` when it names a `participant_id`. `/handle-error` records an error from anyone but marks
-  the assignment completed only for the participant. Other requests are
-  refused with status 403 and the error code `participant_token_invalid`.
-  `dallinger.get`, `dallinger.post`, the socket helpers, the tracker and the
-  exit and error pages send the token, so experiments that use them need no
-  change. Migration notes:
+  `GET /participant/<id>`, `/question`, `POST /node/<participant_id>`, and
+  every `/node/<node_id>`, `/info`, `/tracking_event` and `/transformation`
+  route (for a node of that participant, so nodes without a participant
+  can't be used through them). They refuse other requests with status 403
+  and the error code `participant_token_invalid`. The default
+  `Experiment.check_worker_status`, `check_recruiter_exit` and
+  `accept_websocket_connection` now require the token too, so
+  `/worker_complete`, `/worker_failed`, `/recruiter-exit`,
+  `/prolific-submission-listener`, `/experiment-socket`, and `/chat` when it
+  names a `participant_id`, refuse requests without it, and `/handle-error`
+  records an error from anyone but marks the assignment completed only for
+  the participant. An experiment that overrides these hooks replaces the
+  token check, so it should call `super()` to keep it, or check a
+  credential of its own. `dallinger.get`, `dallinger.post`, the socket
+  helpers, the tracker and the exit and error pages send the token, so
+  experiments that use them need no change. Migration notes:
   - Code that calls these routes in other ways must send the token, in the
     `X-Dallinger-Participant-Token` header, or as the `participant_token`
     parameter for a navigation, a form or a WebSocket.
