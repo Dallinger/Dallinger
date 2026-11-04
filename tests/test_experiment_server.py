@@ -2056,19 +2056,17 @@ class TestTransformationGet:
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
 class TestNodeConnect:
-    def test_connects_to_another_node(self, a, webapp):
+    def test_connects_two_nodes_of_the_participant(self, a, webapp):
         node = _authenticated_node(a, webapp)
-        other = a.node(network=node.network, participant=_another_participant(a))
+        other = a.node(network=node.network, participant=node.participant)
         node_ids = (node.id, other.id)
         resp = webapp.post("/node/{}/connect/{}".format(*node_ids))
         assert resp.json["status"] == "success"
         vectors = models.Vector.query.all()
         assert [(v.origin_id, v.destination_id) for v in vectors] == [node_ids]
 
-    @pytest.mark.parametrize("direction", ["from", "both"])
-    def test_needs_the_other_nodes_token_for_a_vector_from_it(
-        self, a, webapp, direction
-    ):
+    @pytest.mark.parametrize("direction", ["to", "from", "both"])
+    def test_refuses_another_participants_node(self, a, webapp, direction):
         node = _authenticated_node(a, webapp)
         other = a.node(network=node.network, participant=_another_participant(a))
         resp = webapp.post(
@@ -2084,6 +2082,14 @@ class TestTransformationPost:
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.post("/transformation/123/123/123?transformation_type=BadClass")
         assert b"unknown_class: BadClass for parameter transformation_type" in resp.data
+
+    def test_parameter_error_leaves_out_the_token(self, webapp):
+        resp = webapp.post(
+            "/transformation/123/123/123"
+            "?transformation_type=BadClass&participant_token=secret"
+        )
+        assert b"unknown_class: BadClass" in resp.data
+        assert b"secret" not in resp.data
 
     def test_returns_error_for_invalid_node_id(self, webapp):
         resp = webapp.post("/transformation/123/123/123")

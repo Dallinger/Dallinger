@@ -601,7 +601,9 @@ var dallinger = (function () {
    * participant's worker id under the recruiter's parameter name, such as
    * ``workerId`` for MTurk or ``PROLIFIC_PID`` for Prolific. In the second
    * case the participant gets a new token, which replaces the one any other
-   * page of theirs holds.
+   * page of theirs holds. A page that already knows its participant doesn't
+   * call the server, so a scalar ``assignment_id`` is always refused: pass
+   * the entry information instead.
    *
    * @returns {jQuery.Deferred} See :ref:`deferreds-label`
    */

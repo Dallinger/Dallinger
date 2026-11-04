@@ -5,8 +5,8 @@
 ### Breaking Changes
 
 - Participant routes are now authenticated with a secret token, so a
-  participant, or anyone else, can no longer act as another participant by
-  sending their guessable `participant_id`. `POST /participant` returns a
+  request can no longer read or act for a participant through them just by
+  naming their guessable `participant_id`. `POST /participant` returns a
   `participant_token`, of which only a hash is stored, and
   `dallinger.createParticipant` keeps it in
   `dallinger.identity.participantToken`. These now require it:
@@ -17,9 +17,8 @@
   status 403 and the error code `participant_token_invalid`.
   `POST /transformation` also refuses infos that aren't the node's own or
   received by it. `POST /node/<node_id>/connect/<other_node_id>`, which
-  returned before doing anything, now connects the nodes; a vector from the
-  other node (`direction` `from` or `both`) needs that node's token. The
-  default
+  returned before doing anything, now connects the nodes, but only two
+  nodes of the participant whose token the request carries. The default
   `Experiment.check_worker_status`, `check_recruiter_exit` and
   `accept_websocket_connection` now require the token too, so
   `/worker_complete`, `/worker_failed`, `/recruiter-exit`,
@@ -31,9 +30,15 @@
   credential of its own. `dallinger.get`, `dallinger.post`, the socket
   helpers, the tracker and the exit and error pages send the token, so
   experiments that use them need no change; `dallinger.get` and
-  `dallinger.post` send it only to the page's own server. Error reports
-  saved by `/handle-error` and Dallinger's error logs leave the token out,
-  but access logs record the URLs that carry it, such as the exit page's.
+  `dallinger.post` send it only to the page's own server. The failed
+  request that `/handle-error` saves and Dallinger's error messages and
+  logs leave the token out, but access logs record the URLs that carry it,
+  such as the exit page's. Websocket messages still name their own sender:
+  the default `Experiment.handle_websocket_message` passes a message to
+  `send()`, which credits the participant its payload names, and `/chat`
+  channel messages aren't authenticated. An experiment that needs to know
+  who sent a message should override `handle_websocket_message`, whose
+  `participant_id` is the participant whose token the connection carried.
   Migration notes:
   - Code that calls these routes in other ways must send the token, in the
     `X-Dallinger-Participant-Token` header, or as the `participant_token`
@@ -48,6 +53,9 @@
     carrying their token, or their `worker_id` (as for MTurk or Prolific),
     which issues them a new token and makes the old one stop working. Its
     response always includes the participant's `unique_id` and `worker_id`.
+    `dallinger.loadParticipant(assignmentId)` with a bare assignment id is
+    therefore refused; pass the entry information, with the recruiter's
+    worker id parameter, instead.
   - The `participant` table has a new `auth_token_hash` column, so an
     experiment started with an earlier version needs a new database.
 

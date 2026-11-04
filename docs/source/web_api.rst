@@ -209,9 +209,8 @@ Returns a JSON description of the requested network as ``network``.
 
 Create vector(s) between the ``node`` and ``other_node`` by calling
 ``node.connect(whom=other_node)``. Direction can be passed as data and
-will be forwarded as an argument. A vector from ``other_node`` (direction
-``from`` or ``both``) needs the token of ``other_node``'s participant too.
-Calls experiment method ``vector_post_request(node, vectors)``. Returns a
+will be forwarded as an argument. Both nodes must belong to the participant
+whose token the request carries. Calls experiment method ``vector_post_request(node, vectors)``. Returns a
 list of JSON descriptions of the created vectors as ``vectors``.
 
 ::

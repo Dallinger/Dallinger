@@ -146,7 +146,8 @@ def check_for_protected_routes():
     protected = Experiment(no_configure=True).protected_routes
     if active_rule in protected:
         raise PermissionError(
-            f'Unauthorized call to protected route "{active_rule}": {request}'
+            f'Unauthorized call to protected route "{active_rule}": '
+            f"{request.method} {request.path}"
         )
 
 
@@ -924,7 +925,7 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
             return None
         else:
             msg = "{} {} request, {} not specified".format(
-                request.url, request.method, parameter
+                request.path, request.method, parameter
             )
             return error_response(error_type=msg)
 
@@ -939,7 +940,7 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
             return value
         except ValueError:
             msg = "{} {} request, non-numeric {}: {}".format(
-                request.url, request.method, parameter, value
+                request.path, request.method, parameter, value
             )
             return error_response(error_type=msg)
     elif parameter_type == "known_class":
@@ -950,7 +951,7 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
             return value
         except KeyError:
             msg = "{} {} request, unknown_class: {} for parameter {}".format(
-                request.url, request.method, value, parameter
+                request.path, request.method, value, parameter
             )
             return error_response(error_type=msg)
     elif parameter_type == "bool":
@@ -959,12 +960,12 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
             return value == "True"
         else:
             msg = "{} {} request, non-boolean {}: {}".format(
-                request.url, request.method, parameter, value
+                request.path, request.method, parameter, value
             )
             return error_response(error_type=msg)
     else:
-        msg = "/{} {} request, unknown parameter type: {} for parameter {}".format(
-            request.url, request.method, parameter_type, parameter
+        msg = "{} {} request, unknown parameter type: {} for parameter {}".format(
+            request.path, request.method, parameter_type, parameter
         )
         return error_response(error_type=msg)
 
@@ -1468,9 +1469,9 @@ def connect(node_id, other_node_id):
     """Connect to another node.
 
     The ids of both nodes must be speficied in the url.
-    You can also pass direction (to/from/both) as an argument. A vector from
-    the other node (``from`` or ``both``) needs that node's participant's
-    token too.
+    You can also pass direction (to/from/both) as an argument. Both nodes
+    must belong to the participant whose token the request carries, so a
+    participant can't add a vector that lets them transmit to someone else.
     """
     exp = Experiment()
 
@@ -1492,7 +1493,7 @@ def connect(node_id, other_node_id):
             error_type="/node/connect, other node does not exist",
             participant=node.participant,
         )
-    if direction != "to" and not _request_owns(other_node):
+    if not _request_owns(other_node):
         return participant_token_refusal()
 
     # execute the request

@@ -145,8 +145,10 @@ code ``1008`` and the reason ``unknown participant``. Dallinger then asks
 :func:`~dallinger.experiment.Experiment.accept_websocket_connection` whether the
 connection may open. It is given the participant id and the connection's
 ``scope``. By default it accepts a connection that carries the participant's
-secret token (see :ref:`participant-tokens`), so that the participant id says
-who is sending the messages. ``dallinger.openExperimentSocket`` sends the token
+secret token (see :ref:`participant-tokens`), so that the ``participant_id``
+given to :func:`~dallinger.experiment.Experiment.handle_websocket_message` is
+the participant who opened the connection, not one the page merely named.
+``dallinger.openExperimentSocket`` sends the token
 from ``dallinger.identity.participantToken``.
 
 An experiment that needs more can override the method. An override replaces the
@@ -394,7 +396,9 @@ sent them: a message published through ``/chat`` is relayed as the client wrote
 it, so a sender or participant id in its payload is whatever the client put
 there. For messages attributed to their sender, use ``/experiment-socket``,
 where :func:`~dallinger.experiment.Experiment.handle_websocket_message` is given
-the admitted participant's id.
+the admitted participant's id, and override that method to use it. The default
+passes the message to :func:`~dallinger.experiment.Experiment.send`, which,
+like a channel message, credits whichever participant the payload names.
 
 Naming a participant who has no open connection, or who is not connected to this
 deployment at all, delivers nothing and is not an error. As with a broadcast, no
