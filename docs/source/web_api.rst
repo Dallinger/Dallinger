@@ -285,20 +285,6 @@ the created node as ``node``.
 
 ::
 
-    POST /notifications
-    GET /notifications
-
-This is the route to which notifications from AWS are sent. It is also
-possible to send your own notifications to this route, thereby
-simulating notifications from AWS. Necessary arguments are
-``Event.1.EventType``, which can be ``AssignmentAccepted``,
-``AssignmentAbandoned``, ``AssignmentReturned`` or
-``AssignmentSubmitted``, and ``Event.1.AssignmentId``, which is the id
-of the relevant assignment. In addition, Dallinger uses a custom event
-type of ``NotificationMissing``.
-
-::
-
     GET /participant/<participant_id>
 
 Returns a JSON description of the requested participant as

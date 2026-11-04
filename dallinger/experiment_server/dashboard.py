@@ -1079,11 +1079,21 @@ def dashboard_database():
     if polymorphic_identity == "None":
         polymorphic_identity = None
 
-    if table is None and polymorphic_identity is None:
+    if table is None:
+        if polymorphic_identity is not None:
+            abort(400, "Missing table parameter")
         table = "participant"
 
+    if table not in dallinger.db.Base.metadata.tables:
+        abort(404, f"Unknown table: {table}")
+
     if polymorphic_identity is not None:
-        cls = get_polymorphic_mapping(table)[polymorphic_identity]
+        cls = get_polymorphic_mapping(table).get(polymorphic_identity)
+        if cls is None:
+            abort(
+                404,
+                f"Unknown polymorphic identity for table {table}: {polymorphic_identity}",
+            )
         label = cls.__name__
     else:
         label = table.capitalize()
