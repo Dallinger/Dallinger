@@ -1119,8 +1119,9 @@ var dallinger = (function () {
 
   /**
    * Call ``callback`` with the close code and reason if the server refuses the
-   * connection, as the ``/experiment-socket`` route does for an unknown
-   * participant. The connection is not retried either way, and without a
+   * connection, as ``/experiment-socket`` and ``/chat`` do for an unknown
+   * participant or when ``accept_websocket_connection`` returns false. The
+   * connection is not retried either way, and without a
    * callback the refusal is logged to the console.
    *
    * @param {function} callback - Called with the close code and reason
