@@ -514,6 +514,17 @@ class TestDashboardMonitorRoute:
             resp_text = resp.data.decode("utf8")
             assert '"custom_vis_option": 3' in resp_text
 
+    def test_network_structure_cannot_close_the_script(self, webapp_admin):
+        with mock.patch(
+            "dallinger.experiment.Experiment.network_structure"
+        ) as network_structure:
+            network_structure.return_value = {"answer": "</script><img src=x>"}
+            resp = webapp_admin.get("/dashboard/monitoring")
+            assert resp.status_code == 200
+            resp_text = resp.data.decode("utf8")
+            assert "</script><img" not in resp_text
+            assert "\\u003c/script\\u003e\\u003cimg src=x\\u003e" in resp_text
+
 
 @pytest.mark.usefixtures("experiment_dir_merged", "webapp")
 class TestDashboardNetworkInfo:
@@ -895,6 +906,25 @@ class TestDashboardDatabase:
         opts = panes["options"]["object_type"]
         assert any(o["label"] == o["value"].capitalize() for o in opts)
         assert all({"label", "value", "total", "count"} <= set(o.keys()) for o in opts)
+
+    def test_table_search_panes_escape_labels(self, a, db_session):
+        from dallinger.experiment_server.experiment_server import Experiment
+
+        a.participant(worker_id="<img src=x>", hit_id="H1")
+
+        panes = Experiment().table_search_panes(
+            table="participant",
+            polymorphic_identity=None,
+            search_value="",
+            pane_columns=["worker_id"],
+            column_filters={},
+            threshold=1.0,
+            max_distinct=200,
+        )
+
+        [option] = panes["options"]["worker_id"]
+        assert option["label"] == "&lt;img src=x&gt;"
+        assert option["value"] == "<img src=x>"
 
     def test_table_columns_for_network_and_node(self, a, db_session):
         """Smoke-test columns for other tables and that schema order is preserved,

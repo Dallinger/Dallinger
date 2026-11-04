@@ -1,6 +1,7 @@
 """The base experiment class."""
 
 import datetime
+import html
 import inspect
 import json
 import logging
@@ -2028,7 +2029,8 @@ class Experiment:
                 value = label if key == "object_type" else raw
                 col_opts.append(
                     {
-                        "label": label,
+                        # SearchPanes inserts labels as HTML.
+                        "label": html.escape(label),
                         "value": value,
                         "total": totals_map.get(raw, 0),
                         "count": counts_map.get(raw, 0),
