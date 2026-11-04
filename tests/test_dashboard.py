@@ -951,6 +951,33 @@ class TestDashboardDatabase:
         assert isinstance(payload["data"], list)
         assert any(row.get("worker_id") == "ROUTE_TEST" for row in payload["data"])
 
+    def test_table_without_polymorphic_identity_lists_all_rows(
+        self, a, active_config, webapp_admin
+    ):
+        node = a.node()
+        a.info(origin=node, contents="plain info")
+        a.gene(origin=node, contents="a gene")
+
+        assert webapp_admin.get("/dashboard/database?table=info").status_code == 200
+        resp = webapp_admin.get(
+            "/dashboard/database?table=info&draw=1&start=0&length=10"
+            "&columns[0][data]=type&columns[1][data]=contents"
+        )
+        assert resp.status_code == 200
+        rows = resp.get_json()["data"]
+        assert {(r["type"], r["contents"]) for r in rows} == {
+            ("info", "plain info"),
+            ("gene", "a gene"),
+        }
+
+    @pytest.mark.parametrize(
+        "query", ["table=nonexistent", "table=info&polymorphic_identity=nonexistent"]
+    )
+    def test_unknown_table_or_polymorphic_identity(
+        self, active_config, webapp_admin, query
+    ):
+        assert webapp_admin.get(f"/dashboard/database?{query}").status_code == 404
+
     def test_database_output_initial_page(self, a, active_config, mock_renderer):
         """Initial /database render should produce template args with ajax wiring
         and Actions menu; no data rows in server-side mode."""
