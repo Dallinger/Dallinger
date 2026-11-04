@@ -543,7 +543,9 @@ def launch():
             simple=True,
         )
     if not dashboard.is_admin_authorization(request.authorization):
-        app.logger.warning("Refused an unauthenticated POST /launch.")
+        app.logger.warning(
+            "Refused a POST /launch with a missing or wrong dashboard login."
+        )
         return error_response(
             error_text="Launching the experiment requires the dashboard "
             "user and password (HTTP Basic authentication).",
