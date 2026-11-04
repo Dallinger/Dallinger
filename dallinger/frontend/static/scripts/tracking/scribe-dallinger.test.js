@@ -35,4 +35,9 @@ describe('ScribeDallingerTracker', function () {
     expect(request.details.source.url.query).toEqual({page: '2'});
     expect(request.details.target.url.query).toEqual({page: '2'});
   });
+
+  test('leaves the token out of the form fields it records', () => {
+    track({form: {formId: 'error-response', participant_token: 'secret'}});
+    expect(request.details.form).toEqual({formId: 'error-response'});
+  });
 });

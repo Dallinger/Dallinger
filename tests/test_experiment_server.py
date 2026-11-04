@@ -1870,6 +1870,20 @@ class TestInfoRoutePOST:
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
 class TestTrackingEventRoutePOST:
+    @pytest.mark.parametrize("route", ["/tracking_event/1", "/info/1"])
+    def test_cors_preflight_allows_the_token_header(self, webapp, route):
+        resp = webapp.options(
+            route,
+            headers={
+                "Origin": "https://other.example",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "X-Dallinger-Participant-Token",
+            },
+        )
+        assert resp.status_code == 200
+        allowed = resp.headers["Access-Control-Allow-Headers"]
+        assert "X-DALLINGER-PARTICIPANT-TOKEN" in allowed.upper()
+
     def test_invalid_node_id_returns_error(self, webapp):
         nonexistent_node_id = 999
         data = {"details": '{"key": "value"}'}

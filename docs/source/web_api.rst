@@ -48,7 +48,8 @@ The routes refuse a missing or wrong token with status ``403`` and the
 In a bot, ``BotBase.token_headers()`` returns the header.
 
 Routes an experiment adds with
-:func:`~dallinger.experiment.experiment_route` aren't checked. One that acts for
+:func:`~dallinger.experiment.experiment_route`, or in an ``extra_routes``
+blueprint, aren't checked. One that acts for
 a participant should refuse a request without their token, using the helpers
 in ``dallinger.experiment_server.utils``::
 

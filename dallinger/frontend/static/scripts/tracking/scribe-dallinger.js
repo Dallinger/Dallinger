@@ -46,6 +46,9 @@ ScribeDallingerTracker.prototype.stripPII = function(value) {
   // Remove possible PII
   delete value.fingerprint;
   delete value.visitorId;
+  if (value.form) {
+    delete value.form.participant_token;
+  }
   try {
     delete value.source.url.query.worker_id;
     delete value.source.url.query.workerId;

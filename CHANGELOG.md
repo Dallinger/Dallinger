@@ -40,7 +40,7 @@
   who sent a message should override `handle_websocket_message`, whose
   `participant_id` is the participant the connection was admitted for (by
   default, the one whose token it carried). Routes an experiment adds with
-  `experiment_route` aren't checked; one that acts for a participant should
+  `experiment_route` or an `extra_routes` blueprint aren't checked; one that acts for a participant should
   call `request_authenticates` and `participant_token_refusal` from
   `dallinger.experiment_server.utils`, as the `mcmcp` demo's `/choice` route
   now does.

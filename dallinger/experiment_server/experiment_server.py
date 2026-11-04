@@ -1643,7 +1643,7 @@ def node_received_infos(node_id):
     return success_response(infos=[i.__json__() for i in infos])
 
 
-@app.route("/tracking_event/<int:node_id>", methods=["POST"])
+@app.route("/tracking_event/<int:node_id>", methods=["POST", "OPTIONS"])
 @crossdomain(origin="*", headers=[PARTICIPANT_TOKEN_HEADER])
 def tracking_event_post(node_id):
     """Enqueue a TrackingEvent worker for the specified Node."""
@@ -1670,7 +1670,7 @@ def tracking_event_post(node_id):
     return success_response(details=details)
 
 
-@app.route("/info/<int:node_id>", methods=["POST"])
+@app.route("/info/<int:node_id>", methods=["POST", "OPTIONS"])
 @crossdomain(origin="*", headers=[PARTICIPANT_TOKEN_HEADER])
 def info_post(node_id):
     """Create an info.
