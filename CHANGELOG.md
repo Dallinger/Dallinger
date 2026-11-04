@@ -4,6 +4,11 @@
 
 ### Changed
 
+- Dallinger's Docker images (`dallinger` and `dallinger-bot`) are now based
+  on Debian 13 (Trixie) instead of Debian 12 (Bookworm). The `python3`
+  command in the image is still Python 3.14. Library packages that Debian
+  renamed for 64-bit time, such as `libasound2`, still install under the
+  old name: the new package (`libasound2t64`) provides it.
 - Dallinger's JavaScript tooling now targets Node.js 22 LTS instead of
   Node 20, which reached end of life in April 2026. Contributors building
   the documentation or running the JavaScript tests need Node 22.15 or
@@ -532,6 +537,15 @@
   build a command for a missing value, one containing control characters,
   which a terminal could act on when pasted, or one containing a backslash,
   which the fish shell treats as an escape inside single quotes.
+- The Monitoring and Database dashboards escape participant data before
+  the browser reads it as HTML. Previously a participant answer or other
+  database value containing HTML could run in the admin's browser: on
+  `/dashboard/monitoring` by closing the page's script with `</script>`, and
+  on `/dashboard/database` through the table's search-pane filter labels.
+  The Database dashboard's script options, which include the page's query
+  string, are escaped the same way as a precaution.
+  `Experiment.table_search_panes` now returns HTML-escaped labels;
+  experiments that override it should escape their own labels too.
 - Error pages show a participant's worker, assignment and HIT ids only to a
   request that carries the participant's `unique_id`, or their worker and
   assignment ids. Requests that name only a
@@ -1388,6 +1402,20 @@
   including `immutable` 3.8.4 for `browser-sync`. `npm audit` still reports
   `deepmerge` (no patched release yet) and `resp-modifier`, which needs
   `minimatch` 3 and only runs in the `npm run dev` proxy.
+- Updated Python dependencies (regenerated `requirements.txt`,
+  `dev-requirements.txt`, and `constraints.txt`; bumped the ruff pre-commit
+  hook to v0.17.3). Runtime updates include WTForms 3.3.2, certifi
+  2026.10.23, boto3/botocore 1.43.123, and uv 0.13.6. Removed the
+  `rpds-py<2026.5.1` dependency, which Dallinger listed only to cap the
+  version; dev installs now get rpds-py 2026.9.1 through `jsonschema`.
+- Dallinger now requires RQ 3 (`rq>=3,<4`) and pins RQ 3.0.0. The
+  gevent worker passes each job its execution and keeps that execution alive
+  for the job's whole timeout, so jobs no longer fail with `perform_job()
+  missing 1 required positional argument: 'execution'`. Under RQ 2, for
+  example in a Docker image built from a local Dallinger checkout, the worker
+  now refuses to start instead of losing every job. Experiments whose
+  `constraints.txt` pins RQ 2 must regenerate it with `dallinger constraints
+  generate` before using this version.
 
 ### Removed
 
