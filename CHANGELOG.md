@@ -1386,6 +1386,15 @@
   including `immutable` 3.8.4 for `browser-sync`. `npm audit` still reports
   `deepmerge` (no patched release yet) and `resp-modifier`, which needs
   `minimatch` 3 and only runs in the `npm run dev` proxy.
+- Updated Python dependencies (regenerated `requirements.txt`,
+  `dev-requirements.txt`, and `constraints.txt`; bumped the ruff pre-commit
+  hook to v0.17.3). Runtime updates include WTForms 3.3.2, certifi
+  2026.10.23, boto3/botocore 1.43.123, and uv 0.13.6. Removed the
+  `rpds-py<2026.5.1` dependency, which Dallinger listed only to cap the
+  version; dev installs now get rpds-py 2026.9.1 through `jsonschema`.
+- Dallinger now requires RQ below 3 (`rq<3`). RQ 3 changed
+  `Worker.perform_job`, and with it Dallinger's gevent worker fails every job
+  with `perform_job() missing 1 required positional argument: 'execution'`.
 
 ### Removed
 
