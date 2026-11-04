@@ -727,13 +727,23 @@ class TestProlificRecruiter:
             f"{participant_id}",
         )
 
-    def test_submission_listener_refuses_another_assignment(
-        self, a, queue, webapp, db_session
+    @pytest.mark.parametrize(
+        "form",
+        [
+            {"assignmentId": "other"},
+            {},
+            {"assignmentId": "some assignment ID", "participantId": "999999"},
+            {"assignmentId": "some assignment ID", "participantId": "abc"},
+            {"assignmentId": "some assignment ID", "participantId": ""},
+        ],
+    )
+    def test_submission_listener_refuses_unknown_participant_or_assignment(
+        self, a, queue, webapp, db_session, form
     ):
         participant = a.participant(assignment_id="some assignment ID")
         response = webapp.post(
             "/prolific-submission-listener",
-            data={"assignmentId": "other", "participantId": participant.id},
+            data={"participantId": participant.id, **form},
         )
 
         assert response.status_code == 403
