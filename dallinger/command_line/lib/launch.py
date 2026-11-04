@@ -16,7 +16,8 @@ checks for it, and for a 2xx from the app's own ``/health``, before waiting
 for the public URL. The front door trusts forwarded headers from private
 networks, Caddy passes ``Host`` through, and the app runs behind ``ProxyFix``,
 so the app computes its public base URL and recruitment links as if the
-request had come from outside.
+request had come from outside. ``/launch`` requires the dashboard
+credentials, which the container's shell reads from its environment.
 
 ``/launch`` is not idempotent: it can open recruitment on MTurk or Prolific
 and then fail in a later step, and a gateway error can follow a request the
@@ -41,7 +42,13 @@ import click
 import paramiko
 import requests
 
-from dallinger.deployment import BACKOFF_FACTOR, DEFAULT_DELAY, MAX_ATTEMPTS
+from dallinger.deployment import (
+    BACKOFF_FACTOR,
+    DEFAULT_DELAY,
+    LAUNCH_REFUSED_BODY_LENGTH,
+    MAX_ATTEMPTS,
+    LaunchRefused,
+)
 from dallinger.hibernation import STATE_HIBERNATING, STATE_WAKING
 from dallinger.utils import print_bold
 
@@ -142,6 +149,9 @@ def internal_launch_command(target):
     """Return the server-side command that POSTs ``/launch`` to the front door.
 
     curl prints the response body, then the HTTP status on its own last line.
+    The web container's shell fills in the dashboard credentials that
+    ``/launch`` requires from the container's environment, so the command
+    holds no secret and can be printed.
     """
     origin = urlsplit(target.public_origin)
     args = [
@@ -159,7 +169,10 @@ def internal_launch_command(target):
         "\\n%{http_code}\\n",
         FRONT_DOOR_LAUNCH_URL,
     ]
-    return target.compose_exec("curl " + " ".join(quote(arg) for arg in args))
+    script = 'exec curl -u "${dashboard_user:-admin}:${dashboard_password}" ' + " ".join(
+        quote(arg) for arg in args
+    )
+    return target.compose_exec(f"sh -c {quote(script)}")
 
 
 def _split_status(stdout):
@@ -282,6 +295,7 @@ def launch_from_server(executor, target):
     """
     command = internal_launch_command(target)
     sent = None
+    refused = None
     try:
         for _ in _attempts():
             data = _send_launch(executor, target, command)
@@ -290,6 +304,8 @@ def launch_from_server(executor, target):
     except _LaunchSent as exc:
         sent = exc
         print(exc)
+    except LaunchRefused as exc:
+        refused = exc
     print_bold("Check the web container logs:")
     print(target.ssh(f"docker compose -f {target.compose_file} logs web"))
     if sent:
@@ -299,6 +315,8 @@ def launch_from_server(executor, target):
     print(target.ssh(command))
     print_bold("Or remove the app:")
     print(target.destroy_command)
+    if refused:
+        raise refused
     if sent:
         raise click.ClickException(
             f"The launch request may have reached {target.app} but did not "
@@ -328,6 +346,14 @@ def _send_launch(executor, target, command):
     if status is not None:
         if 200 <= status < 300 and _is_json_object(body):
             return json.loads(body)
+        if status == 403:
+            raise LaunchRefused(
+                f"The server refused the launch of {target.app} (HTTP 403). The "
+                "app may not have accepted the web container's dashboard_user "
+                "and dashboard_password, or a proxy in front of it refused the "
+                "request. The experiment was not launched and recruitment has "
+                f"not started. Response: {body[:LAUNCH_REFUSED_BODY_LENGTH]}"
+            )
         raise _LaunchSent(
             f"The launch request to {target.app} returned HTTP {status}:\n{body}"
         )

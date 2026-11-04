@@ -1,3 +1,4 @@
+import hmac
 import json
 import logging
 import os
@@ -266,8 +267,14 @@ dashboard_tabs = DashboardTabs(
 
 
 def load_user(userid):
+    """Return the admin user for a session's ``userid``.
+
+    ``None`` once the server has no dashboard password, so clearing it ends
+    existing sessions and remember-me cookies. In Codespaces,
+    ``load_user_from_request`` still logs the admin in.
+    """
     admin_user = current_app.config.get("ADMIN_USER")
-    if userid != admin_user.id:
+    if userid != admin_user.id or not admin_user.password:
         return
     return admin_user
 
@@ -279,17 +286,30 @@ def should_auto_authenticate():
     return is_running_in_codespaces()
 
 
+def is_admin_authorization(auth):
+    """Return True if HTTP Basic ``auth`` carries the dashboard admin's credentials.
+
+    False when the server has no dashboard password, so an empty password
+    never matches.
+    """
+    admin_user = current_app.config.get("ADMIN_USER")
+    if not (auth and admin_user and admin_user.password):
+        return False
+    username = (auth.username or "").encode()
+    password = (auth.password or "").encode()
+    # Compare both, so the time taken doesn't tell which one was wrong.
+    user_ok = hmac.compare_digest(username, str(admin_user.id).encode())
+    password_ok = hmac.compare_digest(password, str(admin_user.password).encode())
+    return user_ok and password_ok
+
+
 def load_user_from_request(request):
     admin_user = current_app.config.get("ADMIN_USER")
     if should_auto_authenticate():
         return admin_user
 
-    auth = request.authorization
-    if auth:
-        if auth["username"] != admin_user.id:
-            return
-        if auth["password"] == admin_user.password:
-            return admin_user
+    if is_admin_authorization(request.authorization):
+        return admin_user
     return
 
 

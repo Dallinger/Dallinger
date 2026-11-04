@@ -26,6 +26,7 @@ from dallinger.db import redis_conn
 from dallinger.deployment import (
     DevelopmentDeployment,
     handle_launch_data,
+    launch_auth,
     stop_signals_raise_keyboard_interrupt,
 )
 from dallinger.utils import (
@@ -121,10 +122,12 @@ def debug(port, skip_flask, no_browsers=False, verbose=False):
     port = get_config().get("base_port")
 
     q = Queue("default", connection=redis_conn)
+    # Any worker on this Redis database may run the job, so it carries the login.
+    kwargs = {"port": port, "auth": launch_auth()}
     if no_browsers:
-        job = q.enqueue_call(launch_app_without_browsers, kwargs={"port": port})
+        job = q.enqueue_call(launch_app_without_browsers, kwargs=kwargs)
     else:
-        job = q.enqueue_call(launch_app_and_open_browser, kwargs={"port": port})
+        job = q.enqueue_call(launch_app_and_open_browser, kwargs=kwargs)
 
     if not skip_flask:
         try:
@@ -233,25 +236,27 @@ def _bootstrap(exp_config=None, experiment_files=None):
         raise click.ClickException(str(ex))
 
 
-def launch_app_and_open_browser(port):
-    launch_app_without_browsers(port)
-    _async_browser("dashboard", port, quiet=True)
+def launch_app_and_open_browser(port, auth=None):
+    launch_app_without_browsers(port, auth=auth)
+    _async_browser("dashboard", port, quiet=True, auth=auth)
     time.sleep(0.1)  # A little delay to ensure they always open in the same order
-    _async_browser("ad", port, quiet=True)
+    _async_browser("ad", port, quiet=True, auth=auth)
 
 
-def launch_app_without_browsers(port):
-    """Launch the app and print the participant link and dashboard login."""
-    launch_data = _launch_app(port)
-    config = get_config(load=True)
+def launch_app_without_browsers(port, auth=None):
+    """Launch the app and print the participant link and dashboard login.
+
+    ``auth`` is the ``(user, password)`` to launch with; it defaults to the
+    dashboard login in this process's config.
+    """
+    user, password = auth or launch_auth()
+    launch_data = _launch_app(port, auth=(user, password))
     details = launch_message_rows(launch_data.get("recruitment_msg"))
     details.append(
         (
             "Dashboard",
             "{}dashboard/develop (user {}, password {})".format(
-                BASE_URL.format(port),
-                config.get("dashboard_user"),
-                config.get("dashboard_password"),
+                BASE_URL.format(port), user, password
             ),
         )
     )
@@ -332,9 +337,9 @@ def echo_ready(details=(), after=()):
     click.echo("\n".join(lines), color=colour)
 
 
-def _launch_app(port):
+def _launch_app(port, auth=None):
     url = BASE_URL.format(port) + "launch"
-    return handle_launch_data(url, error=log, delay=1.0, context="local")
+    return handle_launch_data(url, error=log, delay=1.0, context="local", auth=auth)
 
 
 @develop.command()
@@ -355,12 +360,16 @@ def browser(route=None, port=None):
     _browser(route=route, port=port)
 
 
-def _browser(route=None, port=5000, quiet=False):
+def _browser(route=None, port=5000, quiet=False, auth=None):
     """Open one of the supported routes with appropriate path and URL parameters.
 
-    Unless ``quiet``, the URL is printed first.
+    Unless ``quiet``, the URL is printed first. ``auth`` is the dashboard
+    ``(user, password)``; it defaults to the login in this process's config.
     """
-    config = get_config(load=True)
+    if auth:
+        config = {"dashboard_user": auth[0], "dashboard_password": auth[1]}
+    else:
+        config = get_config(load=True)
     url_factory = valid_routes.get(route)
     if url_factory is not None:
         url = url_factory(config, port)
@@ -373,11 +382,11 @@ def _browser(route=None, port=5000, quiet=False):
         )
 
 
-def _async_browser(route=None, port=5000, quiet=False):
+def _async_browser(route=None, port=5000, quiet=False, auth=None):
     # The _browser call is pretty slow, so we run it in a thread
     # to allow us to open multiple browsers at the same time
     threading.Thread(
         target=_browser,
         name=f"Open {route}",
-        kwargs={"route": route, "port": port, "quiet": quiet},
+        kwargs={"route": route, "port": port, "quiet": quiet, "auth": auth},
     ).start()

@@ -82,7 +82,7 @@ def slow_app(experiment_dir, active_config, env):
     their requests one after another on its own — meaning no collision is
     detected and the tests pass by luck.
     """
-    from dallinger.experiment_server.experiment_server import app, launch
+    from dallinger.experiment_server.experiment_server import app, launch_experiment
     from dallinger.pytest_dallinger import uncached_jinja_loader
 
     os.environ["EXPERIMENT_CLASS_NAME"] = "ZSlowTestExperiment"
@@ -91,7 +91,7 @@ def slow_app(experiment_dir, active_config, env):
         app.jinja_loader = uncached_jinja_loader(app)
         app.config.update({"DEBUG": True, "TESTING": True})
         with db.sessions_scope():
-            launch()
+            launch_experiment()
         yield app
     finally:
         os.environ.pop("EXPERIMENT_CLASS_NAME", None)

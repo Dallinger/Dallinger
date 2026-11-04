@@ -10,7 +10,6 @@ import threading
 from pathlib import Path
 
 import pytest
-import requests
 
 from dallinger import db
 from dallinger.models import Info, RealtimeSession
@@ -20,6 +19,7 @@ from .live_server import (
     demo_server,
     frames,
     game_message,
+    launch,
     sign_up,
     wait_for_session,
 )
@@ -101,7 +101,7 @@ def play(port, participant_id, greets, out):
 @pytest.mark.slow
 def test_a_pair_chats_and_plays_both_rounds(bargaining_server):
     base = "http://127.0.0.1:{}".format(bargaining_server)
-    requests.post(base + "/launch").raise_for_status()
+    launch(base)
     # The second player's node fills the pair, which starts the first round
     players = [sign_up(base, number) for number in (1, 2)]
     outs = {player: {} for player in players}

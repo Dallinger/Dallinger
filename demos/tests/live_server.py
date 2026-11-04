@@ -18,6 +18,7 @@ import simple_websocket
 from dallinger import db
 
 BIN = Path(sys.executable).parent
+DASHBOARD_LOGIN = ("admin", "live-test-password")
 
 
 def free_port():
@@ -60,6 +61,8 @@ def demo_server(demo, tmp_path, settings=None):
         "SKIP_PYTHON_VERSION_CHECK": "1",
         "mode": "debug",
         "threads": "1",
+        "dashboard_user": DASHBOARD_LOGIN[0],
+        "dashboard_password": DASHBOARD_LOGIN[1],
         **(settings or {}),
     }
     db.init_db(drop_all=True)
@@ -90,6 +93,11 @@ def demo_server(demo, tmp_path, settings=None):
             print("--- {}.log ---".format(name))
             print((directory / (name + ".log")).read_text(errors="replace"))
         db.session.remove()
+
+
+def launch(base):
+    """Launch the experiment as its deployer does."""
+    requests.post(base + "/launch", auth=DASHBOARD_LOGIN).raise_for_status()
 
 
 def sign_up(base, number):

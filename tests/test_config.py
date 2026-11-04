@@ -8,7 +8,13 @@ import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 import dallinger.config
-from dallinger.config import LOCAL_CONFIG, Configuration, default_keys, get_config
+from dallinger.config import (
+    LOCAL_CONFIG,
+    ConfigSource,
+    Configuration,
+    default_keys,
+    get_config,
+)
 
 
 def _layer_count(config):
@@ -261,6 +267,30 @@ worldwide = false
             del os.environ["num_participants"]
         config.ready = True
         assert config.get("num_participants") == 1
+
+    def test_empty_dashboard_login_environment_variables_count_as_unset(
+        self, monkeypatch
+    ):
+        config = Configuration()
+        config.register("dashboard_user", str)
+        config.register("dashboard_password", str)
+        config.register("contact_email_on_error", str)
+        config.extend(
+            {
+                "dashboard_user": "admin",
+                "dashboard_password": "filled",
+                "contact_email_on_error": "me@example.com",
+            },
+            source=ConfigSource.EXPERIMENT_CONFIG,
+        )
+        monkeypatch.setenv("dashboard_user", "")
+        monkeypatch.setenv("dashboard_password", "")
+        monkeypatch.setenv("contact_email_on_error", "")
+        config.load_from_environment()
+        config.ready = True
+        assert config.get("dashboard_user") == "admin"
+        assert config.get("dashboard_password") == "filled"
+        assert config.get("contact_email_on_error") == ""
 
     def test_threads_warns_and_maps_to_web_processes(self):
         config = _default_config()

@@ -125,16 +125,16 @@ def _load_config():
 
 
 @app.before_request
-@launch_error_guard(
-    "Failed to load experiment before /launch while checking protected routes"
-)
 def check_for_protected_routes():
-    if current_user.is_authenticated:
-        return
-
     try:
         active_rule = request.url_rule.rule
     except AttributeError:
+        return
+    if active_rule == "/launch":
+        # ``launch`` checks its own credentials; don't instantiate the experiment.
+        return
+
+    if current_user.is_authenticated:
         return
 
     protected = Experiment(no_configure=True).protected_routes
@@ -145,16 +145,14 @@ def check_for_protected_routes():
 
 
 def _config():
-    from .dashboard import should_auto_authenticate
-
     app.secret_key = app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
     config = get_config(load=True)
 
-    if should_auto_authenticate() or config.get("dashboard_password", None):
-        app.config["ADMIN_USER"] = dashboard.User(
-            userid=config.get("dashboard_user", "admin"),
-            password=config.get("dashboard_password", ""),
-        )
+    # Set every time so it tracks the config; an empty password matches nothing.
+    app.config["ADMIN_USER"] = dashboard.User(
+        userid=config.get("dashboard_user", None) or "admin",
+        password=config.get("dashboard_password", None) or "",
+    )
 
     return config
 
@@ -529,7 +527,51 @@ def handle_error():
 
 @app.route("/launch", methods=["POST"])
 def launch():
-    """Launch the experiment."""
+    """Launch the experiment, if the request has the dashboard credentials.
+
+    Launching runs the experiment's setup and opens recruitment, which can
+    publish studies and spend money, so only the deployer may call it. The
+    deploy commands send the dashboard user and password with HTTP Basic
+    authentication.
+    """
+    if _is_cross_site_request():
+        app.logger.warning("Refused a cross-site POST /launch.")
+        return error_response(
+            error_text="The experiment can't be launched from another site's page.",
+            status=403,
+            simple=True,
+        )
+    if not dashboard.is_admin_authorization(request.authorization):
+        app.logger.warning(
+            "Refused a POST /launch with a missing or wrong dashboard login."
+        )
+        return error_response(
+            error_text="Launching the experiment requires the dashboard "
+            "user and password (HTTP Basic authentication).",
+            status=403,
+            simple=True,
+        )
+    return launch_experiment()
+
+
+def _is_cross_site_request():
+    """Return whether a browser sent the request from another site's page.
+
+    Browsers attach saved HTTP Basic credentials, such as the dashboard login
+    ``dallinger debug`` opens, to cross-site form posts too. Deploy clients
+    (requests, curl) send neither ``Sec-Fetch-Site`` nor ``Origin``.
+    """
+    fetch_site = request.headers.get("Sec-Fetch-Site")
+    if fetch_site is not None:
+        return fetch_site not in ("same-origin", "none")
+    origin = request.headers.get("Origin")
+    if origin is None:
+        return False
+    return origin.rstrip("/").lower() != request.host_url.rstrip("/").lower()
+
+
+def launch_experiment():
+    """Set up the experiment, open recruitment and start background tasks."""
     try:
         db.init_db(drop_all=False)
         exp = Experiment()

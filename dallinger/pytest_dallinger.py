@@ -434,7 +434,7 @@ def webapp(active_config, reset_sys_modules, env):
     not caching the Flask template search path, and clearing out sys.modules
     before loading the Flask app.
     """
-    from dallinger.experiment_server.experiment_server import app, launch
+    from dallinger.experiment_server.experiment_server import app, launch_experiment
 
     # look in the cwd for test's templates, and make sure the template loader
     # uses that directory to search for them.
@@ -445,7 +445,7 @@ def webapp(active_config, reset_sys_modules, env):
 
     # Launch the app
     with db.sessions_scope():
-        launch()
+        launch_experiment()
 
     client = app.test_client()
     yield client

@@ -42,6 +42,11 @@ marker = object()
 LOCAL_CONFIG = "config.txt"
 SENSITIVE_KEY_NAMES = ("access_id", "access_key", "password", "secret", "token")
 
+#: Keys whose empty environment variable counts as unset. Deploy commands
+#: fill an empty dashboard login into ``config.txt``, which an empty variable
+#: inherited by the server and worker would otherwise outrank.
+EMPTY_ENV_MEANS_UNSET = ("dashboard_user", "dashboard_password")
+
 #: The logging level for each value, 0 to 4, of the ``loglevel`` and
 #: ``loglevel_worker`` settings.
 LOG_LEVELS = (
@@ -522,7 +527,13 @@ class Configuration:
             parser.write(fp)
 
     def load_from_environment(self):
-        self.extend(os.environ, cast_types=True, source=ConfigSource.ENVIRONMENT)
+        """Load the environment variables, skipping empty dashboard logins."""
+        environ = {
+            key: value
+            for key, value in os.environ.items()
+            if value.strip() or key not in EMPTY_ENV_MEANS_UNSET
+        }
+        self.extend(environ, cast_types=True, source=ConfigSource.ENVIRONMENT)
 
     def load_defaults(self, strict=True):
         """Load default configuration values"""
