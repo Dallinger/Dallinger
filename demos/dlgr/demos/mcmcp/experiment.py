@@ -13,6 +13,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from dallinger import db
 from dallinger.bots import BotBase
 from dallinger.experiment import Experiment, experiment_route
+from dallinger.experiment_server.utils import (
+    participant_token_refusal,
+    request_authenticates,
+)
 from dallinger.networks import Chain
 
 try:
@@ -68,6 +72,8 @@ class MCMCP(Experiment):
         try:
             exp = MCMCP()
             node = db.session.query(models.Agent).get(node_id)
+            if not request_authenticates(node.participant):
+                return participant_token_refusal()
             infos = node.infos()
 
             if choice == 0:

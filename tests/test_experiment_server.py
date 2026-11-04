@@ -861,6 +861,12 @@ class TestWorkerFailed:
         resp = webapp.get("/worker_failed?participant_id={}".format(participant.id))
         assert resp.status_code == 200
 
+    def test_without_participant_token_is_refused(self, a, webapp, db_session):
+        participant = a.participant()
+        resp = webapp.get("/worker_failed?participant_id={}".format(participant.id))
+        assert resp.status_code == 403
+        assert db_session.merge(participant).end_time is None
+
     def test_experiment_can_refuse_with_its_own_response(self, a, webapp, db_session):
         participant = a.participant()
         authenticate_as(webapp, participant)

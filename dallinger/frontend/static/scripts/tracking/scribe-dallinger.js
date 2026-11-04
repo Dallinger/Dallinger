@@ -49,12 +49,14 @@ ScribeDallingerTracker.prototype.stripPII = function(value) {
   try {
     delete value.source.url.query.worker_id;
     delete value.source.url.query.workerId;
+    delete value.source.url.query.participant_token;
   } catch (e) {
     // Doesn't matter
   }
   try {
     delete value.target.url.query.worker_id;
     delete value.target.url.query.workerId;
+    delete value.target.url.query.participant_token;
   } catch (e) {
     // Doesn't matter
   }

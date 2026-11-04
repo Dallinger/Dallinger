@@ -45,7 +45,20 @@ The routes refuse a missing or wrong token with status ``403`` and the
 ``dallinger.createParticipant`` stores the token in
 ``dallinger.identity.participantToken``, and ``dallinger.get``,
 ``dallinger.post``, the socket helpers and the exit and error pages send it.
-In a bot, ``HighPerformanceBotBase.token_headers()`` returns the header.
+In a bot, ``BotBase.token_headers()`` returns the header.
+
+Routes an experiment adds with
+:func:`~dallinger.experiment.experiment_route` aren't checked. One that acts for
+a participant should refuse a request without their token, using the helpers
+in ``dallinger.experiment_server.utils``::
+
+    from dallinger.experiment_server.utils import (
+        participant_token_refusal,
+        request_authenticates,
+    )
+
+    if not request_authenticates(node.participant):
+        return participant_token_refusal()
 
 Miscellaneous routes
 ^^^^^^^^^^^^^^^^^^^^

@@ -636,8 +636,10 @@ class Experiment:
         :type message: str
         :param channel_name: the channel prefix the payload arrived with
         :type channel_name: str
-        :param participant_id: the id of the participant whose token the
-            connection carried
+        :param participant_id: the id of the participant the connection was
+            admitted for by
+            :func:`~dallinger.experiment.Experiment.accept_websocket_connection`,
+            which by default means the connection carried their token
         :type participant_id: str
         :param scope: opaque string from the connection's query string, passed
             through without being interpreted. It is how an experiment tells
@@ -2603,6 +2605,17 @@ def experiment_route(rule, **kwargs):
     routes on the ``Experiment.experiment_routes`` blueprint. Accepts all
     standard flask ``route`` arguments. The registration is deferred until
     experiment server setup to allow routes to be overridden.
+
+    Dallinger doesn't check these routes for a participant token. A route that
+    acts for a participant should check it itself::
+
+        from dallinger.experiment_server.utils import (
+            participant_token_refusal,
+            request_authenticates,
+        )
+
+        if not request_authenticates(node.participant):
+            return participant_token_refusal()
 
     :returns: A decorator to register methods from a class as experiment routes.
     """

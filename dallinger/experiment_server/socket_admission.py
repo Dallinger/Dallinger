@@ -82,10 +82,10 @@ def admit(requested_id, scope):
 
     ``/experiment-socket`` hands every message to the experiment as coming
     from a participant, so it refuses a connection that names none; ``/chat``
-    calls this only for a connection that names one. The id is checked for existence
-    only: the route is unauthenticated, so it says which participant the
-    connection claims to be, not who is on the other end. The experiment's hook
-    is where an experiment can check more. The session is removed after each
+    calls this only for a connection that names one. This only checks that
+    the participant exists. The experiment's hook decides whether the
+    connection is theirs; by default it requires the participant's token. The
+    session is removed after each
     step, because an accepted connection can then idle in ``receive()``
     indefinitely.
 

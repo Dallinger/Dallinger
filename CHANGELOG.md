@@ -38,7 +38,12 @@
   `send()`, which credits the participant its payload names, and `/chat`
   channel messages aren't authenticated. An experiment that needs to know
   who sent a message should override `handle_websocket_message`, whose
-  `participant_id` is the participant whose token the connection carried.
+  `participant_id` is the participant the connection was admitted for (by
+  default, the one whose token it carried). Routes an experiment adds with
+  `experiment_route` aren't checked; one that acts for a participant should
+  call `request_authenticates` and `participant_token_refusal` from
+  `dallinger.experiment_server.utils`, as the `mcmcp` demo's `/choice` route
+  now does.
   Migration notes:
   - Code that calls these routes in other ways must send the token, in the
     `X-Dallinger-Participant-Token` header, or as the `participant_token`
@@ -51,8 +56,8 @@
     the assignment.
   - `POST /load-participant` now loads a participant only for a request
     carrying their token, or their `worker_id` (as for MTurk or Prolific),
-    which issues them a new token and makes the old one stop working. Its
-    response always includes the participant's `unique_id` and `worker_id`.
+    which issues them a new token, commits it, and makes the old one stop
+    working. Its response always includes the participant's `unique_id` and `worker_id`.
     `dallinger.loadParticipant(assignmentId)` with a bare assignment id is
     therefore refused; pass the entry information, with the recruiter's
     worker id parameter, instead.
