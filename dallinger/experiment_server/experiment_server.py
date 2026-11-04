@@ -268,8 +268,7 @@ if exp_klass is not None:  # pragma: no cover
 
 # Ideally, we'd only load recruiter routes if the recruiter is active, but
 # it turns out this is complicated, so for now we always register our
-# primary recruiters' routes:
-app.register_blueprint(recruiters.mturk_routes)
+# primary recruiter's routes:
 app.register_blueprint(recruiters.prolific_routes)
 
 # Load dashboard routes and login setup
@@ -1042,6 +1041,17 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     )
 
     duplicate_id = None
+    if duplicate and duplicate.worker_id != worker_id:
+        db.logger.warning(
+            "Refused a signup that reuses working participant %s's assignment_id "
+            "with a different worker_id.",
+            duplicate.id,
+        )
+        session.rollback()
+        return error_response(
+            error_type="/participant POST: assignment belongs to another worker.",
+            status=403,
+        )
     if duplicate:
         msg = """
             {} has reused assignment_id while existing participant is
@@ -1860,24 +1870,6 @@ def transformation_post(node_id, info_in_id, info_out_id):
 
     # return the data
     return success_response(transformation=transformation.__json__())
-
-
-@app.route("/notifications", methods=["POST", "GET"])
-@crossdomain(origin="*")
-def api_notifications():
-    """Receive MTurk REST notifications."""
-    event_type = request.values["Event.1.EventType"]
-    assignment_id = request.values.get("Event.1.AssignmentId")
-    participant_id = request.values.get("participant_id")
-
-    # Add the notification to the queue.
-    db.logger.debug(
-        "rq: Queueing %s with id: %s for worker_function", event_type, assignment_id
-    )
-    q.enqueue(worker_function, event_type, assignment_id, participant_id)
-    db.logger.debug("rq: Submitted Queue Length: %d (%s)", len(q), ", ".join(q.job_ids))
-
-    return success_response()
 
 
 def check_for_duplicate_assignments(participant):

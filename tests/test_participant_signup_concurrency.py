@@ -466,17 +466,20 @@ class TestSignupBehavioralInvariants:
             f"worker IDs, got {statuses!r}"
         )
 
-    def test_concurrent_reused_assignment_id_triggers_reassignment(self, slow_app):
-        """When two concurrent requests arrive with different worker IDs but
-        the same assignment ID, the second request to proceed detects the
-        first participant and enqueues an AssignmentReassigned event.
+    def test_concurrent_reused_assignment_id_triggers_reassignment(
+        self, slow_app, active_config
+    ):
+        """When the same worker signs up twice concurrently with the same
+        assignment ID, the second request to proceed detects the first
+        participant and enqueues an AssignmentReassigned event.
         """
         from dallinger.experiment_server.experiment_server import worker_function
 
+        active_config.set("allow_repeat_worker_ids", True)
         with mock.patch("dallinger.experiment_server.experiment_server.q") as mock_q:
             results = run_concurrent_requests(
                 slow_app,
-                [f"/participant/worker{i}/hit1/shared-assign/debug" for i in range(2)],
+                ["/participant/worker0/hit1/shared-assign/debug"] * 2,
             )
 
         assert all(s == 200 for s, _ in results), (
@@ -490,7 +493,22 @@ class TestSignupBehavioralInvariants:
             mock.ANY,  # the first participant's ID
         )
 
-    def test_no_reassignment_enqueue_if_create_participant_fails(self, slow_app):
+    def test_refuses_another_worker_reusing_a_working_assignment(self, slow_app):
+        client = slow_app.test_client()
+        assert (
+            client.post("/participant/worker0/hit1/shared-assign/debug").status_code
+            == 200
+        )
+
+        with mock.patch("dallinger.experiment_server.experiment_server.q") as mock_q:
+            resp = client.post("/participant/worker1/hit1/shared-assign/debug")
+
+        assert resp.status_code == 403
+        mock_q.enqueue.assert_not_called()
+
+    def test_no_reassignment_enqueue_if_create_participant_fails(
+        self, slow_app, active_config
+    ):
         """AssignmentReassigned must not be enqueued if create_participant raises.
 
         The enqueue must happen after session.commit(). If it were before, a
@@ -507,6 +525,7 @@ class TestSignupBehavioralInvariants:
 
         # A second signup with the same assignment_id enters the duplicate path.
         # Fail inside create_participant so the transaction rolls back before commit.
+        active_config.set("allow_repeat_worker_ids", True)
         with mock.patch.object(
             Experiment,
             "create_participant",
@@ -516,7 +535,7 @@ class TestSignupBehavioralInvariants:
                 "dallinger.experiment_server.experiment_server.q"
             ) as mock_q:
                 resp = slow_app.test_client().post(
-                    "/participant/worker1/hit1/shared-assign/debug"
+                    "/participant/worker0/hit1/shared-assign/debug"
                 )
 
         assert resp.status_code == 400

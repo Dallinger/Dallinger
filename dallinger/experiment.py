@@ -430,14 +430,16 @@ class Experiment:
     def check_worker_status(self, participant):
         """Return a response to send instead of recording the participant's status.
 
-        ``/worker_complete``, ``/worker_failed`` and ``/handle-error`` call
-        this after loading the participant named by their ``participant_id``
+        ``/worker_complete``, ``/worker_failed``, ``/handle-error`` and
+        ``/prolific-submission-listener`` call this after loading the
+        participant named by their ``participant_id`` (``participantId``)
         parameter, or, for ``/handle-error``, by its ``worker_id`` or
         ``assignment_id``. When this refuses, ``/handle-error`` still records
         the error report and shows its usual confirmation page instead of
         the response, but doesn't complete the participant.
         ``dallinger.submitAssignment()``, ``dallinger.error()``, the error
-        page and Dallinger's bots also send the participant's ``unique_id``,
+        page, the Prolific exit page and Dallinger's bots also send the
+        participant's ``unique_id``,
         which an experiment can require::
 
             def check_worker_status(self, participant):
