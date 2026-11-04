@@ -191,7 +191,9 @@ real-time session. A ``/chat`` connection that names a participant, as
 :js:func:`dallinger.openChatSocket` does once the page knows its participant, is
 checked the same way, so pass it the same token. One that names no participant
 isn't checked: it can subscribe to channels and receive their broadcasts, but it
-isn't sent directed messages and can't join a real-time session.
+isn't sent directed messages and can't join a real-time session. The waiting
+room's connection (:js:func:`dallinger.waitForQuorum`) names no participant,
+so a token check doesn't hold it up.
 
 Three failures that are not the client's fault close with ``1013`` instead,
 which tells the client to try again later: a participant lookup that raises, an
@@ -639,17 +641,18 @@ messages that the experiment itself sends over that channel.
 Multiple Client Channels
 ------------------------
 
-If it's important for an experiment to have participant and/or group specific
-channels, e.g. to ensure messages are only ever seen by their targets, or to
-reduce the total number of messages sent to or processed by clients, then
-clients can subscribe to multiple channels.
+If an experiment needs group specific channels, e.g. to reduce the total number
+of messages sent to or processed by clients, then clients can subscribe to
+multiple channels. Channels organise traffic but don't keep it private: any
+connection may subscribe to any channel that isn't reserved, so a client that
+skips the filtering described below still receives a group's messages.
 
 For example, after launch an experiment could broadcast a `create_chatroom` type
 message with a `chatroom` property set to e.g. `"room_1"` and an array of
 `participant_ids`. Clients could then subscribe to the `"room_1"` channel using
 the `/chat` route only if their `participant_id` matches one of the values in
-`participant_ids`. That way only the clients with the matching
-`participant_ids` would receive messages for `"room_1"`.
+`participant_ids`. That way the other clients' pages would not be sent messages
+for `"room_1"`, though nothing stops them subscribing.
 
 If these chat room messages need to be handled by the experiment code, then the
 clients could also send these messages to the "experiment control channel", with
@@ -659,12 +662,13 @@ duplicate messages can be avoided by having the experiment subscribe to all
 chatrooms in :func:`~dallinger.experiment.Experiment.on_launch` or using
 :func:`~dallinger.experiment.Experiment.background_tasks`.
 
-Similarly, if the experiment needs to send messages privately to specific
-participants, then every client could use the `/chat` route to subscribe to a
-unique channel like `"participant_${participant_id}_channel"`, to which the
-experiment instance could send private messages using
-`self.publish_to_subscribers(payload, channel_name=channel)` or
-`redis_conn.publish(f"participant_${participant_id}_channel", payload)`.
+Don't give each participant a channel of their own to send them private
+messages: anyone could subscribe to it. Send them directed messages with
+:func:`~dallinger.experiment.Experiment.publish_to_participants` instead (see
+`Sending to Specific Participants`_), and override
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection` to check a
+token, as described above, so that only the participant's own pages receive
+them.
 
 
 Connection Limits
