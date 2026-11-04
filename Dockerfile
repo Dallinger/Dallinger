@@ -1,6 +1,6 @@
 # syntax = docker/dockerfile:1.2
 ###################### Image with build tools to compile wheels ###############
-FROM python:3.14-bookworm as wheels
+FROM python:3.14-trixie as wheels
 ENV DEBIAN_FRONTEND=noninteractive
 
 LABEL Description="Dallinger base docker image" Version="1.0"
@@ -9,7 +9,7 @@ EXPOSE 5000
 
 # Install build dependencies
 RUN apt-get update && \
-    apt-get install -y libpq-dev python3-pip python3-dev tzdata pandoc && \
+    apt-get install -y libpq-dev tzdata pandoc && \
     python3 -m pip install -U pip && \
     rm -rf /var/lib/apt/lists/*
 
@@ -22,13 +22,13 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 
 ###################### Dallinger base image ###################################
-FROM python:3.14-bookworm as dallinger
+FROM python:3.14-trixie as dallinger
 ENV DEBIAN_FRONTEND=noninteractive
 LABEL org.opencontainers.image.source https://github.com/Dallinger/Dallinger
 
 # Install runtime dependencies
 RUN apt-get update && \
-    apt-get install -y libpq5 python3-pip busybox tzdata --no-install-recommends && \
+    apt-get install -y libpq5 busybox tzdata --no-install-recommends && \
     busybox --install && \
     python3 -m pip install -U pip && \
     rm -rf /var/lib/apt/lists/*
@@ -55,14 +55,16 @@ ENV SKIP_DEPENDENCY_CHECK true
 # Also install docker client package (docker-ce-cli) to support using the dallinger image without installing dallinger:
 # some dallinger commands depend on the docker binaries being available (the dallinger commands will invoke docker on
 # bahalf of the user). So they need to be availble in the same context dallinger is run, i.e. inside a container.
+# The apt source follows the base image's Debian release, so the next upgrade only changes the FROM lines.
 
 RUN apt-get update && \
     apt-get install -y ca-certificates curl gnupg && \
     mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+    . /etc/os-release && \
     echo \
     "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
-    bookworm stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    ${VERSION_CODENAME} stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
     apt-get update && \
     apt-get install -y docker-ce-cli && \
     rm -rf /var/lib/apt/lists/*

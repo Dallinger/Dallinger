@@ -1,6 +1,7 @@
 """The base experiment class."""
 
 import datetime
+import html
 import inspect
 import json
 import logging
@@ -19,8 +20,8 @@ from typing import Any, List, Optional, Union
 
 import requests
 from flask import Blueprint, url_for
-from sqlalchemy import String, Table, and_, asc, cast, desc, func, or_
-from sqlalchemy.orm import scoped_session, sessionmaker, undefer
+from sqlalchemy import Column, String, Table, and_, asc, cast, desc, func, or_
+from sqlalchemy.orm import scoped_session, sessionmaker, undefer, with_polymorphic
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 
@@ -58,6 +59,21 @@ from dallinger.transformations import Compression, Mutation, Replication, Respon
 from dallinger.utils import classproperty, deferred_route_decorator, struct_to_html
 
 logger = logging.getLogger(__name__)
+
+
+_QUERYABLE = (InstrumentedAttribute, Column)
+
+
+def _column_attr(cls, name, columns=None):
+    """Return the attribute of ``cls`` for column ``name``, else the column in ``columns``.
+
+    Without a polymorphic identity, ``cls`` is the table's base class, which
+    lacks columns declared on subclasses, so callers pass the table's columns.
+    """
+    attr = getattr(cls, name, None)
+    if not isinstance(attr, _QUERYABLE) and columns is not None:
+        attr = columns.get(name, attr)
+    return attr
 
 
 def exp_class_working_dir(meth):
@@ -1790,6 +1806,13 @@ class Experiment:
                 attr = maybe_attr
         return attr, label_fn, filter_fn
 
+    def _resolve_table_attr(self, cls, key, columns):
+        """Call :meth:`resolve_attr`, falling back to a column in ``columns``."""
+        attr, label_fn, filter_fn = self.resolve_attr(cls, key)
+        if attr is None and columns is not None:
+            attr = columns.get(key)
+        return attr, label_fn, filter_fn
+
     def table_data(
         self,
         start: int,
@@ -1830,10 +1853,12 @@ class Experiment:
 
         if polymorphic_identity is None:
             cls = get_mapped_class(table_obj)
-            base = db.session.query(cls)
+            # Load subclass columns in the main query, not one query per row.
+            base = db.session.query(with_polymorphic(cls, "*"))
         else:
             cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
             base = db.session.query(cls).filter(cls.type == polymorphic_identity)
+        columns = table_obj.c if polymorphic_identity is None else None
 
         total_count = base.order_by(None).count()
 
@@ -1842,10 +1867,9 @@ class Experiment:
         if search_value:
             conds = []
             for col in table_obj.columns:
-                if hasattr(cls, col.name):
-                    conds.append(
-                        cast(getattr(cls, col.name), String).ilike(f"%{search_value}%")
-                    )
+                attr = _column_attr(cls, col.name, columns)
+                if attr is not None:
+                    conds.append(cast(attr, String).ilike(f"%{search_value}%"))
             if conds:
                 q = q.filter(or_(*conds))
 
@@ -1854,7 +1878,7 @@ class Experiment:
         for key, selected in column_filters.items():
             if not selected:
                 continue
-            attr, _, to_db = self.resolve_attr(cls, key)
+            attr, _, to_db = self._resolve_table_attr(cls, key, columns)
             if attr is None:
                 continue
             q = q.filter(cast(attr, String).in_([to_db(v) for v in selected]))
@@ -1862,8 +1886,8 @@ class Experiment:
         filtered_count = q.order_by(None).count()
 
         # Ordering
-        attr = getattr(cls, order_column, None) if order_column else None
-        if isinstance(attr, InstrumentedAttribute):
+        attr = _column_attr(cls, order_column, columns) if order_column else None
+        if isinstance(attr, _QUERYABLE):
             q = q.order_by(desc(attr) if order_dir.lower() == "desc" else asc(attr))
         else:
             # Fallback: order by primary key(s)
@@ -1946,15 +1970,17 @@ class Experiment:
         else:
             cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
             base = db.session.query(cls).filter(cls.type == polymorphic_identity)
+        columns = table_obj.c if polymorphic_identity is None else None
 
         # Build q_global: global search ONLY (no panes)
         def apply_global_search(q):
             if not search_value:
                 return q
+            attrs = (_column_attr(cls, c.name, columns) for c in table_obj.columns)
             conditions = [
-                cast(getattr(cls, c.name), String).ilike(f"%{search_value}%")
-                for c in table_obj.columns
-                if hasattr(cls, c.name)
+                cast(attr, String).ilike(f"%{search_value}%")
+                for attr in attrs
+                if attr is not None
             ]
             return q.filter(or_(*conditions)) if conditions else q
 
@@ -1966,7 +1992,7 @@ class Experiment:
         for key, selected in (column_filters or {}).items():
             if not selected:
                 continue
-            attr, _, to_db = self.resolve_attr(cls, key)
+            attr, _, to_db = self._resolve_table_attr(cls, key, columns)
             if attr is not None:
                 q_all = q_all.filter(
                     cast(attr, String).in_([to_db(v) for v in selected])
@@ -1976,7 +2002,7 @@ class Experiment:
 
         for key in pane_columns:
             # Resolve the column attribute and label/value transforms
-            attr, to_label, to_db = self.resolve_attr(cls, key)
+            attr, to_label, to_db = self._resolve_table_attr(cls, key, columns)
             if attr is None:
                 panes_options[key] = []
                 continue
@@ -2031,7 +2057,8 @@ class Experiment:
                 value = label if key == "object_type" else raw
                 col_opts.append(
                     {
-                        "label": label,
+                        # SearchPanes inserts labels as HTML.
+                        "label": html.escape(label),
                         "value": value,
                         "total": totals_map.get(raw, 0),
                         "count": counts_map.get(raw, 0),
@@ -2062,13 +2089,15 @@ class Experiment:
         if polymorphic_identity in (None, "None"):
             cls = get_mapped_class(table_obj)
             q = db.session.query(cls)
+            columns = table_obj.c
         else:
             cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
             q = db.session.query(cls).filter(cls.type == polymorphic_identity)
+            columns = None
 
         exprs, names = [], []
         for column in table_obj.columns:
-            attr = getattr(cls, column.name, None)
+            attr = _column_attr(cls, column.name, columns)
             if attr is None:
                 continue
             # COUNT(NULLIF(CAST(col AS TEXT), '')) counts only non-empty, non-null
