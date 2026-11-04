@@ -530,8 +530,8 @@
   database value containing HTML could run in the admin's browser: on
   `/dashboard/monitoring` by closing the page's script with `</script>`, and
   on `/dashboard/database` through the table's search-pane filter labels.
-  A link to `/dashboard/database` whose query string contained `</script>`
-  could also run script for an admin who opened it.
+  The Database dashboard's script options, which include the page's query
+  string, are escaped the same way as a precaution.
   `Experiment.table_search_panes` now returns HTML-escaped labels;
   experiments that override it should escape their own labels too.
 - Error pages show a participant's worker, assignment and HIT ids only to a
