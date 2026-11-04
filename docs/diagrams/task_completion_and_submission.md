@@ -24,6 +24,7 @@ d2->>es: /question/<participant ID>
 es-->>d2: HTTP Response
 d2->>d2: submitAssignment()
 d2->>es: /worker_complete POST
+note over es: refuses a request without the participant's token
 es->>ex: check_worker_status(participant)
 opt experiment refuses the request
 ex-->>es: <response>
@@ -41,8 +42,9 @@ es->>wf: __call__("RecruiterSubmissionComplete", args...)
 end
 
 es-->>d2: HTTP Response
-d2-->>hw: location=/recruiter-exit?participant_id=…&unique_id=…
+d2-->>hw: location=/recruiter-exit?participant_id=…&participant_token=…&unique_id=…
 hw->>es: /recruiter-exit GET
+note over es: refuses a request without the participant's token
 es->>ex: check_recruiter_exit(participant)
 opt experiment refuses the request
 ex-->>es: <response>
@@ -59,6 +61,12 @@ else asynchronous recruiters
 rec-->>es: <rendered template specific to Recruiter>
 es-->>hw: <rendered template specific to Recruiter>
 hw->>rec: /prolific-submission-listener POST (Recruiter-specific route)
+note over rec: refuses a request without the participant's token
+rec->>ex: check_worker_status(participant)
+opt experiment refuses the request
+ex-->>rec: <response>
+rec-->>d2: <response>
+end
 rec->>part: status="submitted"
 note over rec: COMMIT
 rec-)wf: ASYNC __call__("RecruiterSubmissionComplete", args...) (see below)

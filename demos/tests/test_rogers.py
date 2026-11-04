@@ -506,10 +506,6 @@ class TestRogersSandbox:
         }
         session.get(url + "/exp", params=args, headers=headers)
 
-        # send AssignmentAccepted notification
-        args = {"Event.1.EventType": "AssignmentAccepted", "Event.1.AssignmentId": i}
-        session.post(url + "/notifications", data=args, headers=headers)
-
         # work through the trials
         working = True
         while working is True:
@@ -560,10 +556,6 @@ class TestRogersSandbox:
                 print("bot {} 2nd information request: {}".format(i, information2))
                 print("bot {} 3rd information request: {}".format(i, information3))
                 traceback.print_exc()
-
-        # send AssignmentSubmitted notification
-        args = {"Event.1.EventType": "AssignmentSubmitted", "Event.1.AssignmentId": i}
-        session.post(url + "/notifications", data=args, headers=headers)
 
         stop_time = timenow()
         print("Bot {} finished in {}".format(i, stop_time - start_time))

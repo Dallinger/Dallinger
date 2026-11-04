@@ -358,17 +358,17 @@ def play_player(port, channel, rate, tick_rate, player, times, out):
     """Play one player: send ``rate`` messages a second from ``times``'s
     start until its stop, and note what it measures in ``out``.
 
-    :param player: a ``(session_id, participant_id, measures_ticks)`` triple, where
-        ``measures_ticks`` says whether this player measures its session's tick
-        lateness
+    :param player: a ``(session_id, participant_id, token, measures_ticks)``
+        tuple, where ``token`` is the participant's token and ``measures_ticks``
+        says whether this player measures its session's tick lateness
     """
-    session_id, player, measures_ticks = player
+    session_id, player, token, measures_ticks = player
     import simple_websocket
 
     start_at, measure_at, stop_at = times
     measuring = lambda moment: measure_at <= moment < stop_at  # noqa: E731
-    url = "ws://127.0.0.1:{}/chat?participant_id={}&session={}".format(
-        port, player, session_id
+    url = "ws://127.0.0.1:{}/chat?participant_id={}&participant_token={}&session={}".format(
+        port, player, token, session_id
     )
     try:
         ws = simple_websocket.Client.connect(url)
@@ -538,6 +538,7 @@ class Bench:
 
     def run(self, views_on, cpu_load):
         from dallinger import db
+        from dallinger.models import Participant
         from dallinger.realtime import create_realtime_session, end_realtime_session
         from dallinger.realtime.store import experiment_games
 
@@ -547,12 +548,27 @@ class Bench:
         players = []
         session_ids = []
         for _ in range(args.sessions):
-            members = [str(self.next_player + each) for each in range(args.players)]
+            # /chat refuses a connection without the named participant's token.
+            participants = [
+                Participant(
+                    recruiter_id="hotair",
+                    worker_id="bench",
+                    assignment_id=str(self.next_player + each),
+                    hit_id="bench",
+                    mode="debug",
+                )
+                for each in range(args.players)
+            ]
             self.next_player += args.players
+            db.session.add_all(participants)
+            db.session.flush()
+            tokens = [participant.issue_auth_token() for participant in participants]
+            members = [str(participant.id) for participant in participants]
             session_id = create_realtime_session(game_type, members)
             session_ids.append(session_id)
             players += [
-                (session_id, member, member == members[0]) for member in members
+                (session_id, member, token, member == members[0])
+                for member, token in zip(members, tokens)
             ]
         db.session.commit()
 

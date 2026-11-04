@@ -1,7 +1,6 @@
 """Recruiters manage the flow of participants to the experiment."""
 
-import base64
-import functools
+import hmac
 import json
 import logging
 import os
@@ -9,7 +8,6 @@ import random
 import re
 import string
 import time
-import urllib.parse
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from statistics import median
@@ -17,17 +15,19 @@ from typing import Optional
 
 import flask
 import requests
-from cryptography import x509
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding
 from sqlalchemy import func
 
 from dallinger import dev_logging
 from dallinger.command_line.utils import Output, render_rich_table
 from dallinger.config import LOG_LEVELS, get_config
 from dallinger.db import get_queue, redis_conn, scoped_session_decorator, session
-from dallinger.experiment_server.utils import crossdomain, success_response
+from dallinger.experiment_server.utils import (
+    crossdomain,
+    error_response,
+    participant_token_refusal,
+    request_authenticates,
+    success_response,
+)
 from dallinger.experiment_server.worker_events import worker_function
 from dallinger.heroku import tools as heroku_tools
 from dallinger.models import Participant, Recruitment
@@ -448,21 +448,45 @@ def prolific_submission_listener():
     We are forced to take a small leap of faith that their redirect to the
     Prolific submission page happens successfully.
     """
+    from dallinger.experiment_server.experiment_server import Experiment
+
     identity_info = flask.request.form.to_dict()
-    logger.warning(
-        "prolific_submission_listener called: {}".format(json.dumps(identity_info))
-    )
-    assignment_id = identity_info.get("assignmentId")
+    assignment_id = identity_info.get("assignmentId") or ""
     participant_id = identity_info.get("participantId")
+    logger.warning(
+        "prolific_submission_listener called for participant_id=%s", participant_id
+    )
+
+    try:
+        participant_key = int(participant_id)
+    except (TypeError, ValueError):
+        participant_key = None
 
     # Lock the participant row, then check and update status to avoid double-submits:
-    participant = (
-        session.query(Participant)
-        .populate_existing()
-        .with_for_update(of=Participant)
-        .get(participant_id)
-    )
-    if participant is not None and participant.status != "submitted":
+    participant = None
+    if participant_key is not None:
+        participant = (
+            session.query(Participant)
+            .populate_existing()
+            .with_for_update(of=Participant)
+            .get(participant_key)
+        )
+    if participant is None or not hmac.compare_digest(
+        assignment_id.encode(), participant.assignment_id.encode()
+    ):
+        session.rollback()
+        return error_response(
+            error_type="/prolific-submission-listener: unknown participant or assignment",
+            status=403,
+        )
+    if not request_authenticates(participant):
+        session.rollback()
+        return participant_token_refusal()
+    refusal = Experiment().check_worker_status(participant)
+    if refusal is not None:
+        session.rollback()
+        return refusal
+    if participant.status != "submitted":
         participant.status = "submitted"
         session.commit()  # NB: commit releases lock
         q = get_queue()
@@ -1523,119 +1547,6 @@ class MTurkRecruiterException(Exception):
     """Custom exception for MTurkRecruiter"""
 
 
-mturk_routes = flask.Blueprint("mturk_recruiter", __name__)
-
-#: Hosts that serve the certificates SNS signs its messages with.
-_SNS_CERTIFICATE_HOST = re.compile(r"^sns\.[a-z0-9-]+\.amazonaws\.com(\.cn)?$")
-
-#: The fields of each SNS message type that its signature covers, in order.
-_SNS_SIGNED_FIELDS = {
-    "Notification": (
-        "Message",
-        "MessageId",
-        "Subject",
-        "Timestamp",
-        "TopicArn",
-        "Type",
-    ),
-    "SubscriptionConfirmation": (
-        "Message",
-        "MessageId",
-        "SubscribeURL",
-        "Timestamp",
-        "Token",
-        "TopicArn",
-        "Type",
-    ),
-}
-_SNS_SIGNED_FIELDS["UnsubscribeConfirmation"] = _SNS_SIGNED_FIELDS[
-    "SubscriptionConfirmation"
-]
-
-
-@functools.lru_cache(maxsize=8)
-def _sns_certificate(url):
-    response = requests.get(url, timeout=10)
-    response.raise_for_status()
-    return x509.load_pem_x509_certificate(response.content)
-
-
-def sns_message_is_authentic(content, topic_name):
-    """Return whether ``content`` is an SNS message that AWS signed for the topic ``topic_name``.
-
-    See https://docs.aws.amazon.com/sns/latest/dg/sns-verify-signature-of-message.html.
-    """
-    fields = _SNS_SIGNED_FIELDS.get(content.get("Type"))
-    if fields is None:
-        return False
-    if str(content.get("TopicArn", "")).rsplit(":", 1)[-1] != topic_name:
-        return False
-    certificate_url = urllib.parse.urlparse(str(content.get("SigningCertURL", "")))
-    if (
-        certificate_url.scheme != "https"
-        or not _SNS_CERTIFICATE_HOST.match(certificate_url.hostname or "")
-        or not certificate_url.path.endswith(".pem")
-    ):
-        return False
-    algorithm = {"1": hashes.SHA1, "2": hashes.SHA256}.get(
-        content.get("SignatureVersion")
-    )
-    if algorithm is None:
-        return False
-    signed = "".join(
-        "{}\n{}\n".format(name, content[name]) for name in fields if name in content
-    )
-    try:
-        signature = base64.b64decode(str(content.get("Signature", "")), validate=True)
-        _sns_certificate(certificate_url.geturl()).public_key().verify(
-            signature, signed.encode(), padding.PKCS1v15(), algorithm()
-        )
-    except (InvalidSignature, ValueError, requests.RequestException):
-        return False
-    return True
-
-
-@mturk_routes.route("/mturk-sns-listener", methods=["POST", "GET"])
-@crossdomain(origin="*")
-def mturk_recruiter_notify():
-    """Listens for:
-    1. AWS SNS subscription confirmation request
-    2. SNS subcription messages, which forward MTurk notifications
-
-    Messages that AWS didn't sign for this experiment's topic are refused.
-    """
-    recruiter = MTurkRecruiter()
-    logger.warning("Raw notification body: {}".format(flask.request.get_data()))
-    try:
-        content = json.loads(flask.request.get_data())
-    except ValueError:
-        content = None
-    if not isinstance(content, dict) or not sns_message_is_authentic(
-        content, recruiter.config.get("id")
-    ):
-        logger.warning("Refusing an SNS message that isn't signed for this topic.")
-        return flask.Response(status=403)
-    message_type = content.get("Type")
-    # 1. SNS subscription confirmation request
-    if message_type == "SubscriptionConfirmation":
-        logger.warning("Received a SubscriptionConfirmation message from AWS.")
-        token = content.get("Token")
-        topic = content.get("TopicArn")
-        recruiter._confirm_sns_subscription(token=token, topic=topic)
-
-    # 2. MTurk Worker event
-    elif message_type == "Notification":
-        logger.warning("Received an Event Notification from AWS.")
-        message = json.loads(content.get("Message"))
-        events = message["Events"]
-        recruiter._report_event_notification(events)
-
-    else:
-        logger.warning("Unknown SNS notification type: {}".format(message_type))
-
-    return success_response()
-
-
 class RedisStore:
     """A wrapper around redis, to handle value decoding on retrieval,
     and easy cleanup of all managed keys via a prefix applied to all
@@ -1684,7 +1595,6 @@ class MTurkRecruiter(Recruiter):
     """Recruit participants from Amazon Mechanical Turk"""
 
     nickname = "mturk"
-    extra_routes = mturk_routes
 
     def __init__(self, *args, **kwargs):
         super().__init__()
@@ -2013,68 +1923,6 @@ class MTurkRecruiter(Recruiter):
 
     def _record_current_hit_id(self, hit_id):
         self.store.set(self.hit_id_storage_key, hit_id)
-
-    def _confirm_sns_subscription(self, token, topic):
-        self.mturkservice.confirm_subscription(token=token, topic=topic)
-
-    def _translate_event_type(self, mturk_event_type):
-        # If a translation exists, return it, otherwise return what we were given
-        mturk_to_dallinger = {"AssignmentSubmitted": "RecruiterSubmissionComplete"}
-
-        return mturk_to_dallinger.get(mturk_event_type, mturk_event_type)
-
-    def _report_event_notification(self, events):
-        # Historically (and regrettably) we have adopted MTurk's event names
-        # internally. The one (new) exception to this is MTurk's "AssigmentSubmitted",
-        # which is now represented internally as "RecruiterSubmissionComplete"
-        #
-        # Note: this is an entry-point, so it's a reasonable place to commit a
-        # transaction before passing off the async worker task.
-        q = get_queue()
-        for event in events:
-            mturk_type = event.get("EventType")
-            assignment_id = event.get("AssignmentId")
-
-            if assignment_id:
-                participant = (
-                    session.query(Participant)
-                    .filter_by(assignment_id=assignment_id)
-                    .order_by(Participant.creation_time.desc())
-                    .first()
-                )
-                if participant is None:
-                    msg = (
-                        f"Received an {mturk_type} notification from MTurk for assignment ID {assignment_id}, "
-                        "which is not related to any participant."
-                    )
-                    if mturk_type == "AssignmentSubmitted":
-                        # For submitted assignments we expect a corresponding Participant to exist.
-                        raise MTurkRecruiterException(
-                            msg
-                            + " This is invalid for AssignmentSubmitted; investigate participant creation and notification routing."
-                        )
-                    logger.error(msg)
-                    continue
-
-                # Only handle and enqueue for supported event types
-                if mturk_type in [
-                    "AssignmentAbandoned",
-                    "AssignmentAccepted",
-                    "AssignmentReturned",
-                    "AssignmentSubmitted",
-                ]:
-                    if mturk_type == "AssignmentAbandoned":
-                        participant.status = "abandoned"
-                    if mturk_type == "AssignmentReturned":
-                        participant.status = "returned"
-                    if mturk_type == "AssignmentSubmitted":
-                        participant.status = "submitted"
-                    session.commit()
-
-                    dlgr_event_type = self._translate_event_type(mturk_type)
-                    q.enqueue(
-                        worker_function, dlgr_event_type, assignment_id, participant.id
-                    )
 
     def _mturk_status_for(self, participant):
         try:

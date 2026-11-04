@@ -24,7 +24,8 @@ show it again. Routes that read or act for a participant require that token:
   ``/tracking_event/<node_id>`` and ``/transformation/<node_id>/...`` route,
   for a node that belongs to the participant. Nodes without a participant
   can't be used through these routes.
-* ``/worker_complete``, ``/worker_failed`` and ``/recruiter-exit``
+* ``/worker_complete``, ``/worker_failed``, ``/recruiter-exit`` and
+  ``/prolific-submission-listener``
 * ``/handle-error``, to mark the participant's assignment completed. Without
   the token the error is still recorded.
 * ``/experiment-socket``, and ``/chat`` when it names a ``participant_id``
@@ -88,12 +89,13 @@ addresses to any of the first three are discarded. The server handles those on
 ``dallinger_time`` itself, for a connection in a real-time session, and drops
 them from any other. A ``channel`` argument naming any of the four is refused.
 
-A connection that supplies a ``participant_id`` must also supply that
-participant's ``participant_token``, or the server closes it with code
-``1008``. Such a connection also receives any message sent
-to that participant with ``Experiment.publish_to_participants``, prefixed with
-the ``dallinger_direct`` channel name, whether or not it subscribed to a
-channel of its own.
+A connection that supplies a ``participant_id`` goes through the same
+participant check as an experiment socket, described below, including the
+participant's ``participant_token``, and is closed with ``1008`` or ``1013`` in
+the same cases. It also receives any message sent to that participant with
+``Experiment.publish_to_participants``, prefixed with the ``dallinger_direct``
+channel name, whether or not it subscribed to a channel of its own. A
+connection without a ``participant_id`` isn't checked.
 
 ``tolerance`` is accepted and ignored; it once capped delivery lag. Sending it
 raises no error and no deprecation warning, so existing client code needs no
@@ -101,8 +103,9 @@ change.
 
 ``channel`` is optional: a connection without one receives nothing, and can
 still send. ``scope`` is optional too, reported unaltered in the ``client``
-payload of every control channel event. A binary frame closes the connection
-with code ``1003``.
+payload of every control channel event. ``worker_id`` is reported there too,
+unverified, and only for a connection with a ``participant_id``. A binary
+frame closes the connection with code ``1003``.
 
 ::
 
@@ -309,22 +312,6 @@ following experiment methods:
 ``add_node_to_network(node, network)``, and
 ``node_post_request(participant, node)``. Returns a JSON description of
 the created node as ``node``.
-
-::
-
-    POST /notifications
-    GET /notifications
-
-Accepts your own notifications, simulating notifications from AWS, from a
-request logged in to the dashboard, for example with the dashboard user and
-password as HTTP basic authentication. AWS itself notifies
-``/mturk-sns-listener``, which accepts only messages that AWS signed for the
-experiment's topic. Necessary arguments are
-``Event.1.EventType``, which can be ``AssignmentAccepted``,
-``AssignmentAbandoned``, ``AssignmentReturned`` or
-``AssignmentSubmitted``, and ``Event.1.AssignmentId``, which is the id
-of the relevant assignment. In addition, Dallinger uses a custom event
-type of ``NotificationMissing``.
 
 ::
 

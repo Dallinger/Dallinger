@@ -951,7 +951,7 @@ def _open_client(ws, participant_id, experiment):
         raise socket_admission.Refused("experiment unavailable", retry=True)
     client = Client(
         ws,
-        worker_id=request.args.get("worker_id"),
+        worker_id=None if participant_id is None else request.args.get("worker_id"),
         participant_id=participant_id,
         scope=request.args.get("scope"),
         experiment=experiment,
@@ -963,7 +963,7 @@ def _open_client(ws, participant_id, experiment):
             client.addressable_id,
             client.scope,
             games,
-            checked=experiment is not None,
+            experiment_socket=experiment is not None,
             describe=client.client_info(),
         )
     except session_sockets.Refusal as refusal:
@@ -1025,18 +1025,24 @@ def _join_session(client):
 def chat(ws):
     """Relay messages between a client and redis.
 
-    A connection may name no participant. One that names a participant must
-    carry their token.
+    A connection that names a participant is sent that participant's directed
+    messages and may join their real-time sessions, so it is admitted like an
+    experiment socket first, including the participant's token. One that names
+    none can still subscribe, send and receive broadcasts.
     """
-    participant_id = request.args.get("participant_id") or None
-    if participant_id is not None:
-        try:
-            participant_id = socket_admission.authenticate(
-                participant_id, request.args.get(PARTICIPANT_TOKEN_PARAMETER)
-            )
-        except socket_admission.Refused as refusal:
-            _refuse(ws, refusal)
-            return
+    requested_id = request.args.get("participant_id")
+    if requested_id in (None, ""):
+        _serve(ws)
+        return
+    try:
+        participant_id, _ = socket_admission.admit(
+            requested_id,
+            request.args.get("scope"),
+            request.args.get(PARTICIPANT_TOKEN_PARAMETER),
+        )
+    except socket_admission.Refused as refusal:
+        _refuse(ws, refusal)
+        return
     _serve(ws, participant_id=participant_id)
 
 

@@ -1,12 +1,13 @@
-"""Deciding whether a websocket connection may open.
+"""Deciding whether a websocket connection that names a participant may open.
 
-An ``/experiment-socket`` connection must name a participant that exists and
-carry that participant's token in the ``participant_token`` query parameter,
-the experiment must build, and the experiment's
+Every ``/experiment-socket`` connection names one; a ``/chat`` connection may.
+
+The participant must exist, the connection must carry that participant's
+token in the ``participant_token`` query parameter, the experiment must
+build, and the experiment's
 :func:`~dallinger.experiment.Experiment.accept_websocket_connection` must
 accept it. :func:`admit` checks all of these before the connection subscribes
-to anything, and raises :class:`Refused` otherwise. A ``/chat`` connection
-that names a participant is checked by :func:`authenticate` alone.
+to anything, and raises :class:`Refused` otherwise.
 """
 
 import logging
@@ -41,7 +42,9 @@ _process_experiment_lock = Semaphore()
 
 
 def process_experiment():
-    """The one ``Experiment`` this process hands to its experiment-socket clients.
+    """Return the one ``Experiment`` this process checks websocket connections with.
+
+    It also handles messages sent through ``/experiment-socket``.
 
     ``Experiment.__init__`` runs ``configure()``, which is experiment code and
     may query, so the constructor can yield and two connections would otherwise
@@ -78,43 +81,34 @@ def resolve_participant_id(participant_id, token):
     return normalized if models.auth_token_matches(token_hash, token) else None
 
 
-def authenticate(requested_id, token):
-    """The participant id of a connection that names ``requested_id``.
-
-    :raises Refused: unless the participant exists and ``token`` is theirs,
-        and with ``retry`` set when the lookup fails
-    """
-    try:
-        participant_id = resolve_participant_id(requested_id, token)
-    except SQLAlchemyError:
-        logger.exception(
-            "Could not look up participant %r for a websocket.", requested_id
-        )
-        raise Refused("participant lookup failed", retry=True)
-    if participant_id is None:
-        logger.warning(
-            "Refusing websocket for participant %r: unknown participant or "
-            "wrong token.",
-            requested_id,
-        )
-        raise Refused("unknown participant or wrong token")
-    return participant_id
-
-
 def admit(requested_id, scope, token):
     """The participant id and the experiment for a new connection.
 
-    Every message is handed to the experiment as coming from a participant, so
-    a connection that names none is refused, as is one without that
-    participant's ``token``. The experiment's hook is where an experiment can
-    check more. The session is removed after each step, because an accepted
-    connection can then idle in ``receive()`` indefinitely.
+    ``/experiment-socket`` hands every message to the experiment as coming
+    from a participant, so it refuses a connection that names none; ``/chat``
+    calls this only for a connection that names one. The connection must carry
+    that participant's ``token``. The experiment's hook is where an experiment
+    can check more. The session is removed after each step, because an
+    accepted connection can then idle in ``receive()`` indefinitely.
 
     :raises Refused: for an unknown participant, a wrong token or a
         connection the experiment refuses, and with ``retry`` set when a
         lookup, the experiment or its hook fails
     """
-    participant_id = authenticate(requested_id, token)
+    try:
+        participant_id = resolve_participant_id(requested_id, token)
+    except SQLAlchemyError:
+        logger.exception(
+            "Could not look up participant %r for a websocket connection.", requested_id
+        )
+        raise Refused("participant lookup failed", retry=True)
+    if participant_id is None:
+        logger.warning(
+            "Refusing a websocket connection for participant %r: unknown "
+            "participant or wrong token.",
+            requested_id,
+        )
+        raise Refused("unknown participant or wrong token")
     try:
         experiment = process_experiment()
     except Exception:

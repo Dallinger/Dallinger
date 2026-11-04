@@ -403,4 +403,14 @@ describe("waitForQuorum", () => {
     sockets[0].onmessage({ data: 'quorum:{"n":2,"q":2}' });
     expect(waiting.state()).toBe("resolved");
   });
+
+  test("names no participant, so no token check can refuse it", () => {
+    const dallinger = load();
+    dallinger.identity.workerId = "w1";
+    dallinger.identity.participantId = 7;
+
+    dallinger.waitForQuorum();
+
+    expect(Array.from(query(sockets[0]).keys())).toEqual(["channel"]);
+  });
 });

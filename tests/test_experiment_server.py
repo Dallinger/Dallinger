@@ -1338,39 +1338,6 @@ class TestParticipantCreateRoute:
             )
 
 
-@pytest.mark.usefixtures("experiment_dir", "db_session")
-@pytest.mark.slow
-class TestAPINotificationRoute:
-    @pytest.fixture
-    def queue(self):
-        with mock.patch("dallinger.experiment_server.experiment_server.q") as q:
-            yield q
-
-    post_data = {
-        "Event.1.EventType": "some event type",
-        "Event.1.AssignmentId": "some assignment id",
-        "participant_id": "some participant id",
-    }
-
-    def test_requires_dashboard_login(self, webapp, queue):
-        resp = webapp.post("/notifications", data=self.post_data)
-
-        assert resp.status_code == 401
-        queue.enqueue.assert_not_called()
-
-    def test_parses_aws_rest_notification_and_queues_worker(self, webapp_admin, queue):
-        from dallinger.experiment_server.experiment_server import worker_function
-
-        webapp_admin.post("/notifications", data=self.post_data)
-
-        queue.enqueue.assert_called_once_with(
-            worker_function,
-            "some event type",
-            "some assignment id",
-            "some participant id",
-        )
-
-
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
 class TestSummaryRoute:

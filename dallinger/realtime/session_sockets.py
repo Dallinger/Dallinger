@@ -73,15 +73,14 @@ A socket with no session gets no answers, and its reports are dropped.
 
 A socket that names a participant must carry that participant's token, so
 :mod:`~dallinger.experiment_server.socket_admission` has already checked who
-the connection is when the session is looked up. The web process then checks
-that the participant is one of the session's players, and closes the socket
-with code ``1008`` and the reason ``not a player in this session`` if not. If
-redis or Postgres fails while a session is looked up or joined, it closes the
-socket with ``1013``, which tells the page to try again later. A ``/chat``
-connection doesn't call
-:func:`~dallinger.experiment.Experiment.accept_websocket_connection`, so an
-experiment that checks more than the token there should have its pages join
-sessions through ``/experiment-socket``.
+the connection is when the session is looked up, and the experiment's
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection` has
+accepted it. The web process then checks that the participant is one of the
+session's players, and closes the socket with code ``1008`` and the reason
+``not a player in this session`` if not. If redis or Postgres fails while a
+session is looked up or joined, it closes the socket with ``1013``, which
+tells the page to try again later. A ``/chat`` connection that names no
+participant can't join a session.
 """
 
 import json
@@ -391,7 +390,9 @@ def open_session_socket(requested, participant, scope, games, describe):
     return SessionSocket(session_id, game, participant, scope, describe)
 
 
-def open_connection_session(args, participant, scope, games, checked, describe):
+def open_connection_session(
+    args, participant, scope, games, experiment_socket, describe
+):
     """Return the session side of a new connection: a :class:`SessionSocket`
     for one that asks for a ``session``, a :class:`SessionWait` for one that
     waits for a game type's session, otherwise a :class:`NoSession`.
@@ -402,15 +403,15 @@ def open_connection_session(args, participant, scope, games, checked, describe):
     :param scope: the connection's scope
     :param games: the experiment's game types, as
         :func:`~dallinger.realtime.store.experiment_games` returns them
-    :param checked: whether the experiment checked the connection, as it does
-        on ``/experiment-socket``
+    :param experiment_socket: whether the connection is an
+        ``/experiment-socket`` one, which ``wait_for_game`` needs
     :param describe: what warnings call the connection
     :raises Refusal: as the module docstring describes
     """
     requested = args.get("session")
     waiting_for = args.get("wait_for_game")
     if waiting_for is not None:
-        if not checked:
+        if not experiment_socket:
             raise Refusal("wait_for_game needs /experiment-socket")
         if requested is not None:
             raise Refusal("session and wait_for_game together")

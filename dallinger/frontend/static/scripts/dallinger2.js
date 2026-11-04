@@ -956,8 +956,10 @@ var dallinger = (function () {
     if (RESERVED_CHANNELS.indexOf(this.channel) !== -1) {
       throw new Error('The "' + this.channel + '" channel is reserved for Dallinger\'s own use.');
     }
-    this.participantId = dlgr.identity.participantId;
-    this.scope = options.scope === undefined ? dlgr.pageScope : options.scope;
+    // An ``_anonymous`` socket names nobody, so the server doesn't check it.
+    var anonymous = Boolean(options._anonymous);
+    this.participantId = anonymous ? null : dlgr.identity.participantId;
+    this.scope = anonymous ? null : (options.scope === undefined ? dlgr.pageScope : options.scope);
     if (joinSession === null) {
       SESSION_OPTIONS.forEach(function (name) {
         if (options[name] != null) {
@@ -973,7 +975,7 @@ var dallinger = (function () {
     this._callbacks = {broadcast: [], direct: [], open: [], refused: []};
     this.raw = new ReconnectingWebSocket(socketUrl(route, {
       channel: this.channel,
-      worker_id: dlgr.identity.workerId,
+      worker_id: anonymous ? null : dlgr.identity.workerId,
       participant_id: this.participantId,
       participant_token: this.participantId == null ? null : dlgr.identity.participantToken,
       scope: this.scope,
@@ -1146,8 +1148,9 @@ var dallinger = (function () {
 
   /**
    * Call ``callback`` with the close code and reason if the server refuses the
-   * connection, as the ``/experiment-socket`` route does for an unknown
-   * participant. The connection is not retried either way, and without a
+   * connection, as ``/experiment-socket`` and ``/chat`` do for an unknown
+   * participant or when ``accept_websocket_connection`` returns false. The
+   * connection is not retried either way, and without a
    * callback the refusal is logged to the console.
    *
    * @param {function} callback - Called with the close code and reason
@@ -1198,8 +1201,9 @@ var dallinger = (function () {
    * message it is sent to the channel the message names.
    *
    * The connection identifies the participant from ``dallinger.identity``,
-   * and the server refuses it if the page doesn't hold their token. A page
-   * without a participant connects without one.
+   * if there is one. The server then refuses it if the page doesn't hold
+   * that participant's token or the experiment's
+   * ``accept_websocket_connection`` method says no.
    *
    * @example
    * var chatroom = dallinger.openChatSocket({channel: 'chatroom'});
@@ -1272,6 +1276,10 @@ var dallinger = (function () {
    * This method is called automatically within `createParticipant()` and the
    * default waiting room page.
    *
+   * The connection names no participant, since it only listens to the
+   * ``quorum`` channel, so the experiment's ``accept_websocket_connection``
+   * method is not asked about it.
+   *
    * @returns {jQuery.Deferred} See :ref:`deferreds-label`
    */
   dlgr.waitForQuorum = function () {
@@ -1281,7 +1289,7 @@ var dallinger = (function () {
       window.dallingerPresence.setWaiting(true);
       deferred.always(function () { window.dallingerPresence.setWaiting(false); });
     }
-    dlgr.openChatSocket({channel: "quorum"}).onBroadcast(function (data) {
+    dlgr.openChatSocket({channel: "quorum", _anonymous: true}).onBroadcast(function (data) {
       dlgr.updateProgressBar(data.n, data.q);
       if (data.n === data.q) {
         deferred.resolve();

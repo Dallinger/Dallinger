@@ -14,8 +14,8 @@
   `/node/<node_id>`, `/info`, `/tracking_event` and `/transformation` route
   (for a node of that participant, so nodes without a participant can't be
   used through them), `/worker_complete`, `/worker_failed`,
-  `/recruiter-exit`, `/experiment-socket`, and `/chat` when it names a
-  `participant_id`. `/handle-error` records an error from anyone but marks
+  `/recruiter-exit`, `/prolific-submission-listener`, `/experiment-socket`,
+  and `/chat` when it names a `participant_id`. `/handle-error` records an error from anyone but marks
   the assignment completed only for the participant. Other requests are
   refused with status 403 and the error code `participant_token_invalid`.
   `dallinger.get`, `dallinger.post`, the socket helpers, the tracker and the
@@ -35,12 +35,34 @@
     which issues them a new token and makes the old one stop working.
   - The `participant` table has a new `auth_token_hash` column, so an
     experiment started with an earlier version needs a new database.
-- `/notifications` now requires a dashboard login, and no longer accepts
-  cross-origin requests. `/mturk-sns-listener` accepts only messages that AWS
-  signed, for the experiment's own topic.
 
 ### Changed
 
+- A `/chat` connection that names a participant goes through the same check
+  as an `/experiment-socket` one: the participant must exist and
+  `Experiment.accept_websocket_connection` must accept it. It used to be sent
+  any participant's directed messages, and join their real-time sessions,
+  just by naming them. A `/chat` connection without a participant is still
+  unchecked, and still subscribes and receives broadcasts, but its
+  `dallinger_control` events no longer report the `worker_id` from its URL,
+  which nothing checks. The waiting room's
+  socket (`dallinger.waitForQuorum`) now names no participant, so an
+  experiment whose check requires a token still lets participants out of the
+  waiting room; its `dallinger_control` events no longer identify the
+  participant. Code that builds a `/chat` URL by hand should leave out
+  `participant_id` when the page doesn't know it, since a URL naming
+  `undefined` is now refused, and wrap the socket in
+  `dallinger.stopReconnectingIfRefused` so a refusal isn't retried forever.
+- `/prolific-submission-listener` refuses, with a 403, a request whose
+  `assignmentId` isn't the participant's, and calls
+  `Experiment.check_worker_status`, so an experiment can also require the
+  `unique_id`, which Dallinger's Prolific exit page now sends. It used to mark
+  any `participantId` submitted, which approves and pays them. A
+  `participantId` that isn't an integer also gets the 403, rather than a 500.
+- A signup that reuses a working participant's `assignment_id` with a
+  different `worker_id` is refused with a 403. It used to replace and fail
+  the working participant. The same worker signing up again with
+  `allow_repeat_worker_ids` still replaces their earlier row.
 - Dallinger's Docker images (`dallinger` and `dallinger-bot`) are now based
   on Debian 13 (Trixie) instead of Debian 12 (Bookworm). The `python3`
   command in the image is still Python 3.14. Library packages that Debian
@@ -557,7 +579,8 @@
   an effect and an `Info`, and only the moves that collect a coin or touch
   another player are saved. Its README walks through building the game.
 - `Experiment.accept_websocket_connection(participant_id, scope)` lets an
-  experiment refuse an `/experiment-socket` connection when it opens. A falsy
+  experiment refuse an `/experiment-socket` connection, or a `/chat` one that
+  names a participant, when it opens. A falsy
   return closes the socket with code `1008`, and Dallinger's client helpers
   stop reconnecting.
 - `db.run_after_commit` runs a function once the outermost transaction
@@ -573,6 +596,19 @@
   redirects within the site, and the session cookies are `SameSite=Lax`,
   `Secure` outside debug mode, and remembered for 14 days. GitHub Codespaces
   logs in without a password only in debug mode.
+- The database dashboard's "Compensate Command" button now quotes the
+  recruiter, worker id and dollar amount in the `dallinger compensate`
+  commands it copies, so pasting them into a shell can no longer run
+  commands hidden in a worker id that a participant chose. It refuses to
+  build a command for a missing value, one containing control characters,
+  which a terminal could act on when pasted, or one containing a backslash,
+  which the fish shell treats as an escape inside single quotes.
+- The dashboard's database view no longer fails with a server error when the
+  URL names a table such as `info` or `node` without a
+  `polymorphic_identity`; it now lists every row of that table, and can show
+  columns declared only on subclasses. An unknown
+  table or polymorphic identity returns a 404 instead of a server error, and
+  a `polymorphic_identity` without a `table` returns a 400.
 - The Monitoring and Database dashboards escape participant data before
   the browser reads it as HTML. Previously a participant answer or other
   database value containing HTML could run in the admin's browser: on
@@ -1455,6 +1491,10 @@
 
 ### Removed
 
+- The `/notifications` and `/mturk-sns-listener` routes are gone, since
+  MTurk has closed. They queued participant events, such as marking a
+  participant abandoned or submitted, for anyone who sent a guessable
+  `participant_id` or an assignment id.
 - Removed the Vagrant development environment (``Vagrantfile`` and the Vagrant
   setup documentation). It targeted Ubuntu 16.04, Python 3.6, and PostgreSQL
   9.5 and could not install current Dallinger. Use a normal install or Docker

@@ -2,9 +2,27 @@ import codecs
 from unittest import mock
 
 import pytest
+from sqlalchemy import Column, Integer, String
 
-from dallinger.db import sessions_scope
+from dallinger.db import Base, sessions_scope
 from dallinger.experiment_server.dashboard import DashboardTab
+
+
+class DashboardAnimal(Base):
+    """A polymorphic table whose subclass declares its own column, as PsyNet's do."""
+
+    __tablename__ = "dashboard_test_animal"
+    id = Column(Integer, primary_key=True)
+    type = Column(String(50))
+    __mapper_args__ = {"polymorphic_on": type, "polymorphic_identity": "animal"}
+
+    def __json__(self):
+        return {"id": self.id, "type": self.type, "sound": getattr(self, "sound", None)}
+
+
+class DashboardDog(DashboardAnimal):
+    __mapper_args__ = {"polymorphic_identity": "dog"}
+    sound = Column(String(50))
 
 
 class TestDashboardTabs:
@@ -1009,6 +1027,89 @@ class TestDashboardDatabase:
         }
         assert isinstance(payload["data"], list)
         assert any(row.get("worker_id") == "ROUTE_TEST" for row in payload["data"])
+
+    def test_table_without_polymorphic_identity_lists_all_rows(
+        self, a, active_config, webapp_admin
+    ):
+        node = a.node()
+        a.info(origin=node, contents="plain info")
+        a.gene(origin=node, contents="a gene")
+
+        assert webapp_admin.get("/dashboard/database?table=info").status_code == 200
+        resp = webapp_admin.get(
+            "/dashboard/database?table=info&draw=1&start=0&length=10"
+            "&columns[0][data]=type&columns[1][data]=contents"
+        )
+        assert resp.status_code == 200
+        rows = resp.get_json()["data"]
+        assert {(r["type"], r["contents"]) for r in rows} == {
+            ("info", "plain info"),
+            ("gene", "a gene"),
+        }
+
+    def test_table_without_polymorphic_identity_uses_subclass_columns(self, db_session):
+        from dallinger.experiment_server.experiment_server import Experiment
+
+        db_session.add_all([DashboardDog(sound="woof"), DashboardDog(sound="arf")])
+        db_session.commit()
+        exp = Experiment()
+        table = "dashboard_test_animal"
+
+        assert "sound" in [c["name"] for c in exp.table_columns(table=table)]
+        data = exp.table_data(
+            0, 10, table=table, search_value="woo", order_column="sound"
+        )
+        assert [row["sound"] for row in data["data"]] == ["woof"]
+        data = exp.table_data(0, 10, table=table, order_column="sound")
+        assert [row["sound"] for row in data["data"]] == ["arf", "woof"]
+        panes = exp.table_search_panes(
+            table, None, "", ["sound"], {"sound": ["arf"]}, threshold=1
+        )
+        assert {o["value"]: o["count"] for o in panes["options"]["sound"]} == {
+            "arf": 1,
+            "woof": 0,
+        }
+
+    def test_table_without_polymorphic_identity_loads_subclass_rows_in_bulk(
+        self, db_session
+    ):
+        from sqlalchemy import event
+
+        from dallinger.experiment_server.experiment_server import Experiment
+
+        db_session.add_all([DashboardDog(sound=str(i)) for i in range(10)])
+        db_session.commit()
+        db_session.expire_all()
+        statements = []
+        engine = db_session.get_bind()
+        listener = lambda *args: statements.append(args[2])  # noqa: E731
+        event.listen(engine, "before_cursor_execute", listener)
+        try:
+            data = Experiment().table_data(0, 10, table="dashboard_test_animal")
+        finally:
+            event.remove(engine, "before_cursor_execute", listener)
+
+        assert len(data["data"]) == 10
+        assert len(statements) < 10
+
+    @pytest.mark.parametrize(
+        "query, status, message",
+        [
+            ("table=nonexistent", 404, "Unknown table: nonexistent"),
+            (
+                "table=info&polymorphic_identity=nonexistent",
+                404,
+                "Unknown polymorphic identity for table info: nonexistent",
+            ),
+            ("polymorphic_identity=info", 400, "Missing table parameter"),
+        ],
+    )
+    def test_invalid_table_or_polymorphic_identity(
+        self, active_config, webapp_admin, query, status, message
+    ):
+        resp = webapp_admin.get(f"/dashboard/database?{query}")
+        assert resp.status_code == status
+        assert message in resp.get_data(as_text=True)
 
     def test_database_output_initial_page(self, a, active_config, mock_renderer):
         """Initial /database render should produce template args with ajax wiring
