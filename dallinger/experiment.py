@@ -70,8 +70,8 @@ def _column_attr(cls, name, columns=None):
     lacks columns declared on subclasses, so callers pass the table's columns.
     """
     attr = getattr(cls, name, None)
-    if attr is None and columns is not None:
-        attr = columns.get(name)
+    if not isinstance(attr, _QUERYABLE) and columns is not None:
+        attr = columns.get(name, attr)
     return attr
 
 
@@ -1768,12 +1768,10 @@ class Experiment:
                 return obj.visualization_html
         return ""
 
-    def resolve_attr(self, cls, key, columns=None):
+    def resolve_attr(self, cls, key):
         """
         Resolve a DataTables column key to a SQLAlchemy column and optional
         transforms for display and filtering.
-
-        ``columns``, if given, supplies table columns that ``cls`` doesn't map.
         """
         attr = None
 
@@ -1784,8 +1782,8 @@ class Experiment:
         filter_fn = identity
 
         if key == "object_type":
-            maybe_attr = _column_attr(cls, "type", columns)
-            if isinstance(maybe_attr, _QUERYABLE):
+            maybe_attr = getattr(cls, "type", None)
+            if isinstance(maybe_attr, InstrumentedAttribute):
                 attr = maybe_attr
 
                 def _label_fn(s):
@@ -1797,9 +1795,16 @@ class Experiment:
                 label_fn = _label_fn
                 filter_fn = _filter_fn
         else:
-            maybe_attr = _column_attr(cls, key, columns)
-            if isinstance(maybe_attr, _QUERYABLE):
+            maybe_attr = getattr(cls, key, None)
+            if isinstance(maybe_attr, InstrumentedAttribute):
                 attr = maybe_attr
+        return attr, label_fn, filter_fn
+
+    def _resolve_table_attr(self, cls, key, columns):
+        """Call :meth:`resolve_attr`, falling back to a column in ``columns``."""
+        attr, label_fn, filter_fn = self.resolve_attr(cls, key)
+        if attr is None and columns is not None:
+            attr = columns.get(key)
         return attr, label_fn, filter_fn
 
     def table_data(
@@ -1866,7 +1871,7 @@ class Experiment:
         for key, selected in column_filters.items():
             if not selected:
                 continue
-            attr, _, to_db = self.resolve_attr(cls, key, columns)
+            attr, _, to_db = self._resolve_table_attr(cls, key, columns)
             if attr is None:
                 continue
             q = q.filter(cast(attr, String).in_([to_db(v) for v in selected]))
@@ -1980,7 +1985,7 @@ class Experiment:
         for key, selected in (column_filters or {}).items():
             if not selected:
                 continue
-            attr, _, to_db = self.resolve_attr(cls, key, columns)
+            attr, _, to_db = self._resolve_table_attr(cls, key, columns)
             if attr is not None:
                 q_all = q_all.filter(
                     cast(attr, String).in_([to_db(v) for v in selected])
@@ -1990,7 +1995,7 @@ class Experiment:
 
         for key in pane_columns:
             # Resolve the column attribute and label/value transforms
-            attr, to_label, to_db = self.resolve_attr(cls, key, columns)
+            attr, to_label, to_db = self._resolve_table_attr(cls, key, columns)
             if attr is None:
                 panes_options[key] = []
                 continue

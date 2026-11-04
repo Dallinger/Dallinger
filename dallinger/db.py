@@ -431,7 +431,13 @@ def get_mapped_class(table: Union[str, Table]):
     classes = [
         mapper.class_
         for mapper in get_mappers(table)
-        if mapper.inherits is None and mapper.local_table.name == table_name
+        if mapper.local_table.name == table_name
+        # The topmost mapper of this table, which also covers the table of a
+        # joined-table subclass.
+        and (
+            mapper.inherits is None
+            or mapper.inherits.local_table is not mapper.local_table
+        )
     ]
     assert len(classes) == 1
     return classes[0]

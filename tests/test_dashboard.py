@@ -991,7 +991,6 @@ class TestDashboardDatabase:
     def test_table_without_polymorphic_identity_uses_subclass_columns(self, db_session):
         from dallinger.experiment_server.experiment_server import Experiment
 
-        DashboardAnimal.__table__.create(db_session.get_bind(), checkfirst=True)
         db_session.add_all([DashboardDog(sound="woof"), DashboardDog(sound="arf")])
         db_session.commit()
         exp = Experiment()
