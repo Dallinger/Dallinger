@@ -19,6 +19,7 @@ from .live_server import (
     demo_server,
     frames,
     game_message,
+    identity,
     sign_up,
     wait_for,
     wait_for_session,
@@ -62,9 +63,7 @@ def play(port, participant_id, out):
         out["session"] = wait_for_session(port, participant_id, "coins")
         ws = connect(
             port,
-            "participant_id={}&scope=page&session={}".format(
-                participant_id, out["session"]
-            ),
+            "{}&scope=page&session={}".format(identity(participant_id), out["session"]),
         )
         number = 0
         for _, payload in frames(ws, timeout=0.05):

@@ -1,9 +1,10 @@
 """This module provides the backend Flask server that serves an experiment."""
 
+import hmac
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from json import dumps, loads
 
@@ -39,12 +40,15 @@ from dallinger.utils import (
 from . import dashboard
 from .replay import ReplayBackend
 from .utils import (
+    PARTICIPANT_TOKEN_HEADER,
     ExperimentError,
     ValidatesBrowser,
     crossdomain,
     error_page,
     error_response,
     nocache,
+    participant_token_refusal,
+    request_authenticates,
     success_response,
 )
 from .worker_events import worker_function
@@ -149,6 +153,16 @@ def _config():
 
     app.secret_key = app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY")
     config = get_config(load=True)
+    # Deployed experiments are served over HTTPS; `dallinger develop` and
+    # `dallinger debug` serve plain HTTP on localhost.
+    secure_cookies = config.get("mode", None) != "debug"
+    app.config.update(
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=secure_cookies,
+        REMEMBER_COOKIE_SAMESITE="Lax",
+        REMEMBER_COOKIE_SECURE=secure_cookies,
+        REMEMBER_COOKIE_DURATION=timedelta(days=14),
+    )
 
     if should_auto_authenticate() or config.get("dashboard_password", None):
         app.config["ADMIN_USER"] = dashboard.User(
@@ -738,6 +752,8 @@ def recruiter_exit():
             ),
             status=404,
         )
+    if not request_authenticates(participant):
+        return participant_token_refusal()
 
     refusal = exp.check_recruiter_exit(participant)
     if refusal is not None:
@@ -1088,6 +1104,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
     overrecruited = exp.is_overrecruited(nonfailed_count)
     if overrecruited:
         participant.status = "overrecruited"
+    participant_token = participant.issue_auth_token()
 
     result = {
         "participant": {
@@ -1095,6 +1112,7 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
             # Add some extra information that is useful for initializing dallinger.identity
             "unique_id": participant.unique_id,
             "worker_id": participant.worker_id,
+            "participant_token": participant_token,
         }
     }
 
@@ -1132,22 +1150,35 @@ def post_participant():
 
 @app.route("/participant/<participant_id>", methods=["GET"])
 def get_participant(participant_id):
-    """Get the participant with the given id."""
+    """Get the participant with the given id, for a request carrying its token."""
     try:
         ppt = session.query(models.Participant).filter_by(id=participant_id).one()
     except NoResultFound:
         return error_response(
             error_type="/participant GET: no participant found", status=403
         )
+    if not request_authenticates(ppt):
+        return participant_token_refusal()
 
     # return the data
     return success_response(participant=ppt.__json__())
+
+
+def _same_id(supplied, actual):
+    """Return whether a non-empty ``supplied`` id is ``actual``, in constant time."""
+    if not supplied or not actual:
+        return False
+    return hmac.compare_digest(str(supplied).encode(), str(actual).encode())
 
 
 @app.route("/load-participant", methods=["POST"])
 def load_participant():
     """Get the participant with an assignment id provided in the request.
     Delegates to :func:`~dallinger.experiments.Experiment.load_participant`.
+
+    The request must carry the participant's token or the participant's
+    ``worker_id``. In the second case the participant is issued a new token,
+    which replaces the old one and is returned as ``participant_token``.
     """
     entry_information = request.form.to_dict()
     exp = Experiment()
@@ -1161,6 +1192,15 @@ def load_participant():
             status=403,
         )
     ppt = exp.load_participant(assignment_id)
+    participant_token = None
+    if ppt is not None and not request_authenticates(ppt):
+        if _same_id(participant_info.get("worker_id"), ppt.worker_id):
+            participant_token = ppt.issue_auth_token()
+            session.commit()
+        else:
+            # Refused like an unknown assignment, so the response doesn't
+            # say which assignment ids exist.
+            ppt = None
     if ppt is None:
         return error_response(
             error_type="/load-participant POST: no participant found",
@@ -1168,12 +1208,13 @@ def load_participant():
             status=403,
         )
 
-    participant = ppt.__json__()
-    # unique_id is worker_id:assignment_id; return it only when the worker_id
-    # normalized from the request matches.
-    if participant_info.get("worker_id") == ppt.worker_id:
-        participant["unique_id"] = ppt.unique_id
-        participant["worker_id"] = ppt.worker_id
+    participant = {
+        **ppt.__json__(),
+        "unique_id": ppt.unique_id,
+        "worker_id": ppt.worker_id,
+    }
+    if participant_token is not None:
+        participant["participant_token"] = participant_token
     return success_response(participant=participant)
 
 
@@ -1205,6 +1246,8 @@ def create_question(participant_id):
         return error_response(
             error_type="/question POST no participant found", status=403
         )
+    if not request_authenticates(ppt):
+        return participant_token_refusal()
 
     question = request_parameter(parameter="question")
     response = request_parameter(parameter="response")
@@ -1244,6 +1287,14 @@ def create_question(participant_id):
     return success_response()
 
 
+def _request_owns(node):
+    """Return whether the request carries the token of ``node``'s participant.
+
+    A node without a participant, such as a source, belongs to no request.
+    """
+    return request_authenticates(node.participant)
+
+
 @app.route("/node/<int:node_id>/neighbors", methods=["GET"])
 def node_neighbors(node_id):
     """Send a GET request to the node table.
@@ -1276,6 +1327,8 @@ def node_neighbors(node_id):
             error_type="/node/neighbors, node does not exist",
             error_text="/node/{0}/neighbors, node {0} does not exist".format(node_id),
         )
+    if not _request_owns(node):
+        return participant_token_refusal()
 
     # get its neighbors
     if failed is not None:
@@ -1318,6 +1371,8 @@ def create_node(participant_id):
         )
     except NoResultFound:
         return error_response(error_type="/node POST no participant found", status=403)
+    if not request_authenticates(participant):
+        return participant_token_refusal()
 
     # Make sure the participant status is working
     if participant.status != "working":
@@ -1360,6 +1415,8 @@ def node_vectors(node_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/vectors, node does not exist")
+    if not _request_owns(node):
+        return participant_token_refusal()
 
     try:
         vectors = node.vectors(direction=direction, failed=failed)
@@ -1394,6 +1451,8 @@ def connect(node_id, other_node_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/connect, node does not exist")
+    if not _request_owns(node):
+        return participant_token_refusal()
 
     other_node = session.query(models.Node).get(other_node_id)
     if other_node is None:
@@ -1434,6 +1493,8 @@ def get_info(node_id, info_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/info, node does not exist")
+    if not _request_owns(node):
+        return participant_token_refusal()
 
     # execute the experiment method:
     info = models.Info.query.get(info_id)
@@ -1485,6 +1546,8 @@ def node_infos(node_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/infos, node does not exist")
+    if not _request_owns(node):
+        return participant_token_refusal()
 
     try:
         # execute the request:
@@ -1526,6 +1589,8 @@ def node_received_infos(node_id):
         return error_response(
             error_type="/node/infos, node {} does not exist".format(node_id)
         )
+    if not _request_owns(node):
+        return participant_token_refusal()
 
     # execute the request:
     infos = node.received_infos(type=info_type)
@@ -1546,7 +1611,7 @@ def node_received_infos(node_id):
 
 
 @app.route("/tracking_event/<int:node_id>", methods=["POST"])
-@crossdomain(origin="*")
+@crossdomain(origin="*", headers=[PARTICIPANT_TOKEN_HEADER])
 def tracking_event_post(node_id):
     """Enqueue a TrackingEvent worker for the specified Node."""
     details = request_parameter(parameter="details", optional=True)
@@ -1557,6 +1622,8 @@ def tracking_event_post(node_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/info POST, node does not exist")
+    if not _request_owns(node):
+        return participant_token_refusal()
 
     db.logger.debug(
         "rq: Queueing %s with for node: %s for worker_function",
@@ -1571,7 +1638,7 @@ def tracking_event_post(node_id):
 
 
 @app.route("/info/<int:node_id>", methods=["POST"])
-@crossdomain(origin="*")
+@crossdomain(origin="*", headers=[PARTICIPANT_TOKEN_HEADER])
 def info_post(node_id):
     """Create an info.
 
@@ -1599,6 +1666,8 @@ def info_post(node_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/info POST, node does not exist")
+    if not _request_owns(node):
+        return participant_token_refusal()
 
     try:
         # execute the request
@@ -1644,6 +1713,8 @@ def node_transmissions(node_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/transmissions, node does not exist")
+    if not _request_owns(node):
+        return participant_token_refusal()
 
     # execute the request
     transmissions = node.transmissions(direction=direction, status=status)
@@ -1702,6 +1773,8 @@ def node_transmit(node_id):
     node = session.query(models.Node).get(node_id)
     if node is None:
         return error_response(error_type="/node/transmit, node does not exist")
+    if not _request_owns(node):
+        return participant_token_refusal()
     # create what
     if what is not None:
         try:
@@ -1783,6 +1856,8 @@ def transformation_get(node_id):
         return error_response(
             error_type="/node/transformations, node {} does not exist".format(node_id)
         )
+    if not _request_owns(node):
+        return participant_token_refusal()
 
     # execute the request
     transformations = node.transformations(type=transformation_type)
@@ -1825,6 +1900,8 @@ def transformation_post(node_id, info_in_id, info_out_id):
         return error_response(
             error_type="/transformation POST, node {} does not exist".format(node_id)
         )
+    if not _request_owns(node):
+        return participant_token_refusal()
 
     info_in = models.Info.query.get(info_in_id)
     if info_in is None:
@@ -1863,9 +1940,9 @@ def transformation_post(node_id, info_in_id, info_out_id):
 
 
 @app.route("/notifications", methods=["POST", "GET"])
-@crossdomain(origin="*")
+@login_required
 def api_notifications():
-    """Receive MTurk REST notifications."""
+    """Queue a simulated recruiter notification, for a dashboard user."""
     event_type = request.values["Event.1.EventType"]
     assignment_id = request.values.get("Event.1.AssignmentId")
     participant_id = request.values.get("participant_id")
@@ -1931,13 +2008,17 @@ def worker_complete():
 
 
 def _worker_status_refusal(exp, participant_id):
-    """Return ``exp``'s response refusing a status update, or ``None``.
+    """Return the response refusing a status update, or ``None``.
 
-    An unknown ``participant_id`` returns ``None`` so the route reports it.
+    The request must carry the participant's token, and ``exp`` may refuse
+    it as well. An unknown ``participant_id`` returns ``None`` so the route
+    reports it.
     """
     participant = session.query(models.Participant).filter_by(id=participant_id).first()
     if participant is None:
         return None
+    if not request_authenticates(participant):
+        return participant_token_refusal()
     return exp.check_worker_status(participant)
 
 

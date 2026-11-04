@@ -558,6 +558,6 @@ class Bot(HighPerformanceBotBase):
 
     def participate(self):
         url = "{}/node/{}".format(self.host, self.participant_id)
-        result = requests.post(url)
+        result = requests.post(url, headers=self.token_headers())
         if not result.ok:
             self.log("Couldn't join a group: {}".format(result.text))

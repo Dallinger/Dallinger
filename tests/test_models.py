@@ -758,6 +758,21 @@ class TestModels:
         # make sure private data is not in there
         assert "unique_id" not in participant_json
         assert "worker_id" not in participant_json
+        assert "auth_token_hash" not in participant_json
+
+    def test_participant_keeps_only_a_hash_of_its_token(self, a):
+        participant = a.participant()
+        assert not participant.has_auth_token("anything")
+
+        token = participant.issue_auth_token()
+
+        assert len(token) >= 40
+        assert token not in participant.auth_token_hash
+        assert participant.has_auth_token(token)
+        assert not participant.has_auth_token(token[:-1])
+        assert not participant.has_auth_token(None)
+        assert participant.issue_auth_token() != token
+        assert not participant.has_auth_token(token)
 
     def test_get_all_mapped_classes_includes_realtime_events(self, db_session):
         session = models.RealtimeSession(game_type="duel", members=[1])

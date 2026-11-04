@@ -2,6 +2,43 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- Participant routes are now authenticated with a secret token, so a
+  participant, or anyone else, can no longer act as another participant by
+  sending their guessable `participant_id`. `POST /participant` returns a
+  `participant_token`, of which only a hash is stored, and
+  `dallinger.createParticipant` keeps it in
+  `dallinger.identity.participantToken`. These now require it:
+  `GET /participant/<id>`, `/question`, `POST /node/<participant_id>`, every
+  `/node/<node_id>`, `/info`, `/tracking_event` and `/transformation` route
+  (for a node of that participant, so nodes without a participant can't be
+  used through them), `/worker_complete`, `/worker_failed`,
+  `/recruiter-exit`, `/experiment-socket`, and `/chat` when it names a
+  `participant_id`. `/handle-error` records an error from anyone but marks
+  the assignment completed only for the participant. Other requests are
+  refused with status 403 and the error code `participant_token_invalid`.
+  `dallinger.get`, `dallinger.post`, the socket helpers, the tracker and the
+  exit and error pages send the token, so experiments that use them need no
+  change. Migration notes:
+  - Code that calls these routes in other ways must send the token, in the
+    `X-Dallinger-Participant-Token` header, or as the `participant_token`
+    parameter for a navigation, a form or a WebSocket.
+    `HighPerformanceBotBase` bots send it when calling `sign_off` and
+    `complete_experiment`; their own requests should pass
+    `headers=self.token_headers()`.
+  - A custom `error.html` template should keep the hidden
+    `participant_token` input of Dallinger's own, so that its form completes
+    the assignment.
+  - `POST /load-participant` now loads a participant only for a request
+    carrying their token, or their `worker_id` (as for MTurk or Prolific),
+    which issues them a new token and makes the old one stop working.
+  - The `participant` table has a new `auth_token_hash` column, so an
+    experiment started with an earlier version needs a new database.
+- `/notifications` now requires a dashboard login, and no longer accepts
+  cross-origin requests. `/mturk-sns-listener` accepts only messages that AWS
+  signed, for the experiment's own topic.
+
 ### Changed
 
 - Dallinger's Docker images (`dallinger` and `dallinger-bot`) are now based
@@ -530,6 +567,12 @@
 
 ### Fixed
 
+- Dashboard logins are harder to guess or hijack. After 10 failed logins
+  within 15 minutes, an address is refused until the 15 minutes pass. The
+  password is compared in constant time, the login form's `next` link only
+  redirects within the site, and the session cookies are `SameSite=Lax`,
+  `Secure` outside debug mode, and remembered for 14 days. GitHub Codespaces
+  logs in without a password only in debug mode.
 - The Monitoring and Database dashboards escape participant data before
   the browser reads it as HTML. Previously a participant answer or other
   database value containing HTML could run in the admin's browser: on

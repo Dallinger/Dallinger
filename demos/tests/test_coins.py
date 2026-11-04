@@ -435,7 +435,11 @@ def test_a_bot_joins_a_group(post):
     bot = Bot.__new__(Bot)
     bot.URL = "http://localhost:5000/ad?x=1"
     bot.participant_id = 7
+    bot.participant_token = "secret"
 
     bot.participate()
 
-    post.assert_called_once_with("http://localhost:5000/node/7")
+    post.assert_called_once_with(
+        "http://localhost:5000/node/7",
+        headers={"X-Dallinger-Participant-Token": "secret"},
+    )

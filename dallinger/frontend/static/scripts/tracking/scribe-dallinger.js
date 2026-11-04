@@ -31,6 +31,11 @@ ScribeDallingerTracker.prototype.tracker = function(info) {
       xhr.addEventListener("abort", info.failure);
     }
     xhr.open('POST', config.base_url.replace(/\/$/, "") + '/info/' + dlgr.node_id, true);
+    var dallinger = window.dallinger;
+    var token = dallinger && dallinger.identity && dallinger.identity.participantToken;
+    if (token) {
+      xhr.setRequestHeader(dallinger.PARTICIPANT_TOKEN_HEADER, token);
+    }
     xhr.send(data);
   } else if (info.failure) {
     setTimeout(info.failure, 0);

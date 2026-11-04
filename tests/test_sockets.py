@@ -14,6 +14,8 @@ import pytest
 from gevent.event import Event
 from simple_websocket import ConnectionClosed
 
+from tests.helpers import issue_token
+
 #: The frame redis sends to confirm a subscription, before any traffic.
 #: ``Channel.listen`` never reads the channel name, because a channel owns a
 #: pubsub with one subscription on it.
@@ -72,6 +74,21 @@ def admission(sockets):
 
     socket_admission._process_experiment = None
     return socket_admission
+
+
+@pytest.fixture
+def known_participants(admission):
+    """Accept every participant id a connection names, whatever its token."""
+    from dallinger.utils import normalized_participant_id
+
+    with patch.object(
+        admission,
+        "resolve_participant_id",
+        side_effect=lambda participant_id, token: normalized_participant_id(
+            participant_id
+        ),
+    ):
+        yield
 
 
 @pytest.fixture
@@ -1139,7 +1156,7 @@ class TestExperimentSocketConnection:
                 )
 
         mocksocket.close.assert_called_once_with(
-            sockets.REFUSED_CLOSE_CODE, "unknown participant"
+            sockets.REFUSED_CLOSE_CODE, "unknown participant or wrong token"
         )
         mocksocket.sock.shutdown.assert_called_once_with(socket.SHUT_WR)
         experiment_factory.assert_not_called()
@@ -1281,15 +1298,41 @@ class TestExperimentSocketConnection:
         assert admission._process_experiment is None
         assert "special" not in sockets.chat_backend.channels
 
-    def test_the_chat_route_does_not_look_up_the_participant(
+    def test_a_chat_connection_naming_a_participant_needs_its_token(
         self, sockets, admission, mocksocket
     ):
-        with patch.object(admission, "resolve_participant_id") as lookup:
+        mocksocket.mode = "werkzeug"
+        with patch.object(
+            admission, "resolve_participant_id", return_value=None
+        ) as lookup:
             self.connect_chat(
-                sockets, mocksocket, channel="special", participant_id="nonsense"
+                sockets,
+                mocksocket,
+                channel="special",
+                participant_id="42",
+                participant_token="wrong",
             )
 
-        lookup.assert_not_called()
+        lookup.assert_called_once_with("42", "wrong")
+        mocksocket.close.assert_called_once_with(
+            sockets.REFUSED_CLOSE_CODE, "unknown participant or wrong token"
+        )
+        assert "special" not in sockets.chat_backend.channels
+
+    def test_the_token_reaches_the_lookup(self, sockets, admission, scripted_socket):
+        with patch.object(
+            admission, "resolve_participant_id", return_value="42"
+        ) as lookup:
+            with patch.object(admission, "Experiment"):
+                self.connect(
+                    sockets,
+                    scripted_socket("special:payload"),
+                    channel="special",
+                    participant_id="42",
+                    participant_token="secret",
+                )
+
+        lookup.assert_called_once_with("42", "secret")
 
 
 class TestAcceptWebsocketConnection:
@@ -1429,19 +1472,19 @@ class TestNormalizedParticipantId:
 class TestResolveParticipantId:
     def test_a_number_that_is_not_an_integer_is_not_a_lookup(self, sockets, admission):
         with patch.object(admission, "session") as session:
-            assert admission.resolve_participant_id(12.7) is None
+            assert admission.resolve_participant_id(12.7, "token") is None
 
         session.query.assert_not_called()
 
     def test_non_numeric_id_is_not_a_lookup(self, sockets, admission):
         with patch.object(admission, "session") as session:
-            assert admission.resolve_participant_id("not-a-number") is None
+            assert admission.resolve_participant_id("not-a-number", "token") is None
 
         session.query.assert_not_called()
 
     def test_missing_id_is_not_a_lookup(self, sockets, admission):
         with patch.object(admission, "session") as session:
-            assert admission.resolve_participant_id(None) is None
+            assert admission.resolve_participant_id(None, "token") is None
 
         session.query.assert_not_called()
 
@@ -1454,7 +1497,7 @@ class TestResolveParticipantId:
             )
 
             with pytest.raises(OperationalError):
-                admission.resolve_participant_id("42")
+                admission.resolve_participant_id("42", "token")
 
         session.remove.assert_called_once_with()
 
@@ -1465,19 +1508,40 @@ class TestResolveParticipantIdAgainstTheDatabase:
     def test_finds_a_real_participant(self, sockets, admission, a):
         # resolve_participant_id calls session.remove(), which detaches
         # anything built here, so read the id before the lookup.
-        participant_id = a.participant().id
+        participant = a.participant()
+        token = issue_token(participant)
+        participant_id = participant.id
 
-        assert admission.resolve_participant_id(str(participant_id)) == str(
+        assert admission.resolve_participant_id(str(participant_id), token) == str(
             participant_id
         )
 
-    def test_absent_id_is_unknown(self, sockets, admission, a):
+    @pytest.mark.parametrize("token", [None, "", "wrong"])
+    def test_a_wrong_token_is_unknown(self, sockets, admission, a, token):
+        participant = a.participant()
+        issue_token(participant)
+        participant_id = participant.id
+
+        assert admission.resolve_participant_id(str(participant_id), token) is None
+
+    def test_a_participant_without_a_token_is_unknown(self, sockets, admission, a):
         participant_id = a.participant().id
 
-        assert admission.resolve_participant_id(str(participant_id + 1000)) is None
+        assert admission.resolve_participant_id(str(participant_id), "any") is None
+
+    def test_absent_id_is_unknown(self, sockets, admission, a):
+        participant = a.participant()
+        token = issue_token(participant)
+        participant_id = participant.id
+
+        assert (
+            admission.resolve_participant_id(str(participant_id + 1000), token) is None
+        )
 
     def test_non_ascii_digits_yield_the_parsed_id(self, sockets, admission, a):
-        participant_id = a.participant().id
+        participant = a.participant()
+        token = issue_token(participant)
+        participant_id = participant.id
         arabic_indic = str(participant_id).translate(
             str.maketrans(
                 "0123456789",
@@ -1487,7 +1551,9 @@ class TestResolveParticipantIdAgainstTheDatabase:
 
         # int() accepts these. The raw string reaching the column instead
         # would raise DataError on every query made with it.
-        assert admission.resolve_participant_id(arabic_indic) == str(participant_id)
+        assert admission.resolve_participant_id(arabic_indic, token) == str(
+            participant_id
+        )
 
 
 def published_envelopes(sockets):
@@ -1533,6 +1599,7 @@ def envelope_message(sockets, envelope):
     }
 
 
+@pytest.mark.usefixtures("known_participants")
 class TestParticipantRegistry:
     def test_a_chat_connection_is_addressable(self, sockets, mocksocket):
         addressed = []
@@ -2214,6 +2281,7 @@ class TestReservedChannels:
         assert reserved == db.RESERVED_CHANNELS
 
 
+@pytest.mark.usefixtures("known_participants")
 class TestSubscriptionHandshake:
     """A connection relays only once redis has confirmed its subscription."""
 

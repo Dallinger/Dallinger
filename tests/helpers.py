@@ -4,6 +4,23 @@ import json
 from pathlib import Path
 
 
+def issue_token(participant):
+    """Issue ``participant`` a new token, commit it, and return the token."""
+    from dallinger.db import session
+
+    token = session.merge(participant).issue_auth_token()
+    session.commit()
+    return token
+
+
+def authenticate_as(webapp, participant):
+    """Make the ``webapp`` test client send ``participant``'s token with later requests."""
+    from dallinger.experiment_server.utils import PARTICIPANT_TOKEN_HEADER
+
+    environ_key = "HTTP_" + PARTICIPANT_TOKEN_HEADER.upper().replace("-", "_")
+    webapp.environ_base[environ_key] = issue_token(participant)
+
+
 def write_deployment_policy(root, paths=(), *, names=(), suffixes=()):
     """Write a minimal version 1 ``deploy.toml`` and return its path."""
     lines = ["version = 1", "[exclude]"]

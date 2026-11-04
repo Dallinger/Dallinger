@@ -324,9 +324,64 @@ describe('loadParticipant', function () {
     expect(dlgr.identity.uniqueId).toBe('WWW:AAA');
   });
 
-  test("clears a stored unique_id that ends with another assignment's id", async () => {
-    dlgr.identity.uniqueId = 'WWW:BBB';
+  test('stores a new participant token', async () => {
+    dlgr.identity.participantToken = 'old';
+    await loadWith({id: 7, assignment_id: 'AAA', participant_token: 'new'});
+    expect(dlgr.identity.participantToken).toBe('new');
+  });
+
+  test('keeps the stored participant token when the server returns none', async () => {
+    dlgr.identity.participantToken = 'old';
     await loadWith({id: 7, assignment_id: 'AAA'});
-    expect(dlgr.identity.uniqueId).toBeUndefined();
+    expect(dlgr.identity.participantToken).toBe('old');
+  });
+});
+
+describe('participant token', function () {
+  var dlgr;
+
+  beforeEach(function () {
+    global.$ = global.jQuery = require('./jquery-4.0.0.min');
+    global.reqwest = jest.fn();
+    window.history.pushState({}, 'Test Title', '/exp?mode=debug');
+    store.clear();
+    jest.resetModules();
+    dlgr = require('./dallinger2').dallinger;
+    dlgr.identity.participantToken = 'secret';
+  });
+
+  afterEach(function () {
+    delete global.reqwest;
+    store.clear();
+  });
+
+  function headersSentTo(route) {
+    dlgr.get(route);
+    return reqwest.mock.calls[0][0].headers;
+  }
+
+  test.each(['/node/1/infos', 'node/1/infos', window.location.origin + '/node/1'])(
+    'is sent to this server at %s',
+    (route) => {
+      expect(headersSentTo(route)).toEqual({'X-Dallinger-Participant-Token': 'secret'});
+    }
+  );
+
+  test.each(['https://example.com/api', '//example.com/api', '/\\example.com/api'])(
+    'is not sent to another site at %s',
+    (route) => {
+      expect(headersSentTo(route)).toBeUndefined();
+    }
+  );
+
+  test('is sent with the exit route and to the error form', () => {
+    dlgr.identity.participantId = 7;
+    expect(dlgr.recruiterExitRoute()).toContain('participant_token=secret');
+    dlgr.error({
+      html: '<form id="error-response"></form>',
+      data: {participant_id: 7},
+      requestJSON: '{}',
+    });
+    expect($('form#error-response input[name=participant_token]').val()).toBe('secret');
   });
 });

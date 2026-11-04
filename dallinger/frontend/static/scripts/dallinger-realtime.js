@@ -213,6 +213,7 @@
     var raw = new ReconnectingWebSocket(socketUrl("/experiment-socket", {
       worker_id: dlgr.identity.workerId,
       participant_id: dlgr.identity.participantId,
+      participant_token: dlgr.identity.participantToken,
       scope: options == null || options.scope === undefined ? dlgr.pageScope : options.scope,
       wait_for_game: gameChannel,
       after_session: after

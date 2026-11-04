@@ -20,6 +20,7 @@ from .live_server import (
     demo_server,
     frames,
     game_message,
+    identity,
     sign_up,
     wait_for_session,
 )
@@ -64,9 +65,7 @@ def play(port, participant_id, greets, out):
             session = wait_for_session(port, participant_id, "bargain", after)
             ws = connect(
                 port,
-                "participant_id={}&scope=page&session={}".format(
-                    participant_id, session
-                ),
+                "{}&scope=page&session={}".format(identity(participant_id), session),
                 route="chat",
             )
             if greets and after is None:

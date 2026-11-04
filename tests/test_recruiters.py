@@ -11,6 +11,7 @@ from dallinger.models import Participant
 from dallinger.mturk import MTurkQualificationRequirements, MTurkQuestions
 from dallinger.prolific import ProlificScreenOutDenied
 from dallinger.recruiters import MTurkRecruiterException
+from tests.helpers import authenticate_as
 
 
 class TestModuleFunctions:
@@ -612,11 +613,11 @@ class TestProlificRecruiter:
 
     @pytest.mark.usefixtures("experiment_dir_merged")
     @pytest.mark.parametrize(
-        "worker_params, unique_id",
-        [({"PROLIFIC_PID": "W1"}, "W1:A1"), ({}, None), ({"PROLIFIC_PID": "W2"}, None)],
+        "worker_params, loaded",
+        [({"PROLIFIC_PID": "W1"}, True), ({}, False), ({"PROLIFIC_PID": "W2"}, False)],
     )
-    def test_load_participant_returns_unique_id_for_the_prolific_pid(
-        self, a, webapp, recruiter, worker_params, unique_id
+    def test_load_participant_needs_the_prolific_pid(
+        self, a, webapp, recruiter, worker_params, loaded
     ):
         a.participant(recruiter_id="prolific", worker_id="W1", assignment_id="A1")
 
@@ -630,7 +631,10 @@ class TestProlificRecruiter:
                 data={"STUDY_ID": "S1", "SESSION_ID": "A1", **worker_params},
             )
 
-        assert response.json["participant"].get("unique_id") == unique_id
+        if loaded:
+            assert response.json["participant"]["unique_id"] == "W1:A1"
+        else:
+            assert response.status_code == 403
         assert recruiter.on_task_completion() == {
             "new_status": "recruiter_submission_started",
         }
@@ -638,6 +642,7 @@ class TestProlificRecruiter:
     @pytest.mark.usefixtures("experiment_dir_merged")
     def test_exit_page_includes_submission_prolific_button(self, a, webapp, recruiter):
         p = a.participant(recruiter_id="prolific")
+        authenticate_as(webapp, p)
         expected_url = recruiter.external_submission_url("DEFAULT")
 
         response = webapp.get(f"/recruiter-exit?participant_id={p.id}")
@@ -1016,6 +1021,29 @@ class TestMTurkRecruiterMessages:
 SNS_ROUTE_PATH = "/mturk-sns-listener"
 
 
+#: The fields an SNS signature covers, in signing order, from
+#: https://docs.aws.amazon.com/sns/latest/dg/sns-verify-signature-of-message.html
+SNS_SIGNED_FIELDS = {
+    "Notification": [
+        "Message",
+        "MessageId",
+        "Subject",
+        "Timestamp",
+        "TopicArn",
+        "Type",
+    ],
+    "SubscriptionConfirmation": [
+        "Message",
+        "MessageId",
+        "SubscribeURL",
+        "Timestamp",
+        "Token",
+        "TopicArn",
+        "Type",
+    ],
+}
+
+
 @pytest.mark.usefixtures(
     "experiment_dir"
 )  # Needed because @before_request loads the exp
@@ -1025,30 +1053,113 @@ class TestSNSListenerRoute:
         active_config.extend({"mode": "sandbox"})  # MTurkRecruiter invalid if debug
         with mock.patch("dallinger.recruiters.MTurkRecruiter") as klass:
             instance = klass.return_value
+            instance.config.get.return_value = "some-experiment-id"
             yield instance
 
-    def test_answers_subscription_confirmation_request(self, webapp, recruiter):
-        post_data = {
-            "Type": "SubscriptionConfirmation",
-            "MessageId": "165545c9-2a5c-472c-8df2-7ff2be2b3b1b",
-            "Token": "some-long-token",
-            "TopicArn": "arn:aws:sns:us-west-2:123456789012:MyTopic",
-            "Message": "You have chosen to subscribe to the topic arn:aws:sns:us-west-2:123456789012:MyTopic.\nTo confirm the subscription, visit the SubscribeURL included in this message.",
-            "SubscribeURL": "https://some-confirmation-url-at-amazon",
-            "Timestamp": "2012-04-26T20:45:04.751Z",
-            "SignatureVersion": "1",
-            "Signature": "very-long-base64-encoded-string-i-think",
-            "SigningCertURL": "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-f3ecfb7224c7233fe7bb5f59f96de52f.pem",
-        }
+    @pytest.fixture
+    def sign(self):
+        """Sign SNS messages with a test key whose certificate any SigningCertURL serves."""
+        import base64
+        from datetime import timedelta, timezone
+
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding, rsa
+        from cryptography.x509.oid import NameOID
+
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "sns.test")])
+        now = datetime.now(timezone.utc)
+        certificate = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(1)
+            .not_valid_before(now)
+            .not_valid_after(now + timedelta(days=1))
+            .sign(key, hashes.SHA256())
+        )
+
+        def sign(message):
+            algorithm = {"1": hashes.SHA1, "2": hashes.SHA256}[
+                message["SignatureVersion"]
+            ]
+            signed = "".join(
+                "{}\n{}\n".format(field, message[field])
+                for field in SNS_SIGNED_FIELDS[message["Type"]]
+                if field in message
+            )
+            signature = key.sign(signed.encode(), padding.PKCS1v15(), algorithm())
+            return {**message, "Signature": base64.b64encode(signature).decode()}
+
+        with mock.patch(
+            "dallinger.recruiters._sns_certificate", return_value=certificate
+        ):
+            yield sign
+
+    subscription_confirmation = {
+        "Type": "SubscriptionConfirmation",
+        "MessageId": "165545c9-2a5c-472c-8df2-7ff2be2b3b1b",
+        "Token": "some-long-token",
+        "TopicArn": "arn:aws:sns:us-west-2:123456789012:some-experiment-id",
+        "Message": "You have chosen to subscribe to the topic arn:aws:sns:us-west-2:123456789012:some-experiment-id.\nTo confirm the subscription, visit the SubscribeURL included in this message.",
+        "SubscribeURL": "https://some-confirmation-url-at-amazon",
+        "Timestamp": "2012-04-26T20:45:04.751Z",
+        "SignatureVersion": "1",
+        "SigningCertURL": "https://sns.us-west-2.amazonaws.com/SimpleNotificationService-f3ecfb7224c7233fe7bb5f59f96de52f.pem",
+    }
+
+    def test_answers_subscription_confirmation_request(self, webapp, recruiter, sign):
+        post_data = sign(self.subscription_confirmation)
 
         resp = webapp.post(SNS_ROUTE_PATH, data=json.dumps(post_data))
 
         assert resp.status_code == 200
         recruiter._confirm_sns_subscription.assert_called_once_with(
-            token="some-long-token", topic="arn:aws:sns:us-west-2:123456789012:MyTopic"
+            token="some-long-token",
+            topic="arn:aws:sns:us-west-2:123456789012:some-experiment-id",
         )
 
-    def test_routes_worker_event_notifications(self, webapp, recruiter):
+    @pytest.mark.parametrize(
+        "forge",
+        [
+            lambda m, sign: {**m, "Signature": "c29tZXRoaW5nIGVsc2U="},
+            lambda m, sign: sign(
+                {**m, "TopicArn": "arn:aws:sns:us-west-2:123456789012:other"}
+            ),
+            lambda m, sign: sign(
+                {**m, "SigningCertURL": "https://attacker.example/sns.pem"}
+            ),
+            lambda m, sign: sign(
+                {**m, "SigningCertURL": "http://sns.us-west-2.amazonaws.com/sns.pem"}
+            ),
+            lambda m, sign: {**sign(m), "SignatureVersion": "3"},
+            lambda m, sign: {**sign(m), "Token": "a-token-that-was-not-signed"},
+        ],
+        ids=[
+            "unsigned",
+            "other topic",
+            "certificate elsewhere",
+            "certificate over http",
+            "unknown version",
+            "tampered",
+        ],
+    )
+    def test_refuses_messages_aws_did_not_sign_for_this_topic(
+        self, webapp, recruiter, sign, forge
+    ):
+        post_data = forge(self.subscription_confirmation, sign)
+
+        resp = webapp.post(SNS_ROUTE_PATH, data=json.dumps(post_data))
+
+        assert resp.status_code == 403
+        recruiter._confirm_sns_subscription.assert_not_called()
+
+    @pytest.mark.parametrize("signature_version", ["1", "2"])
+    def test_routes_worker_event_notifications(
+        self, webapp, recruiter, sign, signature_version
+    ):
         post_data = {
             "Type": "Notification",
             "MessageId": "6af5c15c-64a3-54d1-94fb-949b81bf2019",
@@ -1056,13 +1167,12 @@ class TestSNSListenerRoute:
             "Subject": "1565385436809",
             "Message": '{"Events":[{"EventType":"AssignmentSubmitted","EventTimestamp":"2019-08-09T21:17:16Z","HITId":"12345678901234567890","AssignmentId":"1234567890123456789012345678901234567890","HITTypeId":"09876543210987654321"},{"EventType":"AssignmentSubmitted","EventTimestamp":"2019-08-09T21:17:16Z","HITId":"12345678901234567890","AssignmentId":"1234567890123456789012345678900987654321","HITTypeId":"09876543210987654321"}],"EventDocId":"9928a491605538bb160590bb57b0596a9fbbcbba","SourceAccount":"047991105548","CustomerId":"AUYKYIHQXG6XR","EventDocVersion":"2014-08-15"}',
             "Timestamp": "2019-08-09T21:17:16.848Z",
-            "SignatureVersion": "1",
-            "Signature": "very-long-base64-encoded-string-i-think",
+            "SignatureVersion": signature_version,
             "SigningCertURL": "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-6aad65c2f9911b05cd53efda11f913f9.pem",
             "UnsubscribeURL": "https://sns.us-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-east-1:047991105548:some-experiment-id:fd8f816c-7e93-4815-922b-ad1d1f8cb98b",
         }
 
-        resp = webapp.post(SNS_ROUTE_PATH, data=json.dumps(post_data))
+        resp = webapp.post(SNS_ROUTE_PATH, data=json.dumps(sign(post_data)))
 
         assert resp.status_code == 200
         recruiter._report_event_notification.assert_called_once_with(

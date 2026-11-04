@@ -19,6 +19,37 @@ from dallinger.config import get_config
 
 logger = logging.getLogger(__name__)
 
+#: The request header that carries a participant's secret token.
+PARTICIPANT_TOKEN_HEADER = "X-Dallinger-Participant-Token"
+
+#: The query or form parameter that carries the token where a header can't,
+#: such as a page the browser navigates to or a websocket.
+PARTICIPANT_TOKEN_PARAMETER = "participant_token"
+
+
+def request_participant_token():
+    """Return the participant token the current request carries, or ``None``."""
+    return request.headers.get(PARTICIPANT_TOKEN_HEADER) or request.values.get(
+        PARTICIPANT_TOKEN_PARAMETER
+    )
+
+
+def request_authenticates(participant):
+    """Return whether the current request carries ``participant``'s token."""
+    return participant is not None and participant.has_auth_token(
+        request_participant_token()
+    )
+
+
+def participant_token_refusal():
+    """Return the response to a request that doesn't carry the participant's token."""
+    return error_response(
+        error_type="{}: participant token is missing or wrong".format(request.path),
+        error_code="participant_token_invalid",
+        status=403,
+        simple=True,
+    )
+
 
 def crossdomain(
     origin=None,
@@ -243,11 +274,14 @@ def error_page(
     if error_text is None:
         error_text = "There has been an error and so you are unable to continue, sorry!"
 
+    participant_token = None
     if participant is not None and _request_identifies(participant):
         hit_id = participant.hit_id
         assignment_id = participant.assignment_id
         worker_id = participant.worker_id
         participant_id = participant.id
+        if request_authenticates(participant):
+            participant_token = request_participant_token()
     else:
         hit_id = request.form.get("hit_id", "")
         assignment_id = request.form.get("assignment_id", "")
@@ -274,6 +308,7 @@ def error_page(
             worker_id=worker_id,
             request_data=request_data,
             participant_id=participant_id,
+            participant_token=participant_token,
         ),
         500,
     )
@@ -284,8 +319,11 @@ def _request_identifies(participant):
 
     Error pages are reachable with a bare, guessable ``participant_id``, so
     they only show a participant's worker and assignment ids, which make up
-    their ``unique_id``, to a request that sent them.
+    their ``unique_id``, to a request that sent them or the participant's
+    token.
     """
+    if request_authenticates(participant):
+        return True
 
     def matches(name, value):
         return bool(value) and any(

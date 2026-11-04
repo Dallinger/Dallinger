@@ -1,5 +1,7 @@
 """Recruiters manage the flow of participants to the experiment."""
 
+import base64
+import functools
 import json
 import logging
 import os
@@ -7,6 +9,7 @@ import random
 import re
 import string
 import time
+import urllib.parse
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from statistics import median
@@ -14,6 +17,10 @@ from typing import Optional
 
 import flask
 import requests
+from cryptography import x509
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 from sqlalchemy import func
 
 from dallinger import dev_logging
@@ -207,9 +214,9 @@ class Recruiter:
         Returning a dictionary without valid ``hit_id``, ``assignment_id``, or
         ``worker_id`` will generally result in an exception.
 
-        ``/load-participant`` returns the participant's ``unique_id`` only when
-        the ``worker_id`` returned here matches the participant's, so take
-        ``worker_id`` from ``entry_information``.
+        ``/load-participant`` loads a participant for a request without their
+        token only when the ``worker_id`` returned here matches the
+        participant's, so take ``worker_id`` from ``entry_information``.
         """
         participant_data = {
             "hit_id": entry_information.pop(
@@ -1518,6 +1525,75 @@ class MTurkRecruiterException(Exception):
 
 mturk_routes = flask.Blueprint("mturk_recruiter", __name__)
 
+#: Hosts that serve the certificates SNS signs its messages with.
+_SNS_CERTIFICATE_HOST = re.compile(r"^sns\.[a-z0-9-]+\.amazonaws\.com(\.cn)?$")
+
+#: The fields of each SNS message type that its signature covers, in order.
+_SNS_SIGNED_FIELDS = {
+    "Notification": (
+        "Message",
+        "MessageId",
+        "Subject",
+        "Timestamp",
+        "TopicArn",
+        "Type",
+    ),
+    "SubscriptionConfirmation": (
+        "Message",
+        "MessageId",
+        "SubscribeURL",
+        "Timestamp",
+        "Token",
+        "TopicArn",
+        "Type",
+    ),
+}
+_SNS_SIGNED_FIELDS["UnsubscribeConfirmation"] = _SNS_SIGNED_FIELDS[
+    "SubscriptionConfirmation"
+]
+
+
+@functools.lru_cache(maxsize=8)
+def _sns_certificate(url):
+    response = requests.get(url, timeout=10)
+    response.raise_for_status()
+    return x509.load_pem_x509_certificate(response.content)
+
+
+def sns_message_is_authentic(content, topic_name):
+    """Return whether ``content`` is an SNS message that AWS signed for the topic ``topic_name``.
+
+    See https://docs.aws.amazon.com/sns/latest/dg/sns-verify-signature-of-message.html.
+    """
+    fields = _SNS_SIGNED_FIELDS.get(content.get("Type"))
+    if fields is None:
+        return False
+    if str(content.get("TopicArn", "")).rsplit(":", 1)[-1] != topic_name:
+        return False
+    certificate_url = urllib.parse.urlparse(str(content.get("SigningCertURL", "")))
+    if (
+        certificate_url.scheme != "https"
+        or not _SNS_CERTIFICATE_HOST.match(certificate_url.hostname or "")
+        or not certificate_url.path.endswith(".pem")
+    ):
+        return False
+    algorithm = {"1": hashes.SHA1, "2": hashes.SHA256}.get(
+        content.get("SignatureVersion")
+    )
+    if algorithm is None:
+        return False
+    signed = "".join(
+        "{}\n{}\n".format(name, content[name]) for name in fields if name in content
+    )
+    try:
+        signature = base64.b64decode(str(content.get("Signature", "")), validate=True)
+        _sns_certificate(certificate_url.geturl()).public_key().verify(
+            signature, signed.encode(), padding.PKCS1v15(), algorithm()
+        )
+    except (InvalidSignature, ValueError, requests.RequestException):
+        return False
+    return True
+
 
 @mturk_routes.route("/mturk-sns-listener", methods=["POST", "GET"])
 @crossdomain(origin="*")
@@ -1525,10 +1601,20 @@ def mturk_recruiter_notify():
     """Listens for:
     1. AWS SNS subscription confirmation request
     2. SNS subcription messages, which forward MTurk notifications
+
+    Messages that AWS didn't sign for this experiment's topic are refused.
     """
     recruiter = MTurkRecruiter()
     logger.warning("Raw notification body: {}".format(flask.request.get_data()))
-    content = json.loads(flask.request.get_data())
+    try:
+        content = json.loads(flask.request.get_data())
+    except ValueError:
+        content = None
+    if not isinstance(content, dict) or not sns_message_is_authentic(
+        content, recruiter.config.get("id")
+    ):
+        logger.warning("Refusing an SNS message that isn't signed for this topic.")
+        return flask.Response(status=403)
     message_type = content.get("Type")
     # 1. SNS subscription confirmation request
     if message_type == "SubscriptionConfirmation":

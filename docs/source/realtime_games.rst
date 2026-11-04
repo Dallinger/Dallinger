@@ -396,7 +396,7 @@ outcomes::
             # Creating the bot's node puts it in a network, as createAgent
             # does for a page
             url = "{}/node/{}".format(self.host, self.participant_id)
-            result = requests.post(url)
+            result = requests.post(url, headers=self.token_headers())
             if not result.ok:
                 self.log("Couldn't join: {}".format(result.text))
 

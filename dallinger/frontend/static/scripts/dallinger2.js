@@ -89,6 +89,10 @@ var dallinger = (function () {
    *
    * ``participantId`` - Dallinger participant Id
    *
+   * ``participantToken`` - Secret token that requests acting as the
+   * participant carry. ``dallinger.get``, ``dallinger.post`` and sockets
+   * send it themselves.
+   *
    * @namespace
    */
   dlgr.identity = {
@@ -106,6 +110,8 @@ var dallinger = (function () {
     set mode(value) {  dlgr.storage.set('mode', value); },
     get participantId() { return dlgr.storage.get('participant_id'); },
     set participantId(value) { dlgr.storage.set('participant_id', value); },
+    get participantToken() { return dlgr.storage.get('participant_token'); },
+    set participantToken(value) { dlgr.storage.set('participant_token', value); },
     get fingerprintHash() { return dlgr.storage.get('fingerprint_hash'); },
     set fingerprintHash(value) { dlgr.storage.set('fingerprint_hash', value);},
     get entryInformation() { return dlgr.storage.get('entry_information'); },
@@ -296,6 +302,20 @@ var dallinger = (function () {
     }
   };
 
+  /**
+   * The request header that carries ``dallinger.identity.participantToken``.
+   */
+  dlgr.PARTICIPANT_TOKEN_HEADER = "X-Dallinger-Participant-Token";
+
+  // Only requests to this server get the token, never another site.
+  var isSameOrigin = function (route) {
+    try {
+      return new URL(route, window.location.href).origin === window.location.origin;
+    } catch (e) {
+      return false;
+    }
+  };
+
   // AJAX helpers
   var ajax = function (method, route, data) {
     var deferred = $.Deferred();
@@ -314,6 +334,11 @@ var dallinger = (function () {
     };
     if (data !== undefined) {
       options.data = data;
+    }
+    var token = dlgr.identity.participantToken;
+    if (token && isSameOrigin(route)) {
+      options.headers = {};
+      options.headers[dlgr.PARTICIPANT_TOKEN_HEADER] = token;
     }
     reqwest(options);
     return deferred;
@@ -386,6 +411,7 @@ var dallinger = (function () {
           'worker_id': dlgr.identity.workerId,
           'assignment_id': dlgr.identity.assignmentId,
           'unique_id': dlgr.identity.uniqueId,
+          'participant_token': dlgr.identity.participantToken,
           'fingerprint_hash': dlgr.identity.fingerprintHash,
         },
         $form;
@@ -417,8 +443,8 @@ var dallinger = (function () {
 
   /**
    * The URL of the participant's ``/recruiter-exit`` page. It carries the
-   * participant's ``unique_id`` as well as their ``participant_id``, so an
-   * experiment can check that the visitor is that participant.
+   * participant's token, which the page requires, and their ``unique_id``
+   * as well as their ``participant_id``, so an experiment can check more.
    *
    * @returns {string} The exit page's path and query string.
    */
@@ -430,6 +456,9 @@ var dallinger = (function () {
     var params = {participant_id: dlgr.identity.participantId};
     if (dlgr.identity.uniqueId) {
       params.unique_id = dlgr.identity.uniqueId;
+    }
+    if (dlgr.identity.participantToken) {
+      params.participant_token = dlgr.identity.participantToken;
     }
     return params;
   }
@@ -523,6 +552,7 @@ var dallinger = (function () {
         dlgr.post(url, data).done(function (resp) {
           console.log(resp);
           dlgr.identity.participantId = resp.participant.id;
+          dlgr.identity.participantToken = resp.participant.participant_token;
           dlgr.identity.assignmentId = resp.participant.assignment_id;
           dlgr.identity.uniqueId = resp.participant.unique_id;
           dlgr.identity.workerId = resp.participant.worker_id;
@@ -563,11 +593,12 @@ var dallinger = (function () {
    * ``assignment_info``, which can be a scalar ``assignment_id`` or an object
    * with ``entry_information`` parameters.
    *
-   * ``dallinger.identity.uniqueId`` is set only when ``assignment_info`` is an
-   * object holding the participant's worker id under the recruiter's parameter
-   * name, such as ``workerId`` for MTurk or ``PROLIFIC_PID`` for Prolific.
-   * Otherwise a stored ``uniqueId`` is kept if it ends with the loaded
-   * ``assignment_id``, and cleared if it doesn't.
+   * The server only loads the participant for a page that holds their
+   * token, or when ``assignment_info`` is an object holding the
+   * participant's worker id under the recruiter's parameter name, such as
+   * ``workerId`` for MTurk or ``PROLIFIC_PID`` for Prolific. In the second
+   * case the participant gets a new token, which replaces the one any other
+   * page of theirs holds.
    *
    * @returns {jQuery.Deferred} See :ref:`deferreds-label`
    */
@@ -598,10 +629,7 @@ var dallinger = (function () {
           dlgr.identity.mode = resp.participant.mode;
           dlgr.identity.fingerprintHash = resp.participant.fingerprint_hash;
           dlgr.identity.uniqueId = resp.participant.unique_id;
-          var uniqueId = dlgr.identity.uniqueId;
-          if (uniqueId !== undefined && !uniqueId.endsWith(":" + dlgr.identity.assignmentId)) {
-            dlgr.storage.remove('unique_id');
-          }
+          dlgr.identity.participantToken = resp.participant.participant_token;
           $('.btn-success').prop('disabled', false);
           deferred.resolve();
         });
@@ -947,6 +975,7 @@ var dallinger = (function () {
       channel: this.channel,
       worker_id: dlgr.identity.workerId,
       participant_id: this.participantId,
+      participant_token: this.participantId == null ? null : dlgr.identity.participantToken,
       scope: this.scope,
       session: this.session
     }));
@@ -1168,7 +1197,9 @@ var dallinger = (function () {
    * Open a WebSocket connection to the ``/chat`` route, which publishes each
    * message it is sent to the channel the message names.
    *
-   * The connection identifies the participant from ``dallinger.identity``.
+   * The connection identifies the participant from ``dallinger.identity``,
+   * and the server refuses it if the page doesn't hold their token. A page
+   * without a participant connects without one.
    *
    * @example
    * var chatroom = dallinger.openChatSocket({channel: 'chatroom'});
@@ -1216,8 +1247,9 @@ var dallinger = (function () {
    * connection.
    *
    * The connection identifies the participant from ``dallinger.identity``,
-   * and the server refuses it if that participant does not exist or the
-   * experiment's ``accept_websocket_connection`` method says no.
+   * and the server refuses it if that participant does not exist, the
+   * page doesn't hold their token, or the experiment's
+   * ``accept_websocket_connection`` method says no.
    *
    * @example
    * var socket = dallinger.openExperimentSocket();

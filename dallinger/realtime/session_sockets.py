@@ -71,15 +71,17 @@ A page measures its clock against the server's with frames on
 
 A socket with no session gets no answers, and its reports are dropped.
 
-The web process only checks that the participant the socket names is one of
-the session's players, and closes the socket with code ``1008`` and the reason
-``not a player in this session`` if not. If redis or Postgres fails while a
-session is looked up or joined, it closes the socket with ``1013``, which
-tells the page to try again later. Dallinger's sockets don't authenticate
-anyone, so a page that names another player's participant id can play as that
-player. An experiment can check ``/experiment-socket`` connections itself with
-:func:`~dallinger.experiment.Experiment.accept_websocket_connection`, but a
-``/chat`` connection can join a session without that check.
+A socket that names a participant must carry that participant's token, so
+:mod:`~dallinger.experiment_server.socket_admission` has already checked who
+the connection is when the session is looked up. The web process then checks
+that the participant is one of the session's players, and closes the socket
+with code ``1008`` and the reason ``not a player in this session`` if not. If
+redis or Postgres fails while a session is looked up or joined, it closes the
+socket with ``1013``, which tells the page to try again later. A ``/chat``
+connection doesn't call
+:func:`~dallinger.experiment.Experiment.accept_websocket_connection`, so an
+experiment that checks more than the token there should have its pages join
+sessions through ``/experiment-socket``.
 """
 
 import json

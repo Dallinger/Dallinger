@@ -36,7 +36,7 @@ from dallinger.utils import normalized_participant_id
 
 from . import socket_admission
 from .experiment_server import app
-from .utils import date_handler
+from .utils import PARTICIPANT_TOKEN_PARAMETER, date_handler
 
 sock = Sock(app)
 
@@ -1023,15 +1023,30 @@ def _join_session(client):
 
 
 def chat(ws):
-    """Relay messages between a client and redis."""
-    _serve(ws, participant_id=request.args.get("participant_id"))
+    """Relay messages between a client and redis.
+
+    A connection may name no participant. One that names a participant must
+    carry their token.
+    """
+    participant_id = request.args.get("participant_id") or None
+    if participant_id is not None:
+        try:
+            participant_id = socket_admission.authenticate(
+                participant_id, request.args.get(PARTICIPANT_TOKEN_PARAMETER)
+            )
+        except socket_admission.Refused as refusal:
+            _refuse(ws, refusal)
+            return
+    _serve(ws, participant_id=participant_id)
 
 
 def experiment_socket(ws):
     """Hand each inbound message to the experiment running in this process."""
     try:
         participant_id, experiment = socket_admission.admit(
-            request.args.get("participant_id"), request.args.get("scope")
+            request.args.get("participant_id"),
+            request.args.get("scope"),
+            request.args.get(PARTICIPANT_TOKEN_PARAMETER),
         )
     except socket_admission.Refused as refusal:
         _refuse(ws, refusal)

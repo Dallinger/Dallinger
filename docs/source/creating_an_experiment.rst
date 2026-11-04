@@ -630,7 +630,7 @@ thankfully has
 					host=self.host,
 					self=self
 				)
-				result = requests.post(url)
+				result = requests.post(url, headers=self.token_headers())
 				if result.status_code == 500 or result.json()['status'] == 'error':
 					self.stochastic_sleep()
 					continue
@@ -644,7 +644,8 @@ thankfully has
 					node_id=node_id
 				)
 				result = requests.post(url, data={"contents": "Submitted",
-												  "info_type": "Info"})
+												  "info_type": "Info"},
+									   headers=self.token_headers())
 				if result.status_code == 500 or result.json()['status'] == 'error':
 					self.stochastic_sleep()
 					continue
@@ -653,7 +654,8 @@ thankfully has
 
 The high performance bot works very differently. It uses the `requests`
 library to directly post URLs to the server, passing expected values as
-request parameters. This works much faster than simulating a browser,
+request parameters, and ``self.token_headers()`` to authenticate as its
+participant. This works much faster than simulating a browser,
 thus allowing for more bots to participate in an experiment using
 fewer resources.
 

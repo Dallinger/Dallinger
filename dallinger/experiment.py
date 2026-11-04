@@ -398,9 +398,10 @@ class Experiment:
         """Return a response to send instead of the participant's exit page.
 
         ``/recruiter-exit`` calls this after loading the participant named by
-        its ``participant_id`` parameter. ``dallinger.submitAssignment()`` also
-        adds the participant's ``unique_id`` to the link, which an experiment
-        can require::
+        its ``participant_id`` parameter and checking that the request carries
+        the participant's token. ``dallinger.submitAssignment()`` also adds the
+        participant's ``unique_id`` to the link, which an experiment can
+        require as well::
 
             def check_recruiter_exit(self, participant):
                 if flask.request.args.get("unique_id") != participant.unique_id:
@@ -418,12 +419,13 @@ class Experiment:
         ``/worker_complete``, ``/worker_failed`` and ``/handle-error`` call
         this after loading the participant named by their ``participant_id``
         parameter, or, for ``/handle-error``, by its ``worker_id`` or
-        ``assignment_id``. When this refuses, ``/handle-error`` still records
-        the error report and shows its usual confirmation page instead of
-        the response, but doesn't complete the participant.
+        ``assignment_id``, and checking that the request carries the
+        participant's token. When either check refuses, ``/handle-error``
+        still records the error report and shows its usual confirmation page
+        instead of the response, but doesn't complete the participant.
         ``dallinger.submitAssignment()``, ``dallinger.error()``, the error
         page and Dallinger's bots also send the participant's ``unique_id``,
-        which an experiment can require::
+        which an experiment can require as well::
 
             def check_worker_status(self, participant):
                 if flask.request.values.get("unique_id") != participant.unique_id:
@@ -592,9 +594,8 @@ class Experiment:
         :type message: str
         :param channel_name: the channel prefix the payload arrived with
         :type channel_name: str
-        :param participant_id: the id of an existing participant, as named by
-            the connection. ``/experiment-socket`` is unauthenticated, so this says
-            which participant the connection claims to be, not who is sending
+        :param participant_id: the id of the participant whose token the
+            connection carried
         :type participant_id: str
         :param scope: opaque string from the connection's query string, passed
             through without being interpreted. It is how an experiment tells
@@ -615,19 +616,18 @@ class Experiment:
         """Decide whether a ``/experiment-socket`` connection may open.
 
         Called once per connection, after the participant has been found and
-        before the connection subscribes to anything or joins a real-time
-        session. Return ``False`` to refuse it: the connection is closed with
-        code 1008, and Dallinger's client helpers stop reconnecting. Any
-        falsy return refuses, including ``None``, so remember to return
-        ``True``. The default accepts every connection.
+        the connection's ``participant_token`` checked, and before the
+        connection subscribes to anything or joins a real-time session.
+        Return ``False`` to refuse it: the connection is closed with code
+        1008, and Dallinger's client helpers stop reconnecting. Any falsy
+        return refuses, including ``None``, so remember to return ``True``.
+        The default accepts every connection.
 
-        ``/experiment-socket`` doesn't check who is on the other end, so use
-        this to check something only the participant's page knows, such as a
-        token the server signed when it rendered the page, passed as
-        ``scope``. :doc:`Using WebSockets in Dallinger Experiments
-        <using_websockets>` has an example, and says where the scope is
-        logged and saved. ``/chat`` connections don't call it, and can still
-        join a real-time session as any of its players.
+        Use this to check more than the participant's token, such as a value
+        the server signed when it rendered the page, passed as ``scope``.
+        :doc:`Using WebSockets in Dallinger Experiments <using_websockets>`
+        has an example, and says where the scope is logged and saved.
+        ``/chat`` connections check the token but don't call this.
 
         If this raises, the connection is closed with code 1013 and the
         browser tries again. Like
@@ -919,9 +919,9 @@ class Experiment:
         Returning a dictionary without valid ``hit_id``, ``assignment_id``, or
         ``worker_id`` will generally result in an exception.
 
-        ``/load-participant`` returns the participant's ``unique_id`` only when
-        the ``worker_id`` returned here matches the participant's, so take
-        ``worker_id`` from ``entry_information``.
+        ``/load-participant`` loads a participant for a request without their
+        token only when the ``worker_id`` returned here matches the
+        participant's, so take ``worker_id`` from ``entry_information``.
         """
         entry_data = self.recruiter.normalize_entry_information(entry_information)
         # We need an assignment_id in order to create a participant

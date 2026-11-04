@@ -137,6 +137,7 @@ class TestDashboardTabs:
         }
 
 
+@pytest.mark.usefixtures("redis_conn")
 class TestDashboard:
     @pytest.fixture
     def admin_user(self):
@@ -237,21 +238,44 @@ class TestDashboard:
             is admin_user
         )
 
-    def test_load_user_from_request_in_codespaces(self, admin_user):
-        """Test that load_user_from_request auto-authenticates in GitHub Codespaces."""
+    @pytest.mark.parametrize("mode, authenticated", [("debug", True), ("live", False)])
+    def test_load_user_from_request_in_codespaces(
+        self, admin_user, active_config, mode, authenticated
+    ):
+        """Only a debug session in GitHub Codespaces logs in without credentials."""
         from dallinger.experiment_server.dashboard import load_user_from_request
 
+        active_config.extend({"mode": mode})
         with mock.patch(
             "dallinger.experiment_server.dashboard.is_running_in_codespaces"
         ) as mock_codespaces:
             mock_codespaces.return_value = True
-            # Should return admin_user even without auth headers
-            assert (
-                load_user_from_request(
-                    self.create_request("/dashboard", "http://localhost/")
-                )
-                is admin_user
+            user = load_user_from_request(
+                self.create_request("/dashboard", "http://localhost/")
             )
+        assert (user is admin_user) == authenticated
+
+    def test_repeated_failed_logins_lock_out_the_address(self, admin_user):
+        from dallinger.experiment_server.dashboard import (
+            MAX_LOGIN_FAILURES,
+            load_user_from_request,
+        )
+
+        def login(password):
+            credentials = codecs.encode(
+                "admin:{}".format(password).encode("ascii"), "base64"
+            )
+            request = self.create_request(
+                "/dashboard",
+                "http://localhost/",
+                headers={"Authorization": "Basic " + credentials.strip().decode()},
+                environ_base={"REMOTE_ADDR": "203.0.113.9"},
+            )
+            return load_user_from_request(request)
+
+        for _ in range(MAX_LOGIN_FAILURES):
+            assert login("wrong") is None
+        assert login(admin_user.password) is None
 
     def test_unauthorized_debug_mode(self, active_config, env):
         from werkzeug.exceptions import Unauthorized
@@ -284,11 +308,16 @@ class TestDashboard:
     def test_safe_url(self):
         from dallinger.experiment_server.dashboard import is_safe_url
 
-        with mock.patch("dallinger.experiment_server.dashboard.url_for") as url_for:
-            url_for.side_effect = lambda x: "http://localhost"
-            assert is_safe_url("https://evil.org") is False
-            assert is_safe_url("http://localhost/") is True
-            assert is_safe_url("/") is True
+        assert is_safe_url("/") is True
+        assert is_safe_url("/dashboard/monitoring?x=1") is True
+        for url in [
+            "https://evil.org",
+            "http://localhost/",
+            "//evil.org",
+            "/\\evil.org",
+            "/\t/evil.org",
+        ]:
+            assert is_safe_url(url) is False, url
 
 
 @pytest.fixture

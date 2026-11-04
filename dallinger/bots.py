@@ -16,6 +16,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+from dallinger.experiment_server.utils import (
+    PARTICIPANT_TOKEN_HEADER,
+    PARTICIPANT_TOKEN_PARAMETER,
+)
+
 logger = logging.getLogger(__name__)
 
 DRIVER_MAP = {
@@ -85,6 +90,8 @@ class BotBase:
         self.participant_id = participant_id
         self.worker_id = worker_id
         self.hit_id = hit_id
+        #: The secret token that the server issued at sign-up.
+        self.participant_token = None
 
         self.unique_id = worker_id + ":" + assignment_id
 
@@ -101,11 +108,26 @@ class BotBase:
     def log(self, msg):
         logger.info("{}: {}".format(self.participant_id, msg))
 
-    def _worker_status_query(self):
-        """Query string identifying this bot to ``/worker_complete`` or ``/worker_failed``."""
-        return parse.urlencode(
-            {"participant_id": self.participant_id, "unique_id": self.unique_id}
-        )
+    def _worker_status_query(self, include_token=False):
+        """Query string identifying this bot to ``/worker_complete`` or ``/worker_failed``.
+
+        A browser navigation can't send headers, so ``include_token`` puts the
+        participant token in the query string instead.
+        """
+        params = {"participant_id": self.participant_id, "unique_id": self.unique_id}
+        if include_token and self.participant_token:
+            params[PARTICIPANT_TOKEN_PARAMETER] = self.participant_token
+        return parse.urlencode(params)
+
+    def token_headers(self):
+        """Headers that authenticate a request as this bot's participant.
+
+        Send them with any request to a route that acts as the participant,
+        such as ``/node/<participant_id>``.
+        """
+        if not self.participant_token:
+            return {}
+        return {PARTICIPANT_TOKEN_HEADER: self.participant_token}
 
     @cached_property
     def driver(self):
@@ -182,6 +204,10 @@ class BotBase:
                     raise ValueError(
                         f"Failed to extract participant_id from URL after sign-up: {url}"
                     )
+            # dallinger2.js stores identity values as JSON in localStorage.
+            self.participant_token = self.driver.execute_script(
+                "return JSON.parse(window.localStorage.getItem('participant_token'));"
+            )
 
             return True
         except TimeoutException:
@@ -244,10 +270,12 @@ class BotBase:
             p.scheme,
             p.netloc,
             status,
-            self._worker_status_query(),
+            self._worker_status_query(include_token=True),
         )
         self.driver.get(complete_url)
-        logger.info("Forced call to %s: %s" % (status, complete_url))
+        logger.info(
+            "Forced call to %s for participant %s" % (status, self.participant_id)
+        )
 
     def run_experiment(self):
         """Sign up, run the ``participate`` method, then sign off and close
@@ -341,7 +369,7 @@ class HighPerformanceBotBase(BotBase):
                 host=self.host, status=status, query=self._worker_status_query()
             )
             try:
-                result = requests.get(url)
+                result = requests.get(url, headers=self.token_headers())
                 result.raise_for_status()
             except RequestException:
                 self.stochastic_sleep()
@@ -380,6 +408,7 @@ class HighPerformanceBotBase(BotBase):
     def on_signup(self, data):
         """Take any needed action on response from /participant call."""
         self.participant_id = data["participant"]["id"]
+        self.participant_token = data["participant"]["participant_token"]
 
     @property
     def question_responses(self):
@@ -400,7 +429,7 @@ class HighPerformanceBotBase(BotBase):
                 host=self.host, self=self
             )
             try:
-                result = requests.post(url, data=data)
+                result = requests.post(url, data=data, headers=self.token_headers())
                 result.raise_for_status()
             except RequestException:
                 self.stochastic_sleep()

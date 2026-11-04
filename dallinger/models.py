@@ -1,6 +1,9 @@
 """Define Dallinger's core models."""
 
+import hashlib
+import hmac
 import inspect
+import secrets
 from datetime import datetime
 
 from sqlalchemy import (
@@ -30,6 +33,18 @@ DATETIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
 def timenow():
     """A string representing the current date and time."""
     return datetime.now()
+
+
+def hash_auth_token(token):
+    """Return the hex SHA-256 digest that is stored for a participant's token."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def auth_token_matches(token_hash, token):
+    """Return whether ``token`` is the token whose digest is ``token_hash``."""
+    if not token_hash or not token or not isinstance(token, str):
+        return False
+    return hmac.compare_digest(hash_auth_token(token).encode(), token_hash.encode())
 
 
 class SharedMixin:
@@ -233,6 +248,10 @@ class Participant(Base, SharedMixin):
     #: the amount the participant was paid as a bonus.
     bonus = Column(Float)
 
+    #: A String, the SHA-256 digest of the participant's secret token. Only
+    #: the digest is stored; see :meth:`issue_auth_token`.
+    auth_token_hash = Column(String(64), nullable=True)
+
     #: column containing structured data from the recruiter
     entry_information = Column(
         JSONB, nullable=False, server_default="{}", default=lambda: {}
@@ -300,6 +319,20 @@ class Participant(Base, SharedMixin):
         self.fingerprint_hash = fingerprint_hash
         if entry_information:
             self.entry_information = entry_information
+
+    def issue_auth_token(self):
+        """Return a new secret token for the participant, replacing any earlier one.
+
+        Requests that act as the participant must carry the token. Only its
+        digest is stored, so the token can't be recovered later.
+        """
+        token = secrets.token_urlsafe(32)
+        self.auth_token_hash = hash_auth_token(token)
+        return token
+
+    def has_auth_token(self, token):
+        """Return whether ``token`` is the participant's current secret token."""
+        return auth_token_matches(self.auth_token_hash, token)
 
     def json_data(self):
         """Return json description of a participant."""

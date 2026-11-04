@@ -9,6 +9,35 @@ nodes have a ``connect`` method that creates new vectors between nodes
 and there is a corresponding ``connect/`` route that allows the frontend
 to call this method.
 
+.. _participant-tokens:
+
+Participant tokens
+^^^^^^^^^^^^^^^^^^
+
+When ``POST /participant`` creates a participant, its response includes a
+secret ``participant_token``. Only a hash of it is stored, so the server can't
+show it again. Routes that read or act for a participant require that token:
+
+* ``GET /participant/<participant_id>``, ``POST /question/<participant_id>``
+  and ``POST /node/<participant_id>``
+* every ``/node/<node_id>/...``, ``/info/<node_id>/...``,
+  ``/tracking_event/<node_id>`` and ``/transformation/<node_id>/...`` route,
+  for a node that belongs to the participant. Nodes without a participant
+  can't be used through these routes.
+* ``/worker_complete``, ``/worker_failed`` and ``/recruiter-exit``
+* ``/handle-error``, to mark the participant's assignment completed. Without
+  the token the error is still recorded.
+* ``/experiment-socket``, and ``/chat`` when it names a ``participant_id``
+
+Send the token in the ``X-Dallinger-Participant-Token`` header, or, for a page
+navigation, a form or a WebSocket, as the ``participant_token`` parameter.
+Other routes refuse a missing or wrong token with status ``403`` and the
+``error_code`` ``participant_token_invalid``. In the browser,
+``dallinger.createParticipant`` stores the token in
+``dallinger.identity.participantToken``, and ``dallinger.get``,
+``dallinger.post``, the socket helpers and the exit and error pages send it.
+In a bot, ``HighPerformanceBotBase.token_headers()`` returns the header.
+
 Miscellaneous routes
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -41,7 +70,7 @@ Returns the html page with the name ``<page>``.
 
 ::
 
-    GET /chat?channel=<channel>&worker_id=<worker_id>&participant_id=<participant_id>&scope=<scope>
+    GET /chat?channel=<channel>&worker_id=<worker_id>&participant_id=<participant_id>&participant_token=<participant_token>&scope=<scope>
 
 Opens a WebSocket channel that subscribes the client to all messages sent to the
 channel named ``<channel>``. Messages are relayed as soon as they arrive. For
@@ -59,7 +88,9 @@ addresses to any of the first three are discarded. The server handles those on
 ``dallinger_time`` itself, for a connection in a real-time session, and drops
 them from any other. A ``channel`` argument naming any of the four is refused.
 
-A connection which supplies a ``participant_id`` also receives any message sent
+A connection that supplies a ``participant_id`` must also supply that
+participant's ``participant_token``, or the server closes it with code
+``1008``. Such a connection also receives any message sent
 to that participant with ``Experiment.publish_to_participants``, prefixed with
 the ``dallinger_direct`` channel name, whether or not it subscribed to a
 channel of its own.
@@ -75,7 +106,7 @@ with code ``1003``.
 
 ::
 
-    GET /experiment-socket?channel=<channel>&worker_id=<worker_id>&participant_id=<participant_id>&scope=<scope>
+    GET /experiment-socket?channel=<channel>&worker_id=<worker_id>&participant_id=<participant_id>&participant_token=<participant_token>&scope=<scope>
 
 Opens a WebSocket that passes each incoming message to the experiment's
 ``handle_websocket_message`` method, on the web process holding the socket,
@@ -85,9 +116,10 @@ names, the directed messages a connection supplying a ``participant_id``
 receives, and the optional ``channel`` the connection still receives broadcasts
 on. In the browser, ``dallinger.openExperimentSocket`` opens this connection.
 
-An experiment socket must carry a ``participant_id`` that exists, and the
-experiment's ``accept_websocket_connection`` method must accept it, or the
-server closes the connection with code ``1008``. If the participant lookup
+An experiment socket must carry a ``participant_id`` that exists and that
+participant's ``participant_token``, and the experiment's
+``accept_websocket_connection`` method must accept it, or the server closes the
+connection with code ``1008``. If the participant lookup
 raises, the experiment class cannot be built, or ``accept_websocket_connection``
 raises, the server closes with ``1013`` instead, which means the client should
 try again later.
@@ -251,14 +283,9 @@ of type Meme to the node with id 10:
 
 ::
 
-    reqwest({
-        url: "/node/" + my_node_id + "/transmit",
-        method: 'post',
-        type: 'json',
-        data: {
-            what: "Meme",
-            to_whom: 10,
-        },
+    dallinger.post("/node/" + my_node_id + "/transmit", {
+        what: "Meme",
+        to_whom: 10,
     });
 
 ::
@@ -288,9 +315,11 @@ the created node as ``node``.
     POST /notifications
     GET /notifications
 
-This is the route to which notifications from AWS are sent. It is also
-possible to send your own notifications to this route, thereby
-simulating notifications from AWS. Necessary arguments are
+Accepts your own notifications, simulating notifications from AWS, from a
+request logged in to the dashboard, for example with the dashboard user and
+password as HTTP basic authentication. AWS itself notifies
+``/mturk-sns-listener``, which accepts only messages that AWS signed for the
+experiment's topic. Necessary arguments are
 ``Event.1.EventType``, which can be ``AssignmentAccepted``,
 ``AssignmentAbandoned``, ``AssignmentReturned`` or
 ``AssignmentSubmitted``, and ``Event.1.AssignmentId``, which is the id
@@ -302,14 +331,15 @@ type of ``NotificationMissing``.
     GET /participant/<participant_id>
 
 Returns a JSON description of the requested participant as
-``participant``.
+``participant``, to a request carrying the participant's token.
 
 ::
 
     POST /participant/<worker_id>/<hit_id>/<assignment_id>/<mode>
 
 Create a participant. Returns a JSON description of the participant as
-``participant``. Delegates participant creation to
+``participant``, including its ``participant_token`` (see
+:ref:`participant-tokens`). Delegates participant creation to
 :func:`~dallinger.experiment.Experiment.create_participant`
 
 ::
@@ -334,9 +364,12 @@ responsible for transforming ``entry_information`` data into an
 ``assignment_id`` data needed to lookup a participant.
 See :func:`~dallinger.experiment.Experiment.normalize_entry_information`.
 
-The ``participant`` in the response includes ``unique_id`` and ``worker_id``
-only when the ``worker_id`` that ``normalize_entry_information`` returns for the
-request matches the participant's.
+The request must carry the participant's token, or a ``worker_id`` (as
+returned by ``normalize_entry_information``) that matches the participant's.
+In the second case the participant is issued a new token, which replaces the
+old one and is returned in the response as ``participant_token``. A request with
+neither is refused as ``participant_not_found``, so the response doesn't show
+which assignments exist.
 
 When the lookup fails, the JSON error response may include a machine-readable
 ``error_code``:
@@ -344,7 +377,8 @@ When the lookup fails, the JSON error response may include a machine-readable
 * ``assignment_id_missing`` - no ``assignment_id`` could be resolved from the
   request
 * ``participant_not_found`` - an ``assignment_id`` was present, but no matching
-  participant exists
+  participant exists, or the request carried neither the participant's token
+  nor their ``worker_id``
 
 JavaScript clients can read these values from ``AjaxRejection.errorCode``.
 

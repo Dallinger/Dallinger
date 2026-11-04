@@ -1,10 +1,12 @@
-"""Deciding whether an ``/experiment-socket`` connection may open.
+"""Deciding whether a websocket connection may open.
 
-A connection must name a participant that exists, the experiment must build,
-and the experiment's
+An ``/experiment-socket`` connection must name a participant that exists and
+carry that participant's token in the ``participant_token`` query parameter,
+the experiment must build, and the experiment's
 :func:`~dallinger.experiment.Experiment.accept_websocket_connection` must
-accept it. :func:`admit` checks all three before the connection subscribes to
-anything, and raises :class:`Refused` otherwise.
+accept it. :func:`admit` checks all of these before the connection subscribes
+to anything, and raises :class:`Refused` otherwise. A ``/chat`` connection
+that names a participant is checked by :func:`authenticate` alone.
 """
 
 import logging
@@ -55,51 +57,64 @@ def process_experiment():
     return _process_experiment
 
 
-def resolve_participant_id(participant_id):
+def resolve_participant_id(participant_id, token):
     """The id of the participant ``participant_id`` names, or ``None``.
 
-    Existence is checked against the normalized id, so a value the column
+    ``None`` is also returned when ``token`` isn't that participant's token.
+    The participant is looked up by the normalized id, so a value the column
     cannot hold is refused before a query is made with it.
     """
     normalized = normalized_participant_id(participant_id)
     if normalized is None:
         return None
     try:
-        found = session.query(
-            session.query(models.Participant).filter_by(id=int(normalized)).exists()
-        ).scalar()
+        token_hash = (
+            session.query(models.Participant.auth_token_hash)
+            .filter_by(id=int(normalized))
+            .scalar()
+        )
     finally:
         session.remove()
-    return normalized if found else None
+    return normalized if models.auth_token_matches(token_hash, token) else None
 
 
-def admit(requested_id, scope):
-    """The participant id and the experiment for a new connection.
+def authenticate(requested_id, token):
+    """The participant id of a connection that names ``requested_id``.
 
-    Every message is handed to the experiment as coming from a participant, so
-    a connection that names none is refused. The id is checked for existence
-    only: the route is unauthenticated, so it says which participant the
-    connection claims to be, not who is on the other end. The experiment's hook
-    is where an experiment can check more. The session is removed after each
-    step, because an accepted connection can then idle in ``receive()``
-    indefinitely.
-
-    :raises Refused: for an unknown participant or a connection the
-        experiment refuses, and with ``retry`` set when a lookup, the
-        experiment or its hook fails
+    :raises Refused: unless the participant exists and ``token`` is theirs,
+        and with ``retry`` set when the lookup fails
     """
     try:
-        participant_id = resolve_participant_id(requested_id)
+        participant_id = resolve_participant_id(requested_id, token)
     except SQLAlchemyError:
         logger.exception(
-            "Could not look up participant %r for an experiment socket.", requested_id
+            "Could not look up participant %r for a websocket.", requested_id
         )
         raise Refused("participant lookup failed", retry=True)
     if participant_id is None:
         logger.warning(
-            "Refusing experiment socket for unknown participant %r.", requested_id
+            "Refusing websocket for participant %r: unknown participant or "
+            "wrong token.",
+            requested_id,
         )
-        raise Refused("unknown participant")
+        raise Refused("unknown participant or wrong token")
+    return participant_id
+
+
+def admit(requested_id, scope, token):
+    """The participant id and the experiment for a new connection.
+
+    Every message is handed to the experiment as coming from a participant, so
+    a connection that names none is refused, as is one without that
+    participant's ``token``. The experiment's hook is where an experiment can
+    check more. The session is removed after each step, because an accepted
+    connection can then idle in ``receive()`` indefinitely.
+
+    :raises Refused: for an unknown participant, a wrong token or a
+        connection the experiment refuses, and with ``retry`` set when a
+        lookup, the experiment or its hook fails
+    """
+    participant_id = authenticate(requested_id, token)
     try:
         experiment = process_experiment()
     except Exception:

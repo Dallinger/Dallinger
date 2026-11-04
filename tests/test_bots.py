@@ -156,7 +156,10 @@ class TestHighPerformanceBot:
 
     def test_sign_up(self, bot, req_post, fake_uuid):
         mock_return = mock.Mock()
-        mock_return.json.return_value = {"status": "OK", "participant": {"id": 4}}
+        mock_return.json.return_value = {
+            "status": "OK",
+            "participant": {"id": 4, "participant_token": "secret"},
+        }
         req_post.return_value = mock_return
 
         bot.sign_up()
@@ -166,6 +169,7 @@ class TestHighPerformanceBot:
             "fingerprint_hash=fakehash&recruiter=bots:HighPerformanceBotBase"
         )
         assert bot.participant_id == 4
+        assert bot.participant_token == "secret"
 
     def test_a_bot_subscribes_to_the_quorum_channel(self, active_config, monkeypatch):
         from dallinger.bots import HighPerformanceBotBase
@@ -192,6 +196,7 @@ class TestHighPerformanceBot:
         }
 
     def test_sign_off(self, bot, req_post):
+        bot.participant_token = "secret"
         value = bot.sign_off()
         req_post.assert_called_once_with(
             "https://dallinger.io/question/1",
@@ -200,6 +205,7 @@ class TestHighPerformanceBot:
                 "number": 1,
                 "response": json.dumps({"engagement": 4, "difficulty": 3}),
             },
+            headers={"X-Dallinger-Participant-Token": "secret"},
         )
         assert value is True
 
@@ -207,11 +213,13 @@ class TestHighPerformanceBot:
         mock_return = mock.Mock()
         mock_return.dummy = 1
         req_get.return_value = mock_return
+        bot.participant_token = "secret"
 
         response = bot.complete_experiment("worker_complete")
         req_get.assert_called_once_with(
             "https://dallinger.io/worker_complete?participant_id=1"
-            "&unique_id=worker1%3Aassignment1"
+            "&unique_id=worker1%3Aassignment1",
+            headers={"X-Dallinger-Participant-Token": "secret"},
         )
         # returns the response object
         assert response.dummy == 1

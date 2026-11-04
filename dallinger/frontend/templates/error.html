@@ -14,6 +14,9 @@
                     {% if participant_id %}
                     <input type="hidden" name="participant_id" value="{{ participant_id }}" />
                     {% endif %}
+                    {% if participant_token %}
+                    <input type="hidden" name="participant_token" value="{{ participant_token }}" />
+                    {% endif %}
                     {% if hit_id %}
                     <input type="hidden" name="hit_id" value="{{ hit_id }}" />
                     {% endif %}

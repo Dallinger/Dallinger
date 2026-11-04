@@ -16,6 +16,10 @@ import requests
 import simple_websocket
 
 from dallinger import db
+from dallinger.experiment_server.utils import PARTICIPANT_TOKEN_HEADER
+
+#: Each signed-up participant's token, by participant id.
+TOKENS = {}
 
 BIN = Path(sys.executable).parent
 
@@ -100,9 +104,21 @@ def sign_up(base, number):
     )
     response = requests.post(url)
     response.raise_for_status()
-    participant_id = response.json()["participant"]["id"]
-    requests.post("{}/node/{}".format(base, participant_id)).raise_for_status()
+    participant = response.json()["participant"]
+    participant_id = participant["id"]
+    TOKENS[participant_id] = participant["participant_token"]
+    requests.post(
+        "{}/node/{}".format(base, participant_id),
+        headers={PARTICIPANT_TOKEN_HEADER: TOKENS[participant_id]},
+    ).raise_for_status()
     return participant_id
+
+
+def identity(participant_id):
+    """The query string a participant's sockets identify them with."""
+    return "participant_id={}&participant_token={}".format(
+        participant_id, TOKENS[participant_id]
+    )
 
 
 def connect(port, query, route="experiment-socket"):
@@ -129,7 +145,7 @@ def frames(ws, timeout):
 def wait_for_session(port, participant_id, game, after=None):
     """Wait for the player's next session of ``game``, as
     ``waitForRealtimeSession`` does, and return its id."""
-    query = "participant_id={}&scope=wait&wait_for_game={}".format(participant_id, game)
+    query = "{}&scope=wait&wait_for_game={}".format(identity(participant_id), game)
     if after is not None:
         query += "&after_session={}".format(after)
     waiting = connect(port, query)

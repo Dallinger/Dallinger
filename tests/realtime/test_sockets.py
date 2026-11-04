@@ -18,6 +18,7 @@ from dallinger.models import RealtimeSession
 from dallinger.realtime import delivery, session_sockets, store
 from dallinger.realtime.core import run_pass
 from dallinger.realtime.jobs import write_ending
+from dallinger.utils import normalized_participant_id
 from tests.realtime.helpers import CLOCK, TurnTally, create_session
 
 pytestmark = pytest.mark.usefixtures("redis_conn", "realtime_experiment")
@@ -109,7 +110,17 @@ class Parked:
 
 
 def chat(sockets, ws, **args):
-    with patch.object(sockets, "request", Mock(args=args)):
+    """Connect ``ws`` to ``/chat`` as a page that holds the named participant's token."""
+    with (
+        patch.object(
+            socket_admission,
+            "resolve_participant_id",
+            side_effect=lambda participant_id, token: normalized_participant_id(
+                participant_id
+            ),
+        ),
+        patch.object(sockets, "request", Mock(args=args)),
+    ):
         sockets.chat(ws)
 
 

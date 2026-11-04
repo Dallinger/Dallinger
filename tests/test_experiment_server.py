@@ -6,6 +6,14 @@ import flask
 import pytest
 
 from dallinger import db, models
+from tests.helpers import authenticate_as
+
+
+def _authenticated_node(a, webapp, **kw):
+    """Create a node with its own participant and make ``webapp`` act as that participant."""
+    node = a.node(participant=a.participant(), **kw)
+    authenticate_as(webapp, node.participant)
+    return node
 
 
 @pytest.mark.usefixtures("experiment_dir")
@@ -256,23 +264,40 @@ class TestQuestion:
         assert resp.status_code == 403
 
     def test_working_participants_accepted(self, a, webapp):
+        participant = a.participant()
+        authenticate_as(webapp, participant)
         webapp.post(
-            "/question/{}?question=q&response=r&number=1".format(a.participant().id)
+            "/question/{}?question=q&response=r&number=1".format(participant.id)
         )
         assert models.Question.query.all()
 
+    @pytest.mark.parametrize("token", [None, "wrong"])
+    def test_participant_token_required(self, a, webapp, token):
+        participant = a.participant()
+        headers = {"X-Dallinger-Participant-Token": token} if token else {}
+        resp = webapp.post(
+            "/question/{}?question=q&response=r&number=1".format(participant.id),
+            headers=headers,
+        )
+        assert resp.status_code == 403
+        assert resp.json["error_code"] == "participant_token_invalid"
+        assert models.Question.query.all() == []
+
     def test_excessive_question_text_is_blocked(self, a, webapp, active_config):
+        participant = a.participant()
+        authenticate_as(webapp, participant)
+        participant_id = participant.id
         # The normal max length is 1000
         resp = webapp.post(
             "/question/{}?question=q&response={}&number=1".format(
-                a.participant().id, "x" * 1001
+                participant_id, "x" * 1001
             )
         )
         assert resp.status_code == 400
 
         resp = webapp.post(
             "/question/{}?question=q&response={}&number=1".format(
-                a.participant().id, "x" * 1000
+                participant_id, "x" * 1000
             )
         )
         assert resp.status_code == 200
@@ -281,7 +306,7 @@ class TestQuestion:
         with active_config.override({"question_max_length": 99}):
             resp = webapp.post(
                 "/question/{}?question=q&response={}&number=1".format(
-                    a.participant().id, "x" * 100
+                    participant_id, "x" * 100
                 )
             )
         assert resp.status_code == 400
@@ -291,6 +316,7 @@ class TestQuestion:
     ):
         participant = a.participant()
         participant.status = "submitted"
+        authenticate_as(webapp, participant)
         webapp.post(
             "/question/{}?question=q&response=r&number=1".format(participant.id)
         )
@@ -308,9 +334,11 @@ class TestQuestion:
         assert models.Question.query.all() == []
 
     def test_invalid_question_data_returns_error(self, a, webapp):
+        participant = a.participant()
+        authenticate_as(webapp, participant)
         resp = webapp.post(
             "/question/{}?question=q&response=r&number=not a number".format(
-                a.participant().id
+                participant.id
             )
         )
         assert resp.status_code == 400
@@ -320,6 +348,7 @@ class TestQuestion:
         active_config.extend({"mode": "sandbox", "recruiter": "CLIRecruiter"})
         participant = a.participant()
         participant.status = "submitted"
+        authenticate_as(webapp, participant)
         webapp.post(
             "/question/{}?question=q&response=r&number=1".format(participant.id)
         )
@@ -340,13 +369,20 @@ class TestWorkerComplete:
         assert b"ParticipantId not found: -1" in resp.data
 
     def test_with_valid_participant_id_returns_success(self, a, webapp):
-        resp = webapp.post(
-            "/worker_complete", data={"participant_id": a.participant().id}
-        )
+        participant = a.participant()
+        authenticate_as(webapp, participant)
+        resp = webapp.post("/worker_complete", data={"participant_id": participant.id})
         assert resp.status_code == 200
+
+    def test_without_participant_token_is_refused(self, a, webapp, db_session):
+        participant = a.participant()
+        resp = webapp.post("/worker_complete", data={"participant_id": participant.id})
+        assert resp.status_code == 403
+        assert db_session.merge(participant).end_time is None
 
     def test_experiment_can_refuse_with_its_own_response(self, a, webapp):
         participant = a.participant()
+        authenticate_as(webapp, participant)
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as Experiment:
@@ -365,12 +401,14 @@ class TestWorkerComplete:
 
     def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()
+        authenticate_as(webapp, participant)
         webapp.post("/worker_complete", data={"participant_id": participant.id})
         participant = db_session.merge(participant)
         assert participant.end_time is not None
 
     def test_immune_to_double_submission(self, a, webapp, db_session):
         participant = a.participant()
+        authenticate_as(webapp, participant)
         webapp.post("/worker_complete", data={"participant_id": participant.id})
         participant = db_session.merge(participant)
         end_time_after_first_submission = participant.end_time
@@ -382,16 +420,17 @@ class TestWorkerComplete:
         assert participant.end_time == end_time_after_first_submission
 
     def test_records_notification_if_debug_mode(self, a, webapp):
-        webapp.post("/worker_complete", data={"participant_id": a.participant().id})
+        participant = a.participant()
+        authenticate_as(webapp, participant)
+        webapp.post("/worker_complete", data={"participant_id": participant.id})
         assert (
             models.Notification.query.one().event_type == "RecruiterSubmissionComplete"
         )
 
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
-        webapp.post(
-            "/worker_complete",
-            data={"participant_id": a.participant(recruiter_id="bots").id},
-        )
+        participant = a.participant(recruiter_id="bots")
+        authenticate_as(webapp, participant)
+        webapp.post("/worker_complete", data={"participant_id": participant.id})
 
         assert (
             models.Notification.query.one().event_type
@@ -402,10 +441,9 @@ class TestWorkerComplete:
         self, a, webapp, active_config
     ):
         active_config.extend({"mode": "sandbox", "recruiter": "CLIRecruiter"})
-        webapp.post(
-            "/worker_complete",
-            data={"participant_id": a.participant(recruiter_id="cli").id},
-        )
+        participant = a.participant(recruiter_id="cli")
+        authenticate_as(webapp, participant)
+        webapp.post("/worker_complete", data={"participant_id": participant.id})
 
         assert (
             models.Notification.query.one().event_type == "RecruiterSubmissionComplete"
@@ -415,15 +453,15 @@ class TestWorkerComplete:
         self, a, webapp, active_config
     ):
         active_config.extend({"mode": "sandbox", "assign_qualifications": False})
-        webapp.post(
-            "/worker_complete",
-            data={"participant_id": a.participant(recruiter_id="mturk").id},
-        )
+        participant = a.participant(recruiter_id="mturk")
+        authenticate_as(webapp, participant)
+        webapp.post("/worker_complete", data={"participant_id": participant.id})
 
         assert models.Notification.query.all() == []
 
     def test_notifies_recruiter_when_participant_completes(self, a, webapp):
         participant = a.participant()
+        authenticate_as(webapp, participant)
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as Experiment:
@@ -455,14 +493,31 @@ class TestRecruiterExit:
         assert b"no participant found for ID -1" in resp.data
 
     def test_with_valid_participant_id_returns_success(self, a, webapp):
-        resp = webapp.get(
-            "/recruiter-exit?participant_id={}".format(a.participant().id)
-        )
+        participant = a.participant()
+        authenticate_as(webapp, participant)
+        resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
 
         assert resp.status_code == 200
 
+    def test_accepts_the_token_as_a_query_parameter(self, a, webapp):
+        from tests.helpers import issue_token
+
+        participant = a.participant()
+        token = issue_token(participant)
+        resp = webapp.get(
+            "/recruiter-exit",
+            query_string={"participant_id": participant.id, "participant_token": token},
+        )
+        assert resp.status_code == 200
+
+    def test_without_participant_token_is_refused(self, a, webapp):
+        participant = a.participant()
+        resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
+        assert resp.status_code == 403
+
     def test_experiment_can_refuse_with_its_own_response(self, a, webapp):
         participant = a.participant()
+        authenticate_as(webapp, participant)
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as Experiment:
@@ -482,12 +537,14 @@ class TestRecruiterExit:
 
     def test_debug_mode_renders_exit_page_for_hotair_recruiter(self, a, webapp):
         participant = a.participant()
+        authenticate_as(webapp, participant)
         resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
 
         assert b"HotAirRecruiter" in resp.data
 
     def test_delegates_to_participants_recruiter(self, a, webapp):
         participant = a.participant(recruiter_id="cli")
+        authenticate_as(webapp, participant)
         resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
 
         assert b"CLIRecruiter" in resp.data
@@ -496,6 +553,7 @@ class TestRecruiterExit:
         self, a, webapp
     ):
         participant = a.participant(assignment_id="some distinctive ID")
+        authenticate_as(webapp, participant)
         resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
 
         assert "some distinctive ID" in str(resp.data)
@@ -505,6 +563,7 @@ class TestRecruiterExit:
     ):
         active_config.extend({"mode": "sandbox"})
         participant = a.participant(recruiter_id="mturk")
+        authenticate_as(webapp, participant)
         resp = webapp.get("/recruiter-exit?participant_id={}".format(participant.id))
 
         assert (
@@ -529,7 +588,9 @@ def mock_messenger():
 @pytest.mark.slow
 class TestHandleError:
     def test_completes_assignment(self, a, webapp):
-        resp = webapp.post("/handle-error", data={"participant_id": a.participant().id})
+        participant = a.participant()
+        authenticate_as(webapp, participant)
+        resp = webapp.post("/handle-error", data={"participant_id": participant.id})
         assert resp.status_code == 200
         notifications = models.Notification.query.all()
         assert len(notifications) == 2
@@ -552,6 +613,7 @@ class TestHandleError:
 
     def test_looks_up_participant_from_assignment(self, a, webapp):
         participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
+        authenticate_as(webapp, participant)
         assignment_id = participant.assignment_id
         participant_id = participant.id
         webapp.post("/handle-error", data={"assignment_id": assignment_id})
@@ -567,6 +629,7 @@ class TestHandleError:
 
     def test_looks_up_participant_from_worker(self, a, webapp):
         participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
+        authenticate_as(webapp, participant)
         assignment_id = participant.assignment_id
         participant_id = participant.id
         webapp.post("/handle-error", data={"worker_id": participant.worker_id})
@@ -582,6 +645,7 @@ class TestHandleError:
 
     def test_looks_up_hit_in_request_data(self, a, webapp):
         participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
+        authenticate_as(webapp, participant)
         assignment_id = participant.assignment_id
         worker_id = participant.worker_id
         hit_id = participant.hit_id
@@ -610,6 +674,7 @@ class TestHandleError:
 
     def test_looks_up_hit_in_nested_request_data(self, a, webapp):
         participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
+        authenticate_as(webapp, participant)
         assignment_id = participant.assignment_id
         worker_id = participant.worker_id
         hit_id = participant.hit_id
@@ -649,6 +714,7 @@ class TestHandleError:
         self, a, webapp, db_session
     ):
         participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
+        authenticate_as(webapp, participant)
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as Experiment:
@@ -669,6 +735,7 @@ class TestHandleError:
     ):
         a.participant(worker_id="worker-x", assignment_id="assignment-1")
         current = a.participant(worker_id="worker-x", assignment_id="assignment-2")
+        authenticate_as(webapp, current)
         webapp.post(
             "/handle-error",
             data={"worker_id": "worker-x", "assignment_id": "assignment-2"},
@@ -684,7 +751,18 @@ class TestHandleError:
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as Experiment:
             Experiment.return_value.check_worker_status.return_value = ("No", 403)
+            authenticate_as(webapp, participant)
             resp = webapp.post("/handle-error", data={"participant_id": participant.id})
+
+        assert resp.status_code == 200
+        assert db_session.merge(participant).end_time is None
+        assert models.Notification.query.one().event_type == "ExperimentError"
+
+    def test_records_but_does_not_complete_without_participant_token(
+        self, a, webapp, db_session
+    ):
+        participant = a.participant()
+        resp = webapp.post("/handle-error", data={"participant_id": participant.id})
 
         assert resp.status_code == 200
         assert db_session.merge(participant).end_time is None
@@ -713,6 +791,25 @@ class TestErrorPage:
 
         assert ("assignment-x" in resp.text) == shown
 
+    def test_shows_identifiers_to_the_participant_and_keeps_its_token(self, a, webapp):
+        from tests.helpers import issue_token
+
+        participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
+        token = issue_token(participant)
+        contexts = []
+
+        def record(sender, template, context, **extra):
+            contexts.append(context)
+
+        with flask.template_rendered.connected_to(record, webapp.application):
+            resp = webapp.post(
+                "/error-page",
+                data={"participant_id": participant.id, "participant_token": token},
+            )
+
+        assert "assignment-x" in resp.text
+        assert contexts[-1]["participant_token"] == token
+
 
 @pytest.mark.usefixtures("experiment_dir", "db_session")
 @pytest.mark.slow
@@ -728,11 +825,14 @@ class TestWorkerFailed:
         assert b"ParticipantId not found: -1" in resp.data
 
     def test_with_valid_participant_id_returns_success(self, a, webapp):
-        resp = webapp.get("/worker_failed?participant_id={}".format(a.participant().id))
+        participant = a.participant()
+        authenticate_as(webapp, participant)
+        resp = webapp.get("/worker_failed?participant_id={}".format(participant.id))
         assert resp.status_code == 200
 
     def test_experiment_can_refuse_with_its_own_response(self, a, webapp, db_session):
         participant = a.participant()
+        authenticate_as(webapp, participant)
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as Experiment:
@@ -747,24 +847,21 @@ class TestWorkerFailed:
 
     def test_sets_end_time(self, a, webapp, db_session):
         participant = a.participant()
+        authenticate_as(webapp, participant)
         webapp.get("/worker_failed?participant_id={}".format(participant.id))
         assert db_session.merge(participant).end_time is not None
 
     def test_records_notification_if_bot_recruiter(self, a, webapp, active_config):
         active_config.extend({"recruiter": "bots"})
-        webapp.get(
-            "/worker_failed?participant_id={}".format(
-                a.participant(recruiter_id="bots").id
-            )
-        )
+        participant = a.participant(recruiter_id="bots")
+        authenticate_as(webapp, participant)
+        webapp.get("/worker_failed?participant_id={}".format(participant.id))
         assert models.Notification.query.one().event_type == "BotAssignmentRejected"
 
     def test_records_no_notification_if_mturk_recruiter(self, a, webapp):
-        webapp.get(
-            "/worker_failed?participant_id={}".format(
-                a.participant(recruiter_id="mturk").id
-            )
-        )
+        participant = a.participant(recruiter_id="mturk")
+        authenticate_as(webapp, participant)
+        webapp.get("/worker_failed?participant_id={}".format(participant.id))
         assert models.Notification.query.all() == []
 
 
@@ -906,10 +1003,18 @@ class TestSimpleGETRoutes:
 class TestParticipantGetRoute:
     def test_participant_info(self, a, webapp):
         p = a.participant()
+        authenticate_as(webapp, p)
         resp = webapp.get("/participant/{}".format(p.id))
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "success"
         assert data.get("participant").get("status") == "working"
+
+    def test_participant_info_refused_with_another_participants_token(self, a, webapp):
+        p = a.participant()
+        authenticate_as(webapp, a.participant(worker_id="2", assignment_id="2"))
+        resp = webapp.get("/participant/{}".format(p.id))
+        assert resp.status_code == 403
+        assert resp.json["error_code"] == "participant_token_invalid"
 
     def test_participant_invalid(self, webapp):
         nonexistent_participant_id = 999
@@ -932,29 +1037,36 @@ class TestParticipantByAssignmentRoute:
             webapp.post("/load-participant", data={"assignment_id": assignment_id})
             load_participant.assert_called_once_with(assignment_id)
 
-    def test_load_participant(self, a, webapp):
+    def test_load_participant_with_its_token(self, a, webapp):
         p = a.participant()
+        authenticate_as(webapp, p)
         resp = webapp.post("/load-participant", data={"assignment_id": p.assignment_id})
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "success"
         assert data.get("participant").get("status") == "working"
+        assert "participant_token" not in data["participant"]
 
-    def test_unique_id_returned_to_a_caller_with_the_worker_id(self, a, webapp):
-        a.participant(worker_id="W1", assignment_id="A1")
+    def test_worker_id_rotates_the_token(self, a, webapp, db_session):
+        from tests.helpers import issue_token
+
+        participant = a.participant(worker_id="W1", assignment_id="A1")
+        old_token = issue_token(participant)
         resp = webapp.post(
             "/load-participant", data={"assignmentId": "A1", "workerId": "W1"}
         )
-        participant = json.loads(resp.data.decode("utf8"))["participant"]
-        assert participant["unique_id"] == "W1:A1"
-        assert participant["worker_id"] == "W1"
+        loaded = resp.json["participant"]
+        assert loaded["unique_id"] == "W1:A1"
+        assert loaded["worker_id"] == "W1"
+        participant = db_session.merge(participant)
+        assert participant.has_auth_token(loaded["participant_token"])
+        assert not participant.has_auth_token(old_token)
 
     @pytest.mark.parametrize("data", [{}, {"workerId": "W2"}])
-    def test_unique_id_withheld_without_the_worker_id(self, a, webapp, data):
+    def test_refused_without_the_token_or_worker_id(self, a, webapp, data):
         a.participant(worker_id="W1", assignment_id="A1")
         resp = webapp.post("/load-participant", data={"assignmentId": "A1", **data})
-        participant = json.loads(resp.data.decode("utf8"))["participant"]
-        assert "unique_id" not in participant
-        assert "worker_id" not in participant
+        assert resp.status_code == 403
+        assert resp.json["error_code"] == "participant_not_found"
 
     def test_missing_assignment(self, webapp):
         resp = webapp.post("/load-participant")
@@ -1234,16 +1346,22 @@ class TestAPINotificationRoute:
         with mock.patch("dallinger.experiment_server.experiment_server.q") as q:
             yield q
 
-    def test_parses_aws_rest_notification_and_queues_worker(self, webapp, queue):
+    post_data = {
+        "Event.1.EventType": "some event type",
+        "Event.1.AssignmentId": "some assignment id",
+        "participant_id": "some participant id",
+    }
+
+    def test_requires_dashboard_login(self, webapp, queue):
+        resp = webapp.post("/notifications", data=self.post_data)
+
+        assert resp.status_code == 401
+        queue.enqueue.assert_not_called()
+
+    def test_parses_aws_rest_notification_and_queues_worker(self, webapp_admin, queue):
         from dallinger.experiment_server.experiment_server import worker_function
 
-        post_data = {
-            "Event.1.EventType": "some event type",
-            "Event.1.AssignmentId": "some assignment id",
-            "participant_id": "some participant id",
-        }
-
-        webapp.post("/notifications", data=post_data)
+        webapp_admin.post("/notifications", data=self.post_data)
 
         queue.enqueue.assert_called_once_with(
             worker_function,
@@ -1399,17 +1517,34 @@ class TestNetworkRoute:
 class TestNodeRouteGET:
     def test_node_vectors(self, a, webapp):
         with db.sessions_scope(commit=True):
-            node = a.node()
+            participant = a.participant()
+            node = a.node(participant=participant)
             node_id = node.id
+        authenticate_as(webapp, participant)
         resp = webapp.get("/node/{}/vectors".format(node_id))
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "success"
         assert data.get("vectors") == []
 
+    def test_node_infos_refused_for_another_participants_node(self, a, webapp):
+        node = a.node(participant=a.participant())
+        authenticate_as(webapp, a.participant(worker_id="2", assignment_id="2"))
+        resp = webapp.get("/node/{}/infos".format(node.id))
+        assert resp.status_code == 403
+        assert resp.json["error_code"] == "participant_token_invalid"
+
+    def test_node_infos_refused_for_a_node_without_a_participant(self, a, webapp):
+        node = a.node()
+        authenticate_as(webapp, a.participant())
+        resp = webapp.get("/node/{}/infos".format(node.id))
+        assert resp.status_code == 403
+
     def test_node_infos(self, a, webapp):
         with db.sessions_scope(commit=True):
-            node = a.node()
+            participant = a.participant()
+            node = a.node(participant=participant)
             node_id = node.id
+        authenticate_as(webapp, participant)
         resp = webapp.get("/node/{}/infos".format(node_id))
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("status") == "success"
@@ -1428,16 +1563,25 @@ class TestParticipantNodeCreationRoute:
         self, db_session, a, webapp
     ):
         with db.sessions_scope(commit=True):
-            participant_id = a.participant().id
+            participant = a.participant()
+            participant_id = participant.id
+        authenticate_as(webapp, participant)
         resp = webapp.post("/node/{}".format(participant_id))
         data = json.loads(resp.data.decode("utf8"))
         assert data.get("node").get("participant_id") == participant_id
+
+    def test_without_participant_token_is_refused(self, db_session, a, webapp):
+        resp = webapp.post("/node/{}".format(a.participant().id))
+        assert resp.status_code == 403
+        assert resp.json["error_code"] == "participant_token_invalid"
 
     def test_with_valid_participant_adds_node_to_network(self, db_session, a, webapp):
         from dallinger.networks import Star
 
         with db.sessions_scope(commit=True):
-            participant_id = a.participant().id
+            participant = a.participant()
+            participant_id = participant.id
+        authenticate_as(webapp, participant)
         resp = webapp.post("/node/{}".format(participant_id))
         data = json.loads(resp.data.decode("utf8"))
         assert Star.query.one().nodes()[0].id == data["node"]["network_id"]
@@ -1450,12 +1594,11 @@ class TestParticipantNodeCreationRoute:
             participant.status = "submitted"
             participant_id = participant.id
 
+        authenticate_as(webapp, participant)
         resp = webapp.post("/node/{}".format(participant_id))
 
         error_report = resp.data.decode("utf8")
         assert "Error type: /node POST, status = submitted" in error_report
-        assert "a_id" not in error_report
-        assert "w_id" not in error_report
 
     def test_no_network_for_participant_returns_error(self, a, db_session, webapp):
         with db.sessions_scope(commit=True) as session:
@@ -1468,6 +1611,7 @@ class TestParticipantNodeCreationRoute:
             # Assign the participant to a node and fill the network:
             a.node(participant=participant, network=network)
             participant_id = participant.id
+        authenticate_as(webapp, participant)
         resp = webapp.post("/node/{}".format(participant_id))
         assert resp.data == b'{"status": "error"}'
 
@@ -1537,7 +1681,8 @@ class TestNodeRoutePOST:
             from dallinger.models import Network
 
             network = session.query(Network).all()[0]
-            node1 = a.node(network=network, participant=a.participant())
+            sender = a.participant()
+            node1 = a.node(network=network, participant=sender)
             network.add_node(node1)
             node2 = a.node(network=network, participant=a.participant())
             network.add_node(node2)
@@ -1545,6 +1690,7 @@ class TestNodeRoutePOST:
             node1_id = node1.id
             info_id = info.id
             node2_id = node2.id
+        authenticate_as(webapp, sender)
         resp = webapp.post(
             "/node/{}/transmit?what={}&to_whom={}".format(node1_id, info_id, node2_id)
         )
@@ -1561,14 +1707,14 @@ class TestNodeRoutePOST:
         assert "node does not exist" in data["html"]
 
     def test_node_transmit_content_and_no_target_does_nothing(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         resp = webapp.post("/node/{}/transmit".format(node.id))
         data = json.loads(resp.data.decode("utf8"))
         assert data["status"] == "success"
         assert data["transmissions"] == []
 
     def test_node_transmit_invalid_info_id_returns_error(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         nonexistent_info_id = 999
         resp = webapp.post(
             "/node/{}/transmit?what={}".format(node.id, nonexistent_info_id)
@@ -1578,7 +1724,7 @@ class TestNodeRoutePOST:
         assert "info does not exist" in data["html"]
 
     def test_node_transmit_invalid_info_subclass_returns_error(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         nonexistent_subclass = "Nonsense"
         resp = webapp.post(
             "/node/{}/transmit?what={}".format(node.id, nonexistent_subclass)
@@ -1588,7 +1734,7 @@ class TestNodeRoutePOST:
         assert "Nonsense not in experiment.known_classes" in data["html"]
 
     def test_node_transmit_invalid_recipient_subclass_returns_error(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         info = a.info(origin=node)
         nonexistent_subclass = "Nonsense"
         resp = webapp.post(
@@ -1601,7 +1747,7 @@ class TestNodeRoutePOST:
         assert "Nonsense not in experiment.known_classes" in data["html"]
 
     def test_node_transmit_invalid_recipient_id_returns_error(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         info = a.info(origin=node)
         nonexistent_id = 999
         resp = webapp.post(
@@ -1626,21 +1772,21 @@ class TestInfoRoutePOST:
         assert "node does not exist" in data["html"]
 
     def test_info_type_defaults_to_Info(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         data = {"contents": "foo"}
         resp = webapp.post("/info/{}".format(node.id), data=data)
         data = json.loads(resp.data.decode("utf8"))
         assert "info" in data
 
     def test_info_defaults_to_unfailed(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         data = {"contents": "foo"}
         resp = webapp.post("/info/{}".format(node.id), data=data)
         data = json.loads(resp.data.decode("utf8"))
         assert data["info"]["failed"] is False
 
     def test_info_can_be_failed(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         data = {"contents": "foo", "failed": "True"}
         resp = webapp.post("/info/{}".format(node.id), data=data)
         data = json.loads(resp.data.decode("utf8"))
@@ -1648,7 +1794,7 @@ class TestInfoRoutePOST:
 
     def test_failed_info_can_attach_to_failed_node(self, db_session, a, webapp):
         with db.sessions_scope(commit=True):
-            node = a.node()
+            node = _authenticated_node(a, webapp)
             node_id = node.id
             node.fail()
 
@@ -1662,14 +1808,14 @@ class TestInfoRoutePOST:
         assert data["info"]["failed"] is True
 
     def test_loads_details_json_value(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         data = {"contents": "foo", "details": '{"key": "value"}'}
         resp = webapp.post("/info/{}".format(node.id), data=data)
         data = json.loads(resp.data.decode("utf8"))
         assert data["info"]["details"] == {"key": "value"}
 
     def test_pings_experiment(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         data = {"contents": "foo"}
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
@@ -1681,7 +1827,7 @@ class TestInfoRoutePOST:
             mock_exp.info_post_request.assert_called_once()
 
     def test_returns_error_if_experiment_ping_fails(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         data = {"contents": "foo"}
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
@@ -1706,7 +1852,7 @@ class TestTrackingEventRoutePOST:
         assert "node does not exist" in data["html"]
 
     def test_loads_and_returns_details(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         data = {"details": '{"key": "value"}'}
         resp = webapp.post("/tracking_event/{}".format(node.id), data=data)
         data = json.loads(resp.data.decode("utf8"))
@@ -1726,25 +1872,27 @@ class TestNodeNeighbors:
         assert b"node 123 does not exist" in resp.data
 
     def test_includes_failed_param_if_request_includes_it(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         resp = webapp.get("/node/{}/neighbors?failed=False".format(node.id))
         assert b"You should not pass a failed argument to neighbors()." in resp.data
 
     def test_finds_neighbor_nodes(self, a, webapp):
         with db.sessions_scope(commit=True):
             network = a.network()
-            node1 = a.node(network=network)
+            participant = a.participant()
+            node1 = a.node(network=network, participant=participant)
             node1_id = node1.id
             node2 = a.node(network=network)
             node2_id = node2.id
             node1.connect(node2)
 
+        authenticate_as(webapp, participant)
         resp = webapp.get("/node/{}/neighbors".format(node1_id))
         data = json.loads(resp.data.decode("utf8"))
         assert data["nodes"][0]["id"] == node2_id
 
     def test_pings_experiment(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
@@ -1755,7 +1903,7 @@ class TestNodeNeighbors:
             mock_exp.node_get_request.assert_called_once_with(node=node, nodes=[])
 
     def test_returns_error_if_experiment_ping_fails(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
@@ -1783,7 +1931,8 @@ class TestNodeReceivedInfos:
         with db.sessions_scope(commit=True):
             net = a.network()
             sender = a.node(network=net)
-            receiver = a.node(network=net)
+            participant = a.participant()
+            receiver = a.node(network=net, participant=participant)
             sender.connect(direction="to", whom=receiver)
             info = a.info(origin=sender, contents="foo")
             info_id = info.id
@@ -1791,6 +1940,7 @@ class TestNodeReceivedInfos:
             receiver.receive()
             receiver_id = receiver.id
 
+        authenticate_as(webapp, participant)
         resp = webapp.get("/node/{}/received_infos".format(receiver_id))
         data = json.loads(resp.data.decode("utf8"))
 
@@ -1799,7 +1949,7 @@ class TestNodeReceivedInfos:
 
     def test_returns_empty_if_no_infos_received_by_node(self, a, webapp):
         net = a.network()
-        node = a.node(network=net)
+        node = _authenticated_node(a, webapp, network=net)
 
         resp = webapp.get("/node/{}/received_infos".format(node.id))
         data = json.loads(resp.data.decode("utf8"))
@@ -1807,7 +1957,7 @@ class TestNodeReceivedInfos:
         assert data["infos"] == []
 
     def test_pings_experiment(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
@@ -1818,7 +1968,7 @@ class TestNodeReceivedInfos:
             mock_exp.info_get_request.assert_called_once_with(node=node, infos=[])
 
     def test_returns_error_if_experiment_ping_fails(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
@@ -1844,10 +1994,12 @@ class TestTransformationGet:
 
     def test_finds_transformations(self, a, webapp):
         with db.sessions_scope(commit=True):
-            node = a.node()
+            participant = a.participant()
+            node = a.node(participant=participant)
             node_id = node.id  # save so we don't have to merge sessions
             node.replicate(a.info(origin=node))
 
+        authenticate_as(webapp, participant)
         resp = webapp.get(
             "/node/{}/transformations?transformation_type=Replication".format(node_id)
         )
@@ -1855,7 +2007,7 @@ class TestTransformationGet:
         assert data["transformations"][0]["node_id"] == node_id
 
     def test_pings_experiment(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
@@ -1868,7 +2020,7 @@ class TestTransformationGet:
             )
 
     def test_returns_error_if_experiment_ping_fails(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment"
         ) as mock_class:
@@ -1892,18 +2044,18 @@ class TestTransformationPost:
         assert b"node 123 does not exist" in resp.data
 
     def test_returns_error_for_invalid_info_in_id(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         resp = webapp.post("/transformation/{}/123/123".format(node.id))
         assert b"info_in 123 does not exist" in resp.data
 
     def test_returns_error_for_invalid_info_out_id(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         info = a.info(origin=node)
         resp = webapp.post("/transformation/{}/{}/123".format(node.id, info.id))
         assert b"info_out 123 does not exist" in resp.data
 
     def test_creates_transformation(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         info_in = a.info(origin=node)
         info_out = a.info(origin=node)
         info_out_id = info_out.id  # save to avoid merging sessions
@@ -1914,7 +2066,7 @@ class TestTransformationPost:
         assert data["transformation"]["info_out_id"] == info_out_id
 
     def test_pings_experiment(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         info_in = a.info(origin=node)
         info_out = a.info(origin=node)
         with mock.patch(
@@ -1929,7 +2081,7 @@ class TestTransformationPost:
             mock_exp.transformation_post_request.assert_called()
 
     def test_returns_error_if_experiment_ping_fails(self, a, webapp):
-        node = a.node()
+        node = _authenticated_node(a, webapp)
         info_in = a.info(origin=node)
         info_out = a.info(origin=node)
         with mock.patch(
