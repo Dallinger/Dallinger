@@ -12,7 +12,11 @@
   unchecked, and still subscribes and receives broadcasts. The waiting room's
   socket (`dallinger.waitForQuorum`) now names no participant, so an
   experiment whose check requires a token still lets participants out of the
-  waiting room.
+  waiting room; its `dallinger_control` events no longer identify the
+  participant. Code that builds a `/chat` URL by hand should leave out
+  `participant_id` when the page doesn't know it, since a URL naming
+  `undefined` is now refused, and wrap the socket in
+  `dallinger.stopReconnectingIfRefused` so a refusal isn't retried forever.
 - `/prolific-submission-listener` refuses, with a 403, a request whose
   `assignmentId` isn't the participant's, and calls
   `Experiment.check_worker_status`, so an experiment can also require the

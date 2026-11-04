@@ -41,7 +41,9 @@ _process_experiment_lock = Semaphore()
 
 
 def process_experiment():
-    """The one ``Experiment`` this process checks websocket connections with and hands experiment-socket messages to.
+    """Return the one ``Experiment`` this process checks websocket connections with.
+
+    It also handles messages sent through ``/experiment-socket``.
 
     ``Experiment.__init__`` runs ``configure()``, which is experiment code and
     may query, so the constructor can yield and two connections would otherwise
