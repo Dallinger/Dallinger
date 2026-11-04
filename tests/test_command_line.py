@@ -632,6 +632,23 @@ class TestDevelopCommand:
         assert out[5:] == ["Press Ctrl+C to stop."]
         open_browser.assert_not_called()
 
+    def test_launch_job_opens_the_dashboard_with_its_login(
+        self, active_config, develop
+    ):
+        develop_module = sys.modules["dallinger.command_line.develop"]
+        active_config.extend({"dashboard_password": "another-experiments-pw"})
+        with (
+            mock.patch.object(develop_module, "handle_launch_data", return_value={}),
+            mock.patch.object(
+                develop_module, "_async_browser", develop_module._browser
+            ),
+            mock.patch.object(develop_module, "open_browser") as open_browser,
+        ):
+            develop_module.launch_app_and_open_browser(5001, auth=("admin", "pw"))
+        assert (
+            "admin:pw@127.0.0.1:5001/dashboard" in open_browser.call_args_list[0][0][0]
+        )
+
     @pytest.mark.parametrize(
         "message, rows",
         [

@@ -238,9 +238,9 @@ def _bootstrap(exp_config=None, experiment_files=None):
 
 def launch_app_and_open_browser(port, auth=None):
     launch_app_without_browsers(port, auth=auth)
-    _async_browser("dashboard", port, quiet=True)
+    _async_browser("dashboard", port, quiet=True, auth=auth)
     time.sleep(0.1)  # A little delay to ensure they always open in the same order
-    _async_browser("ad", port, quiet=True)
+    _async_browser("ad", port, quiet=True, auth=auth)
 
 
 def launch_app_without_browsers(port, auth=None):
@@ -360,12 +360,16 @@ def browser(route=None, port=None):
     _browser(route=route, port=port)
 
 
-def _browser(route=None, port=5000, quiet=False):
+def _browser(route=None, port=5000, quiet=False, auth=None):
     """Open one of the supported routes with appropriate path and URL parameters.
 
-    Unless ``quiet``, the URL is printed first.
+    Unless ``quiet``, the URL is printed first. ``auth`` is the dashboard
+    ``(user, password)``; it defaults to the login in this process's config.
     """
-    config = get_config(load=True)
+    if auth:
+        config = {"dashboard_user": auth[0], "dashboard_password": auth[1]}
+    else:
+        config = get_config(load=True)
     url_factory = valid_routes.get(route)
     if url_factory is not None:
         url = url_factory(config, port)
@@ -378,11 +382,11 @@ def _browser(route=None, port=5000, quiet=False):
         )
 
 
-def _async_browser(route=None, port=5000, quiet=False):
+def _async_browser(route=None, port=5000, quiet=False, auth=None):
     # The _browser call is pretty slow, so we run it in a thread
     # to allow us to open multiple browsers at the same time
     threading.Thread(
         target=_browser,
         name=f"Open {route}",
-        kwargs={"route": route, "port": port, "quiet": quiet},
+        kwargs={"route": route, "port": port, "quiet": quiet, "auth": auth},
     ).start()

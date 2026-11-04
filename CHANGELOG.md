@@ -237,9 +237,9 @@
   (when replaying), `docker` and `docker-ssh` send the login for you, and
   `handle_launch_data()` sends
   the loaded config's login unless given `auth=(user, password)`.
-  `develop debug` puts the login in its launch job, so the launch still
-  works when another experiment's worker on the same Redis database picks
-  the job up. The
+  `develop debug` puts the login in its launch job, so the launch, and the
+  dashboard tab it opens, still work when another experiment's worker on
+  the same Redis database picks the job up. The
   server also refuses, with 403, a launch that a browser sends from another
   site's page, even with the login, because browsers attach saved HTTP
   Basic credentials, such as those `dallinger debug` opens the dashboard
