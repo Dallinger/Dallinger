@@ -16,6 +16,11 @@ def _authenticated_node(a, webapp, **kw):
     return node
 
 
+def _another_participant(a):
+    """Create a participant other than the default one ``a.participant()`` makes."""
+    return a.participant(worker_id="2", assignment_id="2")
+
+
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
 class TestAppConfiguration:
@@ -622,6 +627,20 @@ class TestHandleError:
         assert notifi.event_type == "ExperimentError"
         assert notifi.details["request_data"]["a"] == "b"
         assert notifi.details["feedback"] == "Some feedback"
+
+    def test_does_not_save_the_participant_token(self, webapp):
+        failed_body = {"unique_id": "W:A", "participant_token": "secret"}
+        webapp.post(
+            "/handle-error",
+            data={
+                "request_data": json.dumps(
+                    {"route": "/worker_complete", "data": json.dumps(failed_body)}
+                ),
+            },
+        )
+
+        notification = models.Notification.query.one()
+        assert "secret" not in json.dumps(notification.details)
 
     def test_looks_up_participant_from_assignment(self, a, webapp):
         participant = a.participant(worker_id="worker-x", assignment_id="assignment-x")
@@ -1505,10 +1524,33 @@ class TestNodeRouteGET:
         assert data.get("status") == "success"
         assert data.get("vectors") == []
 
-    def test_node_infos_refused_for_another_participants_node(self, a, webapp):
+    @pytest.mark.parametrize(
+        "method, route",
+        [
+            ("get", "/node/{node}/neighbors"),
+            ("get", "/node/{node}/vectors"),
+            ("post", "/node/{node}/connect/{node}"),
+            ("get", "/info/{node}/{info}"),
+            ("post", "/info/{node}?contents=x"),
+            ("get", "/node/{node}/infos"),
+            ("get", "/node/{node}/received_infos"),
+            ("post", "/tracking_event/{node}?contents=x"),
+            ("get", "/node/{node}/transmissions"),
+            ("post", "/node/{node}/transmit"),
+            ("get", "/node/{node}/transformations"),
+            ("post", "/transformation/{node}/{info}/{info}"),
+        ],
+    )
+    @pytest.mark.parametrize("as_another_participant", [False, True])
+    def test_node_routes_refuse_requests_without_the_owners_token(
+        self, a, webapp, method, route, as_another_participant
+    ):
         node = a.node(participant=a.participant())
-        authenticate_as(webapp, a.participant(worker_id="2", assignment_id="2"))
-        resp = webapp.get("/node/{}/infos".format(node.id))
+        info = a.info(origin=node)
+        if as_another_participant:
+            authenticate_as(webapp, _another_participant(a))
+        url = route.format(node=node.id, info=info.id)
+        resp = getattr(webapp, method)(url)
         assert resp.status_code == 403
         assert resp.json["error_code"] == "participant_token_invalid"
 
@@ -2013,6 +2055,31 @@ class TestTransformationGet:
 
 @pytest.mark.usefixtures("experiment_dir")
 @pytest.mark.slow
+class TestNodeConnect:
+    def test_connects_to_another_node(self, a, webapp):
+        node = _authenticated_node(a, webapp)
+        other = a.node(network=node.network, participant=_another_participant(a))
+        node_ids = (node.id, other.id)
+        resp = webapp.post("/node/{}/connect/{}".format(*node_ids))
+        assert resp.json["status"] == "success"
+        vectors = models.Vector.query.all()
+        assert [(v.origin_id, v.destination_id) for v in vectors] == [node_ids]
+
+    @pytest.mark.parametrize("direction", ["from", "both"])
+    def test_needs_the_other_nodes_token_for_a_vector_from_it(
+        self, a, webapp, direction
+    ):
+        node = _authenticated_node(a, webapp)
+        other = a.node(network=node.network, participant=_another_participant(a))
+        resp = webapp.post(
+            "/node/{}/connect/{}?direction={}".format(node.id, other.id, direction)
+        )
+        assert resp.status_code == 403
+        assert models.Vector.query.all() == []
+
+
+@pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.slow
 class TestTransformationPost:
     def test_returns_error_on_invalid_paramter(self, webapp):
         resp = webapp.post("/transformation/123/123/123?transformation_type=BadClass")
@@ -2043,6 +2110,15 @@ class TestTransformationPost:
         )
         data = json.loads(resp.data.decode("utf8"))
         assert data["transformation"]["info_out_id"] == info_out_id
+
+    def test_refuses_infos_of_another_node(self, a, webapp):
+        node = _authenticated_node(a, webapp)
+        other_info = a.info(origin=a.node(network=node.network))
+        resp = webapp.post(
+            "/transformation/{}/{}/{}".format(node.id, other_info.id, other_info.id)
+        )
+        assert resp.status_code == 403
+        assert models.Transformation.query.all() == []
 
     def test_pings_experiment(self, a, webapp):
         node = _authenticated_node(a, webapp)

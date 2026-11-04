@@ -41,11 +41,13 @@ from . import dashboard
 from .replay import ReplayBackend
 from .utils import (
     PARTICIPANT_TOKEN_HEADER,
+    PARTICIPANT_TOKEN_PARAMETER,
     ExperimentError,
     ValidatesBrowser,
     crossdomain,
     error_page,
     error_response,
+    loggable_request_args,
     nocache,
     participant_token_refusal,
     request_authenticates,
@@ -364,7 +366,7 @@ def idle_hibernation():
 def handle_exp_error(exception):
     """Handle errors by sending an error page."""
     app.logger.error(
-        "%s (%s) %s", exception.value, exception.errornum, str(dict(request.args))
+        "%s (%s) %s", exception.value, exception.errornum, str(loggable_request_args())
     )
     return error_page(error_type=exception.value)
 
@@ -430,6 +432,18 @@ The Dallinger dev. team.
 """
 
 
+def _drop_participant_token(request_data, data):
+    """Remove the participant token from a failed request saved with an error report.
+
+    ``data`` is the failed request's body, decoded from ``request_data["data"]``
+    or ``request_data`` itself.
+    """
+    request_data.pop(PARTICIPANT_TOKEN_PARAMETER, None)
+    if data is not request_data and isinstance(data, dict):
+        if data.pop(PARTICIPANT_TOKEN_PARAMETER, None) is not None:
+            request_data["data"] = dumps(data)
+
+
 @app.route("/handle-error", methods=["POST"])
 def handle_error():
     request_data = request.form.get("request_data")
@@ -456,6 +470,7 @@ def handle_error():
             data = loads(request_data.get("data", "null")) or request_data
         except ValueError:
             data = request_data
+        _drop_participant_token(request_data, data)
 
         if not participant_id and "participant_id" in data:
             participant_id = data["participant_id"]
@@ -1303,6 +1318,13 @@ def _request_owns(node):
     return request_authenticates(node.participant)
 
 
+def _node_has_info(node, info):
+    """Return whether ``node`` made ``info`` or has received it."""
+    return info.origin_id == node.id or info.id in [
+        t.info_id for t in node.transmissions(direction="incoming", status="received")
+    ]
+
+
 @app.route("/node/<int:node_id>/neighbors", methods=["GET"])
 def node_neighbors(node_id):
     """Send a GET request to the node table.
@@ -1446,13 +1468,15 @@ def connect(node_id, other_node_id):
     """Connect to another node.
 
     The ids of both nodes must be speficied in the url.
-    You can also pass direction (to/from/both) as an argument.
+    You can also pass direction (to/from/both) as an argument. A vector from
+    the other node (``from`` or ``both``) needs that node's participant's
+    token too.
     """
     exp = Experiment()
 
     # get the parameters
     direction = request_parameter(parameter="direction", default="to")
-    if type(direction == Response):
+    if isinstance(direction, Response):
         return direction
 
     # check the nodes exist
@@ -1468,6 +1492,8 @@ def connect(node_id, other_node_id):
             error_type="/node/connect, other node does not exist",
             participant=node.participant,
         )
+    if direction != "to" and not _request_owns(other_node):
+        return participant_token_refusal()
 
     # execute the request
     try:
@@ -1510,9 +1536,7 @@ def get_info(node_id, info_id):
         return error_response(
             error_type="/info GET, info does not exist", participant=node.participant
         )
-    elif info.origin_id != node.id and info.id not in [
-        t.info_id for t in node.transmissions(direction="incoming", status="received")
-    ]:
+    elif not _node_has_info(node, info):
         return error_response(
             error_type="/info GET, forbidden info",
             status=403,
@@ -1926,6 +1950,12 @@ def transformation_post(node_id, info_in_id, info_out_id):
             error_type="/transformation POST, info_out {} does not exist".format(
                 info_out_id
             ),
+            participant=node.participant,
+        )
+    if info_out.origin_id != node.id or not _node_has_info(node, info_in):
+        return error_response(
+            error_type="/transformation POST, forbidden info",
+            status=403,
             participant=node.participant,
         )
 

@@ -29,7 +29,7 @@ from jinja2.utils import htmlsafe_json_dumps
 from pygtail import Pygtail
 from tzlocal import get_localzone
 from wtforms import BooleanField, HiddenField, PasswordField, StringField, SubmitField
-from wtforms.validators import DataRequired, ValidationError
+from wtforms.validators import DataRequired
 
 import dallinger.db
 from dallinger import recruiters
@@ -354,19 +354,13 @@ def custom_401(error):
     )
 
 
-def validate_username(form, field):
-    admin_user = current_app.config.get("ADMIN_USER")
-    if field.data != admin_user.id:
-        raise ValidationError("Unknown user")
-
-
 def next_default():
     return request.args.get("next")
 
 
 class LoginForm(FlaskForm):
     next = HiddenField("next", default=next_default)
-    username = StringField("Username", validators=[DataRequired(), validate_username])
+    username = StringField("Username", validators=[DataRequired()])
     password = PasswordField("Password", validators=[DataRequired()])
     remember_me = BooleanField("Remember Me")
     submit = SubmitField("Sign In")

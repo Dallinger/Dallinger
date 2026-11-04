@@ -384,4 +384,11 @@ describe('participant token', function () {
     });
     expect($('form#error-response input[name=participant_token]').val()).toBe('secret');
   });
+
+  test('is left out of the /worker_complete body, which an error report saves', () => {
+    dlgr.identity.participantId = 7;
+    dlgr.post = jest.fn(() => $.Deferred().promise());
+    dlgr.submitAssignment();
+    expect(dlgr.post.mock.calls[0][1]).not.toHaveProperty('participant_token');
+  });
 });

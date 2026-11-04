@@ -368,11 +368,12 @@ class TestDashboardCoreRoutes:
         assert resp.status_code == 302
         assert resp.location.endswith("/login?next=%2Fdashboard%2F")
 
-    def test_login_bad_password(self, csrf_token, webapp):
+    @pytest.mark.parametrize("username", ["admin", "someone-else"])
+    def test_login_bad_credentials(self, csrf_token, webapp, username):
         resp = webapp.post(
             "/dashboard/login",
             data={
-                "username": "admin",
+                "username": username,
                 "password": "badpass",
                 "next": "/dashboard/",
                 "submit": "Sign In",

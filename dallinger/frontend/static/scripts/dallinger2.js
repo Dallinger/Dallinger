@@ -449,16 +449,19 @@ var dallinger = (function () {
    * @returns {string} The exit page's path and query string.
    */
   dlgr.recruiterExitRoute = function() {
-    return "/recruiter-exit?" + $.param(participantParams());
+    var params = participantParams();
+    if (dlgr.identity.participantToken) {
+      params.participant_token = dlgr.identity.participantToken;
+    }
+    return "/recruiter-exit?" + $.param(params);
   };
 
+  // Leaves out the token, which dlgr.post sends in a header: a request body
+  // is saved with the error report when the request fails.
   function participantParams() {
     var params = {participant_id: dlgr.identity.participantId};
     if (dlgr.identity.uniqueId) {
       params.unique_id = dlgr.identity.uniqueId;
-    }
-    if (dlgr.identity.participantToken) {
-      params.participant_token = dlgr.identity.participantToken;
     }
     return params;
   }

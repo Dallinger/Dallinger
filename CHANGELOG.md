@@ -13,8 +13,13 @@
   `GET /participant/<id>`, `/question`, `POST /node/<participant_id>`, and
   every `/node/<node_id>`, `/info`, `/tracking_event` and `/transformation`
   route (for a node of that participant, so nodes without a participant
-  can't be used through them). They refuse other requests with status 403
-  and the error code `participant_token_invalid`. The default
+  can't be used through them). They refuse requests without the token with
+  status 403 and the error code `participant_token_invalid`.
+  `POST /transformation` also refuses infos that aren't the node's own or
+  received by it. `POST /node/<node_id>/connect/<other_node_id>`, which
+  returned before doing anything, now connects the nodes; a vector from the
+  other node (`direction` `from` or `both`) needs that node's token. The
+  default
   `Experiment.check_worker_status`, `check_recruiter_exit` and
   `accept_websocket_connection` now require the token too, so
   `/worker_complete`, `/worker_failed`, `/recruiter-exit`,
@@ -25,7 +30,11 @@
   token check, so it should call `super()` to keep it, or check a
   credential of its own. `dallinger.get`, `dallinger.post`, the socket
   helpers, the tracker and the exit and error pages send the token, so
-  experiments that use them need no change. Migration notes:
+  experiments that use them need no change; `dallinger.get` and
+  `dallinger.post` send it only to the page's own server. Error reports
+  saved by `/handle-error` and Dallinger's error logs leave the token out,
+  but access logs record the URLs that carry it, such as the exit page's.
+  Migration notes:
   - Code that calls these routes in other ways must send the token, in the
     `X-Dallinger-Participant-Token` header, or as the `participant_token`
     parameter for a navigation, a form or a WebSocket.
@@ -37,12 +46,17 @@
     the assignment.
   - `POST /load-participant` now loads a participant only for a request
     carrying their token, or their `worker_id` (as for MTurk or Prolific),
-    which issues them a new token and makes the old one stop working.
+    which issues them a new token and makes the old one stop working. Its
+    response always includes the participant's `unique_id` and `worker_id`.
   - The `participant` table has a new `auth_token_hash` column, so an
     experiment started with an earlier version needs a new database.
 
 ### Changed
 
+- Outside debug mode, the dashboard's session cookies are `Secure`, so a
+  dashboard served over plain HTTP no longer stays logged in, and GitHub
+  Codespaces asks for the dashboard password. In debug mode, Codespaces
+  still logs in without one.
 - A `/chat` connection that names a participant goes through the same check
   as an `/experiment-socket` one: the participant must exist and
   `Experiment.accept_websocket_connection` must accept it. It used to be sent
@@ -596,11 +610,11 @@
 ### Fixed
 
 - Dashboard logins are harder to guess or hijack. After 10 failed logins
-  within 15 minutes, an address is refused until the 15 minutes pass. The
-  password is compared in constant time, the login form's `next` link only
-  redirects within the site, and the session cookies are `SameSite=Lax`,
-  `Secure` outside debug mode, and remembered for 14 days. GitHub Codespaces
-  logs in without a password only in debug mode.
+  within 15 minutes, with a wrong username or password, an address is
+  refused until the 15 minutes pass. The username and password are compared
+  in constant time, the login form's `next` link only redirects within the
+  site, and the session cookies are `SameSite=Lax` and remembered for 14
+  days.
 - The database dashboard's "Compensate Command" button now quotes the
   recruiter, worker id and dollar amount in the `dallinger compensate`
   commands it copies, so pasting them into a shell can no longer run
@@ -670,10 +684,7 @@
   URL has no `workerId` and `assignmentId`, such as the ones `goToPage()`
   opens. It was set to `"undefined:undefined"` there.
 - `dallinger.loadParticipant()` stores the participant's `unique_id`, so a
-  resumed participant's exit link carries it. `/load-participant` returns
-  `unique_id` and `worker_id` only when the request's worker id matches the
-  participant's. `loadParticipant()` clears a stored `unique_id` that ends
-  with another assignment's id.
+  resumed participant's exit link carries it.
 - Fixed a race condition in `POST /participant` where two concurrent signup
   requests could both be recorded as `"working"` when only one should be
   (write-skew at the occupancy count). Also fixed the related issue where a

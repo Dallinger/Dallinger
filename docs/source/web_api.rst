@@ -40,7 +40,7 @@ these to check its own credential instead. The others always check it.
 
 Send the token in the ``X-Dallinger-Participant-Token`` header, or, for a page
 navigation, a form or a WebSocket, as the ``participant_token`` parameter.
-Other routes refuse a missing or wrong token with status ``403`` and the
+The routes refuse a missing or wrong token with status ``403`` and the
 ``error_code`` ``participant_token_invalid``. In the browser,
 ``dallinger.createParticipant`` stores the token in
 ``dallinger.identity.participantToken``, and ``dallinger.get``,
@@ -209,9 +209,10 @@ Returns a JSON description of the requested network as ``network``.
 
 Create vector(s) between the ``node`` and ``other_node`` by calling
 ``node.connect(whom=other_node)``. Direction can be passed as data and
-will be forwarded as an argument. Calls experiment method
-``vector_post_request(node, vectors)``. Returns a list of JSON
-descriptions of the created vectors as ``vectors``.
+will be forwarded as an argument. A vector from ``other_node`` (direction
+``from`` or ``both``) needs the token of ``other_node``'s participant too.
+Calls experiment method ``vector_post_request(node, vectors)``. Returns a
+list of JSON descriptions of the created vectors as ``vectors``.
 
 ::
 
@@ -388,6 +389,7 @@ be passed as data. Does not return anything.
     POST /transformation/<int:node_id>/<int:info_in_id>/<int:info_out_id>
 
 Create a transformation from ``info_in`` to ``info_out`` at the
-specified node. ``transformation_type`` can be passed as data and the
+specified node. ``info_out`` must have been made by the node, and ``info_in``
+made or received by it. ``transformation_type`` can be passed as data and the
 transformation will be of that class if it is a known class. Returns a
 JSON description of the created transformation.

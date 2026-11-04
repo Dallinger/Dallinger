@@ -153,6 +153,9 @@ An experiment that needs more can override the method. An override replaces the
 token check, so call ``super()`` to keep it, as here, to also refuse a
 participant who has already finished::
 
+    from dallinger import db
+    from dallinger.models import Participant
+
     class MyExperiment(Experiment):
         def accept_websocket_connection(self, participant_id, scope):
             if not super().accept_websocket_connection(participant_id, scope):
@@ -161,17 +164,21 @@ participant who has already finished::
             return participant.status == "working"
 
 An experiment that authenticates its participants in its own way can check its
-own credential instead, passed as ``scope``.
+own credential instead, passed as ``scope``. The scope isn't hidden from the
+people running the experiment: Dallinger logs it, includes it in control channel
+events, and saves it with real-time records, so a credential there stops one
+participant's page from connecting as another participant, not someone who can
+read the logs or the data.
 
 A falsy return closes the socket with code ``1008`` and the reason
 ``refused by the experiment``, before it subscribes to any channel or joins a
 real-time session. A ``/chat`` connection that names a participant, as
 :js:func:`dallinger.openChatSocket` does once the page knows its participant, is
-checked the same way, so pass it the same scope. One that names no participant
-isn't checked: it can subscribe to channels and receive their broadcasts, but it
-isn't sent directed messages and can't join a real-time session. The waiting
-room's connection (:js:func:`dallinger.waitForQuorum`) names no participant,
-so a check of the scope doesn't hold it up.
+checked the same way, so it needs the same token or credential. One that names
+no participant isn't checked: it can subscribe to channels and receive their
+broadcasts, but it isn't sent directed messages and can't join a real-time
+session. The waiting room's connection (:js:func:`dallinger.waitForQuorum`)
+names no participant, so the check doesn't hold it up.
 
 Three failures that are not the client's fault close with ``1013`` instead,
 which tells the client to try again later: a participant lookup that raises, an

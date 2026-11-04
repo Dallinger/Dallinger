@@ -41,6 +41,13 @@ def request_authenticates(participant):
     )
 
 
+def loggable_request_args():
+    """Return the current request's query parameters, without the participant token."""
+    args = request.args.to_dict()
+    args.pop(PARTICIPANT_TOKEN_PARAMETER, None)
+    return args
+
+
 def participant_token_refusal():
     """Return the response to a request that doesn't carry the participant's token."""
     return error_response(
@@ -235,7 +242,7 @@ def error_response(
     """
     last_exception = sys.exc_info()
     if last_exception[0]:
-        request_info = dict(request.args) if has_request_context() else {}
+        request_info = loggable_request_args() if has_request_context() else {}
         logger.error(
             "Failure for request: {!r}".format(request_info),
             exc_info=last_exception,
