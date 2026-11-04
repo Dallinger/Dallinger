@@ -211,10 +211,8 @@ def get_instances(region_name, show_spinner=True, boto_config=None):
     instances = []
     for reservation in reservations:
         for instance in reservation["Instances"]:
-            try:
-                name = instance["Tags"][0]["Value"]
-            except KeyError:
-                name = "Unnamed"
+            tags = {tag["Key"]: tag["Value"] for tag in instance.get("Tags", [])}
+            name = tags.get("Name", "Unnamed")
             instance_time_zone = instance["LaunchTime"].tzinfo
             now_in_instance_time_zone = datetime.now(instance_time_zone)
 
