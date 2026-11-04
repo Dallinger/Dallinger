@@ -455,13 +455,20 @@ def prolific_submission_listener():
         "prolific_submission_listener called for participant_id=%s", participant_id
     )
 
+    try:
+        participant_key = int(participant_id)
+    except (TypeError, ValueError):
+        participant_key = None
+
     # Lock the participant row, then check and update status to avoid double-submits:
-    participant = (
-        session.query(Participant)
-        .populate_existing()
-        .with_for_update(of=Participant)
-        .get(participant_id)
-    )
+    participant = None
+    if participant_key is not None:
+        participant = (
+            session.query(Participant)
+            .populate_existing()
+            .with_for_update(of=Participant)
+            .get(participant_key)
+        )
     if participant is None or not hmac.compare_digest(
         assignment_id.encode(), participant.assignment_id.encode()
     ):

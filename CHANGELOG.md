@@ -23,7 +23,8 @@
   `assignmentId` isn't the participant's, and calls
   `Experiment.check_worker_status`, so an experiment can also require the
   `unique_id`, which Dallinger's Prolific exit page now sends. It used to mark
-  any `participantId` submitted, which approves and pays them.
+  any `participantId` submitted, which approves and pays them. A
+  `participantId` that isn't an integer also gets the 403, rather than a 500.
 - A signup that reuses a working participant's `assignment_id` with a
   different `worker_id` is refused with a 403. It used to replace and fail
   the working participant. The same worker signing up again with
