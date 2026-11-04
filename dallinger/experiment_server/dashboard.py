@@ -24,6 +24,7 @@ from flask.wrappers import Response
 from flask_login import UserMixin, current_user, login_required, login_user, logout_user
 from flask_login.utils import login_url as make_login_url
 from flask_wtf import FlaskForm
+from jinja2.utils import htmlsafe_json_dumps
 from pygtail import Pygtail
 from tzlocal import get_localzone
 from wtforms import BooleanField, HiddenField, PasswordField, StringField, SubmitField
@@ -654,10 +655,12 @@ def dashboard_monitoring():
         "dashboard_monitor.html",
         title="Experiment Monitoring",
         panes=panes,
-        network_structure=json.dumps(network_structure, default=date_handler),
+        network_structure=htmlsafe_json_dumps(
+            network_structure, dumps=json.dumps, default=date_handler
+        ),
         net_roles=net_roles,
         net_ids=net_ids,
-        vis_options=json.dumps(vis_options),
+        vis_options=htmlsafe_json_dumps(vis_options, dumps=json.dumps),
     )
 
 
@@ -1226,8 +1229,8 @@ def dashboard_database():
         title=title,
         columns=columns,
         is_sandbox=is_sandbox,
-        datatables_options=json.dumps(
-            datatables_options, default=date_handler, indent=True
+        datatables_options=htmlsafe_json_dumps(
+            datatables_options, dumps=json.dumps, default=date_handler, indent=True
         ),
     )
 

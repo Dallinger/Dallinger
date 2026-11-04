@@ -18,12 +18,22 @@ import signal
 import gevent
 import gevent.pool
 from rq import Worker
+from rq.defaults import DEFAULT_WORKER_TTL
 from rq.exceptions import DequeueTimeout, StopRequested
 from rq.job import JobStatus
 from rq.logutils import green, setup_loghandlers
 from rq.timeouts import BaseDeathPenalty, JobTimeoutException
 from rq.version import VERSION
 from rq.worker import WorkerStatus
+
+# Installing Dallinger with --no-deps (as local-wheel Docker builds do) skips
+# its RQ requirement, and under RQ 2 every job would fail inside its greenlet.
+if int(VERSION.split(".")[0]) < 3:
+    raise RuntimeError(
+        f"Dallinger's worker requires RQ 3, but RQ {VERSION} is installed. "
+        "Pin RQ 3 in the experiment's constraints.txt, for example by "
+        "regenerating it with `dallinger constraints generate`."
+    )
 
 
 class GeventDeathPenalty(BaseDeathPenalty):
@@ -88,8 +98,12 @@ class GeventWorker(Worker):
         gevent.signal_handler(signal.SIGINT, request_stop)
         gevent.signal_handler(signal.SIGTERM, request_stop)
 
-    def set_current_job_id(self, job_id, pipeline=None):
-        pass
+    def get_heartbeat_ttl(self, job, working_time=0.0):
+        # Nothing refreshes a greenlet's execution while its job runs, so
+        # the execution has to outlive the job's timeout, as in SimpleWorker.
+        if job.timeout == -1:
+            return DEFAULT_WORKER_TTL
+        return int(job.timeout or DEFAULT_WORKER_TTL) + 60
 
     def _work(self, burst=False, logging_level=logging.INFO):
         """Starts the work loop.
@@ -124,13 +138,7 @@ class GeventWorker(Worker):
                         self.log.info("Stopping on request.")
                         break
 
-                    try:
-                        worker_ttl = self.worker_ttl
-                    except AttributeError:
-                        # For back-compatibility with rq < 1.13.0
-                        worker_ttl = self.default_worker_ttl
-
-                    timeout = None if burst else max(1, worker_ttl - 60)
+                    timeout = None if burst else max(1, self.worker_ttl - 60)
 
                     result = self.dequeue_job_and_maintain_ttl(timeout)
                     if result is None and burst:
@@ -179,7 +187,9 @@ class GeventWorker(Worker):
             if job.get_status() == JobStatus.FINISHED:
                 queue.enqueue_dependents(job)
 
-        child_greenlet = self.gevent_pool.spawn(self.perform_job, job, queue)
+        child_greenlet = self.gevent_pool.spawn(
+            self.perform_job, job, queue, self.prepare_execution(job)
+        )
         child_greenlet.link(job_done)
         self.children.append(child_greenlet)
 
