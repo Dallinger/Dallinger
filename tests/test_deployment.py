@@ -1682,7 +1682,7 @@ class Testhandle_launch_data:
             handler("/some-launch-url", error=log, verify=False, auth=("u", "p"))
 
         mock_post.assert_called_once_with(
-            "/some-launch-url", verify=False, auth=("u", "p")
+            "/some-launch-url", verify=False, auth=(b"u", b"p")
         )
 
     def test_sends_the_dashboard_credentials(self, handler, dashboard_config):
@@ -1690,7 +1690,21 @@ class Testhandle_launch_data:
             mock_post.return_value = mock.Mock(ok=True, json=mock.Mock(return_value={}))
             handler("/some-launch-url", error=mock.Mock())
 
-        assert mock_post.call_args.kwargs["auth"] == ("admin", "DUMBPASSWORD")
+        assert mock_post.call_args.kwargs["auth"] == (b"admin", b"DUMBPASSWORD")
+
+    @pytest.mark.parametrize("password", ["pässwörd", "密码"])
+    def test_server_decodes_a_non_ascii_password(self, handler, password):
+        from werkzeug.datastructures import Authorization
+
+        with mock.patch("dallinger.deployment.requests.post") as mock_post:
+            mock_post.return_value = mock.Mock(ok=True, json=mock.Mock(return_value={}))
+            handler("/some-launch-url", error=mock.Mock(), auth=("admin", password))
+
+        sent = requests.Request(
+            "POST", "http://localhost/launch", auth=mock_post.call_args.kwargs["auth"]
+        ).prepare()
+        received = Authorization.from_header(sent.headers["Authorization"])
+        assert (received.username, received.password) == ("admin", password)
 
     def test_refused_launch_is_not_retried(self, handler):
         from dallinger.deployment import LaunchRefused

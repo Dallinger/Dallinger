@@ -1991,6 +1991,11 @@ class TestLaunchRoute:
     def test_allows_same_origin_browser_posts(self, webapp, headers):
         assert self.post(webapp, **headers).status_code == 200
 
+    @pytest.mark.parametrize("password", ["pässwörd", "密码"])
+    def test_accepts_a_non_ascii_password(self, webapp, active_config, password):
+        active_config.extend({"dashboard_password": password})
+        assert self.post(webapp, ("admin", password)).status_code == 200
+
     def test_empty_dashboard_user_means_admin(self, webapp, active_config):
         active_config.extend({"dashboard_user": ""})
         assert self.post(webapp).status_code == 200

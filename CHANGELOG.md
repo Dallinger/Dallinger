@@ -256,10 +256,14 @@
   `dallinger.utils.fill_config_dashboard_login()` read or fill the login.
   When
   `dashboard_user` or `dashboard_password` is unset or empty, every
-  deploy command uses `admin` and a new random password, including
+  deploy command, including `dallinger debug` and `develop`, uses `admin`
+  and a new random password, including
   `docker deploy-image` and `docker-ssh` deploys that reuse a prebuilt
   `docker_image_name`, and the experiment server takes an empty
-  `dashboard_user` to mean `admin`.
+  `dashboard_user` to mean `admin`. An empty `dashboard_user` or
+  `dashboard_password` environment variable now counts as unset, so it no
+  longer overrides `config.txt` or `~/.dallingerconfig`. The launch request
+  sends the login as UTF-8, so passwords with non-ASCII characters work.
   This breaks code that called the `launch` view directly, outside a
   request: call the new `launch_experiment()` instead, as the `webapp`
   pytest fixture now does. It also breaks scripts that POST `/launch`

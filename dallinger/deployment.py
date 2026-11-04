@@ -171,6 +171,10 @@ def handle_launch_data(
     """
     if auth is None:
         auth = launch_auth()
+    # requests encodes str credentials as Latin-1, but Werkzeug decodes UTF-8.
+    auth = tuple(
+        part.encode("utf-8") if isinstance(part, str) else part for part in auth
+    )
     launch_data = None
     launch_request = None
     last_startup_error = None

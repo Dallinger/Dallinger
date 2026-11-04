@@ -41,7 +41,8 @@ The sources are, from lowest to highest priority:
    class.
 5. **config.txt** — the ``config.txt`` file in the experiment directory.
 6. **Environment variables** — a variable named after the config parameter
-   (e.g. ``dashboard_user``).
+   (e.g. ``dashboard_user``). An empty ``dashboard_user`` or
+   ``dashboard_password`` variable counts as unset.
 7. **Runtime writes** — values set from code via ``config.set()``,
    ``config.extend()``, or ``config.override()``.
 
