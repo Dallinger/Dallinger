@@ -35,3 +35,11 @@ test("leaves plain values unquoted", () => {
     buildCompensateCommand({ recruiter: "prolific", worker_id: "A1B2" }, 1),
   ).toBe("dallinger compensate --recruiter prolific --worker_id A1B2 --dollars 1");
 });
+
+test("refuses worker ids that a terminal could act on when pasted", () => {
+  for (const workerId of ["\x1b[201~\x03touch /tmp/pwned\r", "", null]) {
+    expect(() =>
+      buildCompensateCommand({ recruiter: "prolific", worker_id: workerId }, 1),
+    ).toThrow();
+  }
+});

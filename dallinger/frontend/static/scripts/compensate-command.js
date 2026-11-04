@@ -6,10 +6,18 @@
  */
 (function (root) {
   var SAFE_SHELL_WORD = /^[A-Za-z0-9_.:@\/-]+$/;
+  // Quoting can't protect these: a terminal acts on them when they are pasted.
+  var CONTROL_CHARACTER = /[\x00-\x1f\x7f-\x9f]/;
 
   /** Quote a value as a single POSIX shell word. */
   function shellQuote(value) {
+    if (value === null || value === undefined || value === "") {
+      throw new Error("Missing value for the compensate command.");
+    }
     var text = String(value);
+    if (CONTROL_CHARACTER.test(text)) {
+      throw new Error("Value contains a control character: " + JSON.stringify(text));
+    }
     if (SAFE_SHELL_WORD.test(text)) {
       return text;
     }

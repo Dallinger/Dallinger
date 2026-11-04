@@ -528,8 +528,9 @@
 - The database dashboard's "Compensate Command" button now quotes the
   recruiter, worker id and dollar amount in the `dallinger compensate`
   commands it copies, so pasting them into a shell can no longer run
-  commands hidden in a worker id that a participant chose. It also rejects
-  a dollar amount that is not a positive number.
+  commands hidden in a worker id that a participant chose. It refuses to
+  build a command for a missing value or one containing control characters,
+  which a terminal could act on when pasted.
 - Error pages show a participant's worker, assignment and HIT ids only to a
   request that carries the participant's `unique_id`, or their worker and
   assignment ids. Requests that name only a

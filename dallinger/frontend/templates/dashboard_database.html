@@ -182,7 +182,12 @@
               flashMessage('Non-participants found in selection, please correct.', 'danger');
               return;
             }
-            commands.push(dallingerCompensate.buildCompensateCommand(participant, dollars, globals.isSandbox));
+            try {
+              commands.push(dallingerCompensate.buildCompensateCommand(participant, dollars, globals.isSandbox));
+            } catch (error) {
+              flashMessage('Participant ' + participant.id + ': ' + error.message, 'danger');
+              return;
+            }
           }
           copyBox(commands.join('; '));
         }
