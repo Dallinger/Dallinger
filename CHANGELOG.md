@@ -530,6 +530,12 @@
 
 ### Fixed
 
+- The dashboard's database view no longer fails with a server error when the
+  URL names a table such as `info` or `node` without a
+  `polymorphic_identity`; it now lists every row of that table, and can show
+  columns declared only on subclasses. An unknown
+  table or polymorphic identity returns a 404 instead of a server error, and
+  a `polymorphic_identity` without a `table` returns a 400.
 - The Monitoring and Database dashboards escape participant data before
   the browser reads it as HTML. Previously a participant answer or other
   database value containing HTML could run in the admin's browser: on
