@@ -1011,21 +1011,45 @@ class TestDashboardDatabase:
             "woof": 0,
         }
 
+    def test_table_without_polymorphic_identity_loads_subclass_rows_in_bulk(
+        self, db_session
+    ):
+        from sqlalchemy import event
+
+        from dallinger.experiment_server.experiment_server import Experiment
+
+        db_session.add_all([DashboardDog(sound=str(i)) for i in range(10)])
+        db_session.commit()
+        db_session.expire_all()
+        statements = []
+        engine = db_session.get_bind()
+        listener = lambda *args: statements.append(args[2])  # noqa: E731
+        event.listen(engine, "before_cursor_execute", listener)
+        try:
+            data = Experiment().table_data(0, 10, table="dashboard_test_animal")
+        finally:
+            event.remove(engine, "before_cursor_execute", listener)
+
+        assert len(data["data"]) == 10
+        assert len(statements) < 10
+
     @pytest.mark.parametrize(
-        "query, message",
+        "query, status, message",
         [
-            ("table=nonexistent", "Unknown table: nonexistent"),
+            ("table=nonexistent", 404, "Unknown table: nonexistent"),
             (
                 "table=info&polymorphic_identity=nonexistent",
+                404,
                 "Unknown polymorphic identity for table info: nonexistent",
             ),
+            ("polymorphic_identity=info", 400, "Missing table parameter"),
         ],
     )
-    def test_unknown_table_or_polymorphic_identity(
-        self, active_config, webapp_admin, query, message
+    def test_invalid_table_or_polymorphic_identity(
+        self, active_config, webapp_admin, query, status, message
     ):
         resp = webapp_admin.get(f"/dashboard/database?{query}")
-        assert resp.status_code == 404
+        assert resp.status_code == status
         assert message in resp.get_data(as_text=True)
 
     def test_database_output_initial_page(self, a, active_config, mock_renderer):

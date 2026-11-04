@@ -1076,7 +1076,9 @@ def dashboard_database():
     if polymorphic_identity == "None":
         polymorphic_identity = None
 
-    if table is None and polymorphic_identity is None:
+    if table is None:
+        if polymorphic_identity is not None:
+            abort(400, "Missing table parameter")
         table = "participant"
 
     if table not in dallinger.db.Base.metadata.tables:

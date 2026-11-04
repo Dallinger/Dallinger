@@ -20,7 +20,7 @@ from typing import Any, List, Optional, Union
 import requests
 from flask import Blueprint, url_for
 from sqlalchemy import Column, String, Table, and_, asc, cast, desc, func, or_
-from sqlalchemy.orm import scoped_session, sessionmaker, undefer
+from sqlalchemy.orm import scoped_session, sessionmaker, undefer, with_polymorphic
 from sqlalchemy.orm.attributes import InstrumentedAttribute
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 
@@ -1847,7 +1847,8 @@ class Experiment:
 
         if polymorphic_identity is None:
             cls = get_mapped_class(table_obj)
-            base = db.session.query(cls)
+            # Load subclass columns in the main query, not one query per row.
+            base = db.session.query(with_polymorphic(cls, "*"))
         else:
             cls = get_polymorphic_mapping(table_obj)[polymorphic_identity]
             base = db.session.query(cls).filter(cls.type == polymorphic_identity)

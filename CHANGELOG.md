@@ -529,7 +529,8 @@
   URL names a table such as `info` or `node` without a
   `polymorphic_identity`; it now lists every row of that table, and can show
   columns declared only on subclasses. An unknown
-  table or polymorphic identity returns a 404 instead of a server error.
+  table or polymorphic identity returns a 404 instead of a server error, and
+  a `polymorphic_identity` without a `table` returns a 400.
 - Error pages show a participant's worker, assignment and HIT ids only to a
   request that carries the participant's `unique_id`, or their worker and
   assignment ids. Requests that name only a
