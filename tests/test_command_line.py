@@ -553,9 +553,9 @@ class TestDevelopCommand:
             result = CliRunner().invoke(develop, ["debug", "--no-browsers", *args])
 
         assert result.exit_code == 0, result.output
-        assert queue.return_value.enqueue_call.call_args.kwargs["kwargs"] == {
-            "port": port
-        }
+        assert queue.return_value.enqueue_call.call_args.kwargs["kwargs"]["port"] == (
+            port
+        )
         assert server.call_args.kwargs["env"]["FLASK_RUN_PORT"] == str(port)
         assert server.call_args.kwargs["env"]["base_port"] == str(port)
         assert active_config.get("base_port") == port
@@ -598,9 +598,12 @@ class TestDevelopCommand:
                 develop, ["debug", "--skip-flask", "--no-browsers"]
             )
         assert result.exit_code == 0, result.output
-        job = queue.return_value.enqueue_call.call_args.args[0]
+        enqueued = queue.return_value.enqueue_call.call_args
+        job = enqueued.args[0]
         assert job is develop_module.launch_app_without_browsers
 
+        # Another experiment's worker on the same Redis database may run the job.
+        active_config.extend({"dashboard_password": "another-experiments-pw"})
         with (
             mock.patch.object(
                 develop_module,
@@ -609,10 +612,11 @@ class TestDevelopCommand:
                     "recruitment_msg": "Initial recruitment list:\nhttp://x/ad?a=1\n"
                     "Additional details:\nSingle recruitment link: http://x/ad?t=1"
                 },
-            ),
+            ) as launch,
             mock.patch.object(develop_module, "open_browser") as open_browser,
         ):
-            job(port=5001)
+            job(**{**enqueued.kwargs["kwargs"], "port": 5001})
+        assert launch.call_args.kwargs["auth"] == ("admin", "pw")
         out = capsys.readouterr().out.splitlines()
         assert out[:3] == [
             "",
@@ -627,6 +631,23 @@ class TestDevelopCommand:
         assert out[4].endswith("logs.jsonl")
         assert out[5:] == ["Press Ctrl+C to stop."]
         open_browser.assert_not_called()
+
+    def test_launch_job_opens_the_dashboard_with_its_login(
+        self, active_config, develop
+    ):
+        develop_module = sys.modules["dallinger.command_line.develop"]
+        active_config.extend({"dashboard_password": "another-experiments-pw"})
+        with (
+            mock.patch.object(develop_module, "handle_launch_data", return_value={}),
+            mock.patch.object(
+                develop_module, "_async_browser", develop_module._browser
+            ),
+            mock.patch.object(develop_module, "open_browser") as open_browser,
+        ):
+            develop_module.launch_app_and_open_browser(5001, auth=("admin", "pw"))
+        assert (
+            "admin:pw@127.0.0.1:5001/dashboard" in open_browser.call_args_list[0][0][0]
+        )
 
     @pytest.mark.parametrize(
         "message, rows",

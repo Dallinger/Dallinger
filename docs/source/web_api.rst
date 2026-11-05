@@ -157,7 +157,20 @@ also passed with the value True. This will create a failed Info on the node.
     POST /launch
 
 Initializes the experiment and opens recruitment. This route is
-automatically pinged by Dallinger.
+automatically pinged by Dallinger. Because it runs the experiment's setup and
+can open recruitment (publishing a study and spending money), it requires the
+dashboard credentials (``dashboard_user`` and ``dashboard_password``) with
+HTTP Basic authentication, and answers ``403`` without them. Dallinger's
+deploy commands send them for you. To launch by hand, for example::
+
+    curl -X POST -u "admin:<dashboard password>" https://<app host>/launch
+
+The route also answers ``403``, even with the credentials, to a request that a
+browser sends from another site's page, which it detects from the
+``Sec-Fetch-Site`` or ``Origin`` header. Browsers attach saved HTTP Basic
+credentials to cross-site form posts, so without this check another page could
+launch the experiment. Clients such as ``curl`` and ``requests`` send neither
+header and are not affected.
 
 ::
 

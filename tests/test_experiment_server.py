@@ -1,3 +1,4 @@
+import base64
 import json
 from datetime import datetime
 from unittest import mock
@@ -1918,9 +1919,87 @@ class TestTransformationPost:
         assert b"/transformation POST failed" in resp.data
 
 
-@pytest.mark.usefixtures("experiment_dir")
+@pytest.mark.usefixtures("experiment_dir", "dashboard_config")
 @pytest.mark.slow
 class TestLaunchRoute:
+    DEPLOYER = ("admin", "DUMBPASSWORD")
+
+    def post(self, webapp, credentials=DEPLOYER, **headers):
+        if credentials:
+            encoded = base64.b64encode(":".join(credentials).encode()).decode()
+            headers["Authorization"] = f"Basic {encoded}"
+        return webapp.post("/launch", headers=headers)
+
+    @pytest.mark.parametrize(
+        "credentials", [None, ("admin", "wrong"), ("intruder", "DUMBPASSWORD")]
+    )
+    def test_refuses_callers_without_the_dashboard_login(self, webapp, credentials):
+        with mock.patch(
+            "dallinger.experiment_server.experiment_server.Experiment"
+        ) as mock_class:
+            resp = self.post(webapp, credentials)
+        assert resp.status_code == 403
+        mock_class.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "headers",
+        [
+            {"Sec-Fetch-Site": "cross-site"},
+            {"Sec-Fetch-Site": "same-site"},
+            {"Origin": "https://attacker.example"},
+            {"Origin": "null"},
+        ],
+    )
+    def test_refuses_cross_site_browser_posts_with_the_login(self, webapp, headers):
+        assert self.post(webapp, **headers).status_code == 403
+
+    @pytest.mark.parametrize(
+        "headers",
+        [
+            {"Sec-Fetch-Site": "same-origin"},
+            {"Sec-Fetch-Site": "none"},
+            {"Origin": "http://localhost"},
+        ],
+    )
+    def test_allows_same_origin_browser_posts(self, webapp, headers):
+        assert self.post(webapp, **headers).status_code == 200
+
+    @pytest.mark.parametrize("password", ["pässwörd", "密码"])
+    def test_accepts_a_non_ascii_password(self, webapp, active_config, password):
+        active_config.extend({"dashboard_password": password})
+        assert self.post(webapp, ("admin", password)).status_code == 200
+
+    def test_empty_dashboard_user_means_admin(self, webapp, active_config):
+        active_config.extend({"dashboard_user": ""})
+        assert self.post(webapp).status_code == 200
+
+    @pytest.mark.parametrize(
+        "password, credentials", [("", ("admin", "")), ("DUMBPASSWORD", None)]
+    )
+    def test_codespaces_auto_login_does_not_authorize_a_launch(
+        self, webapp, active_config, password, credentials
+    ):
+        active_config.extend({"dashboard_password": password})
+        with mock.patch(
+            "dallinger.experiment_server.dashboard.is_running_in_codespaces",
+            return_value=True,
+        ):
+            resp = self.post(webapp, credentials)
+        assert resp.status_code == 403
+
+    def test_clearing_the_password_stops_authorizing_a_launch(
+        self, webapp, active_config
+    ):
+        assert self.post(webapp).status_code == 200
+        active_config.extend({"dashboard_password": ""})
+        assert self.post(webapp).status_code == 403
+        assert self.post(webapp, ("admin", "")).status_code == 403
+
+    def test_a_dashboard_session_does_not_authorize_a_launch(self, webapp_admin):
+        with webapp_admin.session_transaction() as session:
+            assert session["_user_id"] == "admin"
+        assert self.post(webapp_admin, credentials=None).status_code == 403
+
     def assert_launch_error(self, resp, message):
         assert resp.status_code == 500
         data = json.loads(resp.get_data())
@@ -1928,7 +2007,7 @@ class TestLaunchRoute:
         assert message in data["message"]
 
     def test_launch(self, webapp):
-        resp = webapp.post("/launch", data={})
+        resp = self.post(webapp)
         data = json.loads(resp.get_data())
         assert "recruitment_msg" in data
 
@@ -1937,18 +2016,20 @@ class TestLaunchRoute:
             "dallinger.experiment_server.experiment_server._config",
             side_effect=RuntimeError("config exploded"),
         ):
-            resp = webapp.post("/launch", data={})
+            resp = self.post(webapp)
 
         self.assert_launch_error(resp, "config exploded")
 
-    def test_launch_reports_protected_route_load_error(self, webapp):
+    def test_launch_reports_experiment_load_error(self, webapp):
         with mock.patch(
             "dallinger.experiment_server.experiment_server.Experiment",
-            side_effect=TypeError("unexpected keyword argument 'no_configure'"),
+            side_effect=TypeError("experiment exploded"),
         ):
-            resp = webapp.post("/launch", data={})
+            resp = self.post(webapp)
 
-        self.assert_launch_error(resp, "unexpected keyword argument 'no_configure'")
+        self.assert_launch_error(
+            resp, "Failed to load experiment in /launch: experiment exploded"
+        )
 
     def test_launch_reports_before_request_error(self, webapp):
         from dallinger.experiment_server import experiment_server
@@ -1957,7 +2038,7 @@ class TestLaunchRoute:
         mock_exp_klass.before_request.side_effect = RuntimeError("hook exploded")
         mock_exp_klass.after_request.side_effect = lambda request, response: response
         with mock.patch.object(experiment_server, "exp_klass", mock_exp_klass):
-            resp = webapp.post("/launch", data={})
+            resp = self.post(webapp)
 
         self.assert_launch_error(resp, "hook exploded")
 
@@ -1974,7 +2055,7 @@ class TestLaunchRoute:
                 "message": "a message",
             }
             mock_class.return_value = mock_exp
-            resp = webapp.post("/launch", data={})
+            resp = self.post(webapp)
         assert resp.status_code == 200
         mock_exp.recruiter.open_recruitment.assert_called()
 
@@ -1988,7 +2069,7 @@ class TestLaunchRoute:
                 "message": "Single recruitment link: x",
             }
             mock_class.return_value = mock_exp
-            resp = webapp.post("/launch", data={})
+            resp = self.post(webapp)
         message = json.loads(resp.get_data())["recruitment_msg"]
         assert message == "Additional details:\nSingle recruitment link: x"
 
@@ -2008,7 +2089,7 @@ class TestLaunchRoute:
             with mock.patch(
                 "dallinger.experiment_server.sockets.chat_backend"
             ) as mock_chat:
-                webapp.post("/launch", data={})
+                self.post(webapp)
                 # We should have subscribed the experiment to the specified
                 # channel and the experiment control channel.
                 assert mock_chat.subscribe.call_count == 2
@@ -2034,7 +2115,7 @@ class TestLaunchRoute:
             with mock.patch(
                 "dallinger.experiment_server.sockets.chat_backend"
             ) as mock_chat:
-                webapp.post("/launch", data={})
+                self.post(webapp)
                 assert mock_chat.subscribe.call_count == 0
 
 

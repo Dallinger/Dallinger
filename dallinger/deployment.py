@@ -40,6 +40,8 @@ from dallinger.utils import (
 DEFAULT_DELAY = 1
 BACKOFF_FACTOR = 2
 MAX_ATTEMPTS = 6
+# How much of a refused launch's response body to show.
+LAUNCH_REFUSED_BODY_LENGTH = 200
 # 530 is Cloudflare's answer while a new tunnel's connector registers.
 STARTUP_STATUS_CODES = frozenset({502, 503, 504, 530})
 HTTPS_WAIT_MESSAGE = "Waiting for the experiment URL to become reachable"
@@ -110,6 +112,25 @@ def _announce_https_wait(announced, context=None):
     return True
 
 
+class LaunchRefused(click.ClickException):
+    """The server answered ``/launch`` with HTTP 403, so it was not launched."""
+
+
+def launch_auth(config=None):
+    """Return the ``(user, password)`` that ``/launch`` requires.
+
+    ``/launch`` accepts only the dashboard credentials, which every deploy
+    command already gives the server.
+    """
+    config = config or get_config()
+    if not config.ready:
+        config.load()
+    return (
+        config.get("dashboard_user", None) or "admin",
+        config.get("dashboard_password", ""),
+    )
+
+
 def handle_launch_data(
     url,
     error,
@@ -119,6 +140,8 @@ def handle_launch_data(
     dozzle_password=None,
     context=None,
     verify=True,
+    auth=None,
+    app_id=None,
 ):
     """POST to ``url`` (``/launch``), retrying with exponential backoff.
 
@@ -140,7 +163,18 @@ def handle_launch_data(
         context: Deployment context ('heroku', 'ssh', 'local', etc.).
             'local' disables the live bar, because a local server writes its
             log to the same terminal.
+        auth: ``(user, password)`` for HTTP Basic authentication; defaults
+            to the dashboard credentials in the loaded config (see
+            ``launch_auth``).
+        app_id: The Heroku app's experiment id; a refused launch then
+            shows the ``dallinger destroy`` command for the app.
     """
+    if auth is None:
+        auth = launch_auth()
+    # requests encodes str credentials as Latin-1, but Werkzeug decodes UTF-8.
+    auth = tuple(
+        part.encode("utf-8") if isinstance(part, str) else part for part in auth
+    )
     launch_data = None
     launch_request = None
     last_startup_error = None
@@ -152,7 +186,7 @@ def handle_launch_data(
         for remaining_attempt in sorted(range(attempts), reverse=True):
             startup_failure = False
             try:
-                launch_request = requests.post(url, verify=verify)
+                launch_request = requests.post(url, verify=verify, auth=auth)
                 request_happened = True
             except requests.exceptions.RequestException as err:
                 request_happened = False
@@ -169,6 +203,22 @@ def handle_launch_data(
                 last_startup_error = "Error accessing {} ({}):\n{}".format(
                     url, launch_request.status_code, launch_request.text
                 )
+
+            if request_happened and launch_request.status_code == 403:
+                progress.update(task_id, visible=False)
+                message = (
+                    f"The server refused the launch (HTTP 403) at {url}. The "
+                    "app may not have accepted this deploy's dashboard_user "
+                    "and dashboard_password, or a proxy in front of it refused "
+                    "the request. The experiment was not launched. Response: "
+                    f"{launch_request.text[:LAUNCH_REFUSED_BODY_LENGTH]}"
+                )
+                if app_id:
+                    message += (
+                        "\nTo destroy the app, use the command "
+                        f'"dallinger destroy --app {app_id}"'
+                    )
+                raise LaunchRefused(message)
 
             if request_happened:
                 try:
@@ -345,6 +395,8 @@ def deploy_sandbox_shared_setup(
         "smtp_password": config["smtp_password"],
         "whimsical": config["whimsical"],
         "FLASK_SECRET_KEY": codecs.encode(os.urandom(16), "hex").decode("ascii"),
+        "dashboard_user": config["dashboard_user"],
+        "dashboard_password": config["dashboard_password"],
     }
 
     # Set up the preferred class as an environment variable, if one is set
@@ -404,7 +456,7 @@ def deploy_sandbox_shared_setup(
     log("Launching the experiment on the remote server and starting recruitment...")
     launch_url = "{}/launch".format(heroku_app.url)
     log("Calling {}".format(launch_url), chevrons=False)
-    launch_data = handle_launch_data(launch_url, error=log)
+    launch_data = handle_launch_data(launch_url, error=log, app_id=heroku_app_id)
     result = {
         "app_name": heroku_app.name,
         "app_home": heroku_app.url,
@@ -650,6 +702,8 @@ class DebugDeployment(HerokuLocalDeployment):
             result = handle_launch_data(
                 "{}/launch".format(base_url), error=self.out.error, attempts=1
             )
+        except LaunchRefused:
+            raise
         except Exception:
             # Show output from server
             self.dispatch[r"POST /launch"] = "launch_request_complete"

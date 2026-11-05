@@ -41,7 +41,8 @@ The sources are, from lowest to highest priority:
    class.
 5. **config.txt** — the ``config.txt`` file in the experiment directory.
 6. **Environment variables** — a variable named after the config parameter
-   (e.g. ``dashboard_user``).
+   (e.g. ``dashboard_user``). An empty ``dashboard_user`` or
+   ``dashboard_password`` variable counts as unset.
 7. **Runtime writes** — values set from code via ``config.set()``,
    ``config.extend()``, or ``config.override()``.
 
@@ -139,11 +140,14 @@ General
 
 ``dashboard_password`` *unicode*
     An optional password for accessing the Dallinger Dashboard interface. If not
-    specified, a random password will be generated.
+    specified, or empty, Dallinger's deploy commands generate a random one. A
+    server running with an empty password refuses dashboard logins and
+    launches (except Codespaces' automatic dashboard login). Dallinger's deploy
+    commands also use the dashboard login to call the ``/launch`` route.
 
 ``dashboard_user`` *unicode*
     An optional login name for accessing the Dallinger Dashboard interface. If not
-    specified ``admin`` will be used.
+    specified, or empty, ``admin`` will be used.
 
 ``protected_routes`` *unicode - JSON formatted*
     An optional JSON array of Flask route rule names which should be made inaccessible.
