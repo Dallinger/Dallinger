@@ -599,9 +599,9 @@
 
 ### Fixed
 
-- The `repr()` of a local Procfile runner skips child processes that exit
-  while it is built, instead of raising, and separates a Python child's
-  command-line arguments with spaces.
+- The `repr()` of a local Procfile runner no longer raises when the runner
+  or one of its child processes exits while it is built, and separates a
+  Python child's command-line arguments with spaces.
 - `dallinger docker sandbox` and `dallinger docker deploy` (Heroku with
   Docker) no longer fail with a
   `KeyError` after a successful launch when it reports the dashboard

@@ -400,6 +400,11 @@ class HerokuApp(HerokuCommandRunner):
         return addon_info
 
 
+# On macOS, reading a process that exits mid-read can raise OSError or
+# SystemError instead of a psutil error, depending on the psutil version.
+_UNREADABLE_PROCESS_ERRORS = (psutil.Error, OSError, SystemError)
+
+
 class HerokuStartupError(RuntimeError):
     """The Heroku subprocess did not start"""
 
@@ -744,20 +749,24 @@ class LocalProcfileWrapper:
 
     def __repr__(self):
         classname = self.__class__.__name__
-        if not self.is_running:
+        # stop() may clear _runner, and the runner may exit, mid-repr.
+        runner = self._runner
+        if runner is None:
+            return "<{} (not running)>".format(classname)
+        try:
+            children = runner.children(recursive=True)
+        except _UNREADABLE_PROCESS_ERRORS:
             return "<{} (not running)>".format(classname)
 
         reprs = []
-        for child in psutil.Process(self._process.pid).children(recursive=True):
+        for child in children:
             try:
                 if "python" in child.name():
                     name = " ".join(child.cmdline())
                 else:
                     name = child.name()
                 status = child.status()
-            # On macOS, reading a child that exits mid-read can raise OSError
-            # or SystemError instead of a psutil error.
-            except (psutil.Error, OSError, SystemError):
+            except _UNREADABLE_PROCESS_ERRORS:
                 continue
             reprs.append(
                 "<Process pid='{}', name='{}', status='{}'>".format(
@@ -765,7 +774,7 @@ class LocalProcfileWrapper:
                 )
             )
 
-        return "<{} pid='{}', children: {}>".format(classname, self._process.pid, reprs)
+        return "<{} pid='{}', children: {}>".format(classname, runner.pid, reprs)
 
 
 def _is_running(process):

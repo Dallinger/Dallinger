@@ -822,22 +822,25 @@ def test_worker_greenlets_per_process_sizes_gevent_and_redis_pools(
     assert pool_connections == max_connections
 
 
-def test_procfile_wrapper_repr_skips_children_that_exit():
+def test_procfile_wrapper_repr_survives_processes_that_exit():
+    import psutil
+
     from dallinger.heroku.tools import LocalProcfileWrapper
 
     wrapper = LocalProcfileWrapper.__new__(LocalProcfileWrapper)
-    wrapper._process = mock.Mock(pid=1)
-    worker = mock.Mock(pid=2, status=mock.Mock(return_value="running"))
+    wrapper._runner = mock.Mock(pid=1)
+    vanished = mock.Mock(pid=2)
+    vanished.name.side_effect = SystemError("vanished")
+    worker = mock.Mock(pid=3, status=mock.Mock(return_value="running"))
     worker.name.return_value = "python3"
     worker.cmdline.return_value = ["python3", "worker.py"]
-    vanished = mock.Mock(pid=3)
-    vanished.name.side_effect = SystemError("vanished")
-    with mock.patch("psutil.Process") as process:
-        process.return_value.children.return_value = [worker, vanished]
-        assert repr(wrapper) == (
-            "<LocalProcfileWrapper pid='1', children: "
-            "[\"<Process pid='2', name='python3 worker.py', status='running'>\"]>"
-        )
+    wrapper._runner.children.return_value = [vanished, worker]
+    assert repr(wrapper) == (
+        "<LocalProcfileWrapper pid='1', children: "
+        "[\"<Process pid='3', name='python3 worker.py', status='running'>\"]>"
+    )
+    wrapper._runner.children.side_effect = psutil.NoSuchProcess(1)
+    assert repr(wrapper) == "<LocalProcfileWrapper (not running)>"
 
 
 @pytest.mark.usefixtures("bartlett_dir")
