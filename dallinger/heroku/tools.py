@@ -749,13 +749,19 @@ class LocalProcfileWrapper:
 
         reprs = []
         for child in psutil.Process(self._process.pid).children(recursive=True):
-            if "python" in child.name():
-                name = "".join(child.cmdline())
-            else:
-                name = child.name()
+            try:
+                if "python" in child.name():
+                    name = " ".join(child.cmdline())
+                else:
+                    name = child.name()
+                status = child.status()
+            # On macOS, reading a child that exits mid-read can raise OSError
+            # or SystemError instead of a psutil error.
+            except (psutil.Error, OSError, SystemError):
+                continue
             reprs.append(
                 "<Process pid='{}', name='{}', status='{}'>".format(
-                    child.pid, name, child.status()
+                    child.pid, name, status
                 )
             )
 

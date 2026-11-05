@@ -822,6 +822,24 @@ def test_worker_greenlets_per_process_sizes_gevent_and_redis_pools(
     assert pool_connections == max_connections
 
 
+def test_procfile_wrapper_repr_skips_children_that_exit():
+    from dallinger.heroku.tools import LocalProcfileWrapper
+
+    wrapper = LocalProcfileWrapper.__new__(LocalProcfileWrapper)
+    wrapper._process = mock.Mock(pid=1)
+    worker = mock.Mock(pid=2, status=mock.Mock(return_value="running"))
+    worker.name.return_value = "python3"
+    worker.cmdline.return_value = ["python3", "worker.py"]
+    vanished = mock.Mock(pid=3)
+    vanished.name.side_effect = SystemError("vanished")
+    with mock.patch("psutil.Process") as process:
+        process.return_value.children.return_value = [worker, vanished]
+        assert repr(wrapper) == (
+            "<LocalProcfileWrapper pid='1', children: "
+            "[\"<Process pid='2', name='python3 worker.py', status='running'>\"]>"
+        )
+
+
 @pytest.mark.usefixtures("bartlett_dir")
 @pytest.mark.slow
 class TestLocalProcfileWrapper:
