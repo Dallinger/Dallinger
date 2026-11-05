@@ -4,6 +4,7 @@ import re
 import socket
 import threading
 import time
+from contextlib import contextmanager
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -968,7 +969,6 @@ class TestExperimentSocket:
     def test_binary_frame_closes_the_connection(self, sockets, scripted_socket):
         exp = Mock()
         ws = scripted_socket(b'game:{"action": "rock"}', "game:never read")
-        ws.mode = "werkzeug"
         client = self.sync_client(sockets, ws, exp)
 
         client.publish()
@@ -976,7 +976,6 @@ class TestExperimentSocket:
         ws.close.assert_called_once_with(
             sockets.UNSUPPORTED_DATA_CLOSE_CODE, "text frames only"
         )
-        ws.sock.shutdown.assert_called_once_with(socket.SHUT_WR)
         exp.handle_websocket_message.assert_not_called()
         assert ws.receive.call_count == 1
 
@@ -1159,7 +1158,6 @@ class TestExperimentSocketConnection:
             sockets.chat(ws)
 
     def test_unknown_participant_is_refused(self, sockets, admission, mocksocket):
-        mocksocket.mode = "werkzeug"
         with patch.object(admission, "resolve_participant_id", return_value=None):
             with patch.object(admission, "Experiment") as experiment_factory:
                 self.connect(
@@ -1172,7 +1170,6 @@ class TestExperimentSocketConnection:
         mocksocket.close.assert_called_once_with(
             sockets.REFUSED_CLOSE_CODE, "unknown participant"
         )
-        mocksocket.sock.shutdown.assert_called_once_with(socket.SHUT_WR)
         experiment_factory.assert_not_called()
         assert "special" not in sockets.chat_backend.channels
 
@@ -2428,7 +2425,25 @@ class TestSubscriptionHandshake:
 
 
 class TestCloseWebsocket:
-    def received_after_handshake(self, port):
+    @contextmanager
+    def development_server(self, route):
+        from flask import Flask
+        from flask_sock import Sock
+        from werkzeug.serving import make_server
+
+        app = Flask(__name__)
+        Sock(app).route("/close")(route)
+        server = make_server("127.0.0.1", 0, app, threaded=True)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            yield server.server_port
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def received_after_handshake(self, port, send=b""):
+        """Return what the server sends after its handshake response, until
+        it ends the connection, sending ``send`` once the handshake is done."""
         client = socket.create_connection(("127.0.0.1", port), timeout=5)
         client.sendall(
             b"GET /close HTTP/1.1\r\n"
@@ -2440,6 +2455,9 @@ class TestCloseWebsocket:
         )
         received = b""
         with client:
+            while b"\r\n\r\n" not in received:
+                received += client.recv(4096)
+            client.sendall(send)
             while chunk := client.recv(4096):
                 received += chunk
         handshake, _, frames = received.partition(b"\r\n\r\n")
@@ -2449,33 +2467,36 @@ class TestCloseWebsocket:
     def test_other_servers_keep_the_socket_open_for_writing(self):
         from dallinger.experiment_server import sockets
 
-        ws = Mock(mode="gunicorn")
-        sockets._close_websocket(ws, sockets.REFUSED_CLOSE_CODE, "refused")
+        ws = Mock(mode="gunicorn", connected=False)
+        sockets._send_nothing_after_close(lambda ws: None)(ws)
 
-        ws.close.assert_called_once_with(sockets.REFUSED_CLOSE_CODE, "refused")
         ws.sock.shutdown.assert_not_called()
 
     def test_the_development_server_sends_only_the_close_frame(self):
-        from flask import Flask
-        from flask_sock import Sock
-        from werkzeug.serving import make_server
-
         from dallinger.experiment_server import sockets
 
-        app = Flask(__name__)
-
-        @Sock(app).route("/close")
+        @sockets._send_nothing_after_close
         def close(ws):
-            sockets._close_websocket(ws, sockets.REFUSED_CLOSE_CODE, "refused")
+            ws.close(sockets.REFUSED_CLOSE_CODE, "refused")
 
-        server = make_server("127.0.0.1", 0, app, threaded=True)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        try:
-            frames = self.received_after_handshake(server.server_port)
-        finally:
-            server.shutdown()
-            server.server_close()
+        with self.development_server(close) as port:
+            frames = self.received_after_handshake(port)
 
         # An unmasked close frame: FIN and opcode 8, the payload length, then
         # the code and reason.
         assert frames == b"\x88\x09" + (1008).to_bytes(2, "big") + b"refused"
+
+    def test_the_development_server_only_answers_a_browser_close(self):
+        from dallinger.experiment_server import sockets
+
+        @sockets._send_nothing_after_close
+        def listen(ws):
+            while True:
+                ws.receive()
+
+        # A masked close frame with code 1000. A zero mask leaves it readable.
+        browser_close = b"\x88\x82" + bytes(4) + (1000).to_bytes(2, "big")
+        with self.development_server(listen) as port:
+            frames = self.received_after_handshake(port, send=browser_close)
+
+        assert frames == b"\x88\x02" + (1000).to_bytes(2, "big")
