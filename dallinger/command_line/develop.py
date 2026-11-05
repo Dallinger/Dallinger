@@ -142,7 +142,10 @@ def run_debug(
 
     q = Queue("default", connection=redis_conn)
     # Any worker on this Redis database may run the job, so it carries the login.
-    kwargs = {"port": port, "auth": launch_auth(), "after": tuple(ready_rows)}
+    kwargs = {"port": port, "auth": launch_auth()}
+    if ready_rows:
+        # Left out otherwise, so that workers without ``after`` can run the job.
+        kwargs["after"] = tuple(ready_rows)
     if no_browsers:
         job = q.enqueue_call(launch_app_without_browsers, kwargs=kwargs)
     else:
