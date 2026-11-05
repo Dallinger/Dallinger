@@ -497,7 +497,7 @@ rpds-py==2026.9.1
     #   referencing
 rq==3.0.0
     # via dallinger
-ruff==0.17.3
+ruff==0.17.4
     # via dallinger
 s3transfer==0.19.3
     # via boto3
