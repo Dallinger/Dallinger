@@ -632,6 +632,20 @@ class TestDevelopCommand:
         assert out[5:] == ["Press Ctrl+C to stop."]
         open_browser.assert_not_called()
 
+    def test_run_debug_shows_ready_rows(self, active_config, develop, capsys):
+        develop_module = sys.modules["dallinger.command_line.develop"]
+        with mock.patch("dallinger.command_line.develop.Queue") as queue:
+            develop_module.run_debug(
+                skip_flask=True,
+                no_browsers=True,
+                ready_rows=[("Other terminals", "export A=1")],
+            )
+        enqueued = queue.return_value.enqueue_call.call_args
+        with mock.patch.object(develop_module, "handle_launch_data", return_value={}):
+            enqueued.args[0](**enqueued.kwargs["kwargs"])
+        out = capsys.readouterr().out.splitlines()
+        assert out[-2:] == ["  Other terminals: export A=1", "Press Ctrl+C to stop."]
+
     def test_launch_job_opens_the_dashboard_with_its_login(
         self, active_config, develop
     ):
