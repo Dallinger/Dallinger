@@ -66,9 +66,10 @@
 
 ### Changed
 
-- Outside debug mode, the dashboard's session cookies are `Secure`, so a
-  dashboard served over plain HTTP no longer stays logged in, and GitHub
-  Codespaces asks for the dashboard password. In debug mode, Codespaces
+- Outside debug mode, the dashboard's session cookies are `Secure`, so the
+  login form of a dashboard served over plain HTTP fails (basic auth still
+  works), and GitHub Codespaces asks for the dashboard password. In debug
+  mode, Codespaces
   still logs in without one.
 - A `/chat` connection that names a participant goes through the same check
   as an `/experiment-socket` one: the participant must exist and
@@ -627,8 +628,8 @@
   last, an address is refused until 15 minutes pass without one. The
   username and password are compared in constant time, the login form's
   `next` link only redirects to a path on the site (an absolute URL, even
-  to the same site, goes to the dashboard instead), and the session cookies
-  are `SameSite=Lax` and remembered for 14 days.
+  to the same site, goes to the dashboard instead), the session cookies
+  are `SameSite=Lax`, and the remember-me cookie lasts 14 days.
 - The database dashboard's "Compensate Command" button now quotes the
   recruiter, worker id and dollar amount in the `dallinger compensate`
   commands it copies, so pasting them into a shell can no longer run
