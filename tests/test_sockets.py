@@ -2500,3 +2500,29 @@ class TestCloseWebsocket:
             frames = self.received_after_handshake(port, send=browser_close)
 
         assert frames == b"\x88\x02" + (1000).to_bytes(2, "big")
+
+    @pytest.mark.parametrize(
+        "error, code", [(None, 1000), (RuntimeError("boom"), 1011)]
+    )
+    def test_the_development_server_closes_a_route_that_leaves_it_open(
+        self, error, code
+    ):
+        from dallinger.experiment_server import sockets
+
+        @sockets._send_nothing_after_close
+        def leave_open(ws):
+            if error:
+                raise error
+
+        with self.development_server(leave_open) as port:
+            frames = self.received_after_handshake(port)
+
+        assert frames.startswith(b"\x88") and frames[2:4] == code.to_bytes(2, "big")
+        assert b"HTTP/1.1" not in frames
+
+    def test_both_routes_send_nothing_after_close(self):
+        from dallinger.experiment_server import sockets
+
+        for view in (sockets.chat, sockets.experiment_socket):
+            registered = sockets.app.view_functions[view.__name__]
+            assert registered.__wrapped__.__wrapped__ is view

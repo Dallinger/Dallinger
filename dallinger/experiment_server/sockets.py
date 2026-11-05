@@ -86,6 +86,7 @@ def process_token():
 
 
 def _shut_down_sending(ws):
+    """Stop anything more going out on ``ws``'s socket."""
     try:
         ws.sock.shutdown(socket.SHUT_WR)
     except OSError:
@@ -107,21 +108,44 @@ def _send_nothing_after_close(view):
     connection, and the browser would report ``Invalid frame header`` and
     code 1006 instead of the close code, so a refused page would keep
     reconnecting. Shutting down the socket's sending side stops the response
-    from going out. Under gunicorn, flask-sock writes nothing after the route
-    returns.
+    from going out. Under gunicorn, flask-sock writes nothing after a route
+    that returns.
+
+    A route that returns or raises with the connection still open closes it
+    first, with :data:`SERVER_ERROR_CLOSE_CODE` if it raised. Then the reader
+    thread has a moment to answer the browser's close, if the browser closed
+    the connection, before sending stops.
     """
 
     @functools.wraps(view)
     def route(ws):
         try:
             view(ws)
+        except Exception:
+            _close_if_open(ws, SERVER_ERROR_CLOSE_CODE, "server error")
+            raise
         finally:
-            if ws.mode == "werkzeug" and not ws.connected:
+            _close_if_open(ws, NORMAL_CLOSE_CODE, "")
+            if ws.mode == "werkzeug":
                 ws.thread.join(CLOSE_HANDSHAKE_TIMEOUT_SECS)
                 _shut_down_sending(ws)
 
     return route
 
+
+def _close_if_open(ws, code, reason):
+    if ws.connected:
+        try:
+            ws.close(code, reason)
+        except ConnectionClosed:
+            pass
+
+
+#: RFC 6455 normal closure.
+NORMAL_CLOSE_CODE = 1000
+
+#: RFC 6455 internal error. Sent when a websocket route raises.
+SERVER_ERROR_CLOSE_CODE = 1011
 
 #: RFC 6455 going away. Sent to every connection when the web process shuts
 #: down, so the browser reconnects to another one.
