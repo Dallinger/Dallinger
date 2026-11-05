@@ -408,7 +408,7 @@ class HighPerformanceBotBase(BotBase):
     def on_signup(self, data):
         """Take any needed action on response from /participant call."""
         self.participant_id = data["participant"]["id"]
-        self.participant_token = data["participant"]["participant_token"]
+        self.participant_token = data["participant"].get("participant_token")
 
     @property
     def question_responses(self):

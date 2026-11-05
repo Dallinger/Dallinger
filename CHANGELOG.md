@@ -622,12 +622,13 @@
 
 ### Fixed
 
-- Dashboard logins are harder to guess or hijack. After 10 failed logins
-  within 15 minutes, with a wrong username or password, an address is
-  refused until the 15 minutes pass. The username and password are compared
-  in constant time, the login form's `next` link only redirects within the
-  site, and the session cookies are `SameSite=Lax` and remembered for 14
-  days.
+- Dashboard logins are harder to guess or hijack. After 10 failed logins,
+  with a wrong username or password, each less than 15 minutes after the
+  last, an address is refused until 15 minutes pass without one. The
+  username and password are compared in constant time, the login form's
+  `next` link only redirects to a path on the site (an absolute URL, even
+  to the same site, goes to the dashboard instead), and the session cookies
+  are `SameSite=Lax` and remembered for 14 days.
 - The database dashboard's "Compensate Command" button now quotes the
   recruiter, worker id and dollar amount in the `dallinger compensate`
   commands it copies, so pasting them into a shell can no longer run

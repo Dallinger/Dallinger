@@ -50,8 +50,10 @@ def loggable_request_args():
 
 def participant_token_refusal():
     """Return the response to a request that doesn't carry the participant's token."""
+    message = "{}: participant token is missing or wrong".format(request.path)
     return error_response(
-        error_type="{}: participant token is missing or wrong".format(request.path),
+        error_type=message,
+        error_text=message,
         error_code="participant_token_invalid",
         status=403,
         simple=True,
