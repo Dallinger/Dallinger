@@ -604,6 +604,11 @@
   process that exits while it is being read. Before, psutil could raise
   `SystemError` or `OSError` (depending on its version) for such a process
   on macOS, and the calling command crashed.
+- Importing Dallinger no longer raises a `DeprecationWarning` from
+  python-json-logger: the JSON log formatter is imported from
+  `pythonjsonlogger.json` instead of the deprecated
+  `pythonjsonlogger.jsonlogger`, and Dallinger requires
+  python-json-logger 3.1 or later.
 - `dallinger docker sandbox` and `dallinger docker deploy` (Heroku with
   Docker) no longer fail with a
   `KeyError` after a successful launch when it reports the dashboard

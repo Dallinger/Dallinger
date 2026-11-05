@@ -52,7 +52,7 @@ dependencies = [
     "psycopg2",
     "psutil",
     "pygtail",
-    "python-json-logger",
+    "python-json-logger>=3.1",
     "redis",
     "requests",
     "rich",
