@@ -599,6 +599,11 @@
 
 ### Fixed
 
+- `local_worker_processes()`, which the `clear_workers` pytest fixture and
+  PsyNet's debug start-up use to find leftover local workers, skips a
+  process that exits while it is being read. Before, psutil could raise
+  `SystemError` or `OSError` (depending on its version) for such a process
+  on macOS, and the calling command crashed.
 - `dallinger docker sandbox` and `dallinger docker deploy` (Heroku with
   Docker) no longer fail with a
   `KeyError` after a successful launch when it reports the dashboard
