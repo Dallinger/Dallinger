@@ -601,7 +601,9 @@
 
 - The `repr()` of a local Procfile runner no longer raises when the runner
   or one of its child processes exits while it is built, and separates a
-  Python child's command-line arguments with spaces.
+  Python child's command-line arguments with spaces. Starting and stopping
+  the local server likewise no longer crash on macOS when one of its
+  processes exits while its children are listed.
 - `dallinger docker sandbox` and `dallinger docker deploy` (Heroku with
   Docker) no longer fail with a
   `KeyError` after a successful launch when it reports the dashboard

@@ -6,6 +6,7 @@ import threading
 import time
 from unittest import mock
 
+import psutil
 import pytest
 import redis
 
@@ -841,6 +842,17 @@ def test_procfile_wrapper_repr_survives_processes_that_exit():
     )
     wrapper._runner.children.side_effect = psutil.NoSuchProcess(1)
     assert repr(wrapper) == "<LocalProcfileWrapper (not running)>"
+
+
+@pytest.mark.parametrize(
+    "error", [psutil.NoSuchProcess(1), OSError("vanished"), SystemError("vanished")]
+)
+def test_children_of_a_process_that_exits_are_empty(error):
+    from dallinger.heroku.tools import _children
+
+    process = mock.Mock()
+    process.children.side_effect = error
+    assert _children(process) == []
 
 
 @pytest.mark.usefixtures("bartlett_dir")

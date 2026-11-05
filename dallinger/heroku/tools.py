@@ -788,7 +788,7 @@ def _is_running(process):
 def _children(process):
     try:
         return process.children(recursive=True)
-    except psutil.NoSuchProcess:
+    except _UNREADABLE_PROCESS_ERRORS:
         return []
 
 
