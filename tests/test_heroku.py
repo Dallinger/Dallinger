@@ -824,8 +824,6 @@ def test_worker_greenlets_per_process_sizes_gevent_and_redis_pools(
 
 
 def test_procfile_wrapper_repr_survives_processes_that_exit():
-    import psutil
-
     from dallinger.heroku.tools import LocalProcfileWrapper
 
     wrapper = LocalProcfileWrapper.__new__(LocalProcfileWrapper)
