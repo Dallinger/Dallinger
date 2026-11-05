@@ -444,12 +444,6 @@
   first copy and dropped the jQuery plugins registered on it.
 - Added a Cursor `/release` command and release skill for cutting
   Dallinger releases to PyPI and ghcr.
-- Added `dallinger.command_line.develop.echo_ready(details, after=())` and
-  `launch_message_rows(recruitment_msg)`, so that tools that replace the
-  development server's launch job, such as PsyNet, can print the same
-  `Ready.` block: `details` (before the `Full log` line) and `after` are
-  sequences of `(label, value)` pairs, and `launch_message_rows()` turns a
-  `/launch` recruitment message into such pairs.
 - Added `--no-browsers` to `dallinger develop debug`, which skips opening the
   dashboard and participant pages in browsers. Their links are in the
   `Ready.` block either way.

@@ -114,6 +114,14 @@ def run_debug(
         Labels and values that the launch job shows after the full log's
         location in the ``Ready.`` block (see :func:`echo_ready`), such as
         PsyNet's ``Other terminals`` line.
+
+    Raises
+    ------
+    click.Abort
+        If the experiment fails verification.
+    click.ClickException
+        If the development directory can't be used, or the server fails of
+        its own accord.
     """
     from dallinger.command_line.utils import verify_package
 
