@@ -96,6 +96,33 @@ def develop():
     ),
 )
 def debug(port, skip_flask, no_browsers=False, verbose=False):
+    run_debug(
+        port=port, skip_flask=skip_flask, no_browsers=no_browsers, verbose=verbose
+    )
+
+
+def run_debug(
+    port=None, skip_flask=False, no_browsers=False, verbose=False, ready_rows=()
+):
+    """Run ``dallinger develop debug`` from Python.
+
+    Parameters
+    ----------
+    port, skip_flask, no_browsers, verbose
+        As for the command's options.
+    ready_rows : sequence of (str, str)
+        Labels and values that the launch job shows after the full log's
+        location in the ``Ready.`` block (see :func:`echo_ready`), such as
+        PsyNet's ``Other terminals`` line.
+
+    Raises
+    ------
+    click.Abort
+        If the experiment fails verification.
+    click.ClickException
+        If the development directory can't be used, or the server fails of
+        its own accord.
+    """
     from dallinger.command_line.utils import verify_package
 
     files = get_experiment_files()
@@ -124,6 +151,9 @@ def debug(port, skip_flask, no_browsers=False, verbose=False):
     q = Queue("default", connection=redis_conn)
     # Any worker on this Redis database may run the job, so it carries the login.
     kwargs = {"port": port, "auth": launch_auth()}
+    if ready_rows:
+        # Left out otherwise, so that workers without ``after`` can run the job.
+        kwargs["after"] = tuple(ready_rows)
     if no_browsers:
         job = q.enqueue_call(launch_app_without_browsers, kwargs=kwargs)
     else:
@@ -236,18 +266,19 @@ def _bootstrap(exp_config=None, experiment_files=None):
         raise click.ClickException(str(ex))
 
 
-def launch_app_and_open_browser(port, auth=None):
-    launch_app_without_browsers(port, auth=auth)
+def launch_app_and_open_browser(port, auth=None, after=()):
+    launch_app_without_browsers(port, auth=auth, after=after)
     _async_browser("dashboard", port, quiet=True, auth=auth)
     time.sleep(0.1)  # A little delay to ensure they always open in the same order
     _async_browser("ad", port, quiet=True, auth=auth)
 
 
-def launch_app_without_browsers(port, auth=None):
+def launch_app_without_browsers(port, auth=None, after=()):
     """Launch the app and print the participant link and dashboard login.
 
     ``auth`` is the ``(user, password)`` to launch with; it defaults to the
-    dashboard login in this process's config.
+    dashboard login in this process's config. ``after`` is as for
+    :func:`echo_ready`.
     """
     user, password = auth or launch_auth()
     launch_data = _launch_app(port, auth=(user, password))
@@ -260,7 +291,7 @@ def launch_app_without_browsers(port, auth=None):
             ),
         )
     )
-    echo_ready(details)
+    echo_ready(details, after=after)
 
 
 def launch_message_rows(message):

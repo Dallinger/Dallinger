@@ -601,6 +601,8 @@ class TestDevelopCommand:
         enqueued = queue.return_value.enqueue_call.call_args
         job = enqueued.args[0]
         assert job is develop_module.launch_app_without_browsers
+        # Workers without ``after`` can still run the job.
+        assert "after" not in enqueued.kwargs["kwargs"]
 
         # Another experiment's worker on the same Redis database may run the job.
         active_config.extend({"dashboard_password": "another-experiments-pw"})
@@ -631,6 +633,26 @@ class TestDevelopCommand:
         assert out[4].endswith("logs.jsonl")
         assert out[5:] == ["Press Ctrl+C to stop."]
         open_browser.assert_not_called()
+
+    @pytest.mark.parametrize("no_browsers", [True, False])
+    def test_run_debug_shows_ready_rows(
+        self, active_config, develop, capsys, no_browsers
+    ):
+        develop_module = sys.modules["dallinger.command_line.develop"]
+        with mock.patch("dallinger.command_line.develop.Queue") as queue:
+            develop_module.run_debug(
+                skip_flask=True,
+                no_browsers=no_browsers,
+                ready_rows=[("Other terminals", "export A=1")],
+            )
+        enqueued = queue.return_value.enqueue_call.call_args
+        with (
+            mock.patch.object(develop_module, "handle_launch_data", return_value={}),
+            mock.patch.object(develop_module, "_async_browser"),
+        ):
+            enqueued.args[0](**enqueued.kwargs["kwargs"])
+        out = capsys.readouterr().out.splitlines()
+        assert out[-2:] == ["  Other terminals: export A=1", "Press Ctrl+C to stop."]
 
     def test_launch_job_opens_the_dashboard_with_its_login(
         self, active_config, develop

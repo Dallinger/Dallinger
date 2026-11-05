@@ -305,6 +305,10 @@
 
 ### Added
 
+- `dallinger.command_line.develop.run_debug` runs `dallinger develop debug`
+  from Python. Its `ready_rows` are shown at the end of the `Ready.` block,
+  so tools built on Dallinger, such as PsyNet, can add their own lines
+  without replacing the launch job.
 - `Experiment.check_recruiter_exit(participant)` lets an experiment refuse a
   `/recruiter-exit` request, for example when its `unique_id` parameter
   doesn't match the participant, by returning a response to send instead of
