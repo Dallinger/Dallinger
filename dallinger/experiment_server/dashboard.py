@@ -6,7 +6,7 @@ import re
 from copy import deepcopy
 from datetime import datetime, timedelta
 from typing import Optional, Union
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import bs4
 import timeago
@@ -29,7 +29,7 @@ from jinja2.utils import htmlsafe_json_dumps
 from pygtail import Pygtail
 from tzlocal import get_localzone
 from wtforms import BooleanField, HiddenField, PasswordField, StringField, SubmitField
-from wtforms.validators import DataRequired, ValidationError
+from wtforms.validators import DataRequired
 
 import dallinger.db
 from dallinger import recruiters
@@ -280,35 +280,88 @@ def load_user(userid):
 
 
 def should_auto_authenticate():
-    # Auto-authenticate when running in GitHub Codespaces;
+    # Auto-authenticate when debugging in GitHub Codespaces;
     # this is desirable because URL-based authentication is not available in Codespaces,
     # so the user would have to type in a username and password each time they debug the experiment.
-    return is_running_in_codespaces()
+    # Codespaces forwards ports privately unless the user makes them public.
+    return is_running_in_codespaces() and get_config().get("mode", None) == "debug"
 
 
-def is_admin_authorization(auth):
-    """Return True if HTTP Basic ``auth`` carries the dashboard admin's credentials.
+#: Failed dashboard logins allowed from one address within
+#: ``LOGIN_FAILURE_WINDOW_SECS``, before further attempts are refused.
+MAX_LOGIN_FAILURES = 10
+LOGIN_FAILURE_WINDOW_SECS = 15 * 60
+
+
+def _login_failures_key(address):
+    return "dashboard_login_failures:{}".format(address)
+
+
+def login_locked_out(address):
+    """Return whether ``address`` has failed to log in to the dashboard too often."""
+    failures = dallinger.db.redis_conn.get(_login_failures_key(address))
+    return failures is not None and int(failures) >= MAX_LOGIN_FAILURES
+
+
+def _record_login_failure(address):
+    key = _login_failures_key(address)
+    with dallinger.db.redis_conn.pipeline() as pipe:
+        pipe.incr(key)
+        pipe.expire(key, LOGIN_FAILURE_WINDOW_SECS)
+        pipe.execute()
+
+
+def _credentials_match(username, password):
+    """Return whether ``username`` and ``password`` are the dashboard admin's.
 
     False when the server has no dashboard password, so an empty password
     never matches.
     """
     admin_user = current_app.config.get("ADMIN_USER")
-    if not (auth and admin_user and admin_user.password):
+    if not (admin_user and admin_user.password):
         return False
-    username = (auth.username or "").encode()
-    password = (auth.password or "").encode()
     # Compare both, so the time taken doesn't tell which one was wrong.
-    user_ok = hmac.compare_digest(username, str(admin_user.id).encode())
-    password_ok = hmac.compare_digest(password, str(admin_user.password).encode())
+    user_ok = hmac.compare_digest(
+        (username or "").encode(), str(admin_user.id).encode()
+    )
+    password_ok = hmac.compare_digest(
+        (password or "").encode(), str(admin_user.password).encode()
+    )
     return user_ok and password_ok
+
+
+def check_admin_login(username, password, address):
+    """Return whether ``username`` and ``password`` are the dashboard admin's.
+
+    Counts failures per ``address``: once it has ``MAX_LOGIN_FAILURES``, even
+    the right credentials are refused until ``LOGIN_FAILURE_WINDOW_SECS``
+    pass without a failure. A successful login clears the count.
+    """
+    if login_locked_out(address):
+        return False
+    if _credentials_match(username, password):
+        dallinger.db.redis_conn.delete(_login_failures_key(address))
+        return True
+    _record_login_failure(address)
+    return False
+
+
+def is_admin_authorization(request):
+    """Return True if ``request``'s HTTP Basic auth carries the dashboard admin's credentials.
+
+    A request without credentials isn't counted as a failed login.
+    """
+    auth = request.authorization
+    return bool(auth) and check_admin_login(
+        auth.username, auth.password, request.remote_addr
+    )
 
 
 def load_user_from_request(request):
     admin_user = current_app.config.get("ADMIN_USER")
     if should_auto_authenticate():
         return admin_user
-
-    if is_admin_authorization(request.authorization):
+    if is_admin_authorization(request):
         return admin_user
     return
 
@@ -339,29 +392,26 @@ def custom_401(error):
     )
 
 
-def validate_username(form, field):
-    admin_user = current_app.config.get("ADMIN_USER")
-    if field.data != admin_user.id:
-        raise ValidationError("Unknown user")
-
-
 def next_default():
     return request.args.get("next")
 
 
 class LoginForm(FlaskForm):
     next = HiddenField("next", default=next_default)
-    username = StringField("Username", validators=[DataRequired(), validate_username])
+    username = StringField("Username", validators=[DataRequired()])
     password = PasswordField("Password", validators=[DataRequired()])
     remember_me = BooleanField("Remember Me")
     submit = SubmitField("Sign In")
 
 
 def is_safe_url(url):
-    base = url_for("index")
-    if url.startswith("/") or url.startswith(base):
-        return True
-    return False
+    """Return whether ``url`` is a path on this site rather than a link to another."""
+    # Browsers drop tabs and newlines from URLs and read a backslash as a slash,
+    # so "/\t/example.com" and "/\\example.com" lead to example.com.
+    if any(char in url for char in "\t\r\n\\"):
+        return False
+    parsed = urlparse(url)
+    return url.startswith("/") and not url.startswith("//") and not parsed.netloc
 
 
 @dashboard.route("/login", methods=["GET", "POST"])
@@ -380,7 +430,12 @@ def login():
 
     if form.validate_on_submit():
         admin_user = current_app.config.get("ADMIN_USER")
-        if not admin_user.password == form.password.data:
+        if login_locked_out(request.remote_addr):
+            flash("Too many failed logins. Try again later.", "danger")
+            return redirect(url_for("dashboard.login"))
+        if not check_admin_login(
+            form.username.data, form.password.data, request.remote_addr
+        ):
             flash("Invalid username or password", "danger")
             return redirect(url_for("dashboard.login"))
 

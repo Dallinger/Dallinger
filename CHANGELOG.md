@@ -302,6 +302,10 @@
   pytest fixture now does. It also breaks scripts that POST `/launch`
   themselves: add the login, e.g.
   `curl -u "admin:<password>" -X POST <app URL>/launch`.
+- Outside debug mode, the dashboard's session cookies are `Secure`, so the
+  login form of a dashboard served over plain HTTP fails (basic auth still
+  works), and GitHub Codespaces asks for the dashboard password. In debug
+  mode, Codespaces still logs in without one.
 
 ### Added
 
@@ -598,6 +602,20 @@
   logged when the transaction ends without a commit.
 
 ### Fixed
+
+- Dashboard logins are harder to guess or hijack. After 10 failed logins
+  from one address, through the login form, HTTP Basic authentication or
+  `POST /launch`, each less than 15 minutes after the last, the address is
+  refused until 15 minutes pass without one; a successful login clears the
+  count. A wrong username used to be rejected by a separate form check that
+  said so. The username and password are compared in constant time, the
+  login form's `next` link only redirects to a path on the site (an
+  absolute URL, even to the same site, goes to the dashboard instead), the
+  session cookies are `SameSite=Lax`, and the remember-me cookie lasts 14
+  days instead of 365.
+- Error messages about a request's parameters, and the log line for a call
+  to a protected route, name the request's path instead of its full URL, so
+  they no longer repeat query parameters such as PsyNet's `unique_id`.
 
 - `dallinger docker sandbox` and `dallinger docker deploy` (Heroku with
   Docker) no longer fail with a

@@ -1812,6 +1812,13 @@ class TestTransformationGet:
         resp = webapp.get("/node/123/transformations?transformation_type=BadClass")
         assert b"unknown_class: BadClass for parameter transformation_type" in resp.data
 
+    def test_parameter_error_leaves_out_the_query_string(self, webapp):
+        resp = webapp.get(
+            "/node/123/transformations?transformation_type=BadClass&unique_id=secret"
+        )
+        assert b"/node/123/transformations GET request" in resp.data
+        assert b"secret" not in resp.data
+
     def test_returns_error_for_invalid_node_id(self, webapp):
         resp = webapp.get("/node/123/transformations")
         assert b"node 123 does not exist" in resp.data

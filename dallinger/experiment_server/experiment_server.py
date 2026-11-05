@@ -3,7 +3,7 @@
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from json import dumps, loads
 
@@ -140,7 +140,8 @@ def check_for_protected_routes():
     protected = Experiment(no_configure=True).protected_routes
     if active_rule in protected:
         raise PermissionError(
-            f'Unauthorized call to protected route "{active_rule}": {request}'
+            f'Unauthorized call to protected route "{active_rule}": '
+            f"{request.method} {request.path}"
         )
 
 
@@ -152,6 +153,16 @@ def _config():
     app.config["ADMIN_USER"] = dashboard.User(
         userid=config.get("dashboard_user", None) or "admin",
         password=config.get("dashboard_password", None) or "",
+    )
+    # Deployed experiments are served over HTTPS; `dallinger develop` and
+    # `dallinger debug` serve plain HTTP on localhost.
+    secure_cookies = config.get("mode", None) != "debug"
+    app.config.update(
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=secure_cookies,
+        REMEMBER_COOKIE_SAMESITE="Lax",
+        REMEMBER_COOKIE_SECURE=secure_cookies,
+        REMEMBER_COOKIE_DURATION=timedelta(days=14),
     )
 
     return config
@@ -541,7 +552,7 @@ def launch():
             status=403,
             simple=True,
         )
-    if not dashboard.is_admin_authorization(request.authorization):
+    if not dashboard.is_admin_authorization(request):
         app.logger.warning(
             "Refused a POST /launch with a missing or wrong dashboard login."
         )
@@ -937,7 +948,7 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
             return None
         else:
             msg = "{} {} request, {} not specified".format(
-                request.url, request.method, parameter
+                request.path, request.method, parameter
             )
             return error_response(error_type=msg)
 
@@ -952,7 +963,7 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
             return value
         except ValueError:
             msg = "{} {} request, non-numeric {}: {}".format(
-                request.url, request.method, parameter, value
+                request.path, request.method, parameter, value
             )
             return error_response(error_type=msg)
     elif parameter_type == "known_class":
@@ -963,7 +974,7 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
             return value
         except KeyError:
             msg = "{} {} request, unknown_class: {} for parameter {}".format(
-                request.url, request.method, value, parameter
+                request.path, request.method, value, parameter
             )
             return error_response(error_type=msg)
     elif parameter_type == "bool":
@@ -972,12 +983,12 @@ def request_parameter(parameter, parameter_type=None, default=None, optional=Fal
             return value == "True"
         else:
             msg = "{} {} request, non-boolean {}: {}".format(
-                request.url, request.method, parameter, value
+                request.path, request.method, parameter, value
             )
             return error_response(error_type=msg)
     else:
-        msg = "/{} {} request, unknown parameter type: {} for parameter {}".format(
-            request.url, request.method, parameter_type, parameter
+        msg = "{} {} request, unknown parameter type: {} for parameter {}".format(
+            request.path, request.method, parameter_type, parameter
         )
         return error_response(error_type=msg)
 
