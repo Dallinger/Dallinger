@@ -853,7 +853,7 @@ def local_worker_processes(database_url=None):
             if not _is_local_worker_process(process):
                 continue
             url = process.environ().get("DATABASE_URL", db_url_default)
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        except _UNREADABLE_PROCESS_ERRORS:
             continue
         if corrected_db_url(url) == database_url:
             processes.append(process)
