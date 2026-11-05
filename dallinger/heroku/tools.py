@@ -400,6 +400,11 @@ class HerokuApp(HerokuCommandRunner):
         return addon_info
 
 
+# On macOS, reading a process that exits mid-read can raise OSError or
+# SystemError instead of a psutil error, depending on the psutil version.
+_UNREADABLE_PROCESS_ERRORS = (psutil.Error, OSError, SystemError)
+
+
 class HerokuStartupError(RuntimeError):
     """The Heroku subprocess did not start"""
 
@@ -838,10 +843,7 @@ def local_worker_processes(database_url=None):
             if not _is_local_worker_process(process):
                 continue
             url = process.environ().get("DATABASE_URL", db_url_default)
-        # On macOS, reading a process that exits mid-read can raise OSError
-        # or SystemError instead of a psutil error, depending on the psutil
-        # version.
-        except (psutil.Error, OSError, SystemError):
+        except _UNREADABLE_PROCESS_ERRORS:
             continue
         if corrected_db_url(url) == database_url:
             processes.append(process)
