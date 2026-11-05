@@ -603,6 +603,21 @@
 
 ### Fixed
 
+- The `repr()` of a local Procfile runner no longer raises when the runner
+  or one of its child processes exits while it is built, and separates a
+  Python child's command-line arguments with spaces. Starting and stopping
+  the local server likewise no longer crash on macOS when one of its
+  processes exits while its children are listed.
+- `local_worker_processes()`, which the `clear_workers` pytest fixture and
+  PsyNet's debug start-up use to find leftover local workers, skips a
+  process that exits while it is being read. Before, psutil could raise
+  `SystemError` or `OSError` (depending on its version) for such a process
+  on macOS, and the calling command crashed.
+- Importing Dallinger no longer raises a `DeprecationWarning` from
+  python-json-logger: the JSON log formatter is imported from
+  `pythonjsonlogger.json` instead of the deprecated
+  `pythonjsonlogger.jsonlogger`, and Dallinger requires
+  python-json-logger 3.1 or later.
 - `dallinger docker sandbox` and `dallinger docker deploy` (Heroku with
   Docker) no longer fail with a
   `KeyError` after a successful launch when it reports the dashboard

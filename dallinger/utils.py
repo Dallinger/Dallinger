@@ -29,7 +29,7 @@ from urllib.parse import unquote, urlparse
 
 import redis
 from flask import request
-from pythonjsonlogger import jsonlogger
+from pythonjsonlogger.json import JsonFormatter
 from sqlalchemy import exc as sa_exc
 
 from dallinger import db
@@ -114,7 +114,7 @@ JSON_LOGFILE = "logs.jsonl"
 
 
 def attach_json_logger(log):
-    fmt = jsonlogger.JsonFormatter(
+    fmt = JsonFormatter(
         "%(name)s %(asctime)s %(levelname)s %(filename)s %(lineno)s %(message)s"
     )
     handler = logging.FileHandler(JSON_LOGFILE)

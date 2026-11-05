@@ -46,6 +46,7 @@ def _process(name, cmdline, env=None):
             False,
         ),
         (_process("dallinger_herok", [], psutil.AccessDenied(1)), False),
+        (_process("dallinger_herok", [], SystemError("vanished")), False),
         (_process("node", ["/usr/lib/heroku/bin/run", "local"]), False),
         (
             _process("python3", ["python", "-m", "pytest", "dallinger_heroku_web"]),
