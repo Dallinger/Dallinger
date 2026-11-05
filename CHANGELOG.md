@@ -599,6 +599,11 @@
 
 ### Fixed
 
+- The `repr()` of a local Procfile runner no longer raises when the runner
+  or one of its child processes exits while it is built, and separates a
+  Python child's command-line arguments with spaces. Starting and stopping
+  the local server likewise no longer crash on macOS when one of its
+  processes exits while its children are listed.
 - `local_worker_processes()`, which the `clear_workers` pytest fixture and
   PsyNet's debug start-up use to find leftover local workers, skips a
   process that exits while it is being read. Before, psutil could raise

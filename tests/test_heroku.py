@@ -6,6 +6,7 @@ import threading
 import time
 from unittest import mock
 
+import psutil
 import pytest
 import redis
 
@@ -820,6 +821,36 @@ def test_worker_greenlets_per_process_sizes_gevent_and_redis_pools(
     worker_kwargs, pool_connections = worker_options(stub_config)
     assert worker_kwargs["pool_size"] == greenlets
     assert pool_connections == max_connections
+
+
+def test_procfile_wrapper_repr_survives_processes_that_exit():
+    from dallinger.heroku.tools import LocalProcfileWrapper
+
+    wrapper = LocalProcfileWrapper.__new__(LocalProcfileWrapper)
+    wrapper._runner = mock.Mock(pid=1)
+    vanished = mock.Mock(pid=2)
+    vanished.name.side_effect = SystemError("vanished")
+    worker = mock.Mock(pid=3, status=mock.Mock(return_value="running"))
+    worker.name.return_value = "python3"
+    worker.cmdline.return_value = ["python3", "worker.py"]
+    wrapper._runner.children.return_value = [vanished, worker]
+    assert repr(wrapper) == (
+        "<LocalProcfileWrapper pid='1', children: "
+        "[\"<Process pid='3', name='python3 worker.py', status='running'>\"]>"
+    )
+    wrapper._runner.children.side_effect = psutil.NoSuchProcess(1)
+    assert repr(wrapper) == "<LocalProcfileWrapper (not running)>"
+
+
+@pytest.mark.parametrize(
+    "error", [psutil.NoSuchProcess(1), OSError("vanished"), SystemError("vanished")]
+)
+def test_children_of_a_process_that_exits_are_empty(error):
+    from dallinger.heroku.tools import _children
+
+    process = mock.Mock()
+    process.children.side_effect = error
+    assert _children(process) == []
 
 
 @pytest.mark.usefixtures("bartlett_dir")
