@@ -112,19 +112,25 @@ def _send_nothing_after_close(view):
     from going out. Under gunicorn, flask-sock writes nothing after a route
     that returns.
 
-    A route that returns or raises with the connection still open closes it
-    first, with :data:`SERVER_ERROR_CLOSE_CODE` if it raised. Then the reader
-    thread has a moment to answer the browser's close, if the browser closed
-    the connection, before sending stops.
+    A route that returns with the connection still open closes it first. A
+    route that raises has its error logged here and its connection closed with
+    :data:`SERVER_ERROR_CLOSE_CODE`. The error goes no further: Flask's 500
+    response would follow the close frame, and under the development server
+    the werkzeug debugger logs the traceback only after sending its error page,
+    which the shutdown stops. Then the reader thread has a moment to answer
+    the browser's close, if the browser closed the connection, before sending
+    stops.
     """
 
     @functools.wraps(view)
     def route(ws):
         try:
             view(ws)
-        except Exception:
-            _close_if_open(ws, SERVER_ERROR_CLOSE_CODE, "server error")
+        except ConnectionClosed:
             raise
+        except Exception:
+            app.logger.exception("Error in websocket route {}.".format(view.__name__))
+            _close_if_open(ws, SERVER_ERROR_CLOSE_CODE, "server error")
         finally:
             _close_if_open(ws, NORMAL_CLOSE_CODE, "")
             if ws.mode == "werkzeug":

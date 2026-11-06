@@ -2443,7 +2443,11 @@ class TestCloseWebsocket:
 
     def received_after_handshake(self, port, send=b""):
         """Return what the server sends after its handshake response, until
-        it ends the connection, sending ``send`` once the handshake is done."""
+        it ends the connection, sending ``send`` once the handshake is done.
+
+        Unless ``send`` is set, a close frame from the server is answered, as
+        a browser would, so the server need not wait for the reply.
+        """
         client = socket.create_connection(("127.0.0.1", port), timeout=5)
         client.sendall(
             b"GET /close HTTP/1.1\r\n"
@@ -2460,8 +2464,13 @@ class TestCloseWebsocket:
                 assert chunk, "The server ended the connection: {!r}".format(received)
                 received += chunk
             client.sendall(send)
+            answered = bool(send)
             while chunk := client.recv(4096):
                 received += chunk
+                if not answered and received.partition(b"\r\n\r\n")[2][:1] == b"\x88":
+                    # A masked close frame with no payload and a zero mask.
+                    client.sendall(b"\x88\x80" + bytes(4))
+                    answered = True
         handshake, _, frames = received.partition(b"\r\n\r\n")
         assert handshake.startswith(b"HTTP/1.1 101")
         return frames
@@ -2474,7 +2483,7 @@ class TestCloseWebsocket:
 
         ws.sock.shutdown.assert_not_called()
 
-    def test_other_servers_close_a_route_that_raises_with_1011(self):
+    def test_other_servers_log_a_route_that_raises_and_close_with_1011(self):
         from dallinger.experiment_server import sockets
 
         ws = Mock(mode="gunicorn", connected=True)
@@ -2483,15 +2492,33 @@ class TestCloseWebsocket:
         def fail(ws):
             raise RuntimeError("boom")
 
-        with pytest.raises(RuntimeError):
+        with patch.object(sockets.app, "logger") as logger:
             sockets._send_nothing_after_close(fail)(ws)
 
+        logger.exception.assert_called_once()
         ws.close.assert_called_once_with(
             sockets.SERVER_ERROR_CLOSE_CODE, "server error"
         )
         ws.sock.shutdown.assert_not_called()
 
+    def test_a_route_that_finds_the_connection_closed_is_not_an_error(self):
+        from dallinger.experiment_server import sockets
+
+        ws = Mock(mode="gunicorn", connected=False)
+
+        def receive(ws):
+            raise ConnectionClosed(1000, "")
+
+        with patch.object(sockets.app, "logger") as logger:
+            with pytest.raises(ConnectionClosed):
+                sockets._send_nothing_after_close(receive)(ws)
+
+        logger.exception.assert_not_called()
+        ws.close.assert_not_called()
+
     def test_a_close_that_loses_the_race_still_stops_sending(self):
+        from unittest.mock import call
+
         from wsproto.utilities import LocalProtocolError
 
         from dallinger.experiment_server import sockets
@@ -2501,8 +2528,11 @@ class TestCloseWebsocket:
 
         sockets._send_nothing_after_close(lambda ws: None)(ws)
 
-        ws.thread.join.assert_called_once_with(sockets.CLOSE_HANDSHAKE_TIMEOUT_SECS)
-        ws.sock.shutdown.assert_called_once_with(socket.SHUT_WR)
+        # The reader thread may still owe the browser its close reply.
+        assert ws.mock_calls[-2:] == [
+            call.thread.join(sockets.CLOSE_HANDSHAKE_TIMEOUT_SECS),
+            call.sock.shutdown(socket.SHUT_WR),
+        ]
 
     def test_the_development_server_sends_only_the_close_frame(self):
         from dallinger.experiment_server import sockets
