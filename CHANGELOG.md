@@ -603,6 +603,14 @@
 
 ### Fixed
 
+- Links to the Dallinger documentation in the README, the dashboard, the
+  Docker deployment error messages, the demo READMEs and the demo guide point
+  to `https://dallinger.readthedocs.io/latest/`. The documentation moved
+  there from `/en/latest/`, and the old addresses return 404. The README no
+  longer shows the Code Climate badge, which Code Climate stopped serving
+  when its code-quality service moved to Qlty. Its build badge links to the
+  workflow page instead of the badge image, and its demos badge counts the
+  15 demos.
 - The `repr()` of a local Procfile runner no longer raises when the runner
   or one of its child processes exits while it is built, and separates a
   Python child's command-line arguments with spaces. Starting and stopping

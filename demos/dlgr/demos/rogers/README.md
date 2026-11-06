@@ -5,7 +5,7 @@ This experiment, which demonstrates Rogers paradox, explores the evolution of as
 
 ## Configuration
 
-The experiment parameters can be configured using [Dallinger configuration files](https://dallinger.readthedocs.io/en/latest/configuration.html). In addition to the built-in Dallinger configuration parameters, the Rogers' experiment supports the following additional configuration parameters:
+The experiment parameters can be configured using [Dallinger configuration files](https://dallinger.readthedocs.io/latest/configuration.html). In addition to the built-in Dallinger configuration parameters, the Rogers' experiment supports the following additional configuration parameters:
 
 * `experiment_repeats`: An integer defining the number of experiment rounds each participant will see. *defaults to `0`*
 
