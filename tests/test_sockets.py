@@ -2465,12 +2465,16 @@ class TestCloseWebsocket:
                 received += chunk
             client.sendall(send)
             answered = bool(send)
-            while chunk := client.recv(4096):
+            chunk = b""
+            while True:
                 received += chunk
+                # The close frame can arrive in the same read as the handshake.
                 if not answered and received.partition(b"\r\n\r\n")[2][:1] == b"\x88":
                     # A masked close frame with no payload and a zero mask.
                     client.sendall(b"\x88\x80" + bytes(4))
                     answered = True
+                if not (chunk := client.recv(4096)):
+                    break
         handshake, _, frames = received.partition(b"\r\n\r\n")
         assert handshake.startswith(b"HTTP/1.1 101")
         return frames
@@ -2492,10 +2496,13 @@ class TestCloseWebsocket:
         def fail(ws):
             raise RuntimeError("boom")
 
-        with patch.object(sockets.app, "logger") as logger:
-            sockets._send_nothing_after_close(fail)(ws)
+        with patch.object(sockets, "request", Mock(full_path="/chat?participant_id=1")):
+            with patch.object(sockets.app, "logger") as logger:
+                sockets._send_nothing_after_close(fail)(ws)
 
-        logger.exception.assert_called_once()
+        logger.exception.assert_called_once_with(
+            "Error in websocket route fail (/chat?participant_id=1)."
+        )
         ws.close.assert_called_once_with(
             sockets.SERVER_ERROR_CLOSE_CODE, "server error"
         )

@@ -129,7 +129,11 @@ def _send_nothing_after_close(view):
         except ConnectionClosed:
             raise
         except Exception:
-            app.logger.exception("Error in websocket route {}.".format(view.__name__))
+            app.logger.exception(
+                "Error in websocket route {} ({}).".format(
+                    view.__name__, request.full_path
+                )
+            )
             _close_if_open(ws, SERVER_ERROR_CLOSE_CODE, "server error")
         finally:
             _close_if_open(ws, NORMAL_CLOSE_CODE, "")
