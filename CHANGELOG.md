@@ -658,13 +658,14 @@
   `participant_id`, and its worker and assignment ids even without a HIT id.
 - Under the development server (`dallinger develop debug`, and tools such as
   PsyNet that run `flask run` locally), websockets close cleanly, whichever
-  side closes them, and a websocket route that fails closes its connection
-  with code 1011. The development server wrote an HTTP response after the
+  side closes them. The development server wrote an HTTP response after the
   close frame, so Chrome reported `Invalid frame header` and code 1006: a
   connection refused by `accept_websocket_connection` reconnected about
   twice a second for as long as the page stayed open, and every connection
   a page closed itself logged the error in the browser console. Deployed
-  servers, which run gunicorn, were not affected.
+  servers, which run gunicorn, were not affected. On any server, a
+  websocket route that fails now closes its connection with code 1011;
+  under gunicorn, Flask's 500 response still follows the close frame.
 - `dallinger constraints generate` compiles for the newest patch release of
   the Python version in `.python-version` when the file names only the minor
   version, such as `3.11`. uv reads `3.11` as Python 3.11.0, so the compile

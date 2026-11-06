@@ -19,6 +19,7 @@ from redis import ConnectionError, RedisError
 from redis import TimeoutError as RedisTimeoutError
 from simple_websocket import ConnectionClosed
 from sqlalchemy.exc import SQLAlchemyError
+from wsproto.utilities import LocalProtocolError
 
 from dallinger.db import (
     CONTROL_CHANNEL,
@@ -134,10 +135,16 @@ def _send_nothing_after_close(view):
 
 
 def _close_if_open(ws, code, reason):
+    """Close ``ws`` with ``code`` and ``reason`` unless it has closed already.
+
+    The reader thread can finish the close handshake, or find the socket
+    gone, between the ``connected`` check and the close, so wsproto's
+    refusal to close twice and a dead socket count as closed too.
+    """
     if ws.connected:
         try:
             ws.close(code, reason)
-        except ConnectionClosed:
+        except (ConnectionClosed, LocalProtocolError, OSError):
             pass
 
 

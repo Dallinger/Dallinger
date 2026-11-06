@@ -2456,7 +2456,9 @@ class TestCloseWebsocket:
         received = b""
         with client:
             while b"\r\n\r\n" not in received:
-                received += client.recv(4096)
+                chunk = client.recv(4096)
+                assert chunk, "The server ended the connection: {!r}".format(received)
+                received += chunk
             client.sendall(send)
             while chunk := client.recv(4096):
                 received += chunk
@@ -2471,6 +2473,36 @@ class TestCloseWebsocket:
         sockets._send_nothing_after_close(lambda ws: None)(ws)
 
         ws.sock.shutdown.assert_not_called()
+
+    def test_other_servers_close_a_route_that_raises_with_1011(self):
+        from dallinger.experiment_server import sockets
+
+        ws = Mock(mode="gunicorn", connected=True)
+        ws.close.side_effect = lambda code, reason: setattr(ws, "connected", False)
+
+        def fail(ws):
+            raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError):
+            sockets._send_nothing_after_close(fail)(ws)
+
+        ws.close.assert_called_once_with(
+            sockets.SERVER_ERROR_CLOSE_CODE, "server error"
+        )
+        ws.sock.shutdown.assert_not_called()
+
+    def test_a_close_that_loses_the_race_still_stops_sending(self):
+        from wsproto.utilities import LocalProtocolError
+
+        from dallinger.experiment_server import sockets
+
+        ws = Mock(mode="werkzeug", connected=True)
+        ws.close.side_effect = LocalProtocolError("already closed")
+
+        sockets._send_nothing_after_close(lambda ws: None)(ws)
+
+        ws.thread.join.assert_called_once_with(sockets.CLOSE_HANDSHAKE_TIMEOUT_SECS)
+        ws.sock.shutdown.assert_called_once_with(socket.SHUT_WR)
 
     def test_the_development_server_sends_only_the_close_frame(self):
         from dallinger.experiment_server import sockets
