@@ -1,5 +1,6 @@
 """Handles relaying websocket messages between processes using redis."""
 
+import functools
 import json
 import numbers
 import os
@@ -18,6 +19,7 @@ from redis import ConnectionError, RedisError
 from redis import TimeoutError as RedisTimeoutError
 from simple_websocket import ConnectionClosed
 from sqlalchemy.exc import SQLAlchemyError
+from wsproto.utilities import LocalProtocolError
 
 from dallinger.db import (
     CONTROL_CHANNEL,
@@ -84,27 +86,83 @@ def process_token():
     return _process_token
 
 
-def _close_websocket(ws, code, reason):
-    """Close ``ws`` with ``code`` and ``reason``, and send nothing after the
-    close frame.
-
-    Under Flask's development server, flask-sock answers the upgrade request
-    with an ordinary HTTP response once the route returns, on the same socket.
-    A browser that reads it after the close frame reports code 1006 instead
-    of ``code``, so a refused page keeps reconnecting. Shutting down the
-    socket's sending side stops that response from going out. Under
-    gunicorn, flask-sock writes nothing after the route returns.
-
-    :raises simple_websocket.ConnectionClosed: if ``ws`` is already closed
-    """
-    ws.close(code, reason)
-    if ws.mode != "werkzeug":
-        return
+def _shut_down_sending(ws):
+    """Stop anything more going out on ``ws``'s socket."""
     try:
         ws.sock.shutdown(socket.SHUT_WR)
     except OSError:
         pass
 
+
+#: Seconds the development server waits, once a connection has closed, for
+#: simple_websocket's reader thread to finish the close handshake.
+CLOSE_HANDSHAKE_TIMEOUT_SECS = 1.0
+
+
+def _send_nothing_after_close(view):
+    """Wrap a websocket route so that, under Flask's development server,
+    nothing follows the close handshake.
+
+    Once the route returns, flask-sock answers the upgrade request with an
+    ordinary HTTP response on the same socket. Under the development server
+    that response would follow the close frame, whichever side closed the
+    connection, and the browser would report ``Invalid frame header`` and
+    code 1006 instead of the close code, so a refused page would keep
+    reconnecting. Shutting down the socket's sending side stops the response
+    from going out. Under gunicorn, flask-sock writes nothing after a route
+    that returns.
+
+    A route that returns with the connection still open closes it first. A
+    route that raises has its error logged here and its connection closed with
+    :data:`SERVER_ERROR_CLOSE_CODE`. The error goes no further: Flask's 500
+    response would follow the close frame, and under the development server
+    the werkzeug debugger logs the traceback only after sending its error page,
+    which the shutdown stops. Then the reader thread has a moment to answer
+    the browser's close, if the browser closed the connection, before sending
+    stops.
+    """
+
+    @functools.wraps(view)
+    def route(ws):
+        try:
+            view(ws)
+        except ConnectionClosed:
+            raise
+        except Exception:
+            app.logger.exception(
+                "Error in websocket route {} ({}).".format(
+                    view.__name__, request.full_path.rstrip("?")
+                )
+            )
+            _close_if_open(ws, SERVER_ERROR_CLOSE_CODE, "server error")
+        finally:
+            _close_if_open(ws, NORMAL_CLOSE_CODE, "")
+            if ws.mode == "werkzeug":
+                ws.thread.join(CLOSE_HANDSHAKE_TIMEOUT_SECS)
+                _shut_down_sending(ws)
+
+    return route
+
+
+def _close_if_open(ws, code, reason):
+    """Close ``ws`` with ``code`` and ``reason`` unless it has closed already.
+
+    The reader thread can finish the close handshake, or find the socket
+    gone, between the ``connected`` check and the close, so wsproto's
+    refusal to close twice and a dead socket count as closed too.
+    """
+    if ws.connected:
+        try:
+            ws.close(code, reason)
+        except (ConnectionClosed, LocalProtocolError, OSError):
+            pass
+
+
+#: RFC 6455 normal closure.
+NORMAL_CLOSE_CODE = 1000
+
+#: RFC 6455 internal error. Sent when a websocket route raises.
+SERVER_ERROR_CLOSE_CODE = 1011
 
 #: RFC 6455 going away. Sent to every connection when the web process shuts
 #: down, so the browser reconnects to another one.
@@ -681,7 +739,7 @@ class Client:
         """Close the connection because the web process is shutting down."""
         try:
             with self.send_lock:
-                _close_websocket(self.ws, GOING_AWAY_CLOSE_CODE, "server shutting down")
+                self.ws.close(GOING_AWAY_CLOSE_CODE, "server shutting down")
         except ConnectionClosed:
             return
         # receive() waits on this event, and simple_websocket's reader thread
@@ -744,9 +802,7 @@ class Client:
                         level="warning",
                     )
                     with self.send_lock:
-                        _close_websocket(
-                            self.ws, UNSUPPORTED_DATA_CLOSE_CODE, "text frames only"
-                        )
+                        self.ws.close(UNSUPPORTED_DATA_CLOSE_CODE, "text frames only")
                     self.publish_disconnected(
                         UNSUPPORTED_DATA_CLOSE_CODE, "text frames only"
                     )
@@ -931,7 +987,7 @@ def _serve(ws, participant_id=None, experiment=None):
 
 def _refuse(ws, refusal):
     code = UNAVAILABLE_CLOSE_CODE if refusal.retry else REFUSED_CLOSE_CODE
-    _close_websocket(ws, code, refusal.reason)
+    ws.close(code, refusal.reason)
 
 
 def _open_client(ws, participant_id, experiment):
@@ -1058,5 +1114,5 @@ def experiment_socket(ws):
 
 # We need to keep the functions around for tests, so we apply the decorators
 # manually
-sock.route("/chat")(chat)
-sock.route("/experiment-socket")(experiment_socket)
+sock.route("/chat")(_send_nothing_after_close(chat))
+sock.route("/experiment-socket")(_send_nothing_after_close(experiment_socket))
