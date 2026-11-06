@@ -1476,6 +1476,11 @@
 
 ### Updated
 
+- Updated Python dependencies (regenerated `requirements.txt`,
+  `dev-requirements.txt`, and `constraints.txt`; bumped the ruff pre-commit
+  hook to v0.17.4). Runtime updates include boto3/botocore 1.43.125,
+  platformdirs 4.14.5, and soupsieve 4.0.1. The `data` and `ec2` extras
+  now use pandas 3.1.1.
 - Upgraded Paramiko to 5, which fixes CVE-2026-44405 by removing SHA-1 from
   RSA signatures and key exchange. docker-ssh and EC2 commands that use an RSA
   key, or reach a server with an RSA host key, now need OpenSSH 7.2 or newer
