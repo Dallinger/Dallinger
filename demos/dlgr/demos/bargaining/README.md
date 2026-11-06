@@ -9,9 +9,9 @@ the two players.
 The demo is a small, complete example of a real-time experiment, written for
 researchers who want to build one of their own. This page walks through how
 it works. The engine itself is described in
-[Real-Time Games](https://dallinger.readthedocs.io/en/latest/realtime_games.html),
+[Real-Time Games](https://dallinger.readthedocs.io/latest/realtime_games.html),
 and the page's helpers in the
-[real-time sessions section of the JavaScript API](https://dallinger.readthedocs.io/en/latest/javascript_api.html#real-time-sessions).
+[real-time sessions section of the JavaScript API](https://dallinger.readthedocs.io/latest/javascript_api.html#real-time-sessions).
 
 ## The Game
 
@@ -152,7 +152,7 @@ Two limits matter for a real study. The page names the sender, and nothing
 checks it, so a player could post as their partner. And any page can
 subscribe to the `bargain_chat` channel and read what every pair sends: the
 copies sent back go only to the pair, but the messages on their way in don't.
-See [Using WebSockets](https://dallinger.readthedocs.io/en/latest/using_websockets.html)
+See [Using WebSockets](https://dallinger.readthedocs.io/latest/using_websockets.html)
 for the routes and directed messages.
 
 ### The Page

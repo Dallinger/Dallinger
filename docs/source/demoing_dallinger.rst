@@ -14,9 +14,9 @@ To test out Dallinger, we'll run a demo experiment in "debug" mode.
     More information for :doc:`running in "sandbox" mode <demos_on_heroku>`.
 
 You can read more about this experiment here:
-`Bartlett (1932) demo <http://dallinger.readthedocs.io/en/latest/demos/bartlett1932/index.html>`__.
+`Bartlett (1932) demo <https://dallinger.readthedocs.io/latest/demos/bartlett1932/index.html>`__.
 
-The experiment files can be found `here <https://dallinger.readthedocs.io/en/latest/_static/bartlett1932.zip>`__. Extract them to a location of your choice, then from there, navigate to the `bartlett1932` directory and run:
+The experiment files can be found `here <https://dallinger.readthedocs.io/latest/_static/bartlett1932.zip>`__. Extract them to a location of your choice, then from there, navigate to the `bartlett1932` directory and run:
 
 ::
 

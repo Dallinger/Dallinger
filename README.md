@@ -1,9 +1,8 @@
 Dallinger
 =======
-[![Build Status](https://github.com/dallinger/Dallinger/actions/workflows/deploy.yml/badge.svg)](https://github.com/dallinger/Dallinger/actions/workflows/deploy.yml/badge.svg)
-[![Demos](https://img.shields.io/badge/demos-11-edd172.svg)](http://dallinger.readthedocs.io/en/latest/#demos)
+[![Build Status](https://github.com/dallinger/Dallinger/actions/workflows/deploy.yml/badge.svg)](https://github.com/dallinger/Dallinger/actions/workflows/deploy.yml)
+[![Demos](https://img.shields.io/badge/demos-15-edd172.svg)](https://dallinger.readthedocs.io/latest/#dallinger-demos)
 [![codecov](https://codecov.io/gh/Dallinger/Dallinger/branch/master/graph/badge.svg)](https://codecov.io/gh/Dallinger/Dallinger)
-[![Code Climate](https://codeclimate.com/github/Dallinger/Dallinger/badges/gpa.svg)](https://codeclimate.com/github/Dallinger/Dallinger)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](http://en.wikipedia.org/wiki/MIT_License)
 
 <img src="https://raw.githubusercontent.com/Dallinger/Dallinger/master/incubator.png" width="125" alt="Dallinger's incubator">

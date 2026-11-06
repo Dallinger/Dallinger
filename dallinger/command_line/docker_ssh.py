@@ -4671,7 +4671,7 @@ def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
         raise click.ClickException(
             f"The server_pem key at {pem_path} is a DSA key, which Dallinger "
             "can no longer use. Replace it with an Ed25519, RSA, or ECDSA key: "
-            "https://dallinger.readthedocs.io/en/latest/docker_support.html"
+            "https://dallinger.readthedocs.io/latest/docker_support.html"
             "#replacing-a-dsa-key"
         )
     client = paramiko.SSHClient()
