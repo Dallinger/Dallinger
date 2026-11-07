@@ -1,5 +1,7 @@
 # Changelog
 
+## [Unreleased]
+
 ## [v13.0.0](https://github.com/dallinger/dallinger/tree/v13.0.0) (2026-11-07)
 
 ### Breaking Changes
