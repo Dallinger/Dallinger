@@ -253,6 +253,9 @@ jobs:
           pip install --upgrade pip wheel
           pip install -e .[data,docker] pytest
       - name: Run docker-ssh smoke tests
+        env:
+          # A release branch pins a version whose base image is published only after tagging.
+          DALLINGER_BASE_IMAGE_TAG: latest
         run: python -m pytest tests/test_docker_ssh_integration.py --docker-ssh-smoke -q
 
   pre-commit:

@@ -1404,6 +1404,18 @@ def test_get_required_dallinger_version_prerelease_falls_back_to_latest(tmp_path
     assert get_required_dallinger_version(str(tmp_path)) == LATEST_VERSION
 
 
+def test_get_base_image_tag_from_environment(tmp_path, monkeypatch):
+    from dallinger.docker.tools import get_base_image
+
+    (tmp_path / "requirements.txt").write_text("dallinger==13.0.0\n")
+    assert get_base_image(str(tmp_path)) == "ghcr.io/dallinger/dallinger:13.0.0"
+
+    monkeypatch.setenv("DALLINGER_BASE_IMAGE_TAG", "latest")
+    assert get_base_image(str(tmp_path), needs_chrome=True) == (
+        "ghcr.io/dallinger/dallinger-bot:latest"
+    )
+
+
 def test_get_required_dallinger_version_follows_includes_and_options(tmp_path):
     from dallinger.docker.tools import get_required_dallinger_version
 

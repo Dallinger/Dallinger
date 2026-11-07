@@ -337,6 +337,11 @@ Each item is described in full under the sections below.
   commits, and never if the transaction, or the savepoint it was added in,
   rolls back. Its optional `description` names the function in the warning
   logged when the transaction ends without a commit.
+- The `DALLINGER_BASE_IMAGE_TAG` environment variable chooses the tag of the
+  `ghcr.io/dallinger/dallinger` base image that experiment images without
+  their own `Dockerfile` are built on, instead of the Dallinger version they
+  pin. The docker-ssh smoke tests set it to `latest`, so they pass on a
+  release branch before that version's image is published.
 
 ### Changed
 
