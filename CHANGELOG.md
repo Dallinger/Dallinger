@@ -68,9 +68,10 @@
   `scripts/update_experiments_constraints.py` now takes the Python version
   from the root `Dockerfile` instead of from the interpreter that runs it,
   so the demos follow future Docker image upgrades automatically.
-- Cloudflare Tunnel deployments now use cloudflared 2026.10.6, including the
-  eMudhra certificate-compromise mitigation. Existing connectors require a
-  separate image update and restart.
+- Cloudflare Tunnel deployments now use cloudflared 2026.10.7, including the
+  eMudhra certificate-compromise mitigation and a fix for the HTTP/2
+  concurrent-stream limit, which Go 1.27 had broken. Existing connectors
+  require a separate image update and restart.
 - Dependabot now opens pull requests for new cloudflared releases. The
   docker-ssh Cloudflare Tunnel image is pinned by tag and digest in
   `dallinger/docker/ssh_templates/Dockerfile.cloudflared`, like the
