@@ -33,16 +33,14 @@ jobs:
     steps:
       - name: Get version
         id: vars
+        shell: bash
         run: |
-          set -o pipefail
-          version="${GITHUB_REF#refs/*/v}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          version="${GITHUB_REF_NAME#v}"
           # Pre-releases and patches to older release lines must not move the latest tags.
-          newest="$(git ls-remote --tags --refs "https://github.com/${GITHUB_REPOSITORY}.git" 'v*' \
-            | sed 's#.*refs/tags/v##' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)"
-          if [ "$version" = "$newest" ]; then latest=true; else latest=false; fi
-          echo "latest=$latest" >> "$GITHUB_OUTPUT"
-          echo "Newest release: $newest. Tagging $version as latest: $latest"
+          newest="$(git ls-remote --tags "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            | sed -n 's#.*refs/tags/v\([0-9]*\.[0-9]*\.[0-9]*\)$#\1#p' | sort -V | tail -n 1)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "latest=$([ "$version" = "$newest" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - name: Login to Github ghcr
         uses: docker/login-action@v4
         with:
