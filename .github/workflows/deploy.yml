@@ -34,6 +34,7 @@ jobs:
       - name: Get version
         id: vars
         run: |
+          set -o pipefail
           version="${GITHUB_REF#refs/*/v}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           # Pre-releases and patches to older release lines must not move the latest tags.
