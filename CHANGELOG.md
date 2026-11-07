@@ -1053,6 +1053,11 @@ Each item is described in full under the sections below.
 
 ### Fixed
 
+- Releases tag the bot image as `ghcr.io/dallinger/dallinger-bot:latest`.
+  They used to tag it as `ghcr.io/dallinger/dallinger:latest`, which made
+  `dallinger:latest` an image with Chrome and left `dallinger-bot:latest` at
+  an image from 2021. Experiment images built on `latest`, for example for a
+  pre-release Dallinger pin, now get the right base image.
 - Links to the Dallinger documentation in the README, the dashboard, the
   Docker deployment error messages, the demo READMEs and the demo guide point
   to `https://dallinger.readthedocs.io/latest/`. The documentation moved

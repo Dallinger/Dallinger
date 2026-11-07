@@ -60,4 +60,4 @@ jobs:
           target: dallinger-bot
           tags: |
             ghcr.io/dallinger/dallinger-bot:${{ steps.vars.outputs.version }}
-            ghcr.io/dallinger/dallinger:latest
+            ghcr.io/dallinger/dallinger-bot:latest
