@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Only the highest `X.Y.Z` release tags the `latest` Docker images
+  (`ghcr.io/dallinger/dallinger:latest` and `dallinger-bot:latest`).
+  Before, every `v*` tag moved them, so a patch to an older release line
+  (such as 12.4.1 after 13.0.0) or a pre-release tag replaced `latest`
+  with an older or unfinished image.
+
 ## [v13.0.0](https://github.com/dallinger/dallinger/tree/v13.0.0) (2026-11-07)
 
 ### Breaking Changes

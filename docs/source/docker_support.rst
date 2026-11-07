@@ -677,7 +677,8 @@ If the build fails, the full ``docker build`` log is printed with the path of it
 Set ``DALLINGER_VERBOSE_BUILD=1`` to see the build output as it runs.
 Without its own ``Dockerfile``, an experiment's image is built on
 ``ghcr.io/dallinger/dallinger`` with the Dallinger version it pins (``latest``
-for a pre-release). Set ``DALLINGER_BASE_IMAGE_TAG`` to use another tag, for
+for a pre-release). ``latest`` is the image of the highest ``X.Y.Z`` release,
+so a pre-release or a patch to an older release line doesn't move it. Set ``DALLINGER_BASE_IMAGE_TAG`` to use another tag, for
 example ``latest`` before that version's image is published.
 Python callers that print their own summary, such as PsyNet, can invoke the command
 with ``show_summary=False``. This leaves out the links, logs command, passwords and
