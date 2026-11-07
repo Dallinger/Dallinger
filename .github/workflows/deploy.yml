@@ -33,7 +33,16 @@ jobs:
     steps:
       - name: Get version
         id: vars
-        run: echo "version=${GITHUB_REF#refs/*/v}" >> $GITHUB_OUTPUT
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # Pre-releases and patches to older release lines must not move the latest tags.
+          newest="$(git ls-remote --tags "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            | sed -n 's#.*refs/tags/v\([0-9]\+\.[0-9]\+\.[0-9]\+\)$#\1#p' | sort -V | tail -n 1)"
+          latest="$([ "$version" = "$newest" ] && echo true || echo false)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "Newest release: $newest. Tagging $version as latest: $latest"
       - name: Login to Github ghcr
         uses: docker/login-action@v4
         with:
@@ -51,7 +60,7 @@ jobs:
           target: dallinger
           tags: |
             ghcr.io/dallinger/dallinger:${{ steps.vars.outputs.version }}
-            ghcr.io/dallinger/dallinger:latest
+            ${{ steps.vars.outputs.latest == 'true' && 'ghcr.io/dallinger/dallinger:latest' || '' }}
       - name: Build ghcr.io/dallinger/dallinger-bot docker image
         uses: docker/build-push-action@v7
         with:
@@ -60,4 +69,4 @@ jobs:
           target: dallinger-bot
           tags: |
             ghcr.io/dallinger/dallinger-bot:${{ steps.vars.outputs.version }}
-            ghcr.io/dallinger/dallinger-bot:latest
+            ${{ steps.vars.outputs.latest == 'true' && 'ghcr.io/dallinger/dallinger-bot:latest' || '' }}

@@ -62,7 +62,7 @@ Dallinger's dev requirements stay put. Commit the changes with::
 
 5. Merge this release with the commit "Release version MAJOR.MINOR.PATCH."
 
-6. After that's merged, you'll want to tag the merge commit with ``git tag vMAJOR.MINOR.PATCH`` and do ``git push origin vMAJOR.MINOR.PATCH``. Pushing that tag runs ``.github/workflows/deploy.yml``, which publishes the package to PyPI and the images to ghcr.
+6. After that's merged, you'll want to tag the merge commit with ``git tag vMAJOR.MINOR.PATCH`` and do ``git push origin vMAJOR.MINOR.PATCH``. Pushing that tag runs ``.github/workflows/deploy.yml``, which publishes the package to PyPI and the images to ghcr. The images are also tagged ``latest`` if this is the highest ``X.Y.Z`` release.
 
 7. At this point, **WAIT** to make sure the release is successful. If you prematurely
    increment versions again (see next step) and the release has problems, you'll

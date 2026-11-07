@@ -408,6 +408,7 @@ then:
 
 1. Builds the sdist + wheel and publishes to PyPI.
 2. Builds and pushes `ghcr.io/dallinger/dallinger` (and the bot image).
+   It also tags them `latest` if `X.Y.Z` is the highest release tag.
 
 ## 10. Create the GitHub Release
 
