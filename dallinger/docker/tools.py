@@ -333,12 +333,18 @@ def get_base_image(experiment_tmp_path: str, needs_chrome: bool = False) -> str:
     of dallinger required by the experiment.
     Returns a docker image name and tag. For example:
     `ghcr.io/dallinger/dallinger-bot:7.1.0`
+
+    A non-empty ``DALLINGER_BASE_IMAGE_TAG`` environment variable replaces
+    the tag, for example ``latest`` while the pinned version's image is not
+    published yet.
     """
-    dallinger_version = get_required_dallinger_version(experiment_tmp_path)
     base_image_name = "ghcr.io/dallinger/dallinger"
     if needs_chrome:
         base_image_name += "-bot"
-    return f"{base_image_name}:{dallinger_version or 'latest'}"
+    tag = os.environ.get("DALLINGER_BASE_IMAGE_TAG", "").strip()
+    if not tag:
+        tag = get_required_dallinger_version(experiment_tmp_path) or "latest"
+    return f"{base_image_name}:{tag}"
 
 
 _COMMENT_RE = re.compile(r"(^|\s+)#.*$")

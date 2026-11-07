@@ -1,6 +1,347 @@
 # Changelog
 
-## [Unreleased]
+## [v13.0.0](https://github.com/dallinger/dallinger/tree/v13.0.0) (2026-11-07)
+
+### Breaking Changes
+
+Each item is described in full under the sections below.
+
+- `POST /launch` now requires the dashboard login (HTTP Basic
+  authentication). Dallinger's own commands send it for you. Scripts that
+  POST `/launch` themselves must add it, e.g.
+  `curl -u "admin:<password>" -X POST <app URL>/launch`, and code that
+  called the `launch` view directly should call `launch_experiment()`.
+- WebSocket connections are checked. A `/chat` connection that names a
+  participant must pass `Experiment.accept_websocket_connection`, and a URL
+  naming `participant_id=undefined` is refused. Clients can no longer
+  subscribe to Dallinger's own channels (`dallinger_control`,
+  `dallinger_direct`, `dallinger_realtime_session`, `dallinger_time`). The
+  `/chat` `tolerance` parameter is ignored.
+- Participant routes refuse requests that don't match the participant:
+  `/prolific-submission-listener` answers 403 when the `assignmentId` isn't
+  theirs, and a signup that reuses a working participant's `assignment_id`
+  with a different `worker_id` answers 403. The `/notifications` and
+  `/mturk-sns-listener` routes are removed.
+- Dallinger now needs Redis 7.0 or later and RQ 3 (`rq>=3,<4`).
+  Experiments whose `constraints.txt` pins RQ 2 must regenerate it with
+  `dallinger constraints generate`. `init_db(drop_all=True)` now needs
+  Redis.
+- Experiment pages and the dashboard use Bootstrap 5.3.8 and jQuery 4.0.0.
+  Templates that link `scripts/jquery-3.7.1.min.js` must link
+  `scripts/jquery-4.0.0.min.js`. Experiment JavaScript that uses APIs
+  jQuery 4 removed (such as `$.trim`), or Bootstrap 3/4 markup such as
+  `col-xs-N`, must be updated. `css/dallinger.css` no longer sets the page
+  font.
+- docker-ssh deploys need an experiment image built with this Dallinger
+  (they check `/health`, and the web image needs `curl`); rebuild older
+  images. Classic-ingress servers set up by an older Dallinger may need
+  `dallinger docker-ssh servers upgrade`, after which older Dallinger
+  versions can no longer deploy to them. `docker-ssh destroy` keeps an
+  app's data unless you choose to delete it; scripts that destroy without a
+  terminal must pass `--remove-data --yes` to delete it.
+- Paramiko 5: docker-ssh and EC2 commands that use an RSA key, or reach a
+  server with an RSA host key, need OpenSSH 7.2 or newer on the server, and
+  DSA `server_pem` keys no longer work.
+- Command-line output changed. Messages from
+  `dallinger.command_line.utils.log()` and `error()` no longer start with
+  `❯❯ `, `Close recruitment.` is now `Recruitment closed.`, local-server
+  messages say "local server" instead of "local Heroku", and the HotAir
+  launch message is just the recruitment link. Update scripts that match
+  the old text.
+- Local debugging runs the Procfile with honcho instead of `heroku local`.
+  The wrapper class is now `LocalProcfileWrapper` (`HerokuLocalWrapper`
+  remains as an alias), and its `shell_command` is a sequence of arguments
+  instead of a string.
+- Python API changes: `Configuration.data` is a read-only tuple (use
+  `extend()`, `set()` or `override()`); `get_docker_compose_yml` no longer
+  takes `postgresql_password` or `executor`; overrides of
+  `Experiment.table_search_panes` must return HTML-escaped labels; and the
+  internal helpers `dallinger.command_line.docker.add_image_name`,
+  `filter_zone_ids`, `get_domain` and `get_subdomain` (in
+  `dallinger.command_line.lib.ec2`) and `main()` in
+  `dallinger.heroku.rq_gevent_worker` are removed.
+- Experiment code must not call `dallinger.data.export()` or `ingest_zip()`
+  from inside a web handler or RQ job, because those processes now apply
+  psycogreen. The `lock_table_when_creating_participant` setting is
+  ignored.
+
+### Added
+
+- `dallinger.command_line.develop.run_debug` runs `dallinger develop debug`
+  from Python. Its `ready_rows` are shown at the end of the `Ready.` block,
+  so tools built on Dallinger, such as PsyNet, can add their own lines
+  without replacing the launch job.
+- `Experiment.check_recruiter_exit(participant)` lets an experiment refuse a
+  `/recruiter-exit` request, for example when its `unique_id` parameter
+  doesn't match the participant, by returning a response to send instead of
+  the exit page. The default returns `None`, which shows the exit page.
+- `Experiment.check_worker_status(participant)` does the same for
+  `/worker_complete`, `/worker_failed` and `/handle-error`: returning a
+  response refuses the request without recording the participant's status.
+  `/handle-error` instead saves the error report and shows its usual
+  confirmation page, but doesn't complete the participant. The default
+  returns `None`. `dallinger.submitAssignment()`,
+  `dallinger.error()`, the error page's form and Dallinger's bots now send
+  the participant's `unique_id` to these routes, so an experiment can
+  require it.
+- `dallinger docker-ssh destroy` now makes you choose what happens to the
+  experiment's data: its database (with its Postgres user for classic
+  ingress), its Redis volume and its data folder `~/dallinger-data/<app>`.
+  It lists the data it finds, with sizes where it can measure them, and asks
+  whether to delete it before tearing anything down. `--remove-data` deletes
+  it (after confirmation, or straight away with `--yes`) and `--keep-data`
+  keeps it; in non-interactive sessions destroy keeps the data unless given
+  `--remove-data --yes`, and `--remove-data` without `--yes` is an error.
+  Destroying an app that isn't deployed still exits with an error unless
+  `--remove-data` is given, even when it lists leftover data. Kept data is
+  listed after destroy with the command that deletes it; tools that wrap
+  destroy can name their own command with the hidden `--delete-data-command`
+  option. `--remove-data`
+  also cleans up the data of an app that has already been destroyed, and
+  exits successfully with "Nothing left to delete" when nothing is left. Data
+  that destroy can't check, for example because the shared Postgres doesn't
+  answer within 30 seconds, is listed as such, and `--remove-data` then exits
+  with an error so it can be run again; for a Cloudflare app, which doesn't
+  use the shared Postgres, a failed check there only prints a note. Data is
+  not deleted while the app's containers run, and a symlinked data folder is
+  only unlinked. If `docker compose down` fails, destroy now stops and leaves
+  the app's files in place instead of removing them around running
+  containers.
+- Added `dallinger.command_line.docker_ssh.check_deploy_credentials(server,
+  ingress, config_options)`, which runs the docker-ssh deploy's Cloudflare
+  API token check on its own and returns the token. Tools that wrap
+  `docker-ssh deploy`, such as PsyNet, can call it before their own
+  preparation so a missing token stops them before they change anything.
+  Dallinger reads each Keychain item at most once per process, so such a
+  check followed by the deploy doesn't ask the Keychain twice.
+- Added the `cloudflare_keychain_service` config key, which names the macOS
+  Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
+  deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
+  already store the token under another name don't have to copy it. A
+  configured item is found whatever Keychain account it was saved under,
+  and Keychain errors name the item.
+- Worker processes that hang during start-up now exit after
+  `worker_startup_timeout` seconds (default 120; 0 disables) if they
+  haven't registered with the job queue, printing what each greenlet was
+  doing, so Heroku or Docker restarts them instead of leaving them idle.
+- `Experiment.publish_to_participants(payload, participant_ids, scope=None)`
+  sends a payload to the WebSocket connections of specific participants, across
+  gunicorn workers, instead of giving each participant a channel of their own.
+  Any connection which supplied a `participant_id` can be addressed, on `/chat`
+  or `/experiment-socket`, and every connection a participant holds receives a
+  copy. The payload arrives on the client prefixed with the reserved
+  `dallinger_direct` channel name. An optional `scope` limits delivery to those
+  connections which supplied the same scope value, allowing an experiment to
+  reach the page a participant is on rather than a tab left open on an earlier
+  one. A protocol-level redis error ends a channel's listener, but the one
+  that relays directed sends between web processes starts over on a new redis
+  connection instead.
+- A new `/experiment-socket` route hands each inbound frame to the experiment's new
+  `handle_websocket_message` method on the web process that owns the socket,
+  instead of publishing it to redis for a worker to pick up later. The default
+  implementation reproduces the asynchronous behavior of `/chat`, so opening
+  one without overriding the hook changes nothing. Dallinger removes the
+  database session after every frame: handlers get a fresh identity map, hold no
+  transaction open between frames, and commit their own writes. The frame does
+  not reach the channel, so a handler that also wants subscribers to see it
+  calls `publish_to_subscribers` itself, naming a channel the experiment does
+  not subscribe to. A experiment socket must name a participant that exists, or the
+  server closes it with code `1008`. An optional `scope` parameter is passed to
+  the hook without being interpreted.
+  One experiment instance is built per web process and shared by that
+  process's experiment sockets, matching how the launched experiment is already held
+  for the lifetime of the process that served `/launch`.
+- `/chat` control-channel events now report a connection's `scope`, the
+  `channel` parameter is optional rather than building a channel redis refuses
+  to subscribe to, and a binary frame closes the connection with code `1003`
+  instead of raising out of the receive loop.
+- `dallinger.stopReconnectingIfRefused(socket, callback)` stops a
+  `ReconnectingWebSocket` retrying a connection the server closed with code
+  `1008`, which the library otherwise reports only on its `connecting` event
+  and retries forever. The socket is left in the `CLOSED` state rather than
+  reporting `CONNECTING` indefinitely.
+- `dallinger.openChatSocket(options)` and `dallinger.openExperimentSocket(options)`
+  open a WebSocket connection to `/chat` or `/experiment-socket`, identified
+  from `dallinger.identity`, and return a `dallinger.Socket`. Its
+  `send(channel, payload)` encodes the payload as JSON, and holds a message sent
+  while the connection is down until it reopens, where
+  `ReconnectingWebSocket.send` throws. `onBroadcast` and `onDirect` callbacks
+  receive the parsed payloads of the subscribed channel and of directed
+  messages, and `onOpen` callbacks run on every open, including reconnects. A
+  refused connection is not retried, and `close()` returns a `Deferred` that
+  resolves once the connection has closed. Each connection sends
+  `dallinger.pageScope`, generated once per page load, as its `scope` unless it
+  is given another. `dallinger.waitForQuorum` and the `chatroom_ws` demo use
+  them.
+- A `partner_echo` demo pairs two participants, each on an
+  `/experiment-socket` connection, and delivers each one's messages to the other
+  with `publish_to_participants`.
+- Added a `jquery` block inside the `libs` block of `base/layout.html`.
+  Templates that already load jQuery in `<head>` can override it with an
+  empty block instead of loading jQuery a second time, which replaced the
+  first copy and dropped the jQuery plugins registered on it.
+- Added a Cursor `/release` command and release skill for cutting
+  Dallinger releases to PyPI and ghcr.
+- Added `dallinger.command_line.develop.echo_ready(details, after=())` and
+  `launch_message_rows(recruitment_msg)`, so that tools that replace the
+  development server's launch job, such as PsyNet, can print the same
+  `Ready.` block: `details` (before the `Full log` line) and `after` are
+  sequences of `(label, value)` pairs, and `launch_message_rows()` turns a
+  `/launch` recruitment message into such pairs.
+- Added `--no-browsers` to `dallinger develop debug`, which skips opening the
+  dashboard and participant pages in browsers. Their links are in the
+  `Ready.` block either way.
+- docker-ssh apps can hibernate automatically after a quiet period when
+  ``docker_ssh_idle_hibernate`` is set (``docker_ssh_idle_hibernate_minutes``,
+  default 60). ``/health`` probes do not count as traffic. With idle sleep
+  on, pages ping ``POST /presence`` while someone is using them (recent
+  interaction, audible media, or ``dallingerPresence.setWaiting``), so an
+  app never sleeps under a participant but an abandoned tab stops pinging.
+  Dallinger's quorum waiting room counts as waiting, and a WebSocket
+  reconnect does not wake a sleeping app.
+  Non-page requests to a sleeping app get HTTP 503 with ``Retry-After`` and
+  a JSON status, after the controller reads the whole request body, so
+  clients can resend them safely.
+  Idle sleep is not for experiments that recruit throughout their lifetime.
+  As a backstop, the app stays awake while ``auto_recruit`` is on or any
+  participant is still working; experiments can add conditions by
+  overriding ``Experiment.reason_to_stay_awake``.
+- ``dallinger docker-ssh hibernate`` and ``awaken`` stop and restart an
+  app's expensive services behind a new per-app front door and controller.
+  A visitor to a hibernating app gets a wait page and wakes it; other
+  requests get HTTP 503. ``apps`` reports ``hibernating`` or ``waking``,
+  ``export`` wakes the app first, and ``--update`` wakes a hibernating app.
+  ``/health`` reports the sleep state without waking the app. Cloudflare
+  tunnels now reach the app through the front door, and for classic apps
+  ``<app>_web`` on the shared network now names the front door; web and
+  workers also wait for pgbouncer's health check. Waking treats an older
+  experiment image without ``/health`` as ready once web answers. Deploy
+  also chowns the front door's state directory. Hibernation gives
+  PostgreSQL 60 seconds to stop and other containers 30.
+- docker-ssh disk cleanup prunes only stopped containers outside Compose
+  projects, and the host Caddy image is pinned to ``caddy:2.10.2``.
+- docker-ssh experiment containers built from now on run as the SSH user
+  instead of root; images built earlier keep running as root until rebuilt.
+  Every directory under ``/experiment`` is writable in the image, so the app
+  can create files anywhere in its tree, and deploy chowns the app's data
+  directory and writable bind mounts under ``$HOME``. Files shipped in the
+  image cannot be edited in place, and paths outside ``/experiment`` stay
+  read-only for the app.
+- docker-ssh keeps each app's database password in a private
+  ``~/dallinger/<app>/.env`` instead of its ``docker-compose.yml``, and makes
+  both files private (mode 0600). ``--update`` keeps the database password
+  and the Flask secret key, so participants' sessions survive an update.
+  ``get_docker_compose_yml`` no longer takes ``postgresql_password``.
+- docker-ssh writes a non-secret ``~/dallinger/<app>/deployment.json`` on
+  deploy and ``apps`` shows the recorded ingress and origin.
+  New ``docker_ssh_monitoring_kind`` and ``docker_ssh_monitoring_path``
+  config keys set the manifest's monitoring fields. ``servers add`` now
+  refuses host record fields whose names look like tokens or passwords.
+  The experiment server has a stock ``GET /health``, the manifest's default
+  monitoring path.
+- docker-ssh can deploy with ``--ingress cloudflare``. Each app gets an
+  isolated Postgres and a Cloudflare tunnel that proxies to the web service.
+  Cloudflare account and zone come from the new ``cloudflare_account_id``,
+  ``cloudflare_zone_id`` and ``cloudflare_dns_zone`` config keys, and
+  ``servers add --default-ingress`` sets a server's default. A fresh deploy
+  refuses an app name whose tunnel already exists. Destroy stops the
+  connector before deleting the DNS record and tunnel, and can be re-run if
+  that cleanup fails. A deploy that cannot record a new tunnel on the
+  server deletes it again. ``get_docker_compose_yml`` no longer takes
+  ``executor``.
+- Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
+  docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
+  A custom experiment Dockerfile gets a final step that installs that wheel.
+  Dallinger pins given as Git URLs are replaced by the local wheel as well
+  (extras such as ``[docker]`` are dropped from the rewritten line).
+- Added Docker-first parallelism settings: ``web_processes`` (number of
+  gunicorn web processes, given as a number or ``auto``, the default),
+  ``worker_processes`` (number of worker containers in ``dallinger docker``
+  and Docker SSH deployments, default ``1``) and
+  ``worker_greenlets_per_process`` (tasks each worker process runs at once,
+  on Heroku and Docker, default ``20``). For CPU-heavy tasks, set
+  ``worker_greenlets_per_process = 1`` and add worker processes. Each
+  worker's Redis connection pool grows with its greenlets, so values above
+  40 don't wait for connections. Heroku still sizes worker dynos with
+  ``num_dynos_worker``. Docker deployments used to read ``num_dynos_worker``
+  too; if only ``num_dynos_worker`` is set, they still use it, with a
+  ``FutureWarning`` asking for ``worker_processes``.
+- A real-time engine for live multiplayer games (#9974). An experiment
+  subclasses `RealtimeGame` to write a game type, lists its game types in
+  `Experiment.realtime_games`, and starts a session with
+  `create_realtime_session`, then finds a player's sessions and their outcomes
+  with `realtime_sessions_for(participant, game_type)`, or reads one session's
+  outcome with `realtime_result(session_id)`. A session starts once the
+  transaction that created it commits. Runner processes play the sessions,
+  keeping the game state in Redis.
+  Each worker process of an experiment with game types
+  starts one with the new `dallinger_realtime` command, and starts another
+  whenever it exits. Each session's messages, clock measurements, effects,
+  checkpoints and ending are saved in the new `realtime_session` and
+  `realtime_event` tables, which exports include. Several runners can share
+  an experiment's sessions, and a session carries on from its last save if its
+  runner dies. A page joins a session by opening its websocket with the
+  session's id as a `session` query parameter, on `/chat` or
+  `/experiment-socket`, and sends its moves on the game type's channel, within
+  a per-socket rate limit the game type sets. `dallinger verify` and deploys
+  check an experiment's game types. Dallinger now needs Redis 7.0 or
+  later. `RealtimeGame`, `Reject` and the session functions import from
+  `dallinger.realtime`, and the new "Real-Time Games" docs page describes the
+  engine. The experiment isn't complete while any of its sessions is
+  running, so a `HighPerformanceBotBase` bot that a game type plays for can
+  sign off once it has joined.
+- JavaScript helpers for real-time game pages, in the new
+  `dallinger-realtime.js`, which the base layout loads after `dallinger2.js`
+  when an experiment has game types.
+  `dallinger.waitForRealtimeSession(gameChannel)` resolves with the id of the
+  participant's session of a game type once the experiment starts it, or at
+  once if one is running, waiting on an `/experiment-socket` connection with
+  the new `wait_for_game` query parameter.
+  `dallinger.joinRealtimeSession(gameChannel)` waits the same way, then joins
+  the session and resolves with its socket. Both take an `afterSession`
+  option, so that only a session newer than one the page already has counts,
+  and a `scope` option for the page load.
+  `openExperimentSocket` and `openChatSocket` take `session` and
+  `gameChannel` options to join a session. Such a socket's `send` numbers the
+  messages it sends on the game channel, and `onView`, `onRejected`,
+  `onEnded`, `onResultSaved` and `resultSaved()` report the game's views,
+  rejections and ending. The socket measures the server's clock for
+  `sessionTime()` and `serverTime(browserTime)`, which converts times from
+  `dallinger.browserTime()`, and `onClock` reports each measurement.
+  The `predict` and `interpolate` options add `predictedView()`, which shows
+  the player's own moves at once, and `interpolatedView()`, which moves the
+  other players smoothly between tick views. The "Real-Time Games" docs page
+  describes a game's page.
+- A `bargaining` demo, a real-time game in which a buyer and a seller, each
+  knowing only their own value, bargain over a price against a clock that
+  starts once both players are there. Each player's bonus is paid from the
+  saved outcomes, and participants recruited as `HighPerformanceBotBase` bots
+  are played by the game type's `bot` method. The `rounds` setting has a pair
+  play several rounds, each started from an effect when the last one ends,
+  and `chat` lets the pair talk on `/chat`, with the experiment saving each
+  message as an `Info`. Its README walks through building the game.
+- A `coins` demo, a real-time game in which two to four players move around
+  an arena collecting coins. Its page uses prediction for the player's own
+  moves and interpolation for the other players, and the game type caps how
+  fast a page can move its player. Settings turn on stealing and bouncing
+  between players and set the bots' speed and the bonus per coin, and the
+  instructions describe them. Each steal and bounce is saved as
+  an effect and an `Info`, and only the moves that collect a coin or touch
+  another player are saved. Its README walks through building the game.
+- `Experiment.accept_websocket_connection(participant_id, scope)` lets an
+  experiment refuse an `/experiment-socket` connection, or a `/chat` one that
+  names a participant, when it opens. A falsy
+  return closes the socket with code `1008`, and Dallinger's client helpers
+  stop reconnecting.
+- `db.run_after_commit` runs a function once the outermost transaction
+  commits, and never if the transaction, or the savepoint it was added in,
+  rolls back. Its optional `description` names the function in the warning
+  logged when the transaction ends without a commit.
+- The `DALLINGER_BASE_IMAGE_TAG` environment variable chooses the tag of the
+  `ghcr.io/dallinger/dallinger` base image that experiment images without
+  their own `Dockerfile` are built on, instead of the Dallinger version they
+  pin. The docker-ssh smoke tests set it to `latest`, so they pass on a
+  release branch before that version's image is published.
 
 ### Changed
 
@@ -58,7 +399,6 @@
   destroying nothing, unless the server has or can pull that image (with
   `--local_build`, unless the image is confirmed on the registry and the
   server pulls it), and removing those apps keeps that image.
-- Removed the internal helper `dallinger.command_line.docker.add_image_name`.
 - With `docker_image_base_name` unset, `dallinger docker build` now names
   the image after the experiment directory (`My Study` becomes `my-study`)
   instead of failing with a `KeyError`.
@@ -303,431 +643,6 @@
   pytest fixture now does. It also breaks scripts that POST `/launch`
   themselves: add the login, e.g.
   `curl -u "admin:<password>" -X POST <app URL>/launch`.
-
-### Added
-
-- `dallinger.command_line.develop.run_debug` runs `dallinger develop debug`
-  from Python. Its `ready_rows` are shown at the end of the `Ready.` block,
-  so tools built on Dallinger, such as PsyNet, can add their own lines
-  without replacing the launch job.
-- `Experiment.check_recruiter_exit(participant)` lets an experiment refuse a
-  `/recruiter-exit` request, for example when its `unique_id` parameter
-  doesn't match the participant, by returning a response to send instead of
-  the exit page. The default returns `None`, which shows the exit page.
-- `Experiment.check_worker_status(participant)` does the same for
-  `/worker_complete`, `/worker_failed` and `/handle-error`: returning a
-  response refuses the request without recording the participant's status.
-  `/handle-error` instead saves the error report and shows its usual
-  confirmation page, but doesn't complete the participant. The default
-  returns `None`. `dallinger.submitAssignment()`,
-  `dallinger.error()`, the error page's form and Dallinger's bots now send
-  the participant's `unique_id` to these routes, so an experiment can
-  require it.
-- `dallinger docker-ssh destroy` now makes you choose what happens to the
-  experiment's data: its database (with its Postgres user for classic
-  ingress), its Redis volume and its data folder `~/dallinger-data/<app>`.
-  It lists the data it finds, with sizes where it can measure them, and asks
-  whether to delete it before tearing anything down. `--remove-data` deletes
-  it (after confirmation, or straight away with `--yes`) and `--keep-data`
-  keeps it; in non-interactive sessions destroy keeps the data unless given
-  `--remove-data --yes`, and `--remove-data` without `--yes` is an error.
-  Destroying an app that isn't deployed still exits with an error unless
-  `--remove-data` is given, even when it lists leftover data. Kept data is
-  listed after destroy with the command that deletes it; tools that wrap
-  destroy can name their own command with the hidden `--delete-data-command`
-  option. `--remove-data`
-  also cleans up the data of an app that has already been destroyed, and
-  exits successfully with "Nothing left to delete" when nothing is left. Data
-  that destroy can't check, for example because the shared Postgres doesn't
-  answer within 30 seconds, is listed as such, and `--remove-data` then exits
-  with an error so it can be run again; for a Cloudflare app, which doesn't
-  use the shared Postgres, a failed check there only prints a note. Data is
-  not deleted while the app's containers run, and a symlinked data folder is
-  only unlinked. If `docker compose down` fails, destroy now stops and leaves
-  the app's files in place instead of removing them around running
-  containers.
-- Added `dallinger.command_line.docker_ssh.check_deploy_credentials(server,
-  ingress, config_options)`, which runs the docker-ssh deploy's Cloudflare
-  API token check on its own and returns the token. Tools that wrap
-  `docker-ssh deploy`, such as PsyNet, can call it before their own
-  preparation so a missing token stops them before they change anything.
-  Dallinger reads each Keychain item at most once per process, so such a
-  check followed by the deploy doesn't ask the Keychain twice.
-- Added the `cloudflare_keychain_service` config key, which names the macOS
-  Keychain item holding the Cloudflare API token for docker-ssh Cloudflare
-  deploys. It defaults to `dallinger-cloudflare-api-token`, so teams that
-  already store the token under another name don't have to copy it. A
-  configured item is found whatever Keychain account it was saved under,
-  and Keychain errors name the item.
-- Worker processes that hang during start-up now exit after
-  `worker_startup_timeout` seconds (default 120; 0 disables) if they
-  haven't registered with the job queue, printing what each greenlet was
-  doing, so Heroku or Docker restarts them instead of leaving them idle.
-
-- `Experiment.publish_to_participants(payload, participant_ids, scope=None)`
-  sends a payload to the WebSocket connections of specific participants, across
-  gunicorn workers, instead of giving each participant a channel of their own.
-  Any connection which supplied a `participant_id` can be addressed, on `/chat`
-  or `/experiment-socket`, and every connection a participant holds receives a
-  copy. The payload arrives on the client prefixed with the reserved
-  `dallinger_direct` channel name. An optional `scope` limits delivery to those
-  connections which supplied the same scope value, allowing an experiment to
-  reach the page a participant is on rather than a tab left open on an earlier
-  one. A protocol-level redis error ends a channel's listener, but the one
-  that relays directed sends between web processes starts over on a new redis
-  connection instead.
-
-- A new `/experiment-socket` route hands each inbound frame to the experiment's new
-  `handle_websocket_message` method on the web process that owns the socket,
-  instead of publishing it to redis for a worker to pick up later. The default
-  implementation reproduces the asynchronous behavior of `/chat`, so opening
-  one without overriding the hook changes nothing. Dallinger removes the
-  database session after every frame: handlers get a fresh identity map, hold no
-  transaction open between frames, and commit their own writes. The frame does
-  not reach the channel, so a handler that also wants subscribers to see it
-  calls `publish_to_subscribers` itself, naming a channel the experiment does
-  not subscribe to. A experiment socket must name a participant that exists, or the
-  server closes it with code `1008`. An optional `scope` parameter is passed to
-  the hook without being interpreted.
-  One experiment instance is built per web process and shared by that
-  process's experiment sockets, matching how the launched experiment is already held
-  for the lifetime of the process that served `/launch`.
-
-- `/chat` control-channel events now report a connection's `scope`, the
-  `channel` parameter is optional rather than building a channel redis refuses
-  to subscribe to, and a binary frame closes the connection with code `1003`
-  instead of raising out of the receive loop.
-
-- `dallinger.stopReconnectingIfRefused(socket, callback)` stops a
-  `ReconnectingWebSocket` retrying a connection the server closed with code
-  `1008`, which the library otherwise reports only on its `connecting` event
-  and retries forever. The socket is left in the `CLOSED` state rather than
-  reporting `CONNECTING` indefinitely.
-
-- `dallinger.openChatSocket(options)` and `dallinger.openExperimentSocket(options)`
-  open a WebSocket connection to `/chat` or `/experiment-socket`, identified
-  from `dallinger.identity`, and return a `dallinger.Socket`. Its
-  `send(channel, payload)` encodes the payload as JSON, and holds a message sent
-  while the connection is down until it reopens, where
-  `ReconnectingWebSocket.send` throws. `onBroadcast` and `onDirect` callbacks
-  receive the parsed payloads of the subscribed channel and of directed
-  messages, and `onOpen` callbacks run on every open, including reconnects. A
-  refused connection is not retried, and `close()` returns a `Deferred` that
-  resolves once the connection has closed. Each connection sends
-  `dallinger.pageScope`, generated once per page load, as its `scope` unless it
-  is given another. `dallinger.waitForQuorum` and the `chatroom_ws` demo use
-  them.
-
-- A `partner_echo` demo pairs two participants, each on an
-  `/experiment-socket` connection, and delivers each one's messages to the other
-  with `publish_to_participants`.
-
-- Added the version 1 nested ``[exclude]`` table on ``deploy.toml``
-  (``paths``, ``names``, ``suffixes``) plus the deterministic
-  experiment-root deployment plan model, with development bulk directory
-  links and ordinary copied materialization for remote staging. Starter
-  ``dallinger deployment-files init`` writes root-relative prefixes in
-  ``paths``, nested junk names such as ``__pycache__`` in ``names``, and
-  ``.db`` / ``.dmg`` in ``suffixes``.
-- Added `dallinger deployment-files list` and `init` for inspecting and creating
-  starter policies.
-- Added opt-in `deploy.toml` experiment-file membership to verification,
-  development staging, copied Docker/classic staging, and Heroku assembly
-  through `ExperimentFileSource`. Experiments without a policy retain legacy
-  selection and Git staging behavior as a compatibility fallback while
-  PsyNet trials `deploy.toml`; Git-based membership may later be
-  deprecated (warning, then removal). Git remains for provenance. Plan
-  traversal uses ordinary POSIX `lstat`/`scandir` containment (rejecting
-  symlinks and special files).
-- Added a `jquery` block inside the `libs` block of `base/layout.html`.
-  Templates that already load jQuery in `<head>` can override it with an
-  empty block instead of loading jQuery a second time, which replaced the
-  first copy and dropped the jQuery plugins registered on it.
-- Added a Cursor `/release` command and release skill for cutting
-  Dallinger releases to PyPI and ghcr.
-- Added `dallinger.command_line.develop.echo_ready(details, after=())` and
-  `launch_message_rows(recruitment_msg)`, so that tools that replace the
-  development server's launch job, such as PsyNet, can print the same
-  `Ready.` block: `details` (before the `Full log` line) and `after` are
-  sequences of `(label, value)` pairs, and `launch_message_rows()` turns a
-  `/launch` recruitment message into such pairs.
-- Added `--no-browsers` to `dallinger develop debug`, which skips opening the
-  dashboard and participant pages in browsers. Their links are in the
-  `Ready.` block either way.
-- docker-ssh apps can hibernate automatically after a quiet period when
-  ``docker_ssh_idle_hibernate`` is set (``docker_ssh_idle_hibernate_minutes``,
-  default 60). ``/health`` probes do not count as traffic. With idle sleep
-  on, pages ping ``POST /presence`` while someone is using them (recent
-  interaction, audible media, or ``dallingerPresence.setWaiting``), so an
-  app never sleeps under a participant but an abandoned tab stops pinging.
-  Dallinger's quorum waiting room counts as waiting, and a WebSocket
-  reconnect does not wake a sleeping app.
-  Non-page requests to a sleeping app get HTTP 503 with ``Retry-After`` and
-  a JSON status, after the controller reads the whole request body, so
-  clients can resend them safely.
-  Idle sleep is not for experiments that recruit throughout their lifetime.
-  As a backstop, the app stays awake while ``auto_recruit`` is on or any
-  participant is still working; experiments can add conditions by
-  overriding ``Experiment.reason_to_stay_awake``.
-- ``dallinger docker-ssh hibernate`` and ``awaken`` stop and restart an
-  app's expensive services behind a new per-app front door and controller.
-  A visitor to a hibernating app gets a wait page and wakes it; other
-  requests get HTTP 503. ``apps`` reports ``hibernating`` or ``waking``,
-  ``export`` wakes the app first, and ``--update`` wakes a hibernating app.
-  ``/health`` reports the sleep state without waking the app. Cloudflare
-  tunnels now reach the app through the front door, and for classic apps
-  ``<app>_web`` on the shared network now names the front door; web and
-  workers also wait for pgbouncer's health check. Waking treats an older
-  experiment image without ``/health`` as ready once web answers. Deploy
-  also chowns the front door's state directory. Hibernation gives
-  PostgreSQL 60 seconds to stop and other containers 30.
-- docker-ssh disk cleanup prunes only stopped containers outside Compose
-  projects, and the host Caddy image is pinned to ``caddy:2.10.2``.
-- docker-ssh experiment containers built from now on run as the SSH user
-  instead of root; images built earlier keep running as root until rebuilt.
-  Every directory under ``/experiment`` is writable in the image, so the app
-  can create files anywhere in its tree, and deploy chowns the app's data
-  directory and writable bind mounts under ``$HOME``. Files shipped in the
-  image cannot be edited in place, and paths outside ``/experiment`` stay
-  read-only for the app.
-- docker-ssh keeps each app's database password in a private
-  ``~/dallinger/<app>/.env`` instead of its ``docker-compose.yml``, and makes
-  both files private (mode 0600). ``--update`` keeps the database password
-  and the Flask secret key, so participants' sessions survive an update.
-  ``get_docker_compose_yml`` no longer takes ``postgresql_password``.
-- docker-ssh writes a non-secret ``~/dallinger/<app>/deployment.json`` on
-  deploy and ``apps`` shows the recorded ingress and origin.
-  New ``docker_ssh_monitoring_kind`` and ``docker_ssh_monitoring_path``
-  config keys set the manifest's monitoring fields. ``servers add`` now
-  refuses host record fields whose names look like tokens or passwords.
-  The experiment server has a stock ``GET /health``, the manifest's default
-  monitoring path.
-- docker-ssh can deploy with ``--ingress cloudflare``. Each app gets an
-  isolated Postgres and a Cloudflare tunnel that proxies to the web service.
-  Cloudflare account and zone come from the new ``cloudflare_account_id``,
-  ``cloudflare_zone_id`` and ``cloudflare_dns_zone`` config keys, and
-  ``servers add --default-ingress`` sets a server's default. A fresh deploy
-  refuses an app name whose tunnel already exists. Destroy stops the
-  connector before deleting the DNS record and tunnel, and can be re-run if
-  that cleanup fails. A deploy that cannot record a new tunnel on the
-  server deletes it again. ``get_docker_compose_yml`` no longer takes
-  ``executor``.
-- Set ``DALLINGER_SOURCE`` to a Dallinger checkout to bake that tree into a
-  docker-ssh experiment image even when ``DALLINGER_NO_EGG_BUILD`` is set.
-  A custom experiment Dockerfile gets a final step that installs that wheel.
-  Dallinger pins given as Git URLs are replaced by the local wheel as well
-  (extras such as ``[docker]`` are dropped from the rewritten line).
-- Added Docker-first parallelism settings: ``web_processes`` (number of
-  gunicorn web processes, given as a number or ``auto``, the default),
-  ``worker_processes`` (number of worker containers in ``dallinger docker``
-  and Docker SSH deployments, default ``1``) and
-  ``worker_greenlets_per_process`` (tasks each worker process runs at once,
-  on Heroku and Docker, default ``20``). For CPU-heavy tasks, set
-  ``worker_greenlets_per_process = 1`` and add worker processes. Each
-  worker's Redis connection pool grows with its greenlets, so values above
-  40 don't wait for connections. Heroku still sizes worker dynos with
-  ``num_dynos_worker``. Docker deployments used to read ``num_dynos_worker``
-  too; if only ``num_dynos_worker`` is set, they still use it, with a
-  ``FutureWarning`` asking for ``worker_processes``.
-
-- A real-time engine for live multiplayer games (#9974). An experiment
-  subclasses `RealtimeGame` to write a game type, lists its game types in
-  `Experiment.realtime_games`, and starts a session with
-  `create_realtime_session`, then finds a player's sessions and their outcomes
-  with `realtime_sessions_for(participant, game_type)`, or reads one session's
-  outcome with `realtime_result(session_id)`. A session starts once the
-  transaction that created it commits. Runner processes play the sessions,
-  keeping the game state in Redis.
-  Each worker process of an experiment with game types
-  starts one with the new `dallinger_realtime` command, and starts another
-  whenever it exits. Each session's messages, clock measurements, effects,
-  checkpoints and ending are saved in the new `realtime_session` and
-  `realtime_event` tables, which exports include. Several runners can share
-  an experiment's sessions, and a session carries on from its last save if its
-  runner dies. A page joins a session by opening its websocket with the
-  session's id as a `session` query parameter, on `/chat` or
-  `/experiment-socket`, and sends its moves on the game type's channel, within
-  a per-socket rate limit the game type sets. `dallinger verify` and deploys
-  check an experiment's game types. Dallinger now needs Redis 7.0 or
-  later. `RealtimeGame`, `Reject` and the session functions import from
-  `dallinger.realtime`, and the new "Real-Time Games" docs page describes the
-  engine. The experiment isn't complete while any of its sessions is
-  running, so a `HighPerformanceBotBase` bot that a game type plays for can
-  sign off once it has joined.
-- JavaScript helpers for real-time game pages, in the new
-  `dallinger-realtime.js`, which the base layout loads after `dallinger2.js`
-  when an experiment has game types.
-  `dallinger.waitForRealtimeSession(gameChannel)` resolves with the id of the
-  participant's session of a game type once the experiment starts it, or at
-  once if one is running, waiting on an `/experiment-socket` connection with
-  the new `wait_for_game` query parameter.
-  `dallinger.joinRealtimeSession(gameChannel)` waits the same way, then joins
-  the session and resolves with its socket. Both take an `afterSession`
-  option, so that only a session newer than one the page already has counts,
-  and a `scope` option for the page load.
-  `openExperimentSocket` and `openChatSocket` take `session` and
-  `gameChannel` options to join a session. Such a socket's `send` numbers the
-  messages it sends on the game channel, and `onView`, `onRejected`,
-  `onEnded`, `onResultSaved` and `resultSaved()` report the game's views,
-  rejections and ending. The socket measures the server's clock for
-  `sessionTime()` and `serverTime(browserTime)`, which converts times from
-  `dallinger.browserTime()`, and `onClock` reports each measurement.
-  The `predict` and `interpolate` options add `predictedView()`, which shows
-  the player's own moves at once, and `interpolatedView()`, which moves the
-  other players smoothly between tick views. The "Real-Time Games" docs page
-  describes a game's page.
-- A `bargaining` demo, a real-time game in which a buyer and a seller, each
-  knowing only their own value, bargain over a price against a clock that
-  starts once both players are there. Each player's bonus is paid from the
-  saved outcomes, and participants recruited as `HighPerformanceBotBase` bots
-  are played by the game type's `bot` method. The `rounds` setting has a pair
-  play several rounds, each started from an effect when the last one ends,
-  and `chat` lets the pair talk on `/chat`, with the experiment saving each
-  message as an `Info`. Its README walks through building the game.
-- A `coins` demo, a real-time game in which two to four players move around
-  an arena collecting coins. Its page uses prediction for the player's own
-  moves and interpolation for the other players, and the game type caps how
-  fast a page can move its player. Settings turn on stealing and bouncing
-  between players and set the bots' speed and the bonus per coin, and the
-  instructions describe them. Each steal and bounce is saved as
-  an effect and an `Info`, and only the moves that collect a coin or touch
-  another player are saved. Its README walks through building the game.
-- `Experiment.accept_websocket_connection(participant_id, scope)` lets an
-  experiment refuse an `/experiment-socket` connection, or a `/chat` one that
-  names a participant, when it opens. A falsy
-  return closes the socket with code `1008`, and Dallinger's client helpers
-  stop reconnecting.
-- `db.run_after_commit` runs a function once the outermost transaction
-  commits, and never if the transaction, or the savepoint it was added in,
-  rolls back. Its optional `description` names the function in the warning
-  logged when the transaction ends without a commit.
-
-### Fixed
-
-- Links to the Dallinger documentation in the README, the dashboard, the
-  Docker deployment error messages, the demo READMEs and the demo guide point
-  to `https://dallinger.readthedocs.io/latest/`. The documentation moved
-  there from `/en/latest/`, and the old addresses return 404. The README no
-  longer shows the Code Climate badge, which Code Climate stopped serving
-  when its code-quality service moved to Qlty. Its build badge links to the
-  workflow page instead of the badge image, and its demos badge counts the
-  15 demos.
-- The `repr()` of a local Procfile runner no longer raises when the runner
-  or one of its child processes exits while it is built, and separates a
-  Python child's command-line arguments with spaces. Starting and stopping
-  the local server likewise no longer crash on macOS when one of its
-  processes exits while its children are listed.
-- `local_worker_processes()`, which the `clear_workers` pytest fixture and
-  PsyNet's debug start-up use to find leftover local workers, skips a
-  process that exits while it is being read. Before, psutil could raise
-  `SystemError` or `OSError` (depending on its version) for such a process
-  on macOS, and the calling command crashed.
-- Importing Dallinger no longer raises a `DeprecationWarning` from
-  python-json-logger: the JSON log formatter is imported from
-  `pythonjsonlogger.json` instead of the deprecated
-  `pythonjsonlogger.jsonlogger`, and Dallinger requires
-  python-json-logger 3.1 or later.
-- `dallinger docker sandbox` and `dallinger docker deploy` (Heroku with
-  Docker) no longer fail with a
-  `KeyError` after a successful launch when it reports the dashboard
-  login.
-- The database dashboard's "Compensate Command" button now quotes the
-  recruiter, worker id and dollar amount in the `dallinger compensate`
-  commands it copies, so pasting them into a shell can no longer run
-  commands hidden in a worker id that a participant chose. It refuses to
-  build a command for a missing value, one containing control characters,
-  which a terminal could act on when pasted, or one containing a backslash,
-  which the fish shell treats as an escape inside single quotes.
-- The dashboard's database view no longer fails with a server error when the
-  URL names a table such as `info` or `node` without a
-  `polymorphic_identity`; it now lists every row of that table, and can show
-  columns declared only on subclasses. An unknown
-  table or polymorphic identity returns a 404 instead of a server error, and
-  a `polymorphic_identity` without a `table` returns a 400.
-- The Monitoring and Database dashboards escape participant data before
-  the browser reads it as HTML. Previously a participant answer or other
-  database value containing HTML could run in the admin's browser: on
-  `/dashboard/monitoring` by closing the page's script with `</script>`, and
-  on `/dashboard/database` through the table's search-pane filter labels.
-  The Database dashboard's script options, which include the page's query
-  string, are escaped the same way as a precaution.
-  `Experiment.table_search_panes` now returns HTML-escaped labels;
-  experiments that override it should escape their own labels too.
-- Error pages show a participant's worker, assignment and HIT ids only to a
-  request that carries the participant's `unique_id`, or their worker and
-  assignment ids. Requests that name only a
-  `participant_id` or `node_id`, such as `/error-page` or a failing
-  `/node/<node_id>/...` call, used to reveal them, and with them the
-  participant's `unique_id`. In the participant's browser,
-  `dallinger.error()` fills the ids back in.
-- `/handle-error` finds the participant from a `worker_id` or
-  `assignment_id` when the report has no `participant_id`, and completes
-  them. It used to skip completing them, unless their worker and assignment
-  ids happened to be equal. The error page's form now also sends the
-  `participant_id`, and its worker and assignment ids even without a HIT id.
-- Under the development server (`dallinger develop debug`, and tools such as
-  PsyNet that run `flask run` locally), websockets close cleanly, whichever
-  side closes them. The development server wrote an HTTP response after the
-  close frame, so Chrome reported `Invalid frame header` and code 1006: a
-  connection refused by `accept_websocket_connection` reconnected about
-  twice a second for as long as the page stayed open, and every connection
-  a page closed itself logged the error in the browser console. Deployed
-  servers, which run gunicorn, were not affected. On any server, a
-  websocket route that fails now logs its error and closes its connection
-  with code 1011, instead of answering with an HTTP 500 response.
-- `dallinger constraints generate` compiles for the newest patch release of
-  the Python version in `.python-version` when the file names only the minor
-  version, such as `3.11`. uv reads `3.11` as Python 3.11.0, so the compile
-  failed for packages that need a later 3.11 patch, such as
-  `soupsieve==3.0.4` in Dallinger's pins, which needs Python 3.11.5. It also
-  no longer downloads a Python interpreter to compile.
-- `dallinger ec2` commands that manage Route 53 records now use the hosted
-  zone whose name is the longest suffix of the DNS host, preferring public
-  zones, and report an error if two zones tie (provisioning stops; `start`,
-  `stop` and `teardown` warn and skip the DNS step). They used the first zone
-  whose name merely contained the host's last two labels, which could be a
-  parent, private or unrelated zone. `ec2 start` now waits for the instance to
-  accept SSH connections (ten attempts, as provisioning does) and warns if it
-  isn't reachable. SSH connections from `docker-ssh` and `ec2` now give up
-  if the TCP connection isn't made within 15 seconds per address. `ec2 stop`,
-  `restart` and `teardown` say that the stop, reboot or termination was
-  requested rather than complete, DNS cleanup names every record it removed
-  (e.g. `exp.example.org and *.exp.example.org`), and `--name` is documented
-  as the instance's Name tag. The internal helpers `filter_zone_ids`,
-  `get_domain` and `get_subdomain` in `dallinger.command_line.lib.ec2` were
-  replaced by `find_hosted_zone_id`.
-- `init_db(drop_all=True)` now checks that redis is reachable before
-  dropping any tables, and raises with the database left unchanged if it
-  isn't, instead of leaving the database with no tables.
-- `dallinger.identity.uniqueId` keeps the participant's value on pages whose
-  URL has no `workerId` and `assignmentId`, such as the ones `goToPage()`
-  opens. It was set to `"undefined:undefined"` there.
-- `dallinger.loadParticipant()` stores the participant's `unique_id`, so a
-  resumed participant's exit link carries it. `/load-participant` returns
-  `unique_id` and `worker_id` only when the request's worker id matches the
-  participant's. `loadParticipant()` clears a stored `unique_id` that ends
-  with another assignment's id.
-- Fixed a race condition in `POST /participant` where two concurrent signup
-  requests could both be recorded as `"working"` when only one should be
-  (write-skew at the occupancy count). Also fixed the related issue where a
-  routine participant status update (e.g. `"submitted"`) could block a new
-  signup due to a table-wide `LOCK TABLE ... EXCLUSIVE MODE` conflict. The
-  fix replaces both the table lock and `@db.serialized` on this route with a
-  PostgreSQL transaction-level advisory lock (`pg_advisory_xact_lock`) that
-  serializes signup decisions without interfering with unrelated participant
-  writes. A 5-second `lock_timeout` prevents a wedged holder from blocking
-  all signups indefinitely. The `lock_table_when_creating_participant`
-  configuration option is now ignored; the advisory lock is always used.
-  `psycogreen` is now a dependency: gunicorn web workers and RQ gevent workers
-  apply `psycogreen.patch_psycopg2()` so that psycopg2 socket waits yield to
-  the gevent event loop rather than blocking the OS thread. As a consequence,
-  experiment code must not call `dallinger.data.export()` or `ingest_zip()`
-  from inside a web handler or RQ job, as psycogreen's async mode does not
-  support `COPY`. The `dallinger export` CLI command is unaffected (it runs
-  in a separate process where psycogreen is never applied).
-
-### Changed
-
 - `dallinger ec2 stop`, `start` and `teardown` now use the DNS host saved when
   the instance was provisioned, so they no longer need `--dns-host` (instances
   provisioned by older Dallinger versions still do). `stop` and `teardown`
@@ -859,7 +774,6 @@
   mturk` in debug mode no longer builds an MTurk service or raises its
   constructor errors, and `recruiter = prolific` builds only the debug
   Prolific recruiter.
-
 - docker-ssh commands print much less. Spinners only animate in a terminal,
   and errors no longer interleave with spinner frames. Each command shares one
   SSH connection per server instead of reconnecting for every step, and
@@ -1115,6 +1029,14 @@
   ``up -d`` and ``docker debug`` failures. To turn JIT off in an existing local ``dallinger_postgres``
   container, run ``dallinger docker stop-services`` and then
   ``start-services``; the data volume is kept.
+- `db.queue_message` publishes only when the outermost transaction commits,
+  not also when a savepoint is released. An error in a function run after a
+  commit is logged rather than raised from `commit()`.
+- A web worker that gets `SIGTERM` closes its websockets with code `1001`, so
+  browsers reconnect to another web process straight away instead of being
+  dropped when the platform kills the process.
+- `init_db(drop_all=True)` also deletes every real-time session from Redis, so
+  it now needs Redis.
 
 ### Deprecated
 
@@ -1129,17 +1051,134 @@
   ``prolific_maximum_allowed_minutes`` is now a ``FutureWarning`` too, and no
   longer changes the global warnings filter.
 
-- `db.queue_message` publishes only when the outermost transaction commits,
-  not also when a savepoint is released. An error in a function run after a
-  commit is logged rather than raised from `commit()`.
-- A web worker that gets `SIGTERM` closes its websockets with code `1001`, so
-  browsers reconnect to another web process straight away instead of being
-  dropped when the platform kills the process.
-- `init_db(drop_all=True)` also deletes every real-time session from Redis, so
-  it now needs Redis.
-
 ### Fixed
 
+- Releases tag the bot image as `ghcr.io/dallinger/dallinger-bot:latest`.
+  They used to tag it as `ghcr.io/dallinger/dallinger:latest`, which made
+  `dallinger:latest` an image with Chrome and left `dallinger-bot:latest` at
+  an image from 2021. Experiment images built on `latest`, for example for a
+  pre-release Dallinger pin, now get the right base image.
+- Links to the Dallinger documentation in the README, the dashboard, the
+  Docker deployment error messages, the demo READMEs and the demo guide point
+  to `https://dallinger.readthedocs.io/latest/`. The documentation moved
+  there from `/en/latest/`, and the old addresses return 404. The README no
+  longer shows the Code Climate badge, which Code Climate stopped serving
+  when its code-quality service moved to Qlty. Its build badge links to the
+  workflow page instead of the badge image, and its demos badge counts the
+  15 demos.
+- The `repr()` of a local Procfile runner no longer raises when the runner
+  or one of its child processes exits while it is built, and separates a
+  Python child's command-line arguments with spaces. Starting and stopping
+  the local server likewise no longer crash on macOS when one of its
+  processes exits while its children are listed.
+- `local_worker_processes()`, which the `clear_workers` pytest fixture and
+  PsyNet's debug start-up use to find leftover local workers, skips a
+  process that exits while it is being read. Before, psutil could raise
+  `SystemError` or `OSError` (depending on its version) for such a process
+  on macOS, and the calling command crashed.
+- Importing Dallinger no longer raises a `DeprecationWarning` from
+  python-json-logger: the JSON log formatter is imported from
+  `pythonjsonlogger.json` instead of the deprecated
+  `pythonjsonlogger.jsonlogger`, and Dallinger requires
+  python-json-logger 3.1 or later.
+- `dallinger docker sandbox` and `dallinger docker deploy` (Heroku with
+  Docker) no longer fail with a
+  `KeyError` after a successful launch when it reports the dashboard
+  login.
+- The database dashboard's "Compensate Command" button now quotes the
+  recruiter, worker id and dollar amount in the `dallinger compensate`
+  commands it copies, so pasting them into a shell can no longer run
+  commands hidden in a worker id that a participant chose. It refuses to
+  build a command for a missing value, one containing control characters,
+  which a terminal could act on when pasted, or one containing a backslash,
+  which the fish shell treats as an escape inside single quotes.
+- The dashboard's database view no longer fails with a server error when the
+  URL names a table such as `info` or `node` without a
+  `polymorphic_identity`; it now lists every row of that table, and can show
+  columns declared only on subclasses. An unknown
+  table or polymorphic identity returns a 404 instead of a server error, and
+  a `polymorphic_identity` without a `table` returns a 400.
+- The Monitoring and Database dashboards escape participant data before
+  the browser reads it as HTML. Previously a participant answer or other
+  database value containing HTML could run in the admin's browser: on
+  `/dashboard/monitoring` by closing the page's script with `</script>`, and
+  on `/dashboard/database` through the table's search-pane filter labels.
+  The Database dashboard's script options, which include the page's query
+  string, are escaped the same way as a precaution.
+  `Experiment.table_search_panes` now returns HTML-escaped labels;
+  experiments that override it should escape their own labels too.
+- Error pages show a participant's worker, assignment and HIT ids only to a
+  request that carries the participant's `unique_id`, or their worker and
+  assignment ids. Requests that name only a
+  `participant_id` or `node_id`, such as `/error-page` or a failing
+  `/node/<node_id>/...` call, used to reveal them, and with them the
+  participant's `unique_id`. In the participant's browser,
+  `dallinger.error()` fills the ids back in.
+- `/handle-error` finds the participant from a `worker_id` or
+  `assignment_id` when the report has no `participant_id`, and completes
+  them. It used to skip completing them, unless their worker and assignment
+  ids happened to be equal. The error page's form now also sends the
+  `participant_id`, and its worker and assignment ids even without a HIT id.
+- Under the development server (`dallinger develop debug`, and tools such as
+  PsyNet that run `flask run` locally), websockets close cleanly, whichever
+  side closes them. The development server wrote an HTTP response after the
+  close frame, so Chrome reported `Invalid frame header` and code 1006: a
+  connection refused by `accept_websocket_connection` reconnected about
+  twice a second for as long as the page stayed open, and every connection
+  a page closed itself logged the error in the browser console. Deployed
+  servers, which run gunicorn, were not affected. On any server, a
+  websocket route that fails now logs its error and closes its connection
+  with code 1011, instead of answering with an HTTP 500 response.
+- `dallinger constraints generate` compiles for the newest patch release of
+  the Python version in `.python-version` when the file names only the minor
+  version, such as `3.11`. uv reads `3.11` as Python 3.11.0, so the compile
+  failed for packages that need a later 3.11 patch, such as
+  `soupsieve==3.0.4` in Dallinger's pins, which needs Python 3.11.5. It also
+  no longer downloads a Python interpreter to compile.
+- `dallinger ec2` commands that manage Route 53 records now use the hosted
+  zone whose name is the longest suffix of the DNS host, preferring public
+  zones, and report an error if two zones tie (provisioning stops; `start`,
+  `stop` and `teardown` warn and skip the DNS step). They used the first zone
+  whose name merely contained the host's last two labels, which could be a
+  parent, private or unrelated zone. `ec2 start` now waits for the instance to
+  accept SSH connections (ten attempts, as provisioning does) and warns if it
+  isn't reachable. SSH connections from `docker-ssh` and `ec2` now give up
+  if the TCP connection isn't made within 15 seconds per address. `ec2 stop`,
+  `restart` and `teardown` say that the stop, reboot or termination was
+  requested rather than complete, DNS cleanup names every record it removed
+  (e.g. `exp.example.org and *.exp.example.org`), and `--name` is documented
+  as the instance's Name tag. The internal helpers `filter_zone_ids`,
+  `get_domain` and `get_subdomain` in `dallinger.command_line.lib.ec2` were
+  replaced by `find_hosted_zone_id`.
+- `init_db(drop_all=True)` now checks that redis is reachable before
+  dropping any tables, and raises with the database left unchanged if it
+  isn't, instead of leaving the database with no tables.
+- `dallinger.identity.uniqueId` keeps the participant's value on pages whose
+  URL has no `workerId` and `assignmentId`, such as the ones `goToPage()`
+  opens. It was set to `"undefined:undefined"` there.
+- `dallinger.loadParticipant()` stores the participant's `unique_id`, so a
+  resumed participant's exit link carries it. `/load-participant` returns
+  `unique_id` and `worker_id` only when the request's worker id matches the
+  participant's. `loadParticipant()` clears a stored `unique_id` that ends
+  with another assignment's id.
+- Fixed a race condition in `POST /participant` where two concurrent signup
+  requests could both be recorded as `"working"` when only one should be
+  (write-skew at the occupancy count). Also fixed the related issue where a
+  routine participant status update (e.g. `"submitted"`) could block a new
+  signup due to a table-wide `LOCK TABLE ... EXCLUSIVE MODE` conflict. The
+  fix replaces both the table lock and `@db.serialized` on this route with a
+  PostgreSQL transaction-level advisory lock (`pg_advisory_xact_lock`) that
+  serializes signup decisions without interfering with unrelated participant
+  writes. A 5-second `lock_timeout` prevents a wedged holder from blocking
+  all signups indefinitely. The `lock_table_when_creating_participant`
+  configuration option is now ignored; the advisory lock is always used.
+  `psycogreen` is now a dependency: gunicorn web workers and RQ gevent workers
+  apply `psycogreen.patch_psycopg2()` so that psycopg2 socket waits yield to
+  the gevent event loop rather than blocking the OS thread. As a consequence,
+  experiment code must not call `dallinger.data.export()` or `ingest_zip()`
+  from inside a web handler or RQ job, as psycogreen's async mode does not
+  support `COPY`. The `dallinger export` CLI command is unaffected (it runs
+  in a separate process where psycogreen is never applied).
 - Local launches (``dallinger develop debug``, and tools such as PsyNet that
   launch a local server the same way) no longer draw the "Waiting for the
   experiment URL to become reachable" progress bar, which the local server's
@@ -1185,7 +1224,6 @@
   It reports an error only if no region can be used. Messages about the
   default region name the region actually used. The `ec2` extra now
   installs `tabulate`, which `dallinger ec2 list instances` needs.
-
 - `dallinger docker-ssh deploy` and `dallinger docker-ssh sandbox` now reject
   app names the server already uses, whether given with `--app` or taken from
   an `--archive`, before running anything on the server, in any case, with
@@ -1244,7 +1282,6 @@
   ad URL. They had been given the configured recruiter, and with
   `recruiter = multi` their questionnaire submission failed with
   `NotImplementedError` from `MultiRecruiter.on_task_completion`.
-
 - A docker-ssh Cloudflare deploy that can't find the Cloudflare API token now
   stops before it connects to the server, builds the image there or removes
   the app's Redis and Postgres volumes. It fails with an `Error:` line that
@@ -1337,7 +1374,6 @@
   `.env` file is readable by its owner only and is written after the debug
   image is built, so the key is not baked into the image, and compose refuses
   to start the containers without a key.
-
 - Dallinger's Docker commands no longer import pip's private internals to
   read an experiment's ``requirements.txt``, so they work in uv-created
   environments without pip. ``packaging`` is now a declared dependency.
@@ -1459,15 +1495,9 @@
   `Configuration.data` is now a read-only tuple: added layers first, then
   loaded layers, each newest first. Use `extend()`, `set()` or `override()`
   to change the configuration.
-
-### Fixed
-
 - `DevProlificRecruiter` no longer reports or logs that a study was created on
   Prolific when opening recruitment in debug mode; its launch message and log
   say the study is simulated and that nothing was created on Prolific.
-
-### Fixed
-
 - The `clear_workers` test fixture now stops only the local
   `dallinger_heroku_*` web and worker processes that use the test run's
   `DATABASE_URL`; `heroku local` then shuts down the rest of that session. It
@@ -1475,9 +1505,6 @@
   line mentioned "heroku", including Heroku CLI sessions in other checkouts or
   terminals. The new `dallinger.heroku.tools.local_worker_processes()` returns
   these processes for other tools, such as PsyNet, to reuse.
-
-### Fixed
-
 - `dallinger debug` no longer spins at full CPU after `heroku local` exits:
   the output monitor now stops at end of output and logs the exit code,
   unless the exit followed a requested stop, such as when the experiment
@@ -1485,6 +1512,18 @@
   `heroku local` also gets `/dev/null` as stdin instead of inheriting the
   caller's, which it never reads. Startup failures also cancel the timeout
   alarm instead of leaving it armed after the original error.
+
+### Removed
+
+- Removed the internal helper `dallinger.command_line.docker.add_image_name`.
+- The `/notifications` and `/mturk-sns-listener` routes are gone, since
+  MTurk has closed. They queued participant events, such as marking a
+  participant abandoned or submitted, for anyone who sent a guessable
+  `participant_id` or an assignment id.
+- Removed the Vagrant development environment (``Vagrantfile`` and the Vagrant
+  setup documentation). It targeted Ubuntu 16.04, Python 3.6, and PostgreSQL
+  9.5 and could not install current Dallinger. Use a normal install or Docker
+  instead.
 
 ### Updated
 
@@ -1531,17 +1570,6 @@
   now refuses to start instead of losing every job. Experiments whose
   `constraints.txt` pins RQ 2 must regenerate it with `dallinger constraints
   generate` before using this version.
-
-### Removed
-
-- The `/notifications` and `/mturk-sns-listener` routes are gone, since
-  MTurk has closed. They queued participant events, such as marking a
-  participant abandoned or submitted, for anyone who sent a guessable
-  `participant_id` or an assignment id.
-- Removed the Vagrant development environment (``Vagrantfile`` and the Vagrant
-  setup documentation). It targeted Ubuntu 16.04, Python 3.6, and PostgreSQL
-  9.5 and could not install current Dallinger. Use a normal install or Docker
-  instead.
 
 ## [v12.4.0](https://github.com/dallinger/dallinger/tree/v12.4.0) (2026-09-21)
 
