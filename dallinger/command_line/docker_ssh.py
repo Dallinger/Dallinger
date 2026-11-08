@@ -2943,6 +2943,8 @@ _EXPECTED_RESTORE_ERRORS = (
     'ERROR:  role "dallinger" already exists',
     'ERROR:  database "dallinger" already exists',
 )
+# Room for the new cluster's WAL and catalogs beyond the dump and the data.
+_COPY_SPARE_BYTES = 256 * 2**20
 # The password comes from the environment, which, unlike arguments, other
 # users can't see in ``ps``. psql quotes the variables it substitutes, so it
 # needs no escaping.
@@ -3004,9 +3006,7 @@ def _classic_apps_to_stop(server, executor):
             raise_=False,
         ):
             continue
-        services = executor.run(
-            f"{_app_compose(app)} ps --services --status running --status restarting"
-        ).split()
+        services = _running_services(executor, app)
         if services:
             apps[app] = services
     return apps
@@ -3044,6 +3044,41 @@ def _start_apps(executor, apps):
                 f"{RED}Warning: could not start {app} again: {error.strip()}{END} "
                 f"Start it on the server with `{command}`."
             )
+
+
+def _check_free_space(executor, container_command):
+    """Refuse the copy if the server's disks can't hold the dump and the new cluster.
+
+    Each takes about the size of the old databases. The dump goes to
+    ``~/dallinger`` and the new volume to Docker's data directory, which are
+    often the same file system.
+    """
+    [size] = _psql_query(
+        executor,
+        container_command,
+        "SELECT coalesce(sum(pg_database_size(datname)), 0) FROM pg_database",
+    )
+    root = executor.run("docker info -f '{{.DockerRootDir}}'").strip()
+    output = executor.run(f"df -Pk ~/dallinger {quote(root)}")
+    free, need = {}, {}
+    for row in (line.split() for line in output.splitlines()[1:]):
+        free[row[0]] = int(row[3]) * 1024
+        need[row[0]] = need.get(row[0], _COPY_SPARE_BYTES) + int(size)
+    for filesystem, available in free.items():
+        if available < need[filesystem]:
+            raise click.ClickException(
+                f"The copy needs about {need[filesystem] / 2**30:.1f} GiB on "
+                f"{filesystem}, which has {available / 2**30:.1f} GiB free (the "
+                f"shared databases take {int(size) / 2**30:.1f} GiB). Free some "
+                "space on the server, then run this command again."
+            )
+
+
+def _running_services(executor, app):
+    """Return the services of ``app`` that run or that Docker is restarting."""
+    return executor.run(
+        f"{_app_compose(app)} ps --services --status running --status restarting"
+    ).split()
 
 
 def _psql_query(executor, container_command, sql):
@@ -3228,16 +3263,28 @@ def _migrate_shared_postgres(executor, major, apps):
             f"{old} pg_isready -U dallinger >/dev/null 2>&1 && exit 0; sleep 2; "
             "done; echo 'The old PostgreSQL did not start.' >&2; exit 1"
         )
+        _check_free_space(executor, old)
         for app, services in apps.items():
             print(f"Stopping {app}...")
             # Recorded first: a stop that fails may have stopped some services.
             stopped[app] = services
             executor.run(f"{_app_compose(app)} stop")
+        # A wake that was under way can start a service again.
+        running = [app for app in stopped if _running_services(executor, app)]
+        if running:
+            raise click.ClickException(
+                f"These apps still run after being stopped: {', '.join(running)}."
+            )
         print(f"Copying the shared PostgreSQL {major} databases...")
         expected = _cluster_contents(executor, old)
+        # The new version's pg_dumpall, as PostgreSQL recommends: an older one
+        # leaves out the old default privileges on schema public, which the
+        # new version doesn't grant.
         executor.run(
-            f"umask 077 && {old} pg_dumpall -U dallinger --no-role-passwords "
-            f"> {_POSTGRES_UPGRADE_DUMP}"
+            "umask 077 && docker run --rm --network "
+            f"container:$({SERVER_COMPOSE} ps -q postgresql) -e PGPASSWORD=dallinger "
+            f"{postgres.POSTGRES_IMAGE} pg_dumpall -h 127.0.0.1 -U dallinger "
+            f"--no-role-passwords > {_POSTGRES_UPGRADE_DUMP}"
         )
         executor.run(f"{SERVER_COMPOSE} stop postgresql")
         _restore_shared_postgres(executor, expected)

@@ -257,9 +257,14 @@ open data written by 12. On a server set up by Dallinger 13.0 or earlier,
 ``dallinger_dallinger_pg18_data``, after listing the classic apps it stops
 during the copy and asking first. Hibernating apps are stopped too, so that
 no visitor wakes one during the copy, and only the services that ran are
-started again, so they stay hibernated. It dumps every database and role with
-``pg_dumpall``, restores them into PostgreSQL 18, checks that the same
-databases and roles exist, sets each app's database password again from
+started again, so they stay hibernated. Before it stops any app, it checks
+that the server has free disk space for about twice the size of the shared
+databases, for the dump and the copy. Once the apps are stopped, it checks
+that none of them has started again. It dumps every database and role with
+PostgreSQL 18's ``pg_dumpall``, which keeps the permissions that apps
+deployed by Dallinger 12 rely on. It then restores them into PostgreSQL 18,
+checks that the same databases and roles exist, sets each app's database
+password again from
 ``~/dallinger/<app>/.env`` (or, for an app deployed by Dallinger 12, from its
 ``docker-compose.yml``), and then starts the apps again. An app whose
 password it can't find stops the upgrade, because the app couldn't log in
@@ -281,7 +286,10 @@ after those, it starts the old Postgres again and copies once more.
 
 Each Cloudflare app has its own Postgres. A new deploy runs PostgreSQL 18; an
 ``--update`` of an app keeps the version that created the app's database
-volume.
+volume, so an app deployed by Dallinger 13.0 or earlier stays on PostgreSQL
+12, which gets no security fixes. To move one to 18, export its data with
+``dallinger docker-ssh export --app <app> --no-scrub``, destroy the app, and
+deploy it again under the same name with ``--archive`` and the exported zip.
 
 ``servers add`` (on a fresh server) and ``servers upgrade`` leave the shared
 files ``Caddyfile``, ``docker-compose.yml``, ``dozzle-users.yml`` and

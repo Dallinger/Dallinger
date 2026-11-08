@@ -14,6 +14,7 @@ import pytest
 from click.testing import CliRunner
 
 from dallinger.config import Configuration
+from dallinger.docker.postgres import POSTGRES_IMAGE
 
 docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
 
@@ -46,7 +47,16 @@ case "$*" in
   *"/docker-compose.yml ps --services --status running --status restarting")
     [ ! -f "$HOME/compose_ps_fails" ] || exit 1
     args="$*"; app=${args#*/dallinger/}; cat "$HOME/running_${app%%/*}" 2>/dev/null;;
-  *"myapp/docker-compose.yml stop") [ ! -f "$HOME/stop_fails" ] || exit 1;;
+  *"/docker-compose.yml stop"|*"/docker-compose.yml start "*)
+    args="$*"; app=${args#*/dallinger/}; app=${app%%/*}
+    case "$args" in
+      *" stop")
+        [ "$app" != myapp ] || [ ! -f "$HOME/stop_fails" ] || exit 1
+        [ -f "$HOME/stays_running" ] || mv "$HOME/running_$app" "$HOME/stopped_$app";;
+      *) mv "$HOME/stopped_$app" "$HOME/running_$app";;
+    esac 2>/dev/null;;
+  "info -f {{.DockerRootDir}}") echo "$HOME";;
+  *pg_database_size*) cat "$HOME/db_size" 2>/dev/null || echo 0;;
   *rolpassword*) cat "$HOME/no_password" 2>/dev/null;;
   "volume ls -q") [ ! -f "$HOME/docker_fails" ] || exit 1; cat "$HOME/volumes" 2>/dev/null;;
   *"echo unfinished"*) cat "$HOME/copy_unfinished" 2>/dev/null;;
@@ -337,7 +347,9 @@ def test_servers_upgrade_copies_the_shared_database_into_postgres_18(
         "start postgresql",
         "myapp/docker-compose.yml stop",
         "sleepy/docker-compose.yml stop",
-        "pg_dumpall -U dallinger --no-role-passwords",
+        # The new version's client, which keeps the old privileges on public.
+        f"--network container: -e PGPASSWORD=dallinger {POSTGRES_IMAGE} "
+        "pg_dumpall -h 127.0.0.1 -U dallinger --no-role-passwords",
         f"volume create --label com.docker.compose.project=dallinger "
         f"--label com.docker.compose.volume=dallinger_pg18_data {NEW_PG_VOLUME}",
         f"--entrypoint touch -v {NEW_PG_VOLUME}:/v",
@@ -381,8 +393,9 @@ def _assert_back_on_postgres_12(server, output):
         ({"restore_output": 'ERROR:  relation "x" already exists\n'}, "already exists"),
         ({"stop_fails": ""}, "exit code was not 0"),
         ({"no_password": "myapp\n"}, "password of these apps on the server: myapp."),
+        ({"stays_running": ""}, "still run after being stopped: myapp, sleepy."),
     ],
-    ids=["restore", "app-stop", "app-password"],
+    ids=["restore", "app-stop", "app-password", "app-still-runs"],
 )
 def test_a_failed_copy_puts_the_server_back_on_postgres_12(
     postgres_12_server, fault, message
@@ -402,14 +415,23 @@ def test_a_failed_copy_puts_the_server_back_on_postgres_12(
     assert compose == "services: {}  # edited\n"
 
 
-def test_no_copy_starts_if_an_app_cannot_say_what_runs(postgres_12_server):
-    (postgres_12_server / "compose_ps_fails").write_text("")
+@pytest.mark.parametrize(
+    "fault, message",
+    [
+        ("compose_ps_fails", "exit code was not 0"),
+        ("db_size", "Free some space on the server"),
+    ],
+    ids=["app-cannot-say-what-runs", "disk-too-small"],
+)
+def test_no_app_is_stopped_if_the_copy_cannot_start(postgres_12_server, fault, message):
+    (postgres_12_server / fault).write_text(str(2**60))
 
     result = CliRunner().invoke(
         docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
     )
 
     assert result.exit_code == 1
+    assert message in result.output + str(result.exception)
     calls = docker_calls(postgres_12_server)
     assert "docker-compose.yml stop" not in calls
     assert "pg_dumpall" not in calls
