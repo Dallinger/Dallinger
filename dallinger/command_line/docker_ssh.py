@@ -758,7 +758,7 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     changed = [path for path, content in files.items() if current[path] != content]
     # Checked even if the files are current: an undone copy leaves them so.
     migrate_from = _shared_postgres_to_migrate(executor) if replace else None
-    running_apps = _classic_apps_to_stop(server) if migrate_from else {}
+    running_apps = _classic_apps_to_stop(server, executor) if migrate_from else {}
     routes = _old_root_routes(executor, current["dallinger/Caddyfile"], host, tls)
     if replace and not changed and not routes:
         print(f"The shared classic-ingress files on {server} are up to date.")
@@ -2943,8 +2943,10 @@ _EXPECTED_RESTORE_ERRORS = (
     'ERROR:  role "dallinger" already exists',
     'ERROR:  database "dallinger" already exists',
 )
-# psql quotes the variables it substitutes, so a password needs no escaping.
-_RESET_PASSWORD_SQL = "ALTER ROLE :\"app\" PASSWORD :'pw';"
+# The password comes from the environment, which, unlike arguments, other
+# users can't see in ``ps``. psql quotes the variables it substitutes, so it
+# needs no escaping.
+_RESET_PASSWORD_SQL = "\\getenv pw pw\nALTER ROLE :\"app\" PASSWORD :'pw';"
 
 
 def _shared_postgres_to_migrate(executor):
@@ -2984,17 +2986,30 @@ def _shared_postgres_to_migrate(executor):
     )
 
 
-def _classic_apps_to_stop(server):
-    """Return ``{app: state}`` for the server's classic-ingress apps that run.
+def _classic_apps_to_stop(server, executor):
+    """Return ``{app: services}``, the running services of each classic-ingress app.
 
-    Hibernating and waking apps are included: a visitor can wake them.
+    Each app's Compose is asked, and a failure raises, so that no app that
+    can write to the shared database is missed. That includes hibernating
+    apps, whose front door a visitor can wake; starting only the services
+    that ran keeps them hibernated.
     """
-    apps = sorted(get_apps(server), key=lambda app: app.name)
-    return {
-        app.name: app.state
-        for app in apps
-        if app.state != "inactive" and app.ingress == INGRESS_CLASSIC
-    }
+    classic = sorted(
+        app.name for app in get_apps(server) if app.ingress == INGRESS_CLASSIC
+    )
+    apps = {}
+    for app in classic:
+        if not executor.run(
+            f"test -f ~/dallinger/{quote(app)}/docker-compose.yml && echo yes",
+            raise_=False,
+        ):
+            continue
+        services = executor.run(
+            f"{_app_compose(app)} ps --services --status running"
+        ).split()
+        if services:
+            apps[app] = services
+    return apps
 
 
 def _print_postgres_migration(major, apps):
@@ -3007,11 +3022,9 @@ def _print_postgres_migration(major, apps):
     )
     if apps:
         print(
-            "These classic apps are stopped during the copy and started again "
-            f"afterwards: {', '.join(apps)}."
+            "These classic apps are stopped during the copy, and the services "
+            f"that ran are started again afterwards: {', '.join(apps)}."
         )
-    if any(state in (HIBERNATING, WAKING) for state in apps.values()):
-        print("Hibernating and waking apps are started again hibernated.")
 
 
 def _app_compose(app):
@@ -3019,16 +3032,12 @@ def _app_compose(app):
 
 
 def _start_apps(executor, apps):
-    """Start apps that :func:`_migrate_shared_postgres` stopped; failures only warn.
+    """Start the services that :func:`_migrate_shared_postgres` stopped.
 
-    ``apps`` maps each app to its state. A hibernating or waking app gets
-    only its front door and controller, which keeps it hibernated: the
-    restarted controller turns an unfinished wake into hibernation.
+    ``apps`` maps each app to those services. Failures only warn.
     """
-    for app, state in apps.items():
-        command = f"{_app_compose(app)} start"
-        if state in (HIBERNATING, WAKING):
-            command += " frontdoor controller"
+    for app, services in apps.items():
+        command = f"{_app_compose(app)} start {' '.join(map(quote, services))}"
         status, _, error = executor.run_with_status(command)
         if status != 0:
             print(
@@ -3061,25 +3070,28 @@ def _cluster_contents(executor, container_command):
     return databases, roles
 
 
-def _reset_role_passwords(executor, container_command, roles):
-    """Set the passwords that the dump leaves out.
+def _reset_role_passwords(executor, container, roles):
+    """Set the passwords that the dump leaves out, in the Postgres ``container``.
 
     Each app role gets its app's password, read on the server so that no
     password appears in a command, which an error message would print. Apps
     deployed by Dallinger 13.0 or later keep it as ``POSTGRES_PASSWORD`` in
     their ``.env``, older ones as ``POSTGRESQL_PASSWORD`` in their compose
-    file, where newer ones only refer to the ``.env`` value.
+    file, where newer ones only refer to the ``.env`` value. An app whose
+    password isn't found raises, because it couldn't log in afterwards.
     """
+    container_command = f"docker exec -i {container}"
     owner = "ALTER ROLE dallinger PASSWORD 'dallinger'"
-    psql = f"{container_command} psql -U dallinger -d postgres -q -v ON_ERROR_STOP=1"
-    executor.run(f"{psql} -c {quote(owner)}")
+    options = "psql -U dallinger -d postgres -q -v ON_ERROR_STOP=1"
+    executor.run(f"{container_command} {options} -c {quote(owner)}")
     listing = executor.run("ls -1d ~/dallinger/*/ 2>/dev/null || true")
     apps = {
         line.rstrip("/").rsplit("/", 1)[-1]
         for line in listing.splitlines()
         if line.strip()
     }
-    for app in sorted(apps & set(roles)):
+    app_roles = sorted(apps & set(roles))
+    for app in app_roles:
         directory = f"~/dallinger/{quote(app)}"
         executor.run(
             f"pw=$(grep -m1 '^POSTGRES_PASSWORD=' {directory}/.env 2>/dev/null "
@@ -3088,7 +3100,8 @@ def _reset_role_passwords(executor, container_command, roles):
             f"{directory}/docker-compose.yml 2>/dev/null | head -n 1); "
             "case \"$pw\" in ''|*'${'*) ;; *) "
             f"printf '%s\\n' {quote(_RESET_PASSWORD_SQL)} | "
-            f'{psql} -v app={quote(app)} -v pw="$pw";; esac'
+            f'pw="$pw" docker exec -i -e pw {container} {options} '
+            f"-v app={quote(app)};; esac"
         )
     without_password = _psql_query(
         executor,
@@ -3096,6 +3109,14 @@ def _reset_role_passwords(executor, container_command, roles):
         "SELECT rolname FROM pg_authid WHERE rolcanlogin AND rolpassword IS NULL "
         "AND rolname !~ '^pg_' ORDER BY 1",
     )
+    apps_without_password = [role for role in without_password if role in app_roles]
+    if apps_without_password:
+        raise click.ClickException(
+            "Could not find the database password of these apps on the server: "
+            f"{', '.join(apps_without_password)}. Neither ~/dallinger/<app>/.env "
+            "nor ~/dallinger/<app>/docker-compose.yml has one. Update or destroy "
+            "those apps, then run this command again."
+        )
     if without_password:
         print(
             f"{RED}Warning: these roles have no password in PostgreSQL "
@@ -3153,7 +3174,7 @@ def _restore_shared_postgres(executor, expected):
             "The copied databases and roles don't match the old ones: "
             f"expected {expected}, got {copied}."
         )
-    _reset_role_passwords(executor, container, copied[1])
+    _reset_role_passwords(executor, _POSTGRES_UPGRADE_CONTAINER, copied[1])
     executor.run(
         f"docker stop -t 60 {_POSTGRES_UPGRADE_CONTAINER} && "
         f"docker rm {_POSTGRES_UPGRADE_CONTAINER}"
@@ -3195,7 +3216,8 @@ def _migrate_shared_postgres(executor, major, apps):
     versions reject over the network, so they are set again (see
     :func:`_reset_role_passwords`). The old volume is never changed. If
     anything fails, the copy is undone, the apps are started again and the
-    error is raised. ``apps`` maps the apps to stop to their states. Returns
+    error is raised. ``apps`` maps the apps to stop to their running
+    services. Returns
     the stopped ones, which the caller starts once the shared services run
     on the new version. If they don't get that far, the caller undoes the
     copy with :func:`_undo_shared_postgres_copy`.
@@ -3210,10 +3232,11 @@ def _migrate_shared_postgres(executor, major, apps):
             f"{old} pg_isready -U dallinger >/dev/null 2>&1 && exit 0; sleep 2; "
             "done; echo 'The old PostgreSQL did not start.' >&2; exit 1"
         )
-        for app, state in apps.items():
+        for app, services in apps.items():
             print(f"Stopping {app}...")
+            # Recorded first: a stop that fails may have stopped some services.
+            stopped[app] = services
             executor.run(f"{_app_compose(app)} stop")
-            stopped[app] = state
         print(f"Copying the shared PostgreSQL {major} databases...")
         expected = _cluster_contents(executor, old)
         executor.run(

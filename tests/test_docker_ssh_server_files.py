@@ -39,8 +39,15 @@ import caddy.d/*
 """
 FAKE_DOCKER = """#!/bin/sh
 echo "$*" >> "$HOME/docker.log"
+[ -z "${pw:-}" ] || echo "environment pw=$pw" >> "$HOME/docker.log"
 case "$*" in
-  *"ps --services"*) printf 'httpserver\\npostgresql\\ndozzle\\n';;
+  *"/dallinger/docker-compose.yml ps --services"*)
+    printf 'httpserver\\npostgresql\\ndozzle\\n';;
+  *"/docker-compose.yml ps --services --status running")
+    [ ! -f "$HOME/compose_ps_fails" ] || exit 1
+    args="$*"; app=${args#*/dallinger/}; cat "$HOME/running_${app%%/*}" 2>/dev/null;;
+  *"myapp/docker-compose.yml stop") [ ! -f "$HOME/stop_fails" ] || exit 1;;
+  *rolpassword*) cat "$HOME/no_password" 2>/dev/null;;
   "volume ls -q") [ ! -f "$HOME/docker_fails" ] || exit 1; cat "$HOME/volumes" 2>/dev/null;;
   *"echo unfinished"*) cat "$HOME/copy_unfinished" 2>/dev/null;;
   *PG_VERSION*) cat "$HOME/pg_version" 2>/dev/null;;
@@ -271,12 +278,15 @@ def postgres_12_server(server, monkeypatch):
     """The server, with its shared database on PostgreSQL 12 and its apps.
 
     ``myapp`` runs, ``sleepy`` hibernates and ``oldapp``, deployed by
-    Dallinger 12, keeps its password in its compose file.
+    Dallinger 12 and stopped, keeps its password in its compose file.
     """
     (server / "volumes").write_text(OLD_PG_VOLUME)
     (server / "pg_version").write_text("12")
     (server / "roles").write_text("dallinger\nmyapp\noldapp\n")
-    (server / "dallinger/myapp").mkdir()
+    for app, running in (("myapp", "web\nworker_1\n"), ("sleepy", "frontdoor\n")):
+        (server / "dallinger" / app).mkdir()
+        (server / "dallinger" / app / "docker-compose.yml").write_text("")
+        (server / f"running_{app}").write_text(running)
     (server / "dallinger/myapp/.env").write_text("POSTGRES_PASSWORD=s3cret\n")
     (server / "dallinger/oldapp").mkdir()
     (server / "dallinger/oldapp/docker-compose.yml").write_text(
@@ -284,6 +294,7 @@ def postgres_12_server(server, monkeypatch):
     )
     apps = [
         docker_ssh.App("myapp", "running", "classic"),
+        docker_ssh.App("oldapp", "inactive", "classic"),
         docker_ssh.App("sleepy", "hibernating", "classic"),
         docker_ssh.App("tunnelled", "running", "cloudflare"),
         docker_ssh.App("idle", "inactive", "classic"),
@@ -301,7 +312,7 @@ def test_servers_upgrade_copies_the_shared_database_into_postgres_18(
     )
     assert result.exit_code == 1
     assert f"the old volume {OLD_PG_VOLUME} is kept unchanged" in result.output
-    assert "afterwards: myapp, sleepy." in result.output
+    assert "started again afterwards: myapp, sleepy." in result.output
     assert "pg_dumpall" not in docker_calls(server)
 
     commands = []
@@ -326,18 +337,21 @@ def test_servers_upgrade_copies_the_shared_database_into_postgres_18(
         f"volume create --label com.docker.compose.project=dallinger "
         f"--label com.docker.compose.volume=dallinger_pg18_data {NEW_PG_VOLUME}",
         f"--entrypoint touch -v {NEW_PG_VOLUME}:/v",
-        "-v app=myapp -v pw=s3cret",
-        "-v app=oldapp -v pw=0ldpw",
+        "-e pw dallinger_postgres_upgrade psql",
+        "-v app=myapp\nenvironment pw=s3cret",
+        "-v app=oldapp\nenvironment pw=0ldpw",
         "rm dallinger_postgres_upgrade",
         f"--entrypoint rm -v {NEW_PG_VOLUME}:/v",
         "up -d --wait postgresql",
-        "myapp/docker-compose.yml start\n",
-        "sleepy/docker-compose.yml start frontdoor controller",
+        "myapp/docker-compose.yml start web worker_1",
+        "sleepy/docker-compose.yml start frontdoor\n",
     ]
     assert [calls.index(step) for step in steps] == sorted(
         calls.index(step) for step in steps
     )
-    assert not any(pw in cmd for cmd in commands for pw in ("s3cret", "0ldpw"))
+    arguments = [line for line in calls.splitlines() if "environment" not in line]
+    for password in ("s3cret", "0ldpw"):
+        assert not any(password in command for command in commands + arguments)
     assert f"volume rm {OLD_PG_VOLUME}" not in calls
     assert f"`docker volume rm {OLD_PG_VOLUME}`" in result.output
     assert not (server / "dallinger/postgres-upgrade.sql").exists()
@@ -356,19 +370,44 @@ def _assert_back_on_postgres_12(server, output):
     assert "Copied the shared databases" not in output
 
 
-def test_a_failed_copy_puts_the_server_back_on_postgres_12(postgres_12_server):
+@pytest.mark.parametrize(
+    "fault, message",
+    [
+        ({"restore_output": 'ERROR:  relation "x" already exists\n'}, "already exists"),
+        ({"stop_fails": ""}, "exit code was not 0"),
+        ({"no_password": "myapp\n"}, "password of these apps on the server: myapp."),
+    ],
+    ids=["restore", "app-stop", "app-password"],
+)
+def test_a_failed_copy_puts_the_server_back_on_postgres_12(
+    postgres_12_server, fault, message
+):
     server = postgres_12_server
-    (server / "restore_output").write_text('ERROR:  relation "x" already exists\n')
+    for name, content in fault.items():
+        (server / name).write_text(content)
 
     result = CliRunner().invoke(
         docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
     )
 
     assert result.exit_code == 1
-    assert 'relation "x" already exists' in result.output
+    assert message in result.output + str(result.exception)
     _assert_back_on_postgres_12(server, result.output)
     compose = (server / "dallinger/docker-compose.yml").read_text()
     assert compose == "services: {}  # edited\n"
+
+
+def test_no_copy_starts_if_an_app_cannot_say_what_runs(postgres_12_server):
+    (postgres_12_server / "compose_ps_fails").write_text("")
+
+    result = CliRunner().invoke(
+        docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
+    )
+
+    assert result.exit_code == 1
+    calls = docker_calls(postgres_12_server)
+    assert "docker-compose.yml stop" not in calls
+    assert "pg_dumpall" not in calls
 
 
 def test_an_upgrade_undone_after_writing_the_compose_file_copies_again(

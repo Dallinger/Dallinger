@@ -255,13 +255,15 @@ Dallinger 13.1 moves the shared Postgres from PostgreSQL 12 to 18, which can't
 open data written by 12. On a server set up by Dallinger 13.0 or earlier,
 ``servers upgrade`` therefore copies the shared databases into a new volume,
 ``dallinger_dallinger_pg18_data``, after listing the classic apps it stops
-during the copy and asking first. Hibernating and waking apps are stopped
-too, so that no visitor wakes one during the copy, and are started again
-hibernated. It dumps every database and role with
+during the copy and asking first. Hibernating apps are stopped too, so that
+no visitor wakes one during the copy, and only the services that ran are
+started again, so they stay hibernated. It dumps every database and role with
 ``pg_dumpall``, restores them into PostgreSQL 18, checks that the same
 databases and roles exist, sets each app's database password again from
 ``~/dallinger/<app>/.env`` (or, for an app deployed by Dallinger 12, from its
-``docker-compose.yml``), and then starts the apps again. The old volume,
+``docker-compose.yml``), and then starts the apps again. An app whose
+password it can't find stops the upgrade, because the app couldn't log in
+afterwards. The old volume,
 ``dallinger_dallinger_pg_data``, is never changed. If anything fails before
 the shared services start on PostgreSQL 18, the copy is removed and the
 server goes back to PostgreSQL 12 with its apps running; if they fail to start
