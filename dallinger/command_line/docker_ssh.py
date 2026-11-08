@@ -48,6 +48,7 @@ from dallinger.config import ConfigSource, get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import setup_experiment
+from dallinger.docker import postgres
 from dallinger.hibernation import STATE_HIBERNATING as HIBERNATING
 from dallinger.hibernation import STATE_WAKING as WAKING
 from dallinger.utils import (
@@ -131,6 +132,7 @@ DOCKER_COMPOSE_SERVER_TPL = Template(
         "dallinger", "dallinger/docker/ssh_templates/docker-compose-server.yml.j2"
     ).read_text()
 )
+DOCKER_COMPOSE_SERVER_TPL.globals.update(postgres.template_vars())
 
 _SSH_TEMPLATE_ENV = Environment(
     loader=FileSystemLoader(
@@ -141,6 +143,7 @@ _SSH_TEMPLATE_ENV = Environment(
     ),
     autoescape=False,
 )
+_SSH_TEMPLATE_ENV.globals.update(postgres.template_vars())
 DOCKER_COMPOSE_EXP_TPL = _SSH_TEMPLATE_ENV.get_template(
     "docker-compose-experiment.yml.j2"
 )
@@ -753,6 +756,11 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     }
     current = {path: executor.run(f"cat ~/{path}", raise_=False) for path in files}
     changed = [path for path, content in files.items() if current[path] != content]
+    migrate_from = running_apps = None
+    if replace and "dallinger/docker-compose.yml" in changed:
+        migrate_from = _shared_postgres_to_migrate(executor)
+    if migrate_from:
+        running_apps = _running_classic_apps(server)
     routes = _old_root_routes(executor, current["dallinger/Caddyfile"], host, tls)
     if replace and not changed and not routes:
         print(f"The shared classic-ingress files on {server} are up to date.")
@@ -785,37 +793,47 @@ def _write_server_files(server, server_info, *, replace, yes=True):
                 "Shared services whose configuration changed are recreated, which "
                 "briefly interrupts every classic app on the server."
             )
+        if migrate_from:
+            _print_postgres_migration(migrate_from, running_apps)
         if not yes and not click.confirm("Continue?", default=False):
             raise click.Abort()
-    stamp = "$(date +%Y%m%dT%H%M%S)"
-    executor.run(
-        "mkdir -p ~/dallinger/caddy.d"
-        + "".join(f"; [ ! -f ~/{p} ] || cp ~/{p} ~/{p}.{stamp}.bak" for p in changed)
-    )
-    sftp = get_sftp(server_info["host"], user=server_info.get("user"))
-    with _unlocked_server_files(executor, lock=True):
-        # root.d marks the server as set up (see _rewritten_by_older_dallinger).
-        executor.run("mkdir -p ~/dallinger/root.d")
-        # Routes go before the Caddyfile that drops the old inline ones, so an
-        # interrupted run leaves the old Caddyfile for a retry to migrate.
-        for path, content in routes.items():
-            sftp.putfo(BytesIO(content.encode()), path)
-        for path in changed:
-            sftp.putfo(BytesIO(files[path].encode()), path)
-        if not executor.run(
-            "test -f ~/dallinger/dozzle-users.yml && echo yes", raise_=False
-        ):
-            dozzle_password = get_dotenv_values(executor).get("DOZZLE_PASSWORD")
-            if not dozzle_password:
-                dozzle_password = secrets.token_urlsafe(12)
-                print(
-                    f"Log viewer: {_logs_url(server_info)} (user = dallinger, "
-                    f"password = {dozzle_password}). Change the password with "
-                    "`dallinger docker-ssh set-dozzle-password`."
-                )
-            set_dozzle_password(executor, sftp, dozzle_password)
-    print("Starting the shared Caddy, Postgres and Dozzle services.")
-    _start_server_services(executor)
+    stopped_apps = []
+    if migrate_from:
+        stopped_apps = _migrate_shared_postgres(executor, migrate_from, running_apps)
+    try:
+        stamp = "$(date +%Y%m%dT%H%M%S)"
+        executor.run(
+            "mkdir -p ~/dallinger/caddy.d"
+            + "".join(
+                f"; [ ! -f ~/{p} ] || cp ~/{p} ~/{p}.{stamp}.bak" for p in changed
+            )
+        )
+        sftp = get_sftp(server_info["host"], user=server_info.get("user"))
+        with _unlocked_server_files(executor, lock=True):
+            # root.d marks the server as set up (see _rewritten_by_older_dallinger).
+            executor.run("mkdir -p ~/dallinger/root.d")
+            # Routes go before the Caddyfile that drops the old inline ones, so an
+            # interrupted run leaves the old Caddyfile for a retry to migrate.
+            for path, content in routes.items():
+                sftp.putfo(BytesIO(content.encode()), path)
+            for path in changed:
+                sftp.putfo(BytesIO(files[path].encode()), path)
+            if not executor.run(
+                "test -f ~/dallinger/dozzle-users.yml && echo yes", raise_=False
+            ):
+                dozzle_password = get_dotenv_values(executor).get("DOZZLE_PASSWORD")
+                if not dozzle_password:
+                    dozzle_password = secrets.token_urlsafe(12)
+                    print(
+                        f"Log viewer: {_logs_url(server_info)} (user = dallinger, "
+                        f"password = {dozzle_password}). Change the password with "
+                        "`dallinger docker-ssh set-dozzle-password`."
+                    )
+                set_dozzle_password(executor, sftp, dozzle_password)
+        print("Starting the shared Caddy, Postgres and Dozzle services.")
+        _start_server_services(executor)
+    finally:
+        _start_apps(executor, stopped_apps)
     # A just-recreated Caddy may not answer its admin API yet.
     print("Reloading Caddy config file")
     executor.run(
@@ -1938,10 +1956,18 @@ def _upload_app_stack(
     # The JSON log is bind-mounted as a file, so it must exist before Compose starts.
     executor.run(f"mkdir -p dallinger/{app} && touch dallinger/{app}/{JSON_LOGFILE}")
     run_as_ssh_user = _image_runs_as_ssh_user(executor, image_name)
+    postgres_major = None
+    if ingress == INGRESS_CLOUDFLARE:
+        postgres_major = _app_postgres_major(executor, app)
     sftp.putfo(
         BytesIO(
             get_docker_compose_yml(
-                cfg, app, image_name, ingress, run_as_ssh_user=run_as_ssh_user
+                cfg,
+                app,
+                image_name,
+                ingress,
+                run_as_ssh_user=run_as_ssh_user,
+                postgres_major=postgres_major,
             ).encode()
         ),
         f"dallinger/{app}/docker-compose.yml",
@@ -1966,6 +1992,25 @@ def _upload_app_stack(
         ),
     )
     return previous_image
+
+
+def _app_postgres_major(executor, app):
+    """Return the PostgreSQL major version to run for a Cloudflare app's database.
+
+    An update, or a redeploy after ``destroy --keep-data``, reuses the app's
+    database volume, which only opens in the version that created it. A new
+    app gets :data:`dallinger.docker.postgres.POSTGRES_MAJOR`.
+    """
+    volume = f"{_compose_project(app)}_postgres_data"
+    output = executor.run(postgres.volume_major_command(volume), raise_=False)
+    major = postgres.parse_major(output)
+    if major is None or major == postgres.POSTGRES_MAJOR:
+        return postgres.POSTGRES_MAJOR
+    print(
+        f"The database volume {volume} was created by PostgreSQL {major}, "
+        f"so {app} keeps running PostgreSQL {major}."
+    )
+    return major
 
 
 def _remove_replaced_image(executor, app, previous_image, image_name):
@@ -2849,6 +2894,245 @@ def _start_server_services(executor):
         f" || {{ code=$?; [ $code -ne 124 ] || echo 'The shared PostgreSQL"
         f" was not healthy after {limit} s.' >&2; exit $code; }}"
     )
+
+
+# Compose prefixes the shared services' volumes with their project name,
+# ``dallinger``.
+_SERVER_POSTGRES_VOLUME = f"dallinger_dallinger_pg{postgres.POSTGRES_MAJOR}_data"
+# The shared PostgreSQL 12 volume that Dallinger 13.0 and earlier set up.
+_OLD_SERVER_POSTGRES_VOLUME = "dallinger_dallinger_pg_data"
+_POSTGRES_UPGRADE_CONTAINER = "dallinger_postgres_upgrade"
+_POSTGRES_UPGRADE_DUMP = "~/dallinger/postgres-upgrade.sql"
+# A dump restored into a fresh cluster recreates the cluster's own owner and
+# database, which initdb already made.
+_EXPECTED_RESTORE_ERRORS = (
+    'ERROR:  role "dallinger" already exists',
+    'ERROR:  database "dallinger" already exists',
+)
+
+
+def _shared_postgres_to_migrate(executor):
+    """Return the major version of a shared database still to be copied, or None.
+
+    That is a database in the volume that older Dallinger versions set up, on
+    a server without the current version's volume.
+    """
+    volumes = set((executor.run("docker volume ls -q", raise_=False) or "").split())
+    if _SERVER_POSTGRES_VOLUME in volumes or _OLD_SERVER_POSTGRES_VOLUME not in volumes:
+        return None
+    output = executor.run(
+        postgres.volume_major_command(_OLD_SERVER_POSTGRES_VOLUME), raise_=False
+    )
+    major = postgres.parse_major(output)
+    if major is None or major == postgres.POSTGRES_MAJOR:
+        return None
+    return major
+
+
+def _running_classic_apps(server):
+    """Return the names of the server's running classic-ingress apps."""
+    return sorted(
+        app.name
+        for app in get_apps(server)
+        if app.state == "running" and app.ingress == INGRESS_CLASSIC
+    )
+
+
+def _print_postgres_migration(major, apps):
+    """Explain the shared database copy that ``servers upgrade`` is about to make."""
+    print(
+        f"The shared PostgreSQL moves from version {major} to "
+        f"{postgres.POSTGRES_MAJOR}. Its databases are copied into the new volume "
+        f"{_SERVER_POSTGRES_VOLUME}; the old volume {_OLD_SERVER_POSTGRES_VOLUME} "
+        "is kept unchanged."
+    )
+    if apps:
+        print(
+            "These classic apps are stopped during the copy and started again "
+            f"afterwards: {', '.join(apps)}."
+        )
+
+
+def _app_compose(app):
+    return f"docker compose -f ~/dallinger/{app}/docker-compose.yml"
+
+
+def _start_apps(executor, apps):
+    """Start apps that :func:`_migrate_shared_postgres` stopped; failures only warn."""
+    for app in apps:
+        status, _, error = executor.run_with_status(f"{_app_compose(app)} start")
+        if status != 0:
+            print(
+                f"{RED}Warning: could not start {app} again: {error.strip()}{END} "
+                f"Start it on the server with `{_app_compose(app)} start`."
+            )
+
+
+def _psql_query(executor, container_command, sql):
+    """Run ``sql`` as the cluster owner and return its unaligned rows."""
+    output = executor.run(
+        f"{container_command} psql -U dallinger -d postgres -tA "
+        f"-v ON_ERROR_STOP=1 -c {quote(sql)}"
+    )
+    return [line for line in output.splitlines() if line]
+
+
+def _cluster_contents(executor, container_command):
+    """Return the databases and roles of a cluster, to compare a copy with it."""
+    databases = _psql_query(
+        executor,
+        container_command,
+        "SELECT datname FROM pg_database WHERE datallowconn ORDER BY 1",
+    )
+    roles = _psql_query(
+        executor,
+        container_command,
+        "SELECT rolname FROM pg_roles WHERE rolname !~ '^pg_' ORDER BY 1",
+    )
+    return databases, roles
+
+
+def _app_database_passwords(executor):
+    """Return ``{app: POSTGRES_PASSWORD}`` from the apps' ``.env`` files."""
+    output = executor.run(
+        'for f in ~/dallinger/*/.env; do [ -f "$f" ] || continue; '
+        'printf "%s\\t" "$(basename "$(dirname "$f")")"; '
+        "grep -m1 '^POSTGRES_PASSWORD=' \"$f\" || echo; done",
+        raise_=False,
+    )
+    passwords = {}
+    for line in (output or "").splitlines():
+        app, _, entry = line.partition("\t")
+        password = entry.partition("=")[2]
+        if app and password:
+            passwords[app] = password
+    return passwords
+
+
+def _restore_shared_postgres(executor, expected):
+    """Restore the dump into a new volume with a temporary current-version container.
+
+    The volume gets Compose's labels so that the shared services' Compose
+    project adopts it. ``expected`` are the old cluster's databases and roles.
+    """
+    container = f"docker exec -i {_POSTGRES_UPGRADE_CONTAINER}"
+    executor.run(
+        "docker volume create --label com.docker.compose.project=dallinger "
+        f"--label com.docker.compose.volume=dallinger_pg{postgres.POSTGRES_MAJOR}_data "
+        f"{_SERVER_POSTGRES_VOLUME}"
+    )
+    mount = postgres.data_mount_path(postgres.POSTGRES_MAJOR)
+    executor.run(
+        f"docker run -d --name {_POSTGRES_UPGRADE_CONTAINER} "
+        "-e POSTGRES_USER=dallinger -e POSTGRES_PASSWORD=dallinger "
+        f"-e POSTGRES_DB=dallinger -v {_SERVER_POSTGRES_VOLUME}:{mount} "
+        f"{postgres.POSTGRES_IMAGE} postgres -c jit=off"
+    )
+    # The image's first start initializes the cluster on a socket only, so
+    # TCP answers once the final server runs.
+    executor.run(
+        "for i in $(seq 150); do "
+        f"{container} pg_isready -h 127.0.0.1 -U dallinger >/dev/null 2>&1 "
+        "&& exit 0; sleep 2; done; echo 'The new PostgreSQL did not start.' >&2; exit 1"
+    )
+    output = executor.run(
+        f"{container} psql -U dallinger -d postgres -q < {_POSTGRES_UPGRADE_DUMP} 2>&1"
+    )
+    errors = [
+        line
+        for line in (output or "").splitlines()
+        if line.startswith("ERROR:") and line not in _EXPECTED_RESTORE_ERRORS
+    ]
+    if errors:
+        raise click.ClickException(
+            "Restoring the shared databases into PostgreSQL "
+            f"{postgres.POSTGRES_MAJOR} failed: " + "; ".join(errors[:5])
+        )
+    copied = _cluster_contents(executor, container)
+    if copied != expected:
+        raise click.ClickException(
+            "The copied databases and roles don't match the old ones: "
+            f"expected {expected}, got {copied}."
+        )
+    roles = set(copied[1])
+    statements = ["ALTER ROLE dallinger PASSWORD 'dallinger';"]
+    for app, password in sorted(_app_database_passwords(executor).items()):
+        if app in roles:
+            literal = password.replace("'", "''")
+            statements.append(f"ALTER ROLE \"{app}\" PASSWORD '{literal}';")
+    executor.run(
+        f"{container} psql -U dallinger -d postgres -q -v ON_ERROR_STOP=1 "
+        f"<<'DALLINGER_SQL'\n{chr(10).join(statements)}\nDALLINGER_SQL"
+    )
+    without_password = _psql_query(
+        executor,
+        container,
+        "SELECT rolname FROM pg_authid WHERE rolcanlogin AND rolpassword IS NULL "
+        "AND rolname !~ '^pg_' ORDER BY 1",
+    )
+    if without_password:
+        print(
+            f"{RED}Warning: these roles have no password in PostgreSQL "
+            f"{postgres.POSTGRES_MAJOR} and can't log in over the network until "
+            f"one is set: {', '.join(without_password)}.{END}"
+        )
+    executor.run(
+        f"docker stop -t 60 {_POSTGRES_UPGRADE_CONTAINER} && "
+        f"docker rm {_POSTGRES_UPGRADE_CONTAINER}"
+    )
+
+
+def _migrate_shared_postgres(executor, major, apps):
+    """Copy the shared PostgreSQL ``major`` cluster into a current-version volume.
+
+    Stops ``apps`` and the old Postgres so that nothing writes during the
+    copy, dumps every database and role, and restores them into the new
+    volume. The dump leaves out role passwords, whose MD5 hashes newer
+    versions reject over the network, so each app's password is set again
+    from its ``.env``. The old volume is never changed. If anything fails,
+    the old Postgres and the apps are started again, the new volume is
+    removed and the error is raised. Returns the stopped apps, which the
+    caller starts once the shared services run on the new version.
+    """
+    old = f"{SERVER_COMPOSE} exec -T postgresql"
+    stopped = []
+    old_stopped = False
+    try:
+        for app in apps:
+            print(f"Stopping {app}...")
+            executor.run(f"{_app_compose(app)} stop")
+            stopped.append(app)
+        print(f"Copying the shared PostgreSQL {major} databases...")
+        expected = _cluster_contents(executor, old)
+        executor.run(
+            f"umask 077 && {old} pg_dumpall -U dallinger --no-role-passwords "
+            f"> {_POSTGRES_UPGRADE_DUMP}"
+        )
+        executor.run(f"{SERVER_COMPOSE} stop postgresql")
+        old_stopped = True
+        _restore_shared_postgres(executor, expected)
+    except BaseException:
+        print(
+            f"{RED}The shared database could not be copied, so the server is "
+            f"put back on PostgreSQL {major}.{END}"
+        )
+        executor.run(
+            f"docker rm -f {_POSTGRES_UPGRADE_CONTAINER}; "
+            f"docker volume rm {_SERVER_POSTGRES_VOLUME}",
+            raise_=False,
+        )
+        if old_stopped:
+            executor.run(f"{SERVER_COMPOSE} start postgresql", raise_=False)
+        _start_apps(executor, stopped)
+        raise
+    finally:
+        executor.run(f"rm -f {_POSTGRES_UPGRADE_DUMP}", raise_=False)
+    print(
+        f"Copied the shared databases into PostgreSQL {postgres.POSTGRES_MAJOR}. "
+        "Once the apps work, remove the old volume on the server with "
+        f"`docker volume rm {_OLD_SERVER_POSTGRES_VOLUME}`."
+    )
+    return stopped
 
 
 def ensure_postgres_schema_permissions(executor, experiment_id):
@@ -5019,8 +5303,13 @@ def get_docker_compose_yml(
     ingress: str = INGRESS_CLASSIC,
     *,
     run_as_ssh_user: bool = True,
+    postgres_major: int | None = None,
 ) -> str:
-    """Render an app's docker-compose.yml. Secrets come from the app's ``.env``."""
+    """Render an app's docker-compose.yml. Secrets come from the app's ``.env``.
+
+    ``postgres_major`` selects the PostgreSQL version of a Cloudflare app's
+    own database; it defaults to the current one.
+    """
     from dallinger.docker.tools import worker_cpu_shares
 
     docker_volumes = config.get("docker_volumes", "")
@@ -5048,6 +5337,7 @@ def get_docker_compose_yml(
         cloudflared_image=CLOUDFLARED_IMAGE,
         compose_project=_compose_project(experiment_id),
         run_as_ssh_user=run_as_ssh_user,
+        **postgres.template_vars(postgres_major or postgres.POSTGRES_MAJOR),
     )
 
 

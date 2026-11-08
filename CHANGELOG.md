@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Changed
+
+- PostgreSQL moves from version 12, which no longer gets security fixes, to
+  18 (`postgres:18-trixie`), in the shared server database, new Cloudflare
+  apps, `dallinger docker debug` and `dallinger docker start-services`.
+  PostgreSQL 18 can't open data written by 12, so each change uses a new
+  volume and leaves the old one alone:
+  - On a server set up by 13.0 or earlier, `dallinger docker-ssh servers
+    upgrade` copies the shared databases into the new volume
+    `dallinger_dallinger_pg18_data`, stopping the classic apps during the
+    copy after asking first. It goes back to PostgreSQL 12 if the copy
+    fails. Once the apps work, remove the old volume with
+    `docker volume rm dallinger_dallinger_pg_data` on the server.
+    Deploys keep using the server's current Postgres until then.
+  - An existing Cloudflare app keeps the PostgreSQL version of its database
+    volume when updated or redeployed.
+  - `dallinger docker start-services` replaces a `dallinger_postgres`
+    container that runs PostgreSQL 12 and starts with an empty database in
+    the new volume `dallinger_postgres18`. Remove the old data with
+    `docker volume rm dallinger_postgres` once you no longer need it.
+    Local `dallinger docker debug` databases also start empty.
+
 ### Fixed
 
 - Only the highest `X.Y.Z` release tags the `latest` Docker images

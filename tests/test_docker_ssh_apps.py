@@ -15,6 +15,7 @@ from click.testing import CliRunner
 
 from dallinger.command_line.lib.cloudflare import CloudflareError, TunnelDeletion
 from dallinger.config import Configuration
+from dallinger.docker.postgres import POSTGRES_IMAGE
 from dallinger.docker.tools import docker_tag_from_experiment_id
 
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
@@ -1210,7 +1211,7 @@ def test_experiment_image_from_compose_reads_web_not_infra_images():
     assert parsed == "ghcr.io/org/exp:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     assert parsed not in {
         "redis",
-        "postgres:12",
+        POSTGRES_IMAGE,
         "caddy:2",
         "docker.io/bitnamilegacy/pgbouncer:1.24.1",
         "amir20/dozzle:v10.0.2",
@@ -1294,7 +1295,7 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch, capsys):
     assert out.endswith("App myapp removed.\n")
     for forbidden in (
         "redis",
-        "postgres:12",
+        POSTGRES_IMAGE,
         "caddy:2",
         "pgbouncer",
         "amir20/dozzle",

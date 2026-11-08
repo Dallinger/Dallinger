@@ -28,6 +28,7 @@ from dallinger.command_line.utils import (
 )
 from dallinger.config import get_config
 from dallinger.deployment import handle_launch_data
+from dallinger.docker import postgres
 from dallinger.heroku.tools import HerokuApp
 from dallinger.utils import (
     GitClient,
@@ -101,22 +102,61 @@ def start_services():
     os.system(
         "docker run --rm -d --name dallinger_redis -p 6379:6379 -v dallinger_redis:/data redis redis-server --appendonly yes"
     )
+    replace_outdated_postgres_container()
+    mount = postgres.data_mount_path(postgres.POSTGRES_MAJOR)
     os.system(
-        "docker run --rm -d --name dallinger_postgres -p 5432:5432 -e POSTGRES_USER=dallinger -e POSTGRES_PASSWORD=dallinger -e POSTGRES_DB=dallinger -v dallinger_postgres:/var/lib/postgresql/data postgres:12 postgres -c jit=off"
+        f"docker run --rm -d --name {postgres.LOCAL_POSTGRES_CONTAINER} -p 5432:5432 -e POSTGRES_USER=dallinger -e POSTGRES_PASSWORD=dallinger -e POSTGRES_DB=dallinger -v {postgres.LOCAL_POSTGRES_VOLUME}:{mount} {postgres.POSTGRES_IMAGE} postgres -c jit=off"
     )
+
+
+def replace_outdated_postgres_container():
+    """Remove a local Postgres container that runs an older image.
+
+    Its data stays in its own volume, which the new container doesn't mount.
+    Returns the image of the removed container, or None.
+    """
+    container = postgres.LOCAL_POSTGRES_CONTAINER
+    result = subprocess.run(
+        [
+            "docker",
+            "inspect",
+            "--format",
+            "{{.Config.Image}} {{range .Mounts}}{{.Name}} {{end}}",
+            container,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    image, *volumes = result.stdout.split()
+    if image == postgres.POSTGRES_IMAGE:
+        return None
+    kept = ", ".join(volumes) or "its volume"
+    print(
+        f"Replacing the {container} container, which runs {image}, with "
+        f"{postgres.POSTGRES_IMAGE} on the new volume {postgres.LOCAL_POSTGRES_VOLUME}. "
+        f"The old data stays in {kept}; remove it with `docker volume rm` once "
+        "you no longer need it."
+    )
+    subprocess.run(["docker", "rm", "--force", container], capture_output=True)
+    return image
 
 
 @docker.command()
 def stop_services():
     """Stops docker based postgresql and redis services"""
     os.system("docker stop dallinger_redis")
-    os.system("docker stop dallinger_postgres")
+    os.system(f"docker stop {postgres.LOCAL_POSTGRES_CONTAINER}")
 
 
 @docker.command()
 def remove_services_data():
     """Remove redis and postgresql data - restores a pristine environment"""
-    os.system("docker volume rm dallinger_redis dallinger_postgres")
+    # dallinger_postgres is the volume of the PostgreSQL 12 service.
+    os.system(
+        f"docker volume rm dallinger_redis dallinger_postgres {postgres.LOCAL_POSTGRES_VOLUME}"
+    )
 
 
 @docker.command()

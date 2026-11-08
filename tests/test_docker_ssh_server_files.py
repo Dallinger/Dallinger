@@ -39,7 +39,13 @@ import caddy.d/*
 """
 FAKE_DOCKER = """#!/bin/sh
 echo "$*" >> "$HOME/docker.log"
-case "$*" in *"ps --services"*) printf 'httpserver\\npostgresql\\ndozzle\\n';; esac
+case "$*" in
+  *"ps --services"*) printf 'httpserver\\npostgresql\\ndozzle\\n';;
+  "volume ls -q") cat "$HOME/volumes" 2>/dev/null;;
+  *PG_VERSION*) cat "$HOME/pg_version" 2>/dev/null;;
+  *"psql -U dallinger -d postgres -q") cat "$HOME/restore_output" 2>/dev/null;;
+esac
+exit 0
 """
 
 
@@ -210,6 +216,101 @@ def test_servers_upgrade_saves_a_given_contact_email(server, monkeypatch):
         in result.output
     )
     assert "tls new@example.org" in (server / "dallinger/Caddyfile").read_text()
+
+
+OLD_PG_VOLUME = "dallinger_dallinger_pg_data"
+NEW_PG_VOLUME = "dallinger_dallinger_pg18_data"
+
+
+@pytest.mark.parametrize(
+    "volumes, pg_version, expected",
+    [
+        ([OLD_PG_VOLUME], "12", 12),
+        ([OLD_PG_VOLUME, NEW_PG_VOLUME], "12", None),
+        ([], "", None),
+        ([OLD_PG_VOLUME], "18", None),
+    ],
+    ids=["postgres-12", "already-copied", "fresh-server", "postgres-18"],
+)
+def test_servers_upgrade_copies_only_an_old_shared_database(
+    server, volumes, pg_version, expected
+):
+    (server / "volumes").write_text("\n".join(volumes))
+    (server / "pg_version").write_text(pg_version)
+    executor = LocalExecutor(server)
+    assert docker_ssh._shared_postgres_to_migrate(executor) == expected
+
+
+@pytest.fixture
+def postgres_12_server(server, monkeypatch):
+    """The server, with its shared database on PostgreSQL 12 and one running app."""
+    (server / "volumes").write_text(OLD_PG_VOLUME)
+    (server / "pg_version").write_text("12")
+    (server / "dallinger/myapp").mkdir()
+    (server / "dallinger/myapp/.env").write_text("POSTGRES_PASSWORD=pw\n")
+    apps = [
+        docker_ssh.App("myapp", "running", "classic"),
+        docker_ssh.App("tunnelled", "running", "cloudflare"),
+        docker_ssh.App("idle", "inactive", "classic"),
+    ]
+    monkeypatch.setattr(docker_ssh, "get_apps", lambda server: apps)
+    return server
+
+
+def test_servers_upgrade_copies_the_shared_database_into_postgres_18(
+    postgres_12_server,
+):
+    server = postgres_12_server
+    result = CliRunner().invoke(
+        docker_ssh.servers, ["upgrade", "--host", "lab"], input="n\n"
+    )
+    assert result.exit_code == 1
+    assert f"the old volume {OLD_PG_VOLUME} is kept unchanged" in result.output
+    assert "afterwards: myapp." in result.output
+    assert "pg_dumpall" not in docker_calls(server)
+
+    result = CliRunner().invoke(
+        docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
+    )
+
+    assert result.exit_code == 0, result.output
+    calls = docker_calls(server)
+    steps = [
+        "myapp/docker-compose.yml stop",
+        "pg_dumpall -U dallinger --no-role-passwords",
+        f"volume create --label com.docker.compose.project=dallinger "
+        f"--label com.docker.compose.volume=dallinger_pg18_data {NEW_PG_VOLUME}",
+        "up -d --wait postgresql",
+        "myapp/docker-compose.yml start",
+    ]
+    assert [calls.index(step) for step in steps] == sorted(
+        calls.index(step) for step in steps
+    )
+    assert f"volume rm {OLD_PG_VOLUME}" not in calls
+    assert f"`docker volume rm {OLD_PG_VOLUME}`" in result.output
+    assert not (server / "dallinger/postgres-upgrade.sql").exists()
+    compose = (server / "dallinger/docker-compose.yml").read_text()
+    assert "dallinger_pg18_data:/var/lib/postgresql\n" in compose
+
+
+def test_a_failed_copy_puts_the_server_back_on_postgres_12(postgres_12_server):
+    server = postgres_12_server
+    (server / "restore_output").write_text('ERROR:  relation "x" already exists\n')
+
+    result = CliRunner().invoke(
+        docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
+    )
+
+    assert result.exit_code == 1
+    assert 'relation "x" already exists' in result.output
+    calls = docker_calls(server)
+    assert f"volume rm {NEW_PG_VOLUME}" in calls
+    assert "start postgresql" in calls
+    assert "myapp/docker-compose.yml start" in calls
+    assert "up -d" not in calls
+    assert not (server / "dallinger/postgres-upgrade.sql").exists()
+    compose = (server / "dallinger/docker-compose.yml").read_text()
+    assert compose == "services: {}  # edited\n"
 
 
 def test_a_dns_host_in_another_case_is_the_servers_host():
