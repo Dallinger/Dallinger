@@ -43,7 +43,7 @@ echo "$*" >> "$HOME/docker.log"
 case "$*" in
   *"/dallinger/docker-compose.yml ps --services"*)
     printf 'httpserver\\npostgresql\\ndozzle\\n';;
-  *"/docker-compose.yml ps --services --status running")
+  *"/docker-compose.yml ps --services --status running --status restarting")
     [ ! -f "$HOME/compose_ps_fails" ] || exit 1
     args="$*"; app=${args#*/dallinger/}; cat "$HOME/running_${app%%/*}" 2>/dev/null;;
   *"myapp/docker-compose.yml stop") [ ! -f "$HOME/stop_fails" ] || exit 1;;
@@ -315,6 +315,10 @@ def test_servers_upgrade_copies_the_shared_database_into_postgres_18(
     assert "started again afterwards: myapp, sleepy." in result.output
     assert "pg_dumpall" not in docker_calls(server)
 
+    # A role named like a directory that holds no app only gets a warning.
+    (server / "dallinger/root.d").mkdir()
+    (server / "roles").write_text("dallinger\nmyapp\noldapp\nroot.d\n")
+    (server / "no_password").write_text("root.d\n")
     commands = []
     executor = docker_ssh.Executor()
     run_with_status = executor.run_with_status
@@ -353,6 +357,7 @@ def test_servers_upgrade_copies_the_shared_database_into_postgres_18(
     for password in ("s3cret", "0ldpw"):
         assert not any(password in command for command in commands + arguments)
     assert f"volume rm {OLD_PG_VOLUME}" not in calls
+    assert "can't log in over the network until one is set: root.d." in result.output
     assert f"`docker volume rm {OLD_PG_VOLUME}`" in result.output
     assert not (server / "dallinger/postgres-upgrade.sql").exists()
     compose = (server / "dallinger/docker-compose.yml").read_text()

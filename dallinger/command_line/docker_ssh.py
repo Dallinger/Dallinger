@@ -3005,7 +3005,7 @@ def _classic_apps_to_stop(server, executor):
         ):
             continue
         services = executor.run(
-            f"{_app_compose(app)} ps --services --status running"
+            f"{_app_compose(app)} ps --services --status running --status restarting"
         ).split()
         if services:
             apps[app] = services
@@ -3084,12 +3084,8 @@ def _reset_role_passwords(executor, container, roles):
     owner = "ALTER ROLE dallinger PASSWORD 'dallinger'"
     options = "psql -U dallinger -d postgres -q -v ON_ERROR_STOP=1"
     executor.run(f"{container_command} {options} -c {quote(owner)}")
-    listing = executor.run("ls -1d ~/dallinger/*/ 2>/dev/null || true")
-    apps = {
-        line.rstrip("/").rsplit("/", 1)[-1]
-        for line in listing.splitlines()
-        if line.strip()
-    }
+    listing = executor.run("ls -1 ~/dallinger/*/docker-compose.yml 2>/dev/null || true")
+    apps = {line.rsplit("/", 2)[-2] for line in listing.splitlines() if line.strip()}
     app_roles = sorted(apps & set(roles))
     for app in app_roles:
         directory = f"~/dallinger/{quote(app)}"
