@@ -12,10 +12,12 @@
   - On a server set up by 13.0 or earlier, `dallinger docker-ssh servers
     upgrade` copies the shared databases into the new volume
     `dallinger_dallinger_pg18_data`, stopping the classic apps during the
-    copy after asking first. It goes back to PostgreSQL 12 if the copy
-    fails. Once the apps work, remove the old volume with
-    `docker volume rm dallinger_dallinger_pg_data` on the server.
-    Deploys keep using the server's current Postgres until then.
+    copy after asking first. It goes back to PostgreSQL 12 if anything
+    fails before the shared services start on 18, and refuses to use a copy
+    that an interrupted run left unfinished. Once the apps work, remove the
+    old volume with `docker volume rm dallinger_dallinger_pg_data` on the
+    server. Deploys keep using the server's current Postgres until the
+    upgrade.
   - An existing Cloudflare app keeps the PostgreSQL version of its database
     volume when updated or redeployed.
   - `dallinger docker start-services` replaces a `dallinger_postgres`
@@ -26,6 +28,9 @@
 
 ### Fixed
 
+- `dallinger docker-ssh apps` and the other commands that list apps show a
+  running app whose name has capitals or dots (such as `My.App`) as
+  running, instead of inactive.
 - Only the highest `X.Y.Z` release tags the `latest` Docker images
   (`ghcr.io/dallinger/dallinger:latest` and `dallinger-bot:latest`).
   Before, every `v*` tag moved them, so a patch to an older release line

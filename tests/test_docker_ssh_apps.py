@@ -565,6 +565,16 @@ def test_get_apps_maps_running_and_inactive():
     ]
 
 
+def test_get_apps_matches_running_apps_by_compose_project_name():
+    executor = FakeExecutor({"caddy.d": "My.App\n", "docker ps": "myapp\n"})
+    with (
+        mock.patch.object(docker_ssh_module, "_resolve_server_info", return_value={}),
+        mock.patch.object(docker_ssh_module, "_build_executor", return_value=executor),
+    ):
+        [app] = docker_ssh_module.get_apps("irrelevant")
+    assert (app.name, app.state) == ("My.App", "running")
+
+
 def test_select_running_app_returns_single(monkeypatch):
     monkeypatch.setattr(
         docker_ssh_module,

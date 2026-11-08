@@ -48,18 +48,28 @@ def volume_major_command(volume):
     """Return a shell command that prints the PostgreSQL major version of ``volume``.
 
     The command prints nothing if the volume does not exist or holds no
-    database. It checks first because ``docker run`` would create a missing
-    volume.
+    database, and fails if Docker can't tell, so that a caller never mistakes
+    an unreadable volume for a missing one. It checks first because
+    ``docker run`` would create a missing volume.
     """
     script = "cat /v/PG_VERSION /v/*/docker/PG_VERSION 2>/dev/null; true"
     return (
-        f"if docker volume inspect {quote(volume)} >/dev/null 2>&1; then "
+        "volumes=$(docker volume ls -q) || exit 1; "
+        f"if printf '%s\\n' \"$volumes\" | grep -qxF {quote(volume)}; then "
         f"docker run --rm --entrypoint sh -v {quote(volume)}:/v:ro "
         f"{POSTGRES_IMAGE} -c {quote(script)}; fi"
     )
 
 
 def parse_major(output):
-    """Return the major version printed by :func:`volume_major_command`, or None."""
-    match = re.search(r"^\s*(\d+)\s*$", output or "", re.M)
-    return int(match.group(1)) if match else None
+    """Return the major version printed by :func:`volume_major_command`, or None.
+
+    Raises ``ValueError`` if the volume holds data of several versions.
+    """
+    majors = {int(m) for m in re.findall(r"^\s*(\d+)\s*$", output or "", re.M)}
+    if len(majors) > 1:
+        raise ValueError(
+            f"the volume holds data of PostgreSQL {sorted(majors)}, "
+            "so its version is ambiguous"
+        )
+    return majors.pop() if majors else None
