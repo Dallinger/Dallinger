@@ -42,8 +42,8 @@ echo "$*" >> "$HOME/docker.log"
 case "$*" in
   *"ps --services"*) printf 'httpserver\\npostgresql\\ndozzle\\n';;
   "volume ls -q") [ ! -f "$HOME/docker_fails" ] || exit 1; cat "$HOME/volumes" 2>/dev/null;;
+  *"echo unfinished"*) cat "$HOME/copy_unfinished" 2>/dev/null;;
   *PG_VERSION*) cat "$HOME/pg_version" 2>/dev/null;;
-  *"echo finished"*) cat "$HOME/copy_finished" 2>/dev/null;;
   *pg_roles*) cat "$HOME/roles" 2>/dev/null;;
   *"psql -U dallinger -d postgres -q") cat "$HOME/restore_output" 2>/dev/null;;
 esac
@@ -228,10 +228,15 @@ NEW_PG_VOLUME = "dallinger_dallinger_pg18_data"
     "volumes, files, expected",
     [
         ([OLD_PG_VOLUME], {"pg_version": "12"}, 12),
-        ([OLD_PG_VOLUME, NEW_PG_VOLUME], {"copy_finished": "finished"}, None),
+        ([OLD_PG_VOLUME, NEW_PG_VOLUME], {"pg_version": "12"}, None),
         ([], {}, None),
         ([OLD_PG_VOLUME], {"pg_version": "18"}, None),
-        ([OLD_PG_VOLUME, NEW_PG_VOLUME], {}, "unfinished copy"),
+        ([OLD_PG_VOLUME, NEW_PG_VOLUME], {}, None),
+        (
+            [OLD_PG_VOLUME, NEW_PG_VOLUME],
+            {"pg_version": "12", "copy_unfinished": "unfinished"},
+            "unfinished copy",
+        ),
         ([OLD_PG_VOLUME], {"pg_version": "12\n18"}, "ambiguous"),
         ([OLD_PG_VOLUME], {"docker_fails": ""}, "remote server"),
     ],
@@ -240,6 +245,7 @@ NEW_PG_VOLUME = "dallinger_dallinger_pg18_data"
         "copied",
         "fresh-server",
         "postgres-18",
+        "empty-old-volume",
         "unfinished-copy",
         "two-versions",
         "docker-fails",
@@ -262,14 +268,23 @@ def test_servers_upgrade_copies_only_an_old_shared_database(
 
 @pytest.fixture
 def postgres_12_server(server, monkeypatch):
-    """The server, with its shared database on PostgreSQL 12 and one running app."""
+    """The server, with its shared database on PostgreSQL 12 and its apps.
+
+    ``myapp`` runs, ``sleepy`` hibernates and ``oldapp``, deployed by
+    Dallinger 12, keeps its password in its compose file.
+    """
     (server / "volumes").write_text(OLD_PG_VOLUME)
     (server / "pg_version").write_text("12")
-    (server / "roles").write_text("dallinger\nmyapp\n")
+    (server / "roles").write_text("dallinger\nmyapp\noldapp\n")
     (server / "dallinger/myapp").mkdir()
     (server / "dallinger/myapp/.env").write_text("POSTGRES_PASSWORD=s3cret\n")
+    (server / "dallinger/oldapp").mkdir()
+    (server / "dallinger/oldapp/docker-compose.yml").write_text(
+        "      - POSTGRESQL_PASSWORD=0ldpw\n"
+    )
     apps = [
         docker_ssh.App("myapp", "running", "classic"),
+        docker_ssh.App("sleepy", "hibernating", "classic"),
         docker_ssh.App("tunnelled", "running", "cloudflare"),
         docker_ssh.App("idle", "inactive", "classic"),
     ]
@@ -286,7 +301,7 @@ def test_servers_upgrade_copies_the_shared_database_into_postgres_18(
     )
     assert result.exit_code == 1
     assert f"the old volume {OLD_PG_VOLUME} is kept unchanged" in result.output
-    assert "afterwards: myapp." in result.output
+    assert "afterwards: myapp, sleepy." in result.output
     assert "pg_dumpall" not in docker_calls(server)
 
     commands = []
@@ -304,20 +319,25 @@ def test_servers_upgrade_copies_the_shared_database_into_postgres_18(
     assert result.exit_code == 0, result.output
     calls = docker_calls(server)
     steps = [
+        "start postgresql",
         "myapp/docker-compose.yml stop",
+        "sleepy/docker-compose.yml stop",
         "pg_dumpall -U dallinger --no-role-passwords",
         f"volume create --label com.docker.compose.project=dallinger "
         f"--label com.docker.compose.volume=dallinger_pg18_data {NEW_PG_VOLUME}",
+        f"--entrypoint touch -v {NEW_PG_VOLUME}:/v",
         "-v app=myapp -v pw=s3cret",
+        "-v app=oldapp -v pw=0ldpw",
         "rm dallinger_postgres_upgrade",
-        "touch",
+        f"--entrypoint rm -v {NEW_PG_VOLUME}:/v",
         "up -d --wait postgresql",
-        "myapp/docker-compose.yml start",
+        "myapp/docker-compose.yml start\n",
+        "sleepy/docker-compose.yml start frontdoor controller",
     ]
     assert [calls.index(step) for step in steps] == sorted(
         calls.index(step) for step in steps
     )
-    assert not any("s3cret" in command for command in commands)
+    assert not any(pw in cmd for cmd in commands for pw in ("s3cret", "0ldpw"))
     assert f"volume rm {OLD_PG_VOLUME}" not in calls
     assert f"`docker volume rm {OLD_PG_VOLUME}`" in result.output
     assert not (server / "dallinger/postgres-upgrade.sql").exists()
@@ -325,13 +345,15 @@ def test_servers_upgrade_copies_the_shared_database_into_postgres_18(
     assert "dallinger_pg18_data:/var/lib/postgresql\n" in compose
 
 
-def _assert_back_on_postgres_12(server):
+def _assert_back_on_postgres_12(server, output):
     calls = docker_calls(server)
-    assert f"volume rm {NEW_PG_VOLUME}" in calls
-    assert "start postgresql" in calls
+    assert calls.rindex("start postgresql") > calls.index(
+        f"volume rm -f {NEW_PG_VOLUME}"
+    )
     assert "myapp/docker-compose.yml start" in calls
     assert "up -d" not in calls
     assert not (server / "dallinger/postgres-upgrade.sql").exists()
+    assert "Copied the shared databases" not in output
 
 
 def test_a_failed_copy_puts_the_server_back_on_postgres_12(postgres_12_server):
@@ -344,26 +366,59 @@ def test_a_failed_copy_puts_the_server_back_on_postgres_12(postgres_12_server):
 
     assert result.exit_code == 1
     assert 'relation "x" already exists' in result.output
-    _assert_back_on_postgres_12(server)
+    _assert_back_on_postgres_12(server, result.output)
     compose = (server / "dallinger/docker-compose.yml").read_text()
     assert compose == "services: {}  # edited\n"
 
 
-def test_a_failure_before_the_switch_puts_the_server_back_on_postgres_12(
+def test_an_upgrade_undone_after_writing_the_compose_file_copies_again(
     postgres_12_server, monkeypatch
 ):
-    def fail(*args):
-        raise OSError("connection lost")
+    server = postgres_12_server
 
-    monkeypatch.setattr(LocalSftp, "putfo", fail)
+    class FailingSftp(LocalSftp):
+        def putfo(self, fo, path):
+            if path == "dallinger/Caddyfile":
+                raise OSError("connection lost")
+            super().putfo(fo, path)
 
-    result = CliRunner().invoke(
-        docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
-    )
+    monkeypatch.setattr(docker_ssh, "get_sftp", lambda *a, **k: FailingSftp(server))
+    upgrade = ["upgrade", "--host", "lab", "--yes"]
+    result = CliRunner().invoke(docker_ssh.servers, upgrade)
 
     assert result.exit_code == 1
-    assert "touch" in docker_calls(postgres_12_server)
-    _assert_back_on_postgres_12(postgres_12_server)
+    assert f"--entrypoint rm -v {NEW_PG_VOLUME}:/v" in docker_calls(server)
+    _assert_back_on_postgres_12(server, result.output)
+    assert "pg18_data" in (server / "dallinger/docker-compose.yml").read_text()
+
+    monkeypatch.setattr(docker_ssh, "get_sftp", lambda *a, **k: LocalSftp(server))
+    result = CliRunner().invoke(docker_ssh.servers, upgrade)
+    assert result.exit_code == 0, result.output
+    assert docker_calls(server).count("pg_dumpall") == 2
+
+
+def test_a_failure_after_the_switch_keeps_the_copy(postgres_12_server, monkeypatch):
+    server = postgres_12_server
+    start = docker_ssh._start_server_services
+    monkeypatch.setattr(
+        docker_ssh,
+        "_start_server_services",
+        mock.Mock(side_effect=docker_ssh.ExecuteException("postgres did not start")),
+    )
+    upgrade = ["upgrade", "--host", "lab", "--yes"]
+    result = CliRunner().invoke(docker_ssh.servers, upgrade)
+
+    assert result.exit_code == 1
+    assert "The copied databases are kept" in result.output
+    assert "volume rm -f" not in docker_calls(server)
+    assert "myapp/docker-compose.yml start" in docker_calls(server)
+
+    (server / "volumes").write_text(f"{OLD_PG_VOLUME}\n{NEW_PG_VOLUME}\n")
+    monkeypatch.setattr(docker_ssh, "_start_server_services", start)
+    result = CliRunner().invoke(docker_ssh.servers, upgrade)
+    assert result.exit_code == 0, result.output
+    assert docker_calls(server).count("pg_dumpall") == 1
+    assert "up -d --wait postgresql" in docker_calls(server)
 
 
 def test_a_dns_host_in_another_case_is_the_servers_host():

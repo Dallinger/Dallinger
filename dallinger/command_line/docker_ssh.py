@@ -758,7 +758,7 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     changed = [path for path, content in files.items() if current[path] != content]
     # Checked even if the files are current: an undone copy leaves them so.
     migrate_from = _shared_postgres_to_migrate(executor) if replace else None
-    running_apps = _running_classic_apps(server) if migrate_from else []
+    running_apps = _classic_apps_to_stop(server) if migrate_from else {}
     routes = _old_root_routes(executor, current["dallinger/Caddyfile"], host, tls)
     if replace and not changed and not routes:
         print(f"The shared classic-ingress files on {server} are up to date.")
@@ -793,10 +793,10 @@ def _write_server_files(server, server_info, *, replace, yes=True):
             )
     if migrate_from:
         _print_postgres_migration(migrate_from, running_apps)
-    if (changed and replace or migrate_from) and not yes:
+    if ((changed and replace) or migrate_from) and not yes:
         if not click.confirm("Continue?", default=False):
             raise click.Abort()
-    stopped_apps = []
+    stopped_apps = {}
     if migrate_from:
         stopped_apps = _migrate_shared_postgres(executor, migrate_from, running_apps)
     switched = False
@@ -854,6 +854,12 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         f"{SERVER_COMPOSE} exec -T httpserver caddy reload "
         "--config /etc/caddy/Caddyfile && exit 0; sleep 2; done; exit 1"
     )
+    if migrate_from:
+        print(
+            "Copied the shared databases into PostgreSQL "
+            f"{postgres.POSTGRES_MAJOR}. Once the apps work, remove the old volume "
+            f"on the server with `docker volume rm {_OLD_SERVER_POSTGRES_VOLUME}`."
+        )
     return True
 
 
@@ -2010,9 +2016,9 @@ def _upload_app_stack(
 def _app_postgres_major(executor, app):
     """Return the PostgreSQL major version to run for a Cloudflare app's database.
 
-    An update, or a redeploy after ``destroy --keep-data``, reuses the app's
-    database volume, which only opens in the version that created it. A new
-    app gets :data:`dallinger.docker.postgres.POSTGRES_MAJOR`.
+    An update reuses the app's database volume, which only opens in the
+    version that created it. A new deploy has removed any volume left under
+    the app's name, so it gets :data:`dallinger.docker.postgres.POSTGRES_MAJOR`.
     """
     volume = f"{_compose_project(app)}_postgres_data"
     major = _volume_major(executor, volume)
@@ -2927,9 +2933,10 @@ _SERVER_POSTGRES_VOLUME = f"dallinger_dallinger_pg{postgres.POSTGRES_MAJOR}_data
 _OLD_SERVER_POSTGRES_VOLUME = "dallinger_dallinger_pg_data"
 _POSTGRES_UPGRADE_CONTAINER = "dallinger_postgres_upgrade"
 _POSTGRES_UPGRADE_DUMP = "~/dallinger/postgres-upgrade.sql"
-# Written into the new volume once the copy is finished and no container
-# mounts it any more, so that a copy left by an interrupted run is recognized.
-_POSTGRES_COPY_MARKER = ".dallinger-copy-complete"
+# Kept in the new volume while the copy is made, so that a copy left by an
+# interrupted run is recognized. A volume that the shared services created
+# never has it.
+_POSTGRES_COPY_MARKER = ".dallinger-copy-in-progress"
 # A dump restored into a fresh cluster recreates the cluster's own owner and
 # database, which initdb already made.
 _EXPECTED_RESTORE_ERRORS = (
@@ -2943,43 +2950,51 @@ _RESET_PASSWORD_SQL = "ALTER ROLE :\"app\" PASSWORD :'pw';"
 def _shared_postgres_to_migrate(executor):
     """Return the major version of a shared database still to be copied, or None.
 
-    That is a database in the volume that older Dallinger versions set up, on
-    a server without a finished copy in the current version's volume. An
-    unfinished copy, left by an interrupted run, is refused with the commands
-    that remove it: only the operator can tell that nothing uses it.
+    That is an older PostgreSQL's database in the volume that Dallinger 13.0
+    and earlier set up, on a server without the current version's volume.
+    Such a volume is a finished copy or was set up by this version, unless
+    it holds no database or the marker of an unfinished copy. That is
+    refused with the commands that remove it, because only the operator can
+    tell that nothing uses it.
     """
     volumes = set(executor.run("docker volume ls -q").split())
     if _OLD_SERVER_POSTGRES_VOLUME not in volumes:
         return None
-    if _SERVER_POSTGRES_VOLUME in volumes:
-        check = f"test -f /v/{_POSTGRES_COPY_MARKER} && echo finished; true"
-        marker = executor.run(
-            f"docker run --rm --entrypoint sh -v {_SERVER_POSTGRES_VOLUME}:/v:ro "
-            f"{postgres.POSTGRES_IMAGE} -c {quote(check)}"
-        )
-        if marker.strip() == "finished":
-            return None
-        raise click.ClickException(
-            f"The volume {_SERVER_POSTGRES_VOLUME} holds an unfinished copy of the "
-            "shared database, left by an interrupted `servers upgrade`; the old "
-            f"volume {_OLD_SERVER_POSTGRES_VOLUME} is unchanged. Remove the copy "
-            f"on the server with `docker rm -f {_POSTGRES_UPGRADE_CONTAINER}; "
-            f"docker volume rm {_SERVER_POSTGRES_VOLUME}`, then run this command "
-            "again."
-        )
     major = _volume_major(executor, _OLD_SERVER_POSTGRES_VOLUME)
     if major is None or major == postgres.POSTGRES_MAJOR:
         return None
-    return major
-
-
-def _running_classic_apps(server):
-    """Return the names of the server's running classic-ingress apps."""
-    return sorted(
-        app.name
-        for app in get_apps(server)
-        if app.state == "running" and app.ingress == INGRESS_CLASSIC
+    if _SERVER_POSTGRES_VOLUME not in volumes:
+        return major
+    check = (
+        f"test -f /v/{_POSTGRES_COPY_MARKER} || ! ls /v/*/docker/PG_VERSION "
+        ">/dev/null 2>&1 && echo unfinished; true"
     )
+    status = executor.run(
+        f"docker run --rm --entrypoint sh -v {_SERVER_POSTGRES_VOLUME}:/v:ro "
+        f"{postgres.POSTGRES_IMAGE} -c {quote(check)}"
+    )
+    if status.strip() != "unfinished":
+        return None
+    raise click.ClickException(
+        f"The volume {_SERVER_POSTGRES_VOLUME} holds no database or an unfinished "
+        "copy of the shared database, left by an interrupted `servers upgrade`; "
+        f"the old volume {_OLD_SERVER_POSTGRES_VOLUME} is unchanged. Remove the "
+        f"copy on the server with `docker rm -f {_POSTGRES_UPGRADE_CONTAINER}; "
+        f"docker volume rm {_SERVER_POSTGRES_VOLUME}`, then run this command again."
+    )
+
+
+def _classic_apps_to_stop(server):
+    """Return ``{app: state}`` for the server's classic-ingress apps that run.
+
+    Hibernating and waking apps are included: a visitor can wake them.
+    """
+    apps = sorted(get_apps(server), key=lambda app: app.name)
+    return {
+        app.name: app.state
+        for app in apps
+        if app.state != "inactive" and app.ingress == INGRESS_CLASSIC
+    }
 
 
 def _print_postgres_migration(major, apps):
@@ -2995,6 +3010,8 @@ def _print_postgres_migration(major, apps):
             "These classic apps are stopped during the copy and started again "
             f"afterwards: {', '.join(apps)}."
         )
+    if any(state in (HIBERNATING, WAKING) for state in apps.values()):
+        print("Hibernating and waking apps are started again hibernated.")
 
 
 def _app_compose(app):
@@ -3002,13 +3019,21 @@ def _app_compose(app):
 
 
 def _start_apps(executor, apps):
-    """Start apps that :func:`_migrate_shared_postgres` stopped; failures only warn."""
-    for app in apps:
-        status, _, error = executor.run_with_status(f"{_app_compose(app)} start")
+    """Start apps that :func:`_migrate_shared_postgres` stopped; failures only warn.
+
+    ``apps`` maps each app to its state. A hibernating or waking app gets
+    only its front door and controller, which keeps it hibernated: the
+    restarted controller turns an unfinished wake into hibernation.
+    """
+    for app, state in apps.items():
+        command = f"{_app_compose(app)} start"
+        if state in (HIBERNATING, WAKING):
+            command += " frontdoor controller"
+        status, _, error = executor.run_with_status(command)
         if status != 0:
             print(
                 f"{RED}Warning: could not start {app} again: {error.strip()}{END} "
-                f"Start it on the server with `{_app_compose(app)} start`."
+                f"Start it on the server with `{command}`."
             )
 
 
@@ -3039,21 +3064,31 @@ def _cluster_contents(executor, container_command):
 def _reset_role_passwords(executor, container_command, roles):
     """Set the passwords that the dump leaves out.
 
-    Each app role gets the ``POSTGRES_PASSWORD`` from its ``.env``, read on
-    the server, so that no password appears in a command, which an error
-    message would print.
+    Each app role gets its app's password, read on the server so that no
+    password appears in a command, which an error message would print. Apps
+    deployed by Dallinger 13.0 or later keep it as ``POSTGRES_PASSWORD`` in
+    their ``.env``, older ones as ``POSTGRESQL_PASSWORD`` in their compose
+    file, where newer ones only refer to the ``.env`` value.
     """
     owner = "ALTER ROLE dallinger PASSWORD 'dallinger'"
     psql = f"{container_command} psql -U dallinger -d postgres -q -v ON_ERROR_STOP=1"
     executor.run(f"{psql} -c {quote(owner)}")
-    listing = executor.run("ls -1 ~/dallinger/*/.env 2>/dev/null || true")
-    apps = {line.rsplit("/", 2)[-2] for line in listing.splitlines() if line.strip()}
+    listing = executor.run("ls -1d ~/dallinger/*/ 2>/dev/null || true")
+    apps = {
+        line.rstrip("/").rsplit("/", 1)[-1]
+        for line in listing.splitlines()
+        if line.strip()
+    }
     for app in sorted(apps & set(roles)):
+        directory = f"~/dallinger/{quote(app)}"
         executor.run(
-            f"pw=$(grep -m1 '^POSTGRES_PASSWORD=' ~/dallinger/{quote(app)}/.env "
-            '| cut -d= -f2-); [ -z "$pw" ] || '
+            f"pw=$(grep -m1 '^POSTGRES_PASSWORD=' {directory}/.env 2>/dev/null "
+            '| cut -d= -f2-); [ -n "$pw" ] || '
+            "pw=$(sed -n 's/^ *- POSTGRESQL_PASSWORD=//p' "
+            f"{directory}/docker-compose.yml 2>/dev/null | head -n 1); "
+            "case \"$pw\" in ''|*'${'*) ;; *) "
             f"printf '%s\\n' {quote(_RESET_PASSWORD_SQL)} | "
-            f'{psql} -v app={quote(app)} -v pw="$pw"'
+            f'{psql} -v app={quote(app)} -v pw="$pw";; esac'
         )
     without_password = _psql_query(
         executor,
@@ -3074,13 +3109,16 @@ def _restore_shared_postgres(executor, expected):
 
     The volume gets Compose's labels so that the shared services' Compose
     project adopts it. ``expected`` are the old cluster's databases and roles.
-    The copy is marked finished only once the temporary container is gone.
+    The copy is marked unfinished until the temporary container is gone.
     """
     container = f"docker exec -i {_POSTGRES_UPGRADE_CONTAINER}"
+    marker = f"/v/{_POSTGRES_COPY_MARKER}"
+    on_volume = f"-v {_SERVER_POSTGRES_VOLUME}:/v {postgres.POSTGRES_IMAGE}"
     executor.run(
         "docker volume create --label com.docker.compose.project=dallinger "
         f"--label com.docker.compose.volume=dallinger_pg{postgres.POSTGRES_MAJOR}_data "
-        f"{_SERVER_POSTGRES_VOLUME}"
+        f"{_SERVER_POSTGRES_VOLUME} >/dev/null && "
+        f"docker run --rm --entrypoint touch {on_volume} {marker}"
     )
     mount = postgres.data_mount_path(postgres.POSTGRES_MAJOR)
     executor.run(
@@ -3120,10 +3158,7 @@ def _restore_shared_postgres(executor, expected):
         f"docker stop -t 60 {_POSTGRES_UPGRADE_CONTAINER} && "
         f"docker rm {_POSTGRES_UPGRADE_CONTAINER}"
     )
-    executor.run(
-        f"docker run --rm --entrypoint touch -v {_SERVER_POSTGRES_VOLUME}:/v "
-        f"{postgres.POSTGRES_IMAGE} /v/{_POSTGRES_COPY_MARKER}"
-    )
+    executor.run(f"docker run --rm --entrypoint rm {on_volume} {marker}")
 
 
 def _undo_shared_postgres_copy(executor, major):
@@ -3139,7 +3174,7 @@ def _undo_shared_postgres_copy(executor, major):
     )
     steps = (
         f"docker rm -f {_POSTGRES_UPGRADE_CONTAINER} >/dev/null 2>&1; "
-        f"docker volume rm {_SERVER_POSTGRES_VOLUME}",
+        f"docker volume rm -f {_SERVER_POSTGRES_VOLUME}",
         f"{SERVER_COMPOSE} start postgresql",
     )
     for step in steps:
@@ -3160,17 +3195,25 @@ def _migrate_shared_postgres(executor, major, apps):
     versions reject over the network, so they are set again (see
     :func:`_reset_role_passwords`). The old volume is never changed. If
     anything fails, the copy is undone, the apps are started again and the
-    error is raised. Returns the stopped apps, which the caller starts once
-    the shared services run on the new version, or undoes the copy for with
-    :func:`_undo_shared_postgres_copy` if they don't get that far.
+    error is raised. ``apps`` maps the apps to stop to their states. Returns
+    the stopped ones, which the caller starts once the shared services run
+    on the new version. If they don't get that far, the caller undoes the
+    copy with :func:`_undo_shared_postgres_copy`.
     """
     old = f"{SERVER_COMPOSE} exec -T postgresql"
-    stopped = []
+    stopped = {}
     try:
-        for app in apps:
+        # An interrupted run leaves the old Postgres stopped.
+        executor.run(f"{SERVER_COMPOSE} start postgresql")
+        executor.run(
+            "for i in $(seq 30); do "
+            f"{old} pg_isready -U dallinger >/dev/null 2>&1 && exit 0; sleep 2; "
+            "done; echo 'The old PostgreSQL did not start.' >&2; exit 1"
+        )
+        for app, state in apps.items():
             print(f"Stopping {app}...")
             executor.run(f"{_app_compose(app)} stop")
-            stopped.append(app)
+            stopped[app] = state
         print(f"Copying the shared PostgreSQL {major} databases...")
         expected = _cluster_contents(executor, old)
         executor.run(
@@ -3185,11 +3228,6 @@ def _migrate_shared_postgres(executor, major, apps):
         raise
     finally:
         executor.run(f"rm -f {_POSTGRES_UPGRADE_DUMP}", raise_=False)
-    print(
-        f"Copied the shared databases into PostgreSQL {postgres.POSTGRES_MAJOR}. "
-        "Once the apps work, remove the old volume on the server with "
-        f"`docker volume rm {_OLD_SERVER_POSTGRES_VOLUME}`."
-    )
     return stopped
 
 

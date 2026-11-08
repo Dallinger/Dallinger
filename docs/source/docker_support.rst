@@ -255,10 +255,13 @@ Dallinger 13.1 moves the shared Postgres from PostgreSQL 12 to 18, which can't
 open data written by 12. On a server set up by Dallinger 13.0 or earlier,
 ``servers upgrade`` therefore copies the shared databases into a new volume,
 ``dallinger_dallinger_pg18_data``, after listing the classic apps it stops
-during the copy and asking first. It dumps every database and role with
+during the copy and asking first. Hibernating and waking apps are stopped
+too, so that no visitor wakes one during the copy, and are started again
+hibernated. It dumps every database and role with
 ``pg_dumpall``, restores them into PostgreSQL 18, checks that the same
 databases and roles exist, sets each app's database password again from
-``~/dallinger/<app>/.env``, and then starts the apps again. The old volume,
+``~/dallinger/<app>/.env`` (or, for an app deployed by Dallinger 12, from its
+``docker-compose.yml``), and then starts the apps again. The old volume,
 ``dallinger_dallinger_pg_data``, is never changed. If anything fails before
 the shared services start on PostgreSQL 18, the copy is removed and the
 server goes back to PostgreSQL 12 with its apps running; if they fail to start
@@ -271,11 +274,12 @@ Once the apps work on the new version, remove the old volume on the server:
 
 A run that was cut off during the copy, for example by a lost connection,
 leaves an unfinished copy in ``dallinger_dallinger_pg18_data``. The next
-``servers upgrade`` refuses to use it and prints the commands that remove it.
+``servers upgrade`` refuses to use it and prints the commands that remove it;
+after those, it starts the old Postgres again and copies once more.
 
-Each Cloudflare app has its own Postgres. A new app runs PostgreSQL 18; an
-``--update`` of an app, or a redeploy after ``destroy --keep-data``, keeps the
-version that created the app's database volume.
+Each Cloudflare app has its own Postgres. A new deploy runs PostgreSQL 18; an
+``--update`` of an app keeps the version that created the app's database
+volume.
 
 ``servers add`` (on a fresh server) and ``servers upgrade`` leave the shared
 files ``Caddyfile``, ``docker-compose.yml``, ``dozzle-users.yml`` and
