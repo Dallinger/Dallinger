@@ -20,7 +20,7 @@ from shlex import quote
 
 # Raising this also needs a new copy path in ``servers upgrade``, which only
 # finds a shared database to copy in the PostgreSQL 12 volume of Dallinger
-# 13.0 (``_OLD_SERVER_POSTGRES_VOLUME`` in dallinger.command_line.docker_ssh).
+# 13.0 (see dallinger.command_line.docker_ssh_postgres_upgrade).
 # Without one, a server on the previous version would start on an empty volume.
 POSTGRES_MAJOR = 18
 POSTGRES_IMAGE = f"postgres:{POSTGRES_MAJOR}-trixie"
