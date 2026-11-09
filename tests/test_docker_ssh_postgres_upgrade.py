@@ -37,7 +37,11 @@ COPY_DOCKER_CASES = """\
   *pg_database_size*) cat "$HOME/db_size" 2>/dev/null || echo 0;;
   *rolpassword*) cat "$HOME/no_password" 2>/dev/null;;
   "volume ls -q") [ ! -f "$HOME/docker_fails" ] || exit 1; cat "$HOME/volumes" 2>/dev/null;;
-  *"echo unfinished"*) cat "$HOME/copy_unfinished" 2>/dev/null;;
+  *"echo unfinished"*)
+    cat "$HOME/copy_unfinished" 2>/dev/null || [ ! -f "$HOME/copy_marker" ] || echo unfinished;;
+  *"--entrypoint touch -v"*) touch "$HOME/copy_marker";;
+  *"--entrypoint rm -v"*) rm -f "$HOME/copy_marker";;
+  "volume rm -f "*) [ ! -f "$HOME/volume_rm_fails" ] || exit 1; rm -f "$HOME/copy_marker";;
   *PG_VERSION*) cat "$HOME/pg_version" 2>/dev/null;;
   *pg_roles*) cat "$HOME/roles" 2>/dev/null;;
   *"psql -U dallinger -d postgres -q") cat "$HOME/restore_output" 2>/dev/null;;
@@ -252,10 +256,13 @@ def test_no_app_is_stopped_if_the_copy_cannot_start(postgres_12_server, fault, m
     assert "pg_dumpall" not in calls
 
 
+@pytest.mark.parametrize("volume_removed", [True, False], ids=["undone", "volume-kept"])
 def test_an_upgrade_undone_after_writing_the_compose_file_copies_again(
-    postgres_12_server, monkeypatch
+    postgres_12_server, monkeypatch, volume_removed
 ):
     server = postgres_12_server
+    if not volume_removed:
+        (server / "volume_rm_fails").write_text("")
 
     class FailingSftp(LocalSftp):
         def putfo(self, fo, path):
@@ -268,11 +275,19 @@ def test_an_upgrade_undone_after_writing_the_compose_file_copies_again(
     result = CliRunner().invoke(docker_ssh.servers, upgrade)
 
     assert result.exit_code == 1
-    assert f"--entrypoint rm -v {NEW_PG_VOLUME}:/v" in docker_calls(server)
+    assert "rm dallinger_postgres_upgrade" in docker_calls(server)
     _assert_back_on_postgres_12(server, result.output)
     assert "pg18_data" in (server / "dallinger/docker-compose.yml").read_text()
 
     monkeypatch.setattr(docker_ssh, "get_sftp", lambda *a, **k: LocalSftp(server))
+    if not volume_removed:
+        # The old database may have changed since, so the copy is refused.
+        (server / "volumes").write_text(f"{OLD_PG_VOLUME}\n{NEW_PG_VOLUME}\n")
+        result = CliRunner().invoke(docker_ssh.servers, upgrade)
+        assert result.exit_code == 1
+        assert "an unfinished copy" in result.output + str(result.exception)
+        assert "up -d" not in docker_calls(server)
+        return
     result = CliRunner().invoke(docker_ssh.servers, upgrade)
     assert result.exit_code == 0, result.output
     assert docker_calls(server).count("pg_dumpall") == 2

@@ -34,9 +34,10 @@ _SERVER_POSTGRES_VOLUME = f"dallinger_dallinger_pg{postgres.POSTGRES_MAJOR}_data
 _OLD_SERVER_POSTGRES_VOLUME = "dallinger_dallinger_pg_data"
 _POSTGRES_UPGRADE_CONTAINER = "dallinger_postgres_upgrade"
 _POSTGRES_UPGRADE_DUMP = "~/dallinger/postgres-upgrade.sql"
-# Kept in the new volume while the copy is made, so that a copy left by an
-# interrupted run is recognized. A volume that the shared services created
-# never has it.
+# Kept in the new volume until the shared services switch to it, so that a
+# copy left by an interrupted run, or by an undo that couldn't remove it, is
+# refused: apps may have written to the old database since. A volume that
+# the shared services created never has it.
 _POSTGRES_COPY_MARKER = ".dallinger-copy-in-progress"
 # A dump restored into a fresh cluster recreates the cluster's own owner and
 # database, which initdb already made.
@@ -82,7 +83,8 @@ def _shared_postgres_to_migrate(executor):
         return None
     raise click.ClickException(
         f"The volume {_SERVER_POSTGRES_VOLUME} holds no database or an unfinished "
-        "copy of the shared database, left by an interrupted `servers upgrade`; "
+        "copy of the shared database, left by an interrupted or undone "
+        "`servers upgrade`; "
         f"the old volume {_OLD_SERVER_POSTGRES_VOLUME} is unchanged. Remove the "
         f"copy on the server with `docker rm -f {_POSTGRES_UPGRADE_CONTAINER}; "
         f"docker volume rm {_SERVER_POSTGRES_VOLUME}`, then run this command again. "
@@ -154,8 +156,9 @@ def copied_shared_postgres(executor, server, copy):
     """Make ``copy``, if any, then let the caller switch the shared services to it.
 
     Yields a function that the caller calls right before it starts the shared
-    services on the new version. From then on apps may write to the copy, so
-    a failure keeps it; a failure before that undoes it. The stopped apps are
+    services on the new version; it marks the copy finished. From then on
+    apps may write to the copy, so a failure keeps it; a failure before that
+    undoes it. The stopped apps are
     started again either way.
     """
     if copy is None:
@@ -166,6 +169,7 @@ def copied_shared_postgres(executor, server, copy):
 
     def switch():
         nonlocal switched
+        executor.run(_copy_marker_command("rm"))
         switched = True
 
     try:
@@ -324,16 +328,15 @@ def _restore_shared_postgres(executor, expected):
 
     The volume gets Compose's labels so that the shared services' Compose
     project adopts it. ``expected`` are the old cluster's databases and roles.
-    The copy is marked unfinished until the temporary container is gone.
+    The copy stays marked unfinished; :func:`copied_shared_postgres` removes
+    the marker when the shared services switch to it.
     """
     container = f"docker exec -i {_POSTGRES_UPGRADE_CONTAINER}"
-    marker = f"/v/{_POSTGRES_COPY_MARKER}"
-    on_volume = f"-v {_SERVER_POSTGRES_VOLUME}:/v {postgres.POSTGRES_IMAGE}"
     executor.run(
         "docker volume create --label com.docker.compose.project=dallinger "
         f"--label com.docker.compose.volume=dallinger_pg{postgres.POSTGRES_MAJOR}_data "
         f"{_SERVER_POSTGRES_VOLUME} >/dev/null && "
-        f"docker run --rm --entrypoint touch {on_volume} {marker}"
+        f"{_copy_marker_command('touch')}"
     )
     mount = postgres.data_mount_path(postgres.POSTGRES_MAJOR)
     executor.run(
@@ -373,7 +376,14 @@ def _restore_shared_postgres(executor, expected):
         f"docker stop -t 60 {_POSTGRES_UPGRADE_CONTAINER} && "
         f"docker rm {_POSTGRES_UPGRADE_CONTAINER}"
     )
-    executor.run(f"docker run --rm --entrypoint rm {on_volume} {marker}")
+
+
+def _copy_marker_command(program):
+    """Return a command that runs ``program`` (``touch`` or ``rm``) on the copy's marker."""
+    return (
+        f"docker run --rm --entrypoint {program} -v {_SERVER_POSTGRES_VOLUME}:/v "
+        f"{postgres.POSTGRES_IMAGE} /v/{_POSTGRES_COPY_MARKER}"
+    )
 
 
 def _undo_shared_postgres_copy(executor, major):
