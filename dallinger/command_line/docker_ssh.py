@@ -392,9 +392,9 @@ def upgrade(host, contact_email, yes):
     none, and starts the shared Caddy, Postgres and Dozzle services. Services
     whose configuration changed are recreated, which briefly interrupts every
     classic app on the server. On a server whose shared database is still on
-    PostgreSQL 12, it first copies every database into PostgreSQL 18, which
-    needs free disk space for about twice their size; the classic apps are
-    stopped until the copy is done, which takes longer for larger databases.
+    PostgreSQL 12, it first copies every database into PostgreSQL 18. The
+    copy needs free disk space for about twice their size, and the classic
+    apps are stopped until it is done, which takes longer for larger databases.
     Deploys never write these files. They are left read-only, so that an
     older Dallinger's deploy fails instead of rewriting them; if one did
     rewrite them, deploys stop until this command restores them.
