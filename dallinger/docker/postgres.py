@@ -8,8 +8,11 @@ volume there; older images use ``/var/lib/postgresql/data``.
 
 New services run :data:`POSTGRES_IMAGE`. Code that starts Postgres on a volume
 that may already hold data asks :func:`volume_major_command` which version
-wrote it and renders :func:`template_vars` for that version. This module has
-no dependencies, so PsyNet can import it to start the same local service.
+wrote it and renders :func:`template_vars` for that version.
+
+PsyNet's ``psynet services ensure`` starts the same local service from its
+own copy of these values, because Dallinger is not one of PsyNet's core
+dependencies; a PsyNet test fails when the two drift apart.
 """
 
 import re

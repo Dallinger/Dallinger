@@ -2021,6 +2021,28 @@ def test_app_stack_keeps_secrets_out_of_the_compose_file():
     )
 
 
+def test_update_of_a_postgres_12_cloudflare_app_keeps_postgres_12():
+    sftp = mock.Mock()
+    docker_ssh_module._upload_app_stack(
+        sftp,
+        FakeExecutor({"PG_VERSION": "12\n"}),
+        {},
+        app="myapp",
+        server="s",
+        public_origin="https://myapp.example",
+        image_name="img",
+        ingress="cloudflare",
+        secrets={"POSTGRES_PASSWORD": "x"},
+    )
+    compose = next(
+        call.args[0].getvalue().decode()
+        for call in sftp.putfo.call_args_list
+        if call.args[1] == "dallinger/myapp/docker-compose.yml"
+    )
+    assert "image: postgres:12" in compose
+    assert "postgres_data:/var/lib/postgresql/data" in compose
+
+
 @pytest.mark.parametrize("auto_recruit, noticed", [("true", True), ("false", False)])
 def test_compose_environment_notes_idle_sleep_waits_for_auto_recruit(
     capsys, auto_recruit, noticed

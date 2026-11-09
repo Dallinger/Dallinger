@@ -290,6 +290,8 @@ def postgres_12_server(server, monkeypatch):
     ``myapp`` runs, ``sleepy`` hibernates and ``oldapp``, deployed by
     Dallinger 12 and stopped, keeps its password in its compose file.
     """
+    # The real df measures this machine's disk; only db_size decides the fit.
+    monkeypatch.setattr(docker_ssh, "_COPY_SPARE_BYTES", 0)
     (server / "volumes").write_text(OLD_PG_VOLUME)
     (server / "pg_version").write_text("12")
     (server / "roles").write_text("dallinger\nmyapp\noldapp\n")

@@ -391,7 +391,10 @@ def upgrade(host, contact_email, yes):
     a ``.bak`` copy of each file it replaces, adds a Dozzle login if there is
     none, and starts the shared Caddy, Postgres and Dozzle services. Services
     whose configuration changed are recreated, which briefly interrupts every
-    classic app on the server.
+    classic app on the server. On a server whose shared database is still on
+    PostgreSQL 12, it first copies every database into PostgreSQL 18, which
+    needs free disk space for about twice their size; the classic apps are
+    stopped until the copy is done, which takes longer for larger databases.
     Deploys never write these files. They are left read-only, so that an
     older Dallinger's deploy fails instead of rewriting them; if one did
     rewrite them, deploys stop until this command restores them.
@@ -720,7 +723,10 @@ def _write_server_files(server, server_info, *, replace, yes=True):
 
     Without ``replace``, a server that already has a server compose file is
     left alone. With it, changed files are listed and, unless ``yes``,
-    confirmed before they are replaced. The shared files are left read-only.
+    confirmed before they are replaced, and a shared database on an older
+    PostgreSQL is first copied into the current one while the running
+    classic apps are stopped (see :func:`_migrate_shared_postgres`). The
+    shared files are left read-only.
     A server with an app called ``root.d`` is refused before anything is
     written. Returns whether the files were written.
     """
@@ -2984,7 +2990,9 @@ def _shared_postgres_to_migrate(executor):
         "copy of the shared database, left by an interrupted `servers upgrade`; "
         f"the old volume {_OLD_SERVER_POSTGRES_VOLUME} is unchanged. Remove the "
         f"copy on the server with `docker rm -f {_POSTGRES_UPGRADE_CONTAINER}; "
-        f"docker volume rm {_SERVER_POSTGRES_VOLUME}`, then run this command again."
+        f"docker volume rm {_SERVER_POSTGRES_VOLUME}`, then run this command again. "
+        "Apps that the interrupted run stopped stay stopped; once the copy is done, "
+        "start each with `docker compose -f ~/dallinger/<app>/docker-compose.yml start`."
     )
 
 

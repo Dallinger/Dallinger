@@ -282,7 +282,14 @@ Once the apps work on the new version, remove the old volume on the server:
 A run that was cut off during the copy, for example by a lost connection,
 leaves an unfinished copy in ``dallinger_dallinger_pg18_data``. The next
 ``servers upgrade`` refuses to use it and prints the commands that remove it;
-after those, it starts the old Postgres again and copies once more.
+after those, it starts the old Postgres again and copies once more. The apps
+that the cut-off run stopped stay stopped, because each run starts again only
+the apps it stopped itself. Once the copy is done, start each of them on the
+server (this also wakes a hibernating app):
+
+.. code-block:: shell
+
+    docker compose -f ~/dallinger/<app>/docker-compose.yml start
 
 Each Cloudflare app has its own Postgres. A new deploy runs PostgreSQL 18; an
 ``--update`` of an app keeps the version that created the app's database

@@ -409,7 +409,10 @@ def test_start_services_replaces_an_old_postgres_container(capsys):
     inspect = mock.Mock(returncode=0, stdout="postgres:12 dallinger_postgres \n")
     with mock.patch.object(docker_cli.subprocess, "run", return_value=inspect) as run:
         assert docker_cli.replace_outdated_postgres_container() == "postgres:12"
-    assert run.call_args.args[0] == ["docker", "rm", "--force", "dallinger_postgres"]
+    assert [call.args[0] for call in run.call_args_list[1:]] == [
+        ["docker", "stop", "dallinger_postgres"],
+        ["docker", "rm", "--force", "dallinger_postgres"],
+    ]
     assert "The old data stays in dallinger_postgres" in capsys.readouterr().out
 
     inspect.stdout = "postgres:18-trixie dallinger_postgres18 \n"

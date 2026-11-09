@@ -110,7 +110,7 @@ def start_services():
 
 
 def replace_outdated_postgres_container():
-    """Remove a local Postgres container that runs an older image.
+    """Stop and remove a local Postgres container that runs a different image.
 
     Its data stays in its own volume, which the new container doesn't mount.
     Returns the image of the removed container, or None.
@@ -139,6 +139,7 @@ def replace_outdated_postgres_container():
         f"The old data stays in {kept}; remove it with `docker volume rm` once "
         "you no longer need it."
     )
+    subprocess.run(["docker", "stop", container], capture_output=True)
     subprocess.run(["docker", "rm", "--force", container], capture_output=True)
     return image
 
