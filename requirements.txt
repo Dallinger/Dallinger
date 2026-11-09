@@ -39,7 +39,7 @@ click==8.5.1
     #   dallinger
     #   flask
     #   rq
-croniter==6.2.4
+croniter==7.0.0
     # via rq
 cryptography==50.0.2
     # via paramiko
