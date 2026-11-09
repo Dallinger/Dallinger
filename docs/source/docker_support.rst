@@ -273,6 +273,17 @@ afterwards. The old volume,
 the shared services start on PostgreSQL 18, the copy is removed and the
 server goes back to PostgreSQL 12 with its apps running; if they fail to start
 on 18, the copy is kept and running ``servers upgrade`` again starts them.
+
+Before the upgrade, make sure that everyone who deploys to the server uses
+Dallinger 13.0 or later, and runs ``servers upgrade`` only with Dallinger 13.1
+or later. A Dallinger 12 classic deploy rewrites the server's
+``docker-compose.yml``, and so does a ``servers upgrade`` from Dallinger 13.0.
+Either one puts the shared Postgres back on PostgreSQL 12 and its old volume.
+The apps then no longer see what they wrote on 18, and the next
+``servers upgrade`` switches back to 18 without what they wrote on 12 in
+between. The read-only shared files stop a Dallinger 12 deploy, but not one
+made as ``root``.
+
 Once the apps work on the new version, remove the old volume on the server:
 
 .. code-block:: shell
