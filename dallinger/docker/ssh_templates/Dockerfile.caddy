@@ -1,0 +1,4 @@
+# Image for the shared Caddy of classic-ingress servers and the per-app front
+# door of docker-ssh deployments. Nothing builds this file: docker_ssh.py reads
+# the FROM line, and Dependabot keeps the pinned tag and digest current.
+FROM caddy:2.10.2@sha256:c3d7ee5d2b11f9dc54f947f68a734c84e9c9666c92c88a7f30b9cba5da182adb

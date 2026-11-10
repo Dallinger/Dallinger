@@ -174,6 +174,8 @@ def _read_pinned_image(name: str) -> str:
 
 CONTROLLER_IMAGE = _read_pinned_image("Dockerfile.controller")
 CLOUDFLARED_IMAGE = _read_pinned_image("Dockerfile.cloudflared")
+CADDY_IMAGE = _read_pinned_image("Dockerfile.caddy")
+DOCKER_COMPOSE_SERVER_TPL.globals.update(caddy_image=CADDY_IMAGE)
 
 
 CADDYFILE_SERVER = """
@@ -5111,6 +5113,7 @@ def get_docker_compose_yml(
         idle_minutes=idle_minutes,
         controller_image=CONTROLLER_IMAGE,
         cloudflared_image=CLOUDFLARED_IMAGE,
+        caddy_image=CADDY_IMAGE,
         compose_project=_compose_project(experiment_id),
         run_as_ssh_user=run_as_ssh_user,
         **postgres.template_vars(postgres_major or postgres.POSTGRES_MAJOR),
