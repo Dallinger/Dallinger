@@ -17,7 +17,9 @@
   retry and names the destroy command that removes it. Destroying such an
   app removes that cache, then the folder if it holds only the files a
   failed deploy leaves (`build-cache-ids`, `logs.jsonl` and an empty
-  `secrets/`); otherwise it leaves the folder and says so. Apps deployed
+  `secrets/`); otherwise it leaves the folder and says so. A tunnel id
+  left in `secrets/` without its token now counts as deployed, so destroy
+  removes that Cloudflare tunnel and its DNS record. Apps deployed
   before this change have no record, so their cache stays; the server's
   `docker builder du` shows it.
 

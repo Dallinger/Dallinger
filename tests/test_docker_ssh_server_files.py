@@ -647,15 +647,16 @@ def test_destroy_removes_the_folder_a_failed_deploy_left(
     assert "left by a failed deploy" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("extra", [".env", "secrets/notes"])
 def test_destroy_leaves_a_failed_deploys_folder_with_other_files(
-    build_cache, failed_deploy, capsys
+    build_cache, failed_deploy, capsys, extra
 ):
-    (failed_deploy / ".env").write_text("KEY=1\n")
+    (failed_deploy / extra).write_text("KEY=1\n")
 
     docker_ssh.destroy.callback(server="lab", app="myapp")
 
     assert list(build_cache.records) == ["base", "other"]
-    assert (failed_deploy / ".env").exists()
+    assert (failed_deploy / extra).exists()
     assert "Left ~/dallinger/myapp on the server" in capsys.readouterr().out
 
 

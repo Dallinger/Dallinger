@@ -3539,8 +3539,9 @@ def _deploy_cloudflare_in_mode(
         )
     except Exception:
         if tunnel["tunnel_id"] != own_tunnel_id:
-            # Nothing on the server records this new tunnel, so no later
-            # deploy or destroy could find it.
+            # A saved tunnel id would let destroy find this new tunnel, but
+            # the install may have failed before saving it, and an app whose
+            # token is missing can't use the tunnel anyway.
             print("Deleting the new Cloudflare tunnel, which could not be recorded.")
             delete_experiment_tunnel(
                 account_id=settings["account_id"],
@@ -4515,7 +4516,8 @@ def _remove_failed_deploy_folder(executor, app):
         executor.run(
             f'd={app_dir}; if [ ! -d "$d" ]; then echo Gone; '
             f'elif [ -n "$(ls -A "$d" | grep -vxE \'{BUILD_CACHE_IDS_FILE}|'
-            f"{re.escape(JSON_LOGFILE)}|secrets')\" ]; then echo Kept; "
+            f"{re.escape(JSON_LOGFILE)}|secrets')\" ] || "
+            '[ -n "$(ls -A "$d/secrets" 2>/dev/null)" ]; then echo Kept; '
             'else { [ ! -e "$d/secrets" ] || rmdir "$d/secrets"; } && '
             f'rm -f "$d/{BUILD_CACHE_IDS_FILE}" "$d/{JSON_LOGFILE}" && rmdir "$d" '
             "&& echo Removed; fi",
