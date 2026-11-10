@@ -33,9 +33,10 @@
   longer updates. 1.26 fixes several crash and denial-of-service bugs and,
   in transaction pooling, keeps one request's `SET search_path` (on
   PostgreSQL 18) or `SET default_transaction_read_only` (on PostgreSQL 14
-  and later) from reaching the next request on the same server connection. PgBouncer now checks app
-  logins with `scram-sha-256` instead of `md5`, and the app's database user
-  can no longer open PgBouncer's admin console. The image is pinned by tag
+  and later) from reaching the next request on the same server
+  connection. PgBouncer now checks app logins with `scram-sha-256` instead
+  of `md5`, and the app's database user can no longer open PgBouncer's
+  admin console. The image is pinned by tag
   and digest in `dallinger/docker/ssh_templates/Dockerfile.pgbouncer`, like
   cloudflared, so Dependabot opens pull requests for new releases. Existing
   apps switch when they are next deployed with `--update`.
