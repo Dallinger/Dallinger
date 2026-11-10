@@ -146,6 +146,28 @@ class TestHerokuClockTasks:
 
             check.assert_called()
 
+    def test_warns_only_on_idle_transactions_in_this_database(self, capsys):
+        from sqlalchemy import create_engine, text
+        from sqlalchemy.engine import make_url
+
+        from dallinger import db
+        from dallinger.heroku.clock import warn_on_idle_transactions
+
+        other_db = create_engine(make_url(db.db_url).set(database="postgres"))
+        try:
+            with db.engine.connect() as ours, other_db.connect() as theirs:
+                ours.execute(text("SELECT 'ours'"))
+                theirs.execute(text("SELECT 'theirs'"))
+                time.sleep(1.5)
+                warn_on_idle_transactions()
+        finally:
+            other_db.dispose()
+
+        out = capsys.readouterr().out
+        assert "SELECT 'ours'" in out
+        assert "transaction_age=" in out
+        assert "SELECT 'theirs'" not in out
+
     def test_does_nothing_if_assignment_still_current(
         self, a, active_config, run_check, recruiters
     ):

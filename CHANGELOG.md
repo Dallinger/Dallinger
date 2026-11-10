@@ -39,6 +39,12 @@
   Before, every `v*` tag moved them, so a patch to an older release line
   (such as 12.4.1 after 13.0.0) or a pre-release tag replaced `latest`
   with an older or unfinished image.
+- The clock's "Session idle in transaction!" warning only reports sessions
+  in the experiment's own database. Before, on a shared PostgreSQL server
+  (such as parallel local runs or tests), it also reported other databases'
+  transactions. The warning now fires when a session has been idle for over
+  1 second and shows the real `idle_time` alongside the `transaction_age`;
+  before, it labelled the transaction's age as `idle_time`.
 
 ## [v13.0.0](https://github.com/dallinger/dallinger/tree/v13.0.0) (2026-11-07)
 
