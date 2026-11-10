@@ -21,7 +21,7 @@ Start services needed by dallinger:
 .. code-block:: shell
 
     docker run -d --name dallinger_redis --network=dallinger -v dallinger_redis:/data redis redis-server --appendonly yes
-    docker run -d --name dallinger_postgres --network=dallinger -e POSTGRES_USER=dallinger -e POSTGRES_PASSWORD=dallinger -e POSTGRES_DB=dallinger -v dallinger_postgres:/var/lib/postgresql/data postgres:12 postgres -c jit=off
+    docker run -d --name dallinger_postgres --network=dallinger -e POSTGRES_USER=dallinger -e POSTGRES_PASSWORD=dallinger -e POSTGRES_DB=dallinger -v dallinger_postgres18:/var/lib/postgresql postgres:18-trixie postgres -c jit=off
 
 If you have these already created you can remove the existing ones and recreate them. To remove the existing ones run:
 
@@ -38,9 +38,13 @@ or you can start the containers you have:
     # Needed if you want to start stopped containers
     docker start dallinger_redis dallinger_postgres
 
-A ``dallinger_postgres`` container created before Dallinger started passing
-``-c jit=off`` keeps JIT on when started this way. To turn JIT off, run
-``docker stop dallinger_postgres && docker rm dallinger_postgres`` and then the ``docker run`` command above.
+A ``dallinger_postgres`` container created by Dallinger 13.0 or earlier runs
+PostgreSQL 12, with its data in the ``dallinger_postgres`` volume, which
+PostgreSQL 18 can't open. Remove the container with
+``docker stop dallinger_postgres && docker rm dallinger_postgres`` and run the
+``docker run`` command above, which starts with an empty database in the new
+``dallinger_postgres18`` volume. Once you no longer need the old data, remove
+it with ``docker volume rm dallinger_postgres``.
 
 Start adminer:
 

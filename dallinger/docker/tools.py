@@ -25,6 +25,7 @@ from packaging.requirements import InvalidRequirement, Requirement
 from packaging.utils import canonicalize_name
 from packaging.version import InvalidVersion, Version
 
+from dallinger.docker import postgres
 from dallinger.docker.wheel_filename import parse_wheel_filename
 from dallinger.utils import (
     JSON_LOGFILE,
@@ -84,6 +85,7 @@ def docker_worker_processes(config):
 docker_compose_template = Template(
     abspath_from_egg("dallinger", "dallinger/docker/docker-compose.yml.j2").read_text()
 )
+docker_compose_template.globals.update(postgres.template_vars())
 
 # Appended to custom Dockerfiles when a local Dallinger wheel is staged, so the
 # image runs that tree even if the Dockerfile installed a pinned Dallinger.

@@ -92,15 +92,15 @@ The easiest way to install Postgresql :ref:`is to use docker <docker-for-postgre
 On MacOS, we recommend installing using Homebrew:
 ::
 
-    brew install postgresql@12
-    brew link postgresql@12
+    brew install postgresql@18
+    brew link postgresql@18
 
 
 Postgresql can then be started and stopped using:
 ::
 
-    brew services start postgresql@12
-    brew services stop postgresql@12
+    brew services start postgresql@18
+    brew services stop postgresql@18
 
 
 Create the databases

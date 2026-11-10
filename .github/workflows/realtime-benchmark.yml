@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 60
     services:
       postgres:
-        image: postgres:12
+        image: postgres:18-trixie
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
