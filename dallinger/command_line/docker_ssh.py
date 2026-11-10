@@ -2523,7 +2523,8 @@ def _built_image(
     ``push_build``. ``app`` is the deployed app name, which names the image
     when ``docker_image_base_name`` is unset. With ``remove_for_app``, the id
     of the new app the image is for, an image built here is removed again if
-    the block raises (see ``_remove_aborted_build``).
+    the block raises (see ``_remove_aborted_build``); if the build or the
+    block raises, the user is told how to remove the build cache it left.
     """
     from dallinger.command_line.docker import push_image
     from dallinger.docker.tools import (
@@ -2555,38 +2556,50 @@ def _built_image(
             quiet=True,
         )
         cache_before = None if local_build else _build_cache_ids_or_none(docker_client)
+        cache_recorded = False
         try:
-            image_name = build_image(
-                tmp_dir,
-                image_base_name(config, app, _PUSH_OPTIONS if push_build else None),
-                out=Output(),
-                image_tag=docker_tag_from_experiment_id(config.get("id")),
-                quiet=True,
-            )
-        finally:
-            if cache_before is not None:
-                _record_build_cache(docker_client, server, app, cache_before)
-        built_image = image_name
-
-        try:
-            remote_build = not local_build
-            if remote_build and not push_build:
-                # If built remotely and not pushing, the image is only on the remote daemon.
-                # We need to get its full name (repo:tag) for deployment.
-                # The build_image function already returns the image name, so we use that.
-                logging.getLogger(__name__).debug(
-                    "Image %s built remotely, skipping push to registry "
-                    "because --push-build was not selected.",
-                    image_name,
+            try:
+                image_name = build_image(
+                    tmp_dir,
+                    image_base_name(config, app, _PUSH_OPTIONS if push_build else None),
+                    out=Output(),
+                    image_tag=docker_tag_from_experiment_id(config.get("id")),
+                    quiet=True,
                 )
-            else:
-                # If it's a local build, or if it's a remote build and push_build, then push.
-                image_name = push_image(image_name)
-            yield image_name
+            finally:
+                if cache_before is not None:
+                    cache_recorded = _record_build_cache(
+                        docker_client, server, app, cache_before
+                    )
+            built_image = image_name
+
+            try:
+                remote_build = not local_build
+                if remote_build and not push_build:
+                    # If built remotely and not pushing, the image is only on the remote daemon.
+                    # We need to get its full name (repo:tag) for deployment.
+                    # The build_image function already returns the image name, so we use that.
+                    logging.getLogger(__name__).debug(
+                        "Image %s built remotely, skipping push to registry "
+                        "because --push-build was not selected.",
+                        image_name,
+                    )
+                else:
+                    # If it's a local build, or if it's a remote build and push_build, then push.
+                    image_name = push_image(image_name)
+                yield image_name
+            except BaseException:
+                if remove_for_app:
+                    _remove_aborted_build(
+                        docker_client, built_image, server, local_build, remove_for_app
+                    )
+                raise
         except BaseException:
-            if remove_for_app:
-                _remove_aborted_build(
-                    docker_client, built_image, server, local_build, remove_for_app
+            # The cache is kept, so that a retry builds faster.
+            if remove_for_app and cache_recorded:
+                print(
+                    f"`dallinger docker-ssh destroy --server {server} --app "
+                    f"{remove_for_app}` removes the build cache this deploy left."
                 )
             raise
 
@@ -2671,7 +2684,8 @@ def _record_build_cache(docker_client, server, app, before):
 
     The list is kept across updates, whose builds reuse earlier records. A
     build by another app at the same time can add its records too; pruning
-    those only makes that app's next build slower.
+    those only makes that app's next build slower. Returns whether any
+    records were added.
     """
     try:
         before = set(before)
@@ -2682,11 +2696,13 @@ def _record_build_cache(docker_client, server, app, before):
                 f"mkdir -p {app_dir} && printf '%s\\n' {' '.join(map(quote, new))} "
                 f">> {app_dir}/{BUILD_CACHE_IDS_FILE}"
             )
+        return bool(new)
     except Exception as exc:
         print(
             f"Warning: could not record the build cache of {app}, so destroy "
             f"won't remove it: {exc}"
         )
+        return False
 
 
 def _format_bytes(size):
@@ -2738,13 +2754,21 @@ def _prune_app_build_cache(executor, app, server):
         remaining = sorted(recorded - removed)
     if remaining:
         # App names start with a letter or digit, so no app takes this name.
-        executor.run(
+        # ``mv`` would move the file into a directory of that name.
+        written = executor.run(
             f"tmp=$(mktemp ~/dallinger/.{BUILD_CACHE_LEFTOVERS}.XXXXXX) && "
-            f"printf '%s\\n' {' '.join(map(quote, remaining))} > \"$tmp\" "
-            f'&& mv "$tmp" {leftovers_file}'
+            f"{{ printf '%s\\n' {' '.join(map(quote, remaining))} > \"$tmp\" "
+            f'&& [ ! -d {leftovers_file} ] && mv -f "$tmp" {leftovers_file} '
+            '&& echo Yes || { rm -f "$tmp"; false; }; }',
+            raise_=False,
         )
+        if not written:
+            print(
+                f"Warning: could not write {leftovers_file} on the server, so a "
+                f"later destroy won't remove this build cache: {' '.join(remaining)}"
+            )
     else:
-        executor.run(f"rm -f {leftovers_file}")
+        executor.run(f"rm -f {leftovers_file}", raise_=False)
     if removed:
         sources = [f"the build cache of {app}"] if removed & own else []
         if removed - own:
@@ -4391,6 +4415,7 @@ def destroy(
         f"{BUILD_CACHE_IDS_FILE} && echo Yes",
         raise_=False,
     )
+    present = deployed or build_cache_only
     manifest = _load_remote_manifests(executor, [app]).get(app) if deployed else None
     if manifest:
         ingress = manifest.ingress
@@ -4399,10 +4424,10 @@ def destroy(
     else:
         ingress = INGRESS_CLASSIC
     data = _experiment_data(executor, app, cloudflare=ingress == INGRESS_CLOUDFLARE)
-    if not deployed and not build_cache_only and not data and remove_data:
+    if not present and not data and remove_data:
         print(f"Nothing left to delete for {app} on {ssh_host}.")
         return
-    if not deployed and not build_cache_only:
+    if not present:
         print(f"App {app} is not deployed.")
         if not data:
             print(f"No experiment data of {app} is left on {ssh_host}.")
@@ -4467,7 +4492,7 @@ def destroy(
             f"A new deploy of {app} without --update deletes its database and "
             f"volumes, but reuses ~/dallinger-data/{app}."
         )
-        if not deployed and not build_cache_only:
+        if not present:
             raise click.ClickException(
                 f"App {app} is not deployed, so nothing was destroyed."
             )

@@ -1,3 +1,4 @@
+import contextlib
 import importlib
 import json
 from unittest import mock
@@ -202,3 +203,39 @@ def test_aborted_build_cleanup_keeps_an_image_another_app_uses(monkeypatch, caps
 
     client.images.remove.assert_not_called()
     assert "because another app on the server uses it" in capsys.readouterr().out
+
+
+def test_failed_new_deploy_build_explains_how_to_remove_its_cache(monkeypatch, capsys):
+    client = _client()
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_image_docker_client",
+        lambda *a, **k: contextlib.nullcontext(client),
+    )
+    monkeypatch.setattr(
+        docker_ssh_module, "_build_cache_ids", mock.Mock(side_effect=[[], ["deps"]])
+    )
+    executor = mock.Mock()
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", lambda s: executor)
+    monkeypatch.setattr(
+        docker_ssh_module, "setup_experiment", lambda *a, **k: ("id", "/tmp/x")
+    )
+    config = mock.Mock()
+    config.get.side_effect = lambda key, default=None: {"id": "a" * 8}.get(key)
+    config.as_dict.return_value = {}
+    with (
+        mock.patch(
+            "dallinger.docker.tools.build_image", side_effect=RuntimeError("no space")
+        ),
+        pytest.raises(RuntimeError),
+        docker_ssh_module._built_image(
+            config, [], None, "lab", False, False, app="app", remove_for_app="dlgr-1"
+        ),
+    ):
+        pass
+
+    assert "build-cache-ids" in executor.run.call_args.args[0]
+    assert (
+        "`dallinger docker-ssh destroy --server lab --app dlgr-1` removes the "
+        "build cache this deploy left." in capsys.readouterr().out
+    )

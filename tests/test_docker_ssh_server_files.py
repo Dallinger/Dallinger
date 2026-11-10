@@ -620,6 +620,34 @@ def test_destroy_removes_the_folder_a_failed_deploy_left(build_cache, server, ca
     assert "left by a failed deploy" in capsys.readouterr().out
 
 
+def test_destroy_leaves_a_folder_with_more_than_the_build_cache_record(
+    build_cache, server, capsys
+):
+    build_cache.build("myapp", {"deps": "base"})
+    (server / "dallinger/myapp/docker-compose.yml").unlink()
+    (server / "dallinger/myapp/.env").write_text("KEY=1\n")
+
+    with pytest.raises(click.Abort):
+        docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert "App myapp is not deployed." in capsys.readouterr().out
+    assert (server / "dallinger/myapp/.env").exists()
+    assert list(build_cache.records) == ["base", "other", "deps"]
+
+
+def test_destroy_warns_when_it_cant_save_the_leftovers(build_cache, server, capsys):
+    build_cache.build("myapp", {"deps": "base"})
+    build_cache.shared = {"deps"}
+    (server / "dallinger/build-cache-leftovers").mkdir()
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    out = capsys.readouterr().out
+    assert "could not write ~/dallinger/build-cache-leftovers" in out
+    assert "App myapp removed." in out
+    assert not list((server / "dallinger/build-cache-leftovers").iterdir())
+
+
 def test_ip_server_without_a_saved_dns_host_uses_the_deploy_dns_host(
     server, monkeypatch, capsys
 ):

@@ -9,12 +9,14 @@
   (several GB for a few builds of a large experiment). Deploys and updates
   that build on the server record the cache their builds create, in
   `~/dallinger/<app>/build-cache-ids`, and destroy removes only that cache,
-  leaving other apps' caches alone. Cache that another app's image or build
-  still uses is listed in `~/dallinger/build-cache-leftovers`, and a later
-  destroy removes it once it is unused, so `build-cache-leftovers` is now a
-  reserved app name. If a first deploy fails after its build, so that the
-  app's folder holds only `build-cache-ids`, destroying the app removes that
-  cache and the folder. Apps deployed before this change have no record, so
+  leaving other apps' caches alone. Cache that another app's image shares, or
+  that a running build uses, is listed in `~/dallinger/build-cache-leftovers`,
+  and a later destroy removes it once it is unused, so
+  `build-cache-leftovers` is now a reserved app name. If a first deploy's
+  build fails, or the deploy fails after it, the deploy keeps the cache for a
+  retry and names the destroy command that removes it; as the app's folder
+  then holds only `build-cache-ids`, destroying the app removes that cache
+  and the folder. Apps deployed before this change have no record, so
   their cache stays; `docker builder du` on the server shows it.
 
 - Only the highest `X.Y.Z` release tags the `latest` Docker images
