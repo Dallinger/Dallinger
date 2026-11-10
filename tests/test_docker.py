@@ -1737,6 +1737,25 @@ def test_frontdoor_caddyfile_validates_on_the_pinned_caddy():
     )
 
 
+def test_server_caddyfile_validates_on_the_pinned_caddy(tmp_path):
+    from dallinger.command_line.docker_ssh import CADDY_IMAGE, CADDYFILE_SERVER
+
+    tls = "tls ops@example.org"
+    (tmp_path / "Caddyfile").write_text(
+        CADDYFILE_SERVER.format(host="lab.example.org", tls=tls)
+    )
+    (tmp_path / "caddy.d").mkdir()
+    (tmp_path / "caddy.d" / "demo").write_text(
+        f"demo.example.org {{\n    {tls}\n    reverse_proxy demo_web:5000\n}}"
+    )
+    (tmp_path / "root.d").mkdir()
+    (tmp_path / "root.d" / "home").write_text("reverse_proxy home_web:5000\n")
+    _docker(
+        *("run", "--rm", "-v", f"{tmp_path}:/etc/caddy:ro", CADDY_IMAGE),
+        *("caddy", "validate", "--config", "/etc/caddy/Caddyfile"),
+    )
+
+
 @pytest.fixture
 def frontdoor(tmp_path):
     """Run the front-door Caddyfile in front of echo servers for web and controller.

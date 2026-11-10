@@ -1222,7 +1222,7 @@ def test_experiment_image_from_compose_reads_web_not_infra_images():
     assert parsed not in {
         "redis",
         POSTGRES_IMAGE,
-        "caddy:2",
+        docker_ssh_module.CADDY_IMAGE,
         "docker.io/bitnamilegacy/pgbouncer:1.24.1",
         "amir20/dozzle:v10.0.2",
     }
@@ -1306,7 +1306,7 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch, capsys):
     for forbidden in (
         "redis",
         POSTGRES_IMAGE,
-        "caddy:2",
+        "caddy",
         "pgbouncer",
         "amir20/dozzle",
     ):

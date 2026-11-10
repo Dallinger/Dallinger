@@ -132,7 +132,6 @@ DOCKER_COMPOSE_SERVER_TPL = Template(
         "dallinger", "dallinger/docker/ssh_templates/docker-compose-server.yml.j2"
     ).read_text()
 )
-DOCKER_COMPOSE_SERVER_TPL.globals.update(postgres.template_vars())
 
 _SSH_TEMPLATE_ENV = Environment(
     loader=FileSystemLoader(
@@ -175,7 +174,9 @@ def _read_pinned_image(name: str) -> str:
 CONTROLLER_IMAGE = _read_pinned_image("Dockerfile.controller")
 CLOUDFLARED_IMAGE = _read_pinned_image("Dockerfile.cloudflared")
 CADDY_IMAGE = _read_pinned_image("Dockerfile.caddy")
-DOCKER_COMPOSE_SERVER_TPL.globals.update(caddy_image=CADDY_IMAGE)
+DOCKER_COMPOSE_SERVER_TPL.globals.update(
+    postgres.template_vars(), caddy_image=CADDY_IMAGE
+)
 
 
 CADDYFILE_SERVER = """
