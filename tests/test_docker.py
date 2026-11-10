@@ -397,6 +397,19 @@ def test_caddy_services_use_the_pinned_image():
     assert re.fullmatch(r"caddy:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}", CADDY_IMAGE)
 
 
+def test_dozzle_uses_the_pinned_image():
+    from dallinger.command_line.docker_ssh import (
+        DOCKER_COMPOSE_SERVER_TPL,
+        DOZZLE_IMAGE,
+    )
+
+    server = yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render())
+    assert server["services"]["dozzle"]["image"] == DOZZLE_IMAGE
+    assert re.fullmatch(
+        r"amir20/dozzle:v\d+\.\d+\.\d+@sha256:[0-9a-f]{64}", DOZZLE_IMAGE
+    )
+
+
 def test_an_existing_cloudflare_app_keeps_the_postgres_version_of_its_data(capsys):
     from dallinger.command_line.docker_ssh import _app_postgres_major
 

@@ -175,8 +175,9 @@ CONTROLLER_IMAGE = _read_pinned_image("Dockerfile.controller")
 CLOUDFLARED_IMAGE = _read_pinned_image("Dockerfile.cloudflared")
 PGBOUNCER_IMAGE = _read_pinned_image("Dockerfile.pgbouncer")
 CADDY_IMAGE = _read_pinned_image("Dockerfile.caddy")
+DOZZLE_IMAGE = _read_pinned_image("Dockerfile.dozzle")
 DOCKER_COMPOSE_SERVER_TPL.globals.update(
-    postgres.template_vars(), caddy_image=CADDY_IMAGE
+    postgres.template_vars(), caddy_image=CADDY_IMAGE, dozzle_image=DOZZLE_IMAGE
 )
 
 

@@ -131,6 +131,7 @@ Repository = "https://github.com/Dallinger/Dallinger"
 "dallinger/docker/ssh_templates/Dockerfile.cloudflared" = "dallinger/docker/ssh_templates/Dockerfile.cloudflared"
 "dallinger/docker/ssh_templates/Dockerfile.pgbouncer" = "dallinger/docker/ssh_templates/Dockerfile.pgbouncer"
 "dallinger/docker/ssh_templates/Dockerfile.caddy" = "dallinger/docker/ssh_templates/Dockerfile.caddy"
+"dallinger/docker/ssh_templates/Dockerfile.dozzle" = "dallinger/docker/ssh_templates/Dockerfile.dozzle"
 "dallinger/docker/ssh_templates/docker-compose-server.yml.j2" = "dallinger/docker/ssh_templates/docker-compose-server.yml.j2"
 
 [tool.hatch.build.targets.wheel]

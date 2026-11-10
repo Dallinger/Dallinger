@@ -65,6 +65,12 @@
   and digest in `dallinger/docker/ssh_templates/Dockerfile.pgbouncer`, like
   cloudflared, so Dependabot opens pull requests for new releases. Existing
   apps switch when they are next deployed with `--update`.
+- Dependabot now opens pull requests for new Dozzle releases. The log viewer
+  of classic-ingress docker-ssh servers is pinned by tag and digest in
+  `dallinger/docker/ssh_templates/Dockerfile.dozzle`, like cloudflared,
+  instead of by tag in the server Compose template. It stays at Dozzle
+  10.0.2 for now. A server picks up the digest pin when you run
+  `dallinger docker-ssh servers upgrade`.
 
 ### Fixed
 

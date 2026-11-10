@@ -1,0 +1,5 @@
+# Image for the Dozzle log viewer of classic-ingress docker-ssh servers.
+# Nothing builds this file: docker_ssh.py reads the FROM line, and Dependabot
+# keeps the pinned tag and digest current. Keep the digest, because this
+# container has the Docker socket.
+FROM amir20/dozzle:v10.0.2@sha256:f1f82c27077f39c0a563f24e9929d36f23bdf9c1590217794a08ea49677201cf
