@@ -761,7 +761,10 @@ its Caddy configuration or Cloudflare tunnel,
 and its experiment image unless another app still uses that image. When you
 redeploy an app with ``--update``, the image it ran before is removed in the
 same way once the new containers are up. If the update fails before then, the
-old image stays on the server. A root-domain app deployed by an older
+old image stays on the server. Destroy also removes the Docker build cache
+that the app's builds on the server created, which deploys record in
+``~/dallinger/$APP_ID/build-cache-ids``; other apps' build cache stays. Updates
+keep the cache, so that rebuilds reuse it. A root-domain app deployed by an older
 Dallinger has its route inside the server's shared Caddyfile, which destroy
 leaves alone: it warns that the server's own host still points to the app and
 names ``servers upgrade``, which removes that route.

@@ -4,6 +4,15 @@
 
 ### Fixed
 
+- `dallinger docker-ssh destroy` also removes the app's Docker build cache
+  from the server, which before stayed behind after the image was removed
+  (several GB for a few builds of a large experiment). Deploys and updates
+  that build on the server record the cache their builds create, in
+  `~/dallinger/<app>/build-cache-ids`, and destroy removes only that cache,
+  leaving other apps' caches alone. Apps deployed before this change have
+  no record, so their cache stays; `docker builder du` on the server shows
+  it.
+
 - Only the highest `X.Y.Z` release tags the `latest` Docker images
   (`ghcr.io/dallinger/dallinger:latest` and `dallinger-bot:latest`).
   Before, every `v*` tag moved them, so a patch to an older release line

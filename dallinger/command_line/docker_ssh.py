@@ -2552,6 +2552,7 @@ def _built_image(
             experiment_files=experiment_files,
             quiet=True,
         )
+        cache_before = None if local_build else _build_cache_ids_or_none(docker_client)
         image_name = build_image(
             tmp_dir,
             image_base_name(config, app, _PUSH_OPTIONS if push_build else None),
@@ -2560,6 +2561,8 @@ def _built_image(
             quiet=True,
         )
         built_image = image_name
+        if cache_before is not None:
+            _record_build_cache(docker_client, server, app, cache_before)
 
         try:
             remote_build = not local_build
@@ -2618,6 +2621,103 @@ def _remove_aborted_build(docker_client, image_name, server, local_build, app):
             print(f"Kept the image {image_name} built for this deploy: {exc}")
     else:
         print(f"Removed the image {image_name} built for this deploy.")
+
+
+# Lists, oldest first, the build cache records that the app's builds on the
+# server created; destroy prunes them. Build cache records carry no image
+# labels, so this is how they are told apart from other apps' caches.
+BUILD_CACHE_IDS_FILE = "build-cache-ids"
+
+
+def _build_cache_ids(docker_client):
+    """Return the ids of the daemon's build cache records, oldest first."""
+    api = docker_client.api
+    # ``type`` limits the listing to the build cache (API 1.42); older daemons ignore it.
+    response = api._result(
+        api._get(api._url("/system/df"), params={"type": "build-cache"}), True
+    )
+    records = sorted(response.get("BuildCache") or [], key=lambda r: r["CreatedAt"])
+    return [record["ID"] for record in records]
+
+
+def _build_cache_ids_or_none(docker_client):
+    """Return the build cache ids, or None with a warning if they can't be listed."""
+    try:
+        return _build_cache_ids(docker_client)
+    except Exception as exc:
+        print(
+            f"Warning: could not list the server's build cache, so destroy won't "
+            f"remove the cache of this build: {exc}"
+        )
+        return None
+
+
+def _record_build_cache(docker_client, server, app, before):
+    """Add the build cache records created since ``before`` to the app's list.
+
+    The list is kept across updates, whose builds reuse earlier records. A
+    build by another app at the same time can add its records too; pruning
+    those only makes that app's next build slower.
+    """
+    try:
+        before = set(before)
+        new = [i for i in _build_cache_ids(docker_client) if i not in before]
+        if new:
+            app_dir = f"~/dallinger/{quote(app)}"
+            _executor_for_server(server).run(
+                f"mkdir -p {app_dir} && printf '%s\\n' {' '.join(map(quote, new))} "
+                f">> {app_dir}/{BUILD_CACHE_IDS_FILE}"
+            )
+    except Exception as exc:
+        print(
+            f"Warning: could not record the build cache of {app}, so destroy "
+            f"won't remove it: {exc}"
+        )
+
+
+def _prune_build_cache(docker_client, ids):
+    """Remove the build cache records ``ids`` (oldest first) if unused.
+
+    Returns how many records were removed and the bytes freed. A record can't
+    go while a record built on it exists, and those are newer, so the newest
+    go first. Records in use stay.
+    """
+    existing = set(_build_cache_ids(docker_client))
+    removed = freed = 0
+    for cache_id in reversed(ids):
+        if cache_id in existing:
+            # The daemon takes one id per prune call.
+            result = docker_client.api.prune_builds(filters={"id": cache_id})
+            removed += len(result.get("CachesDeleted") or [])
+            freed += result.get("SpaceReclaimed") or 0
+    return removed, freed
+
+
+def _format_bytes(size):
+    """Format a byte count such as ``820 MB`` or ``6.1 GB``."""
+    return f"{size / 1e9:.1f} GB" if size >= 1e9 else f"{size / 1e6:.0f} MB"
+
+
+def _prune_app_build_cache(executor, app, server):
+    """Remove the build cache recorded for ``app`` on the server."""
+    ids = executor.run(
+        f"cat ~/dallinger/{quote(app)}/{BUILD_CACHE_IDS_FILE} 2>/dev/null",
+        raise_=False,
+    )
+    ids = (ids or "").split()
+    if not ids:
+        return
+    try:
+        with _image_docker_client(server, local_build=False) as docker_client:
+            removed, freed = _prune_build_cache(docker_client, ids)
+    except Exception as exc:
+        print(
+            f"Warning: could not remove the build cache of {app}: {exc}\n"
+            "`docker builder du` on the server shows the build cache."
+        )
+        return
+    if removed:
+        print(f"Removed the build cache of {app} ({_format_bytes(freed)}).")
 
 
 def _report_ssh_failures(f):
@@ -4336,7 +4436,8 @@ def _tear_down_app(
 ):
     """Stop and remove a deployed app, keeping its data volumes and folder.
 
-    Its image is removed too unless another app uses it or it is ``keep_image``.
+    Its image is removed too unless another app uses it or it is ``keep_image``,
+    and so is the unused build cache its builds on the server recorded.
     """
     quoted_app = quote(app)
 
@@ -4387,6 +4488,7 @@ def _tear_down_app(
             raise click.Abort()
     if experiment_image != keep_image:
         remove_unshared_experiment_image(executor, experiment_image, except_app=app)
+    _prune_app_build_cache(executor, app, server)
     executor.run(f"rm -rf ~/dallinger/{quoted_app}/")
     print(f"App {app} removed.")
 

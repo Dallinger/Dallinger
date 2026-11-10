@@ -499,6 +499,44 @@ def test_destroy_leaves_an_old_root_domain_caddyfile_alone(server, capsys):
     assert "servers upgrade --host lab" in capsys.readouterr().out
 
 
+class FakeBuildCache:
+    """A daemon's build cache records (id to parent); a parent can't be pruned."""
+
+    def __init__(self, records):
+        self.records, self.api = records, self
+
+    def prune_builds(self, filters):
+        cache_id = filters["id"]
+        if cache_id in self.records.values():
+            return {"CachesDeleted": None, "SpaceReclaimed": 0}
+        del self.records[cache_id]
+        return {"CachesDeleted": [cache_id], "SpaceReclaimed": 1_500_000_000}
+
+
+def test_destroy_removes_only_the_build_cache_of_the_apps_builds(
+    server, monkeypatch, capsys
+):
+    # A base image pulled earlier, and a layer another app's build added on it.
+    cache = FakeBuildCache({"base": None, "other": "base"})
+    monkeypatch.setattr(docker_ssh, "_build_cache_ids", lambda c: list(c.records))
+    monkeypatch.setattr(
+        docker_ssh,
+        "_image_docker_client",
+        lambda *a, **k: contextlib.nullcontext(cache),
+    )
+    # A deploy of myapp, then an update that reuses the deploy's dependencies.
+    for layers in ({"deps": "base", "code1": "deps"}, {"code2": "deps"}):
+        before = list(cache.records)
+        cache.records.update(layers)
+        docker_ssh._record_build_cache(cache, "lab", "myapp", before)
+    (server / "dallinger/myapp/docker-compose.yml").write_text("services: {}\n")
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert list(cache.records) == ["base", "other"]
+    assert "Removed the build cache of myapp (4.5 GB)." in capsys.readouterr().out
+
+
 def test_ip_server_without_a_saved_dns_host_uses_the_deploy_dns_host(
     server, monkeypatch, capsys
 ):
