@@ -1157,6 +1157,74 @@ def test_docker_ssh_build_assembles_the_validated_source(
     assert build_image.call_args.kwargs["quiet"] is True
 
 
+class FakeBuildCacheListing:
+    """A Docker client whose ``/system/df`` returns ``listings`` in turn."""
+
+    def __init__(self, *listings):
+        self.listings, self.api = list(listings), self
+
+    def _url(self, path):
+        return path
+
+    def _get(self, url, params):
+        return {"BuildCache": self.listings.pop(0)}
+
+    def _result(self, response, json):
+        return response
+
+    def close(self):
+        pass
+
+
+@pytest.mark.parametrize("local_build", [False, True])
+def test_docker_ssh_build_records_its_build_cache_on_the_server(
+    tmp_path, monkeypatch, local_build
+):
+    pytest.importorskip("docker")
+    old = {"ID": "old", "CreatedAt": "2026-11-10T07:00:00Z"}
+    # The daemon trims trailing zeros, so "b" sorts first as a string.
+    new = [
+        {"ID": "b", "CreatedAt": "2026-11-10T08:00:00.1Z"},
+        {"ID": "a", "CreatedAt": "2026-11-10T08:00:00Z"},
+    ]
+    client = FakeBuildCacheListing([old], [old, *new])
+    server = mock.Mock()
+    server.run.side_effect = lambda cmd: subprocess.run(
+        ["bash", "-c", cmd], env={"HOME": str(tmp_path)}, check=True
+    )
+    config = mock.Mock()
+    config.get.side_effect = lambda key, default=None: {
+        "id": "a" * 8,
+        "docker_image_base_name": "ghcr.io/lab/exp",
+    }.get(key)
+    monkeypatch.setattr(
+        docker_ssh_module, "CONFIGURED_HOSTS", {"test-server": {"host": "host"}}
+    )
+    with (
+        mock.patch.object(
+            docker_ssh_module, "setup_experiment", return_value=(None, tmp_path)
+        ),
+        mock.patch.object(docker_ssh_module, "ensure_remote_host_in_known_hosts"),
+        mock.patch.object(docker_ssh_module, "add_server_pem_to_ssh_agent"),
+        mock.patch.object(
+            docker_ssh_module, "_executor_for_server", return_value=server
+        ),
+        mock.patch("docker.from_env", return_value=client),
+        mock.patch("dallinger.docker.tools.build_image", return_value="built:image"),
+        mock.patch("dallinger.command_line.docker.push_image"),
+    ):
+        with docker_ssh_module._built_image(
+            config, mock.Mock(), None, "test-server", local_build, False, app="myapp"
+        ):
+            pass
+
+    record = tmp_path / "dallinger/myapp/build-cache-ids"
+    if local_build:
+        assert not record.exists()
+    else:
+        assert record.read_text() == "a\nb\n"
+
+
 def test_docker_ssh_local_build_pushes_without_reassembling(tmp_path):
     source = mock.Mock(deployment_plan=object())
     config = mock.Mock()

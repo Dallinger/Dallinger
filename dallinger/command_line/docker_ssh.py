@@ -17,6 +17,7 @@ import warnings
 import zipfile
 from contextlib import ExitStack, contextmanager, redirect_stdout
 from dataclasses import dataclass
+from datetime import datetime
 from functools import wraps
 from getpass import getuser
 from io import BytesIO
@@ -1153,7 +1154,7 @@ option_deploy_delete_data_command = click.option(
 
 
 # Names the server already uses, mapped to what uses them: subdomains it
-# serves (see CADDYFILE_SERVER), directories beside the app directories in
+# serves (see CADDYFILE_SERVER), files and directories beside the app ones in
 # ~/dallinger, and the Compose project of the shared stack (SERVER_COMPOSE),
 # which Compose names after ~/dallinger.
 SERVER_COMPOSE_PROJECT = "dallinger"
@@ -1161,6 +1162,7 @@ RESERVED_APP_NAMES = {
     "logs": "the server's log viewer",
     "caddy.d": "the server's Caddy configuration",
     "root.d": "the server's Caddy configuration",
+    "build-cache-leftovers": "the server's list of leftover build cache",
     SERVER_COMPOSE_PROJECT: "the server's shared services",
 }
 
@@ -2553,16 +2555,18 @@ def _built_image(
             quiet=True,
         )
         cache_before = None if local_build else _build_cache_ids_or_none(docker_client)
-        image_name = build_image(
-            tmp_dir,
-            image_base_name(config, app, _PUSH_OPTIONS if push_build else None),
-            out=Output(),
-            image_tag=docker_tag_from_experiment_id(config.get("id")),
-            quiet=True,
-        )
+        try:
+            image_name = build_image(
+                tmp_dir,
+                image_base_name(config, app, _PUSH_OPTIONS if push_build else None),
+                out=Output(),
+                image_tag=docker_tag_from_experiment_id(config.get("id")),
+                quiet=True,
+            )
+        finally:
+            if cache_before is not None:
+                _record_build_cache(docker_client, server, app, cache_before)
         built_image = image_name
-        if cache_before is not None:
-            _record_build_cache(docker_client, server, app, cache_before)
 
         try:
             remote_build = not local_build
@@ -2623,20 +2627,30 @@ def _remove_aborted_build(docker_client, image_name, server, local_build, app):
         print(f"Removed the image {image_name} built for this deploy.")
 
 
-# Lists, oldest first, the build cache records that the app's builds on the
-# server created; destroy prunes them. Build cache records carry no image
-# labels, so this is how they are told apart from other apps' caches.
+# Lists the build cache records that the app's builds on the server created;
+# destroy prunes them. Build cache records carry no image labels, so this is
+# how they are told apart from other apps' caches.
 BUILD_CACHE_IDS_FILE = "build-cache-ids"
+# Lists the recorded build cache records that a destroy couldn't remove,
+# because an image or another app's build still used them. Each destroy tries
+# them again.
+BUILD_CACHE_LEFTOVERS = "build-cache-leftovers"
 
 
 def _build_cache_ids(docker_client):
     """Return the ids of the daemon's build cache records, oldest first."""
     api = docker_client.api
-    # ``type`` limits the listing to the build cache (API 1.42); older daemons ignore it.
+    # docker-py's ``APIClient.df`` takes no parameters, hence the private
+    # calls. ``type`` limits the listing to the build cache (API 1.42), rather
+    # than also measuring every volume; older daemons ignore it.
     response = api._result(
         api._get(api._url("/system/df"), params={"type": "build-cache"}), True
     )
-    records = sorted(response.get("BuildCache") or [], key=lambda r: r["CreatedAt"])
+    # Parsed, because the daemon trims trailing zeros from the fraction.
+    records = sorted(
+        response.get("BuildCache") or [],
+        key=lambda r: datetime.fromisoformat(r["CreatedAt"]),
+    )
     return [record["ID"] for record in records]
 
 
@@ -2675,49 +2689,64 @@ def _record_build_cache(docker_client, server, app, before):
         )
 
 
-def _prune_build_cache(docker_client, ids):
-    """Remove the build cache records ``ids`` (oldest first) if unused.
-
-    Returns how many records were removed and the bytes freed. A record can't
-    go while a record built on it exists, and those are newer, so the newest
-    go first. Records in use stay.
-    """
-    existing = set(_build_cache_ids(docker_client))
-    removed = freed = 0
-    for cache_id in reversed(ids):
-        if cache_id in existing:
-            # The daemon takes one id per prune call.
-            result = docker_client.api.prune_builds(filters={"id": cache_id})
-            removed += len(result.get("CachesDeleted") or [])
-            freed += result.get("SpaceReclaimed") or 0
-    return removed, freed
-
-
 def _format_bytes(size):
     """Format a byte count such as ``820 MB`` or ``6.1 GB``."""
+    if size < 1e6:
+        return "< 1 MB"
     return f"{size / 1e9:.1f} GB" if size >= 1e9 else f"{size / 1e6:.0f} MB"
 
 
 def _prune_app_build_cache(executor, app, server):
-    """Remove the build cache recorded for ``app`` on the server."""
-    ids = executor.run(
-        f"cat ~/dallinger/{quote(app)}/{BUILD_CACHE_IDS_FILE} 2>/dev/null",
-        raise_=False,
+    """Remove the unused build cache recorded for ``app`` and earlier destroys.
+
+    What stays is kept in the server's ``build-cache-leftovers`` list.
+    """
+    leftovers_file = f"~/dallinger/{BUILD_CACHE_LEFTOVERS}"
+    own, leftovers = (
+        set((executor.run(f"cat {path} 2>/dev/null", raise_=False) or "").split())
+        for path in (f"~/dallinger/{quote(app)}/{BUILD_CACHE_IDS_FILE}", leftovers_file)
     )
-    ids = (ids or "").split()
-    if not ids:
+    recorded = own | leftovers
+    if not recorded:
         return
+    removed, freed = set(), 0
     try:
         with _image_docker_client(server, local_build=False) as docker_client:
-            removed, freed = _prune_build_cache(docker_client, ids)
+            # A prune without ``all`` skips records that an existing image
+            # shares, which keeps the cache of other apps' images. A record
+            # can't go while a newer one built on it exists, so the newest go
+            # first. The daemon takes one ``id`` per call and matches it as a
+            # regular expression, so only ids it lists are pruned: a stale id
+            # mustn't match part of another app's id.
+            for cache_id in reversed(_build_cache_ids(docker_client)):
+                if cache_id not in recorded:
+                    continue
+                try:
+                    result = docker_client.api.prune_builds(filters={"id": cache_id})
+                except Exception as exc:
+                    print(f"Warning: could not remove build cache {cache_id}: {exc}")
+                    continue
+                removed.update(result.get("CachesDeleted") or [])
+                freed += result.get("SpaceReclaimed") or 0
+            remaining = [i for i in _build_cache_ids(docker_client) if i in recorded]
     except Exception as exc:
         print(
             f"Warning: could not remove the build cache of {app}: {exc}\n"
             "`docker builder du` on the server shows the build cache."
         )
-        return
+        remaining = sorted(recorded - removed)
+    if remaining:
+        executor.run(
+            f"printf '%s\\n' {' '.join(map(quote, remaining))} > {leftovers_file}.tmp "
+            f"&& mv {leftovers_file}.tmp {leftovers_file}"
+        )
+    else:
+        executor.run(f"rm -f {leftovers_file}")
     if removed:
-        print(f"Removed the build cache of {app} ({_format_bytes(freed)}).")
+        sources = [f"the build cache of {app}"] if removed & own else []
+        if removed - own:
+            sources.append("build cache left by earlier destroys")
+        print(f"Removed {' and '.join(sources)} ({_format_bytes(freed)}).")
 
 
 def _report_ssh_failures(f):
@@ -4353,6 +4382,12 @@ def destroy(
         raise_=False,
     )
     deployed = caddy_config_exists or docker_compose_exists or tunnel_token_exists
+    # A new deploy that failed after its build leaves only the build cache record.
+    build_cache_only = not deployed and executor.run(
+        f'test "$(ls -A ~/dallinger/{quoted_app} 2>/dev/null)" = '
+        f"{BUILD_CACHE_IDS_FILE} && echo Yes",
+        raise_=False,
+    )
     manifest = _load_remote_manifests(executor, [app]).get(app) if deployed else None
     if manifest:
         ingress = manifest.ingress
@@ -4361,10 +4396,10 @@ def destroy(
     else:
         ingress = INGRESS_CLASSIC
     data = _experiment_data(executor, app, cloudflare=ingress == INGRESS_CLOUDFLARE)
-    if not deployed and not data and remove_data:
+    if not deployed and not build_cache_only and not data and remove_data:
         print(f"Nothing left to delete for {app} on {ssh_host}.")
         return
-    if not deployed:
+    if not deployed and not build_cache_only:
         print(f"App {app} is not deployed.")
         if not data:
             print(f"No experiment data of {app} is left on {ssh_host}.")
@@ -4408,6 +4443,10 @@ def destroy(
             ingress,
             keep_image=keep_image,
         )
+    elif build_cache_only:
+        _prune_app_build_cache(executor, app, server)
+        executor.run(f"rm -rf ~/dallinger/{quoted_app}/")
+        print(f"Removed the folder of {app} left by a failed deploy.")
     delete_again = (
         delete_data_command
         or f"dallinger docker-ssh destroy --app {app} --server {server} --remove-data"
@@ -4425,7 +4464,7 @@ def destroy(
             f"A new deploy of {app} without --update deletes its database and "
             f"volumes, but reuses ~/dallinger-data/{app}."
         )
-        if not deployed:
+        if not deployed and not build_cache_only:
             raise click.ClickException(
                 f"App {app} is not deployed, so nothing was destroyed."
             )
