@@ -39,7 +39,13 @@ import caddy.d/*
 """
 FAKE_DOCKER = """#!/bin/sh
 echo "$*" >> "$HOME/docker.log"
-case "$*" in *"ps --services"*) printf 'httpserver\\npostgresql\\ndozzle\\n';; esac
+[ -z "${pw:-}" ] || echo "environment pw=$pw" >> "$HOME/docker.log"
+case "$*" in
+  *"/dallinger/docker-compose.yml ps --services"*)
+    printf 'httpserver\\npostgresql\\ndozzle\\n';;
+MORE_CASES
+esac
+exit 0
 """
 
 
@@ -72,12 +78,15 @@ class LocalSftp:
         pass
 
 
-@pytest.fixture
-def server(tmp_path, monkeypatch):
-    """A fake server home already set up for classic ingress."""
+def set_up_server(tmp_path, monkeypatch, docker_cases=""):
+    """Make ``tmp_path`` a fake server home already set up for classic ingress.
+
+    ``docker_cases`` adds ``case`` branches to the fake ``docker``.
+    """
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    for name, script in (("docker", FAKE_DOCKER), ("timeout", 'shift; "$@"\n')):
+    docker = FAKE_DOCKER.replace("MORE_CASES\n", docker_cases)
+    for name, script in (("docker", docker), ("timeout", 'shift; "$@"\n')):
         (bin_dir / name).write_text(
             script if name == "docker" else f"#!/bin/sh\n{script}"
         )
@@ -95,6 +104,12 @@ def server(tmp_path, monkeypatch):
     monkeypatch.setattr(docker_ssh, "get_configured_hosts", lambda: hosts)
     monkeypatch.setattr(docker_ssh, "CONFIGURED_HOSTS", hosts)
     return tmp_path
+
+
+@pytest.fixture
+def server(tmp_path, monkeypatch):
+    """A fake server home already set up for classic ingress."""
+    return set_up_server(tmp_path, monkeypatch)
 
 
 def checksums(home):

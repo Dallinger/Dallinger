@@ -1,6 +1,6 @@
 services:
   postgresql:
-    image: postgres:12
+    image: {{ postgres_image }}
     command: postgres -c jit=off
     restart: unless-stopped
     environment:
@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: dallinger
       POSTGRES_DB: dallinger
     volumes:
-      - dallinger_pg_data:/var/lib/postgresql/data
+      - dallinger_pg{{ postgres_major }}_data:{{ postgres_data_path }}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER}"]
       interval: 2s
@@ -46,7 +46,7 @@ services:
       - dallinger
 
 volumes:
-  dallinger_pg_data:
+  dallinger_pg{{ postgres_major }}_data:
   caddy_config:
   caddy_data:
 

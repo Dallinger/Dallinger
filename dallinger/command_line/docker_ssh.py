@@ -49,6 +49,7 @@ from dallinger.config import ConfigSource, get_config
 from dallinger.data import bootstrap_db_from_zip, export_db_uri
 from dallinger.db import create_db_engine
 from dallinger.deployment import setup_experiment
+from dallinger.docker import postgres
 from dallinger.hibernation import STATE_HIBERNATING as HIBERNATING
 from dallinger.hibernation import STATE_WAKING as WAKING
 from dallinger.utils import (
@@ -132,6 +133,7 @@ DOCKER_COMPOSE_SERVER_TPL = Template(
         "dallinger", "dallinger/docker/ssh_templates/docker-compose-server.yml.j2"
     ).read_text()
 )
+DOCKER_COMPOSE_SERVER_TPL.globals.update(postgres.template_vars())
 
 _SSH_TEMPLATE_ENV = Environment(
     loader=FileSystemLoader(
@@ -142,6 +144,7 @@ _SSH_TEMPLATE_ENV = Environment(
     ),
     autoescape=False,
 )
+_SSH_TEMPLATE_ENV.globals.update(postgres.template_vars())
 DOCKER_COMPOSE_EXP_TPL = _SSH_TEMPLATE_ENV.get_template(
     "docker-compose-experiment.yml.j2"
 )
@@ -389,7 +392,10 @@ def upgrade(host, contact_email, yes):
     a ``.bak`` copy of each file it replaces, adds a Dozzle login if there is
     none, and starts the shared Caddy, Postgres and Dozzle services. Services
     whose configuration changed are recreated, which briefly interrupts every
-    classic app on the server.
+    classic app on the server. On a server whose shared database is still on
+    PostgreSQL 12, it first copies every database into PostgreSQL 18. The
+    copy needs free disk space for about twice their size, and the classic
+    apps are stopped until it is done, which takes longer for larger databases.
     Deploys never write these files. They are left read-only, so that an
     older Dallinger's deploy fails instead of rewriting them; if one did
     rewrite them, deploys stop until this command restores them.
@@ -718,7 +724,11 @@ def _write_server_files(server, server_info, *, replace, yes=True):
 
     Without ``replace``, a server that already has a server compose file is
     left alone. With it, changed files are listed and, unless ``yes``,
-    confirmed before they are replaced. The shared files are left read-only.
+    confirmed before they are replaced, and a shared database on an older
+    PostgreSQL is first copied into the current one while the running
+    classic apps are stopped (see
+    :mod:`dallinger.command_line.docker_ssh_postgres_upgrade`). The
+    shared files are left read-only.
     A server with an app called ``root.d`` is refused before anything is
     written. Returns whether the files were written.
     """
@@ -754,6 +764,11 @@ def _write_server_files(server, server_info, *, replace, yes=True):
     }
     current = {path: executor.run(f"cat ~/{path}", raise_=False) for path in files}
     changed = [path for path, content in files.items() if current[path] != content]
+    # Imported here because it imports this module.
+    from dallinger.command_line import docker_ssh_postgres_upgrade as pg_upgrade
+
+    # Checked even if the files are current: an undone copy leaves them so.
+    pg_copy = pg_upgrade.planned_copy(server, executor) if replace else None
     routes = _old_root_routes(executor, current["dallinger/Caddyfile"], host, tls)
     if replace and not changed and not routes:
         print(f"The shared classic-ingress files on {server} are up to date.")
@@ -786,37 +801,44 @@ def _write_server_files(server, server_info, *, replace, yes=True):
                 "Shared services whose configuration changed are recreated, which "
                 "briefly interrupts every classic app on the server."
             )
-        if not yes and not click.confirm("Continue?", default=False):
+    if pg_copy:
+        pg_copy.describe()
+    if ((changed and replace) or pg_copy) and not yes:
+        if not click.confirm("Continue?", default=False):
             raise click.Abort()
-    stamp = "$(date +%Y%m%dT%H%M%S)"
-    executor.run(
-        "mkdir -p ~/dallinger/caddy.d"
-        + "".join(f"; [ ! -f ~/{p} ] || cp ~/{p} ~/{p}.{stamp}.bak" for p in changed)
-    )
-    sftp = get_sftp(server_info["host"], user=server_info.get("user"))
-    with _unlocked_server_files(executor, lock=True):
-        # root.d marks the server as set up (see _rewritten_by_older_dallinger).
-        executor.run("mkdir -p ~/dallinger/root.d")
-        # Routes go before the Caddyfile that drops the old inline ones, so an
-        # interrupted run leaves the old Caddyfile for a retry to migrate.
-        for path, content in routes.items():
-            sftp.putfo(BytesIO(content.encode()), path)
-        for path in changed:
-            sftp.putfo(BytesIO(files[path].encode()), path)
-        if not executor.run(
-            "test -f ~/dallinger/dozzle-users.yml && echo yes", raise_=False
-        ):
-            dozzle_password = get_dotenv_values(executor).get("DOZZLE_PASSWORD")
-            if not dozzle_password:
-                dozzle_password = secrets.token_urlsafe(12)
-                print(
-                    f"Log viewer: {_logs_url(server_info)} (user = dallinger, "
-                    f"password = {dozzle_password}). Change the password with "
-                    "`dallinger docker-ssh set-dozzle-password`."
-                )
-            set_dozzle_password(executor, sftp, dozzle_password)
-    print("Starting the shared Caddy, Postgres and Dozzle services.")
-    _start_server_services(executor)
+    with pg_upgrade.copied_shared_postgres(executor, server, pg_copy) as switch_to_copy:
+        stamp = "$(date +%Y%m%dT%H%M%S)"
+        executor.run(
+            "mkdir -p ~/dallinger/caddy.d"
+            + "".join(
+                f"; [ ! -f ~/{p} ] || cp ~/{p} ~/{p}.{stamp}.bak" for p in changed
+            )
+        )
+        sftp = get_sftp(server_info["host"], user=server_info.get("user"))
+        with _unlocked_server_files(executor, lock=True):
+            # root.d marks the server as set up (see _rewritten_by_older_dallinger).
+            executor.run("mkdir -p ~/dallinger/root.d")
+            # Routes go before the Caddyfile that drops the old inline ones, so an
+            # interrupted run leaves the old Caddyfile for a retry to migrate.
+            for path, content in routes.items():
+                sftp.putfo(BytesIO(content.encode()), path)
+            for path in changed:
+                sftp.putfo(BytesIO(files[path].encode()), path)
+            if not executor.run(
+                "test -f ~/dallinger/dozzle-users.yml && echo yes", raise_=False
+            ):
+                dozzle_password = get_dotenv_values(executor).get("DOZZLE_PASSWORD")
+                if not dozzle_password:
+                    dozzle_password = secrets.token_urlsafe(12)
+                    print(
+                        f"Log viewer: {_logs_url(server_info)} (user = dallinger, "
+                        f"password = {dozzle_password}). Change the password with "
+                        "`dallinger docker-ssh set-dozzle-password`."
+                    )
+                set_dozzle_password(executor, sftp, dozzle_password)
+        print("Starting the shared Caddy, Postgres and Dozzle services.")
+        switch_to_copy()
+        _start_server_services(executor)
     # A just-recreated Caddy may not answer its admin API yet.
     print("Reloading Caddy config file")
     executor.run(
@@ -1940,10 +1962,18 @@ def _upload_app_stack(
     # The JSON log is bind-mounted as a file, so it must exist before Compose starts.
     executor.run(f"mkdir -p dallinger/{app} && touch dallinger/{app}/{JSON_LOGFILE}")
     run_as_ssh_user = _image_runs_as_ssh_user(executor, image_name)
+    postgres_major = None
+    if ingress == INGRESS_CLOUDFLARE:
+        postgres_major = _app_postgres_major(executor, app)
     sftp.putfo(
         BytesIO(
             get_docker_compose_yml(
-                cfg, app, image_name, ingress, run_as_ssh_user=run_as_ssh_user
+                cfg,
+                app,
+                image_name,
+                ingress,
+                run_as_ssh_user=run_as_ssh_user,
+                postgres_major=postgres_major,
             ).encode()
         ),
         f"dallinger/{app}/docker-compose.yml",
@@ -1968,6 +1998,36 @@ def _upload_app_stack(
         ),
     )
     return previous_image
+
+
+def _app_postgres_major(executor, app):
+    """Return the PostgreSQL major version to run for a Cloudflare app's database.
+
+    An update reuses the app's database volume, which only opens in the
+    version that created it. A new deploy has removed any volume left under
+    the app's name, so it gets :data:`dallinger.docker.postgres.POSTGRES_MAJOR`.
+    """
+    volume = f"{_compose_project(app)}_postgres_data"
+    major = _volume_major(executor, volume)
+    if major is None or major == postgres.POSTGRES_MAJOR:
+        return postgres.POSTGRES_MAJOR
+    print(
+        f"The database volume {volume} was created by PostgreSQL {major}, "
+        f"so {app} keeps running PostgreSQL {major}."
+    )
+    return major
+
+
+def _volume_major(executor, volume):
+    """Return the PostgreSQL major version of ``volume``, or None if it has no data.
+
+    Fails rather than guess, because a wrong guess starts an empty database.
+    """
+    output = executor.run(postgres.volume_major_command(volume))
+    try:
+        return postgres.parse_major(output)
+    except ValueError as e:
+        raise click.ClickException(f"{volume}: {e}. Nothing was changed.")
 
 
 def _remove_replaced_image(executor, app, previous_image, image_name):
@@ -3777,7 +3837,7 @@ def get_apps(server):
         public_origin = manifest.public_origin if manifest else None
         if app_name in parked:
             state = parked[app_name]
-        elif app_name in running_projects:
+        elif _compose_project(app_name) in running_projects:
             state = "running"
         else:
             state = "inactive"
@@ -5226,8 +5286,13 @@ def get_docker_compose_yml(
     ingress: str = INGRESS_CLASSIC,
     *,
     run_as_ssh_user: bool = True,
+    postgres_major: int | None = None,
 ) -> str:
-    """Render an app's docker-compose.yml. Secrets come from the app's ``.env``."""
+    """Render an app's docker-compose.yml. Secrets come from the app's ``.env``.
+
+    ``postgres_major`` selects the PostgreSQL version of a Cloudflare app's
+    own database; it defaults to the current one.
+    """
     from dallinger.docker.tools import worker_cpu_shares
 
     docker_volumes = config.get("docker_volumes", "")
@@ -5255,6 +5320,7 @@ def get_docker_compose_yml(
         cloudflared_image=CLOUDFLARED_IMAGE,
         compose_project=_compose_project(experiment_id),
         run_as_ssh_user=run_as_ssh_user,
+        **postgres.template_vars(postgres_major or postgres.POSTGRES_MAJOR),
     )
 
 

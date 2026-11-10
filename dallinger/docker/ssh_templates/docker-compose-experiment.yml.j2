@@ -3,7 +3,7 @@ services:
 {%- if tunnel %}
   postgresql:
     restart: unless-stopped
-    image: postgres:12
+    image: {{ postgres_image }}
     command: postgres -c jit=off
     container_name: {{ experiment_id }}_postgresql
     environment:
@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: {{ experiment_id }}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:{{ postgres_data_path }}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U {{ experiment_id }}"]
       interval: 2s

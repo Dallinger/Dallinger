@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+### Changed
+
+- PostgreSQL moves from version 12, which no longer gets security fixes, to
+  18 (`postgres:18-trixie`), in the shared server database, new Cloudflare
+  apps, `dallinger docker debug` and `dallinger docker start-services`.
+  PostgreSQL 18 can't open data written by 12, so each change uses a new
+  volume and leaves the old one alone:
+  - On a server set up by 13.0 or earlier, `dallinger docker-ssh servers
+    upgrade` copies the shared databases into the new volume
+    `dallinger_dallinger_pg18_data`, stopping the classic apps during the
+    copy after asking first (hibernating apps are started again
+    hibernated). It first checks that the server has free disk space for
+    about twice the size of the databases. It goes back to PostgreSQL 12 if anything
+    fails before the shared services start on 18, and refuses to use a copy
+    that an interrupted run left unfinished. Once the apps work, remove the
+    old volume with `docker volume rm dallinger_dallinger_pg_data` on the
+    server. Deploys keep using the server's current Postgres until the
+    upgrade.
+  - An existing Cloudflare app keeps the PostgreSQL version of its database
+    volume when updated with `--update`. To move it to 18, export its data,
+    destroy it and deploy it again with `--archive`.
+  - `dallinger docker start-services` replaces a `dallinger_postgres`
+    container that runs PostgreSQL 12 and starts with an empty database in
+    the new volume `dallinger_postgres18`. Remove the old data with
+    `docker volume rm dallinger_postgres` once you no longer need it.
+    Local `dallinger docker debug` databases also start empty.
+
 ### Fixed
 
 - `dallinger docker-ssh destroy` also removes the app's Docker build cache
@@ -22,7 +49,9 @@
   removes that Cloudflare tunnel and its DNS record. Apps deployed
   before this change have no record, so their cache stays; the server's
   `docker builder du` shows it.
-
+- `dallinger docker-ssh apps` and the other commands that list apps show a
+  running app whose name has capitals or dots (such as `My.App`) as
+  running, instead of inactive.
 - Only the highest `X.Y.Z` release tags the `latest` Docker images
   (`ghcr.io/dallinger/dallinger:latest` and `dallinger-bot:latest`).
   Before, every `v*` tag moved them, so a patch to an older release line

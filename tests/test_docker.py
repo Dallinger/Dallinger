@@ -348,7 +348,7 @@ def test_heroku_docker_deploy_needs_base_name(
     tools.build_image.assert_not_called()
 
 
-def get_yaml(config, ingress="classic"):
+def get_yaml(config, ingress="classic", **kwargs):
     from dallinger.command_line.docker_ssh import get_docker_compose_yml
 
     yaml_contents = get_docker_compose_yml(
@@ -356,12 +356,14 @@ def get_yaml(config, ingress="classic"):
         "dlgr-8c43a887",
         "ghcr.io/dallinger/dallinger/bartlett1932",
         ingress=ingress,
+        **kwargs,
     )
     return yaml.safe_load(yaml_contents)
 
 
-def test_postgres_services_disable_jit(tmp_path, stub_config):
+def test_postgres_services_run_postgres_18_without_jit(tmp_path, stub_config):
     from dallinger.command_line.docker_ssh import DOCKER_COMPOSE_SERVER_TPL
+    from dallinger.docker.postgres import POSTGRES_IMAGE
     from dallinger.docker.tools import DockerComposeWrapper
 
     wrapper = DockerComposeWrapper(stub_config, None, str(tmp_path), str(tmp_path))
@@ -376,9 +378,47 @@ def test_postgres_services_disable_jit(tmp_path, stub_config):
     ]
     for compose in composes:
         postgres = compose["services"]["postgresql"]
+        assert postgres["image"] == POSTGRES_IMAGE
+        volume, mount = postgres["volumes"][0].split(":")
+        assert mount == "/var/lib/postgresql"
+        assert "18" in volume or volume == "postgres_data"
         assert postgres["command"] == "postgres -c jit=off"
         assert "pg_isready -h 127.0.0.1 " in postgres["healthcheck"]["test"][1]
         assert "start_period" in postgres["healthcheck"]
+
+
+def test_an_existing_cloudflare_app_keeps_the_postgres_version_of_its_data(capsys):
+    from dallinger.command_line.docker_ssh import _app_postgres_major
+
+    executor = mock.Mock()
+    executor.run.return_value = "12\n"
+    assert _app_postgres_major(executor, "myapp") == 12
+    assert "keeps running PostgreSQL 12" in capsys.readouterr().out
+    executor.run.return_value = ""
+    assert _app_postgres_major(executor, "newapp") == 18
+
+    postgres = get_yaml({}, ingress="cloudflare", postgres_major=12)["services"][
+        "postgresql"
+    ]
+    assert postgres["image"] == "postgres:12"
+    assert postgres["volumes"] == ["postgres_data:/var/lib/postgresql/data"]
+
+
+def test_start_services_replaces_an_old_postgres_container(capsys):
+    docker_cli = importlib.import_module("dallinger.command_line.docker")
+    inspect = mock.Mock(returncode=0, stdout="postgres:12 dallinger_postgres \n")
+    with mock.patch.object(docker_cli.subprocess, "run", return_value=inspect) as run:
+        assert docker_cli.replace_outdated_postgres_container() == "postgres:12"
+    assert [call.args[0] for call in run.call_args_list[1:]] == [
+        ["docker", "stop", "dallinger_postgres"],
+        ["docker", "rm", "--force", "dallinger_postgres"],
+    ]
+    assert "The old data stays in dallinger_postgres" in capsys.readouterr().out
+
+    inspect.stdout = "postgres:18-trixie dallinger_postgres18 \n"
+    with mock.patch.object(docker_cli.subprocess, "run", return_value=inspect) as run:
+        assert docker_cli.replace_outdated_postgres_container() is None
+    assert run.call_count == 1
 
 
 def test_compose_reads_the_database_password_from_the_app_env():

@@ -15,6 +15,7 @@ from click.testing import CliRunner
 
 from dallinger.command_line.lib.cloudflare import CloudflareError, TunnelDeletion
 from dallinger.config import Configuration
+from dallinger.docker.postgres import POSTGRES_IMAGE
 from dallinger.docker.tools import docker_tag_from_experiment_id
 
 docker_ssh_module = importlib.import_module("dallinger.command_line.docker_ssh")
@@ -567,6 +568,16 @@ def test_get_apps_maps_running_and_inactive():
         docker_ssh_module.App(name="alpha", state="inactive"),
         docker_ssh_module.App(name="beta", state="running"),
     ]
+
+
+def test_get_apps_matches_running_apps_by_compose_project_name():
+    executor = FakeExecutor({"caddy.d": "My.App\n", "docker ps": "myapp\n"})
+    with (
+        mock.patch.object(docker_ssh_module, "_resolve_server_info", return_value={}),
+        mock.patch.object(docker_ssh_module, "_build_executor", return_value=executor),
+    ):
+        [app] = docker_ssh_module.get_apps("irrelevant")
+    assert (app.name, app.state) == ("My.App", "running")
 
 
 def test_select_running_app_returns_single(monkeypatch):
@@ -1283,7 +1294,7 @@ def test_experiment_image_from_compose_reads_web_not_infra_images():
     assert parsed == "ghcr.io/org/exp:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     assert parsed not in {
         "redis",
-        "postgres:12",
+        POSTGRES_IMAGE,
         "caddy:2",
         "docker.io/bitnamilegacy/pgbouncer:1.24.1",
         "amir20/dozzle:v10.0.2",
@@ -1367,7 +1378,7 @@ def test_destroy_removes_unique_image_after_down_not_infra(monkeypatch, capsys):
     assert out.endswith("App myapp removed.\n")
     for forbidden in (
         "redis",
-        "postgres:12",
+        POSTGRES_IMAGE,
         "caddy:2",
         "pgbouncer",
         "amir20/dozzle",
@@ -2081,6 +2092,28 @@ def test_app_stack_keeps_secrets_out_of_the_compose_file():
         docker_ssh_module._existing_app_secret(executor, "myapp", "POSTGRES_PASSWORD")
         == "s3cret"
     )
+
+
+def test_update_of_a_postgres_12_cloudflare_app_keeps_postgres_12():
+    sftp = mock.Mock()
+    docker_ssh_module._upload_app_stack(
+        sftp,
+        FakeExecutor({"PG_VERSION": "12\n"}),
+        {},
+        app="myapp",
+        server="s",
+        public_origin="https://myapp.example",
+        image_name="img",
+        ingress="cloudflare",
+        secrets={"POSTGRES_PASSWORD": "x"},
+    )
+    compose = next(
+        call.args[0].getvalue().decode()
+        for call in sftp.putfo.call_args_list
+        if call.args[1] == "dallinger/myapp/docker-compose.yml"
+    )
+    assert "image: postgres:12" in compose
+    assert "postgres_data:/var/lib/postgresql/data" in compose
 
 
 @pytest.mark.parametrize("auto_recruit, noticed", [("true", True), ("false", False)])
