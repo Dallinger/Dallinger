@@ -1835,7 +1835,8 @@ def test_remove_app_data_falls_back_to_a_root_container(tmp_path, capsys):
     finally:
         data.chmod(0o755)
     assert not (data / "demo").exists() and (data / "other").exists()
-    assert f"-v {data}:/data alpine:3.20 rm -rf /data/demo" in (
+    image = docker_ssh_module.CONTROLLER_IMAGE
+    assert f"-v {data}:/data {image} rm -rf /data/demo" in (
         (tmp_path / "docker-args").read_text()
     )
     assert "Deleted the folder ~/dallinger-data/demo.\n" in capsys.readouterr().out

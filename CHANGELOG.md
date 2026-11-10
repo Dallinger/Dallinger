@@ -28,6 +28,11 @@
     the new volume `dallinger_postgres18`. Remove the old data with
     `docker volume rm dallinger_postgres` once you no longer need it.
     Local `dallinger docker debug` databases also start empty.
+- docker-ssh deploy and `destroy --remove-data` fix folder ownership and
+  delete root-owned data folders with the digest-pinned controller image
+  (`python:3.14-alpine`) instead of `alpine:3.20`, which no longer gets
+  updates. The server already has the controller image, so these steps
+  pull nothing extra.
 
 ### Fixed
 

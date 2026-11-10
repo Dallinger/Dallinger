@@ -460,7 +460,8 @@ files shipped in the image cannot be edited in place. Deploy also chowns ``~/dal
 state directory, and writable host bind mounts under the home directory in
 ``docker_volumes`` (PsyNet defaults include ``~/psynet-data/assets``) so
 files left as root by older deploys stay writable. If a plain chown fails,
-deploy retries in a root ``alpine:3.20`` container, and warns if that fails.
+deploy retries in a root container of the controller's ``python`` Alpine
+image, and warns if that fails.
 
 Expensive services use ``restart: unless-stopped``: a host reboot brings
 back an app that was running, and an explicit hibernate stays stopped.
@@ -906,8 +907,8 @@ check of the shared Postgres only prints a note. If ``~/dallinger-data/$APP_ID``
 symlink, only the link is removed and its target is kept.
 
 The data folder's parent is often owned by root, so if the SSH user can't
-delete the folder, Dallinger deletes it with a short-lived root ``alpine``
-container.
+delete the folder, Dallinger deletes it with a short-lived root container of
+the controller's ``python`` Alpine image.
 
 .. note::
 
