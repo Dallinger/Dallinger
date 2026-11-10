@@ -45,6 +45,10 @@ _EXPECTED_RESTORE_ERRORS = (
     'ERROR:  role "dallinger" already exists',
     'ERROR:  database "dallinger" already exists',
 )
+# Server notices during the restore are reported but don't fail it. Any other
+# line does, including psql's own errors, which have no ``ERROR:`` prefix: after
+# a refused ``\connect``, the rest of the dump runs in the wrong database.
+_RESTORE_NOTICE_PREFIXES = ("NOTICE:", "WARNING:", "DETAIL:", "HINT:", "CONTEXT:")
 # Room for the new cluster's WAL and catalogs beyond the dump and the data.
 _COPY_SPARE_BYTES = 256 * 2**20
 # The password comes from the environment, which, unlike arguments, other
@@ -352,18 +356,26 @@ def _restore_shared_postgres(executor, expected):
         f"{container} pg_isready -h 127.0.0.1 -U dallinger >/dev/null 2>&1 "
         "&& exit 0; sleep 2; done; echo 'The new PostgreSQL did not start.' >&2; exit 1"
     )
+    # Query results go to /dev/null, so that only psql's messages are left.
     output = executor.run(
-        f"{container} psql -U dallinger -d postgres -q < {_POSTGRES_UPGRADE_DUMP} 2>&1"
+        f"{container} psql -U dallinger -d postgres -q -o /dev/null "
+        f"< {_POSTGRES_UPGRADE_DUMP} 2>&1"
     )
-    errors = [
+    lines = [
         line
         for line in (output or "").splitlines()
-        if line.startswith("ERROR:") and line not in _EXPECTED_RESTORE_ERRORS
+        if line.strip() and line not in _EXPECTED_RESTORE_ERRORS
     ]
+    errors = [line for line in lines if not line.startswith(_RESTORE_NOTICE_PREFIXES)]
     if errors:
         raise click.ClickException(
             "Restoring the shared databases into PostgreSQL "
             f"{postgres.POSTGRES_MAJOR} failed: " + "; ".join(errors[:5])
+        )
+    if lines:
+        print(
+            f"PostgreSQL {postgres.POSTGRES_MAJOR} reported while restoring the "
+            "shared databases: " + "; ".join(lines[:5])
         )
     copied = _cluster_contents(executor, container)
     if copied != expected:

@@ -44,7 +44,7 @@ COPY_DOCKER_CASES = """\
   "volume rm -f "*) [ ! -f "$HOME/volume_rm_fails" ] || exit 1; rm -f "$HOME/copy_marker";;
   *PG_VERSION*) cat "$HOME/pg_version" 2>/dev/null;;
   *pg_roles*) cat "$HOME/roles" 2>/dev/null;;
-  *"psql -U dallinger -d postgres -q") cat "$HOME/restore_output" 2>/dev/null;;
+  *"psql -U dallinger -d postgres -q -o /dev/null") cat "$HOME/restore_output" 2>/dev/null;;
 """
 
 
@@ -148,6 +148,9 @@ def test_servers_upgrade_copies_the_shared_database_into_postgres_18(
     (server / "dallinger/root.d").mkdir()
     (server / "roles").write_text("dallinger\nmyapp\noldapp\nroot.d\n")
     (server / "no_password").write_text("root.d\n")
+    (server / "restore_output").write_text(
+        'ERROR:  role "dallinger" already exists\nWARNING:  something to know\n'
+    )
     commands = []
     executor = docker_ssh.Executor()
     run_with_status = executor.run_with_status
@@ -189,6 +192,7 @@ def test_servers_upgrade_copies_the_shared_database_into_postgres_18(
         assert not any(password in command for command in commands + arguments)
     assert f"volume rm {OLD_PG_VOLUME}" not in calls
     assert "can't log in over the network until one is set: root.d." in result.output
+    assert "restoring the shared databases: WARNING:  something" in result.output
     assert f"`docker volume rm {OLD_PG_VOLUME}`" in result.output
     assert not (server / "dallinger/postgres-upgrade.sql").exists()
     compose = (server / "dallinger/docker-compose.yml").read_text()
@@ -210,11 +214,15 @@ def _assert_back_on_postgres_12(server, output):
     "fault, message",
     [
         ({"restore_output": 'ERROR:  relation "x" already exists\n'}, "already exists"),
+        (
+            {"restore_output": '\\connect: FATAL:  database "myapp" does not exist\n'},
+            "failed: \\connect",
+        ),
         ({"stop_fails": ""}, "exit code was not 0"),
         ({"no_password": "myapp\n"}, "password of these apps on the server: myapp."),
         ({"stays_running": ""}, "still run after being stopped: myapp, sleepy."),
     ],
-    ids=["restore", "app-stop", "app-password", "app-still-runs"],
+    ids=["restore", "restore-psql", "app-stop", "app-password", "app-still-runs"],
 )
 def test_a_failed_copy_puts_the_server_back_on_postgres_12(
     postgres_12_server, fault, message
