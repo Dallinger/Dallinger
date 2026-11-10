@@ -345,7 +345,9 @@ can be run again.
 With either ingress, deploy also refuses app names the server already uses:
 ``logs``, because the server serves its log viewer at ``logs.<server DNS name>``;
 ``caddy.d`` and ``root.d``, which are Caddy configuration directories beside the
-app directories in ``~/dallinger``; and ``dallinger``, the Compose project name of
+app directories in ``~/dallinger``; ``build-cache-leftovers``, the file in
+``~/dallinger`` that lists build cache a destroy couldn't remove yet; and
+``dallinger``, the Compose project name of
 the shared services. The check ignores case, and for ``dallinger`` also covers
 names that Compose normalises to it, such as ``Dal.linger``. It applies to the
 app name from ``--app`` or from an ``--archive``.
@@ -769,6 +771,8 @@ that another app's image or build still uses stays too, listed in
 it is unused. Updates keep the cache, so that rebuilds reuse it, but a
 root-domain deploy without ``--update`` destroys the server's other apps, and
 so their cache, before it builds. Builds with ``--local-build`` leave their cache on the local machine.
+If a first deploy fails after its build, so that the app's folder holds only
+``build-cache-ids``, destroying the app removes that cache and the folder.
 A root-domain app deployed by an older
 Dallinger has its route inside the server's shared Caddyfile, which destroy
 leaves alone: it warns that the server's own host still points to the app and

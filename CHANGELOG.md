@@ -12,7 +12,9 @@
   leaving other apps' caches alone. Cache that another app's image or build
   still uses is listed in `~/dallinger/build-cache-leftovers`, and a later
   destroy removes it once it is unused, so `build-cache-leftovers` is now a
-  reserved app name. Apps deployed before this change have no record, so
+  reserved app name. If a first deploy fails after its build, so that the
+  app's folder holds only `build-cache-ids`, destroying the app removes that
+  cache and the folder. Apps deployed before this change have no record, so
   their cache stays; `docker builder du` on the server shows it.
 
 - Only the highest `X.Y.Z` release tags the `latest` Docker images

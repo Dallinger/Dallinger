@@ -509,7 +509,8 @@ class FakeBuildCache:
         self.records, self.home, self.api, self.shared = records, home, self, set()
 
     def prune_builds(self, filters):
-        cache_id = filters["id"]
+        # The daemon matches the id as a regular expression.
+        (cache_id,) = [i for i in self.records if re.search(filters["id"], i)]
         if cache_id in self.shared or cache_id in self.records.values():
             return {"CachesDeleted": None, "SpaceReclaimed": 0}
         del self.records[cache_id]
@@ -565,7 +566,9 @@ def test_a_later_destroy_removes_build_cache_an_image_kept(build_cache, server, 
     )
 
 
-def test_destroy_carries_on_when_the_build_cache_cant_be_pruned(build_cache, capsys):
+def test_destroy_carries_on_when_the_build_cache_cant_be_pruned(
+    build_cache, server, capsys
+):
     build_cache.build("myapp", {"deps": "base"})
     build_cache.prune_builds = mock.Mock(side_effect=RuntimeError("daemon busy"))
 
@@ -574,6 +577,36 @@ def test_destroy_carries_on_when_the_build_cache_cant_be_pruned(build_cache, cap
     out = capsys.readouterr().out
     assert "Warning: could not remove build cache deps: daemon busy" in out
     assert "App myapp removed." in out
+    assert not (server / "dallinger/myapp").exists()
+    assert (server / "dallinger/build-cache-leftovers").read_text() == "deps\n"
+
+
+def test_destroy_keeps_the_record_when_the_build_cache_cant_be_listed(
+    build_cache, server, monkeypatch, capsys
+):
+    build_cache.build("myapp", {"deps": "base", "code": "deps"})
+    monkeypatch.setattr(
+        docker_ssh, "_build_cache_ids", mock.Mock(side_effect=RuntimeError("down"))
+    )
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert "could not remove the build cache of myapp: down" in capsys.readouterr().out
+    leftovers = server / "dallinger/build-cache-leftovers"
+    assert leftovers.read_text() == "code\ndeps\n"
+
+
+def test_destroy_of_an_app_without_a_record_leaves_the_build_cache(
+    build_cache, server, capsys
+):
+    (server / "dallinger/myapp").mkdir()
+    (server / "dallinger/myapp/docker-compose.yml").write_text("services: {}\n")
+    build_cache.records["deps"] = "base"
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert list(build_cache.records) == ["base", "other", "deps"]
+    assert "App myapp removed." in capsys.readouterr().out
 
 
 def test_destroy_removes_the_folder_a_failed_deploy_left(build_cache, server, capsys):

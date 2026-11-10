@@ -166,6 +166,11 @@ def test_root_domain_conflicts_ignore_cloudflare_apps():
         ("sandbox", "Logs", "the server's log viewer"),
         ("deploy", "caddy.d", "the server's Caddy configuration"),
         ("deploy", "root.d", "the server's Caddy configuration"),
+        (
+            "deploy",
+            "build-cache-leftovers",
+            "the server's list of leftover build cache",
+        ),
         ("deploy", "dallinger", "the server's shared services"),
         ("deploy", "Dal.linger", "the server's shared services"),
     ],

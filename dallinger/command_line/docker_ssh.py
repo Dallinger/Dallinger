@@ -2716,13 +2716,14 @@ def _prune_app_build_cache(executor, app, server):
             # shares, which keeps the cache of other apps' images. A record
             # can't go while a newer one built on it exists, so the newest go
             # first. The daemon takes one ``id`` per call and matches it as a
-            # regular expression, so only ids it lists are pruned: a stale id
-            # mustn't match part of another app's id.
+            # regular expression, hence the anchors.
             for cache_id in reversed(_build_cache_ids(docker_client)):
                 if cache_id not in recorded:
                     continue
                 try:
-                    result = docker_client.api.prune_builds(filters={"id": cache_id})
+                    result = docker_client.api.prune_builds(
+                        filters={"id": f"^{re.escape(cache_id)}$"}
+                    )
                 except Exception as exc:
                     print(f"Warning: could not remove build cache {cache_id}: {exc}")
                     continue
@@ -2736,9 +2737,11 @@ def _prune_app_build_cache(executor, app, server):
         )
         remaining = sorted(recorded - removed)
     if remaining:
+        # App names start with a letter or digit, so no app takes this name.
         executor.run(
-            f"printf '%s\\n' {' '.join(map(quote, remaining))} > {leftovers_file}.tmp "
-            f"&& mv {leftovers_file}.tmp {leftovers_file}"
+            f"tmp=$(mktemp ~/dallinger/.{BUILD_CACHE_LEFTOVERS}.XXXXXX) && "
+            f"printf '%s\\n' {' '.join(map(quote, remaining))} > \"$tmp\" "
+            f'&& mv "$tmp" {leftovers_file}'
         )
     else:
         executor.run(f"rm -f {leftovers_file}")
