@@ -5214,8 +5214,8 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
 
     Older docker-ssh deploys left data dirs owned by root, so each dir from
     ``_remote_bind_mount_dirs`` is chowned recursively, falling back to a root
-    container of the controller image. If that fails too, warn rather than abort: a
-    fresh dir is still created as the SSH user.
+    container of the controller image. If that fails too, warn rather than
+    abort: a fresh dir is still created as the SSH user.
     """
     app = quote(experiment_id)
     dirs = " ".join(_remote_bind_mount_dirs(docker_volumes, experiment_id))

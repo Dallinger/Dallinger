@@ -31,8 +31,8 @@
 - docker-ssh deploy and `destroy --remove-data` fix folder ownership and
   delete root-owned data folders with the digest-pinned controller image
   (`python:3.14-alpine`) instead of `alpine:3.20`, which no longer gets
-  updates. The server already has the controller image, so these steps
-  pull nothing extra.
+  updates. The server usually has the controller image already, so these
+  steps rarely pull anything.
 
 ### Fixed
 
