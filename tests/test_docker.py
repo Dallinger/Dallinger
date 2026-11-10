@@ -1,5 +1,6 @@
 import importlib
 import io
+import json
 import os
 import re
 import sys
@@ -1397,6 +1398,17 @@ def test_set_dozzle_password_skips_restart_when_not_running():
     docker_ssh.set_dozzle_password(executor, sftp, "secret-password")
 
     assert sftp.putfo.call_count == 2
+    uploaded = {
+        call.args[1]: call.args[0].getvalue() for call in sftp.putfo.call_args_list
+    }
+    users = json.loads(uploaded["dallinger/dozzle-users.yml"])
+    hashed = users["users"]["dallinger"]["password"]
+    # Dozzle 11 refuses to start unless a password hash is exactly 60
+    # characters, which is what bcrypt produces.
+    assert len(hashed) == 60
+    import bcrypt
+
+    assert bcrypt.checkpw(b"secret-password", hashed.encode())
     executor.restart_dozzle.assert_not_called()
 
 

@@ -1224,7 +1224,7 @@ def test_experiment_image_from_compose_reads_web_not_infra_images():
         POSTGRES_IMAGE,
         docker_ssh_module.CADDY_IMAGE,
         docker_ssh_module.PGBOUNCER_IMAGE,
-        "amir20/dozzle:v10.0.2",
+        docker_ssh_module.DOZZLE_IMAGE,
     }
 
 
