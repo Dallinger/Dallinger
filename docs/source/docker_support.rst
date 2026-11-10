@@ -775,9 +775,11 @@ root-domain deploy without ``--update`` destroys the server's other apps, and
 so their cache, before it builds. Builds with ``--local-build`` leave their
 cache on the local machine. If a first deploy's build fails, or the deploy
 fails after it, the deploy keeps the cache so that a retry builds faster, and
-names the destroy command that removes it; as the app's folder then holds
-only ``build-cache-ids``, destroying the app removes that cache and the
-folder. A root-domain app deployed by an older
+names the destroy command that removes it. Destroying such an app removes
+that cache, then its folder if the folder holds only the files a failed
+deploy leaves (``build-cache-ids``, ``logs.jsonl`` and an empty
+``secrets``); otherwise destroy leaves the folder and says so. A root-domain
+app deployed by an older
 Dallinger has its route inside the server's shared Caddyfile, which destroy
 leaves alone: it warns that the server's own host still points to the app and
 names ``servers upgrade``, which removes that route.

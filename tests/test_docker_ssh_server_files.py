@@ -509,12 +509,20 @@ class FakeBuildCache:
         self.records, self.home, self.api, self.shared = records, home, self, set()
 
     def prune_builds(self, filters):
-        # The daemon matches the id as a regular expression.
-        (cache_id,) = [i for i in self.records if re.search(filters["id"], i)]
-        if cache_id in self.shared or cache_id in self.records.values():
-            return {"CachesDeleted": None, "SpaceReclaimed": 0}
-        del self.records[cache_id]
-        return {"CachesDeleted": [cache_id], "SpaceReclaimed": 1_500_000_000}
+        # The daemon prunes every unused record whose id matches the expression.
+        deleted = [
+            i
+            for i in self.records
+            if re.search(filters["id"], i)
+            and i not in self.shared
+            and i not in self.records.values()
+        ]
+        for cache_id in deleted:
+            del self.records[cache_id]
+        return {
+            "CachesDeleted": deleted or None,
+            "SpaceReclaimed": 1_500_000_000 * len(deleted),
+        }
 
     def build(self, app, layers):
         before = list(self.records)
@@ -609,30 +617,65 @@ def test_destroy_of_an_app_without_a_record_leaves_the_build_cache(
     assert "App myapp removed." in capsys.readouterr().out
 
 
-def test_destroy_removes_the_folder_a_failed_deploy_left(build_cache, server, capsys):
+def test_destroy_prunes_only_the_exact_recorded_id(build_cache, server):
+    build_cache.build("app1", {"ab": "base"})
+    build_cache.build("app2", {"abcd": "base"})
+
+    docker_ssh.destroy.callback(server="lab", app="app1")
+
+    assert list(build_cache.records) == ["base", "other", "abcd"]
+
+
+@pytest.fixture
+def failed_deploy(build_cache, server):
+    """The folder of a first deploy that failed after its build."""
     build_cache.build("myapp", {"deps": "base"})
-    (server / "dallinger/myapp/docker-compose.yml").unlink()
+    app_dir = server / "dallinger/myapp"
+    (app_dir / "docker-compose.yml").unlink()
+    (app_dir / "logs.jsonl").touch()
+    (app_dir / "secrets").mkdir()
+    return app_dir
+
+
+def test_destroy_removes_the_folder_a_failed_deploy_left(
+    build_cache, failed_deploy, capsys
+):
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert list(build_cache.records) == ["base", "other"]
+    assert not failed_deploy.exists()
+    assert "left by a failed deploy" in capsys.readouterr().out
+
+
+def test_destroy_leaves_a_failed_deploys_folder_with_other_files(
+    build_cache, failed_deploy, capsys
+):
+    (failed_deploy / ".env").write_text("KEY=1\n")
 
     docker_ssh.destroy.callback(server="lab", app="myapp")
 
     assert list(build_cache.records) == ["base", "other"]
-    assert not (server / "dallinger/myapp").exists()
-    assert "left by a failed deploy" in capsys.readouterr().out
+    assert (failed_deploy / ".env").exists()
+    assert "Left ~/dallinger/myapp on the server" in capsys.readouterr().out
 
 
-def test_destroy_leaves_a_folder_with_more_than_the_build_cache_record(
-    build_cache, server, capsys
+def test_destroy_keeps_a_folder_a_retry_deploys_during_the_prune(
+    build_cache, failed_deploy, server
 ):
-    build_cache.build("myapp", {"deps": "base"})
-    (server / "dallinger/myapp/docker-compose.yml").unlink()
-    (server / "dallinger/myapp/.env").write_text("KEY=1\n")
+    prune = build_cache.prune_builds
 
-    with pytest.raises(click.Abort):
-        docker_ssh.destroy.callback(server="lab", app="myapp")
+    def prune_while_retrying(filters):
+        (failed_deploy / "docker-compose.yml").write_text("services: {}\n")
+        return prune(filters)
 
-    assert "App myapp is not deployed." in capsys.readouterr().out
-    assert (server / "dallinger/myapp/.env").exists()
-    assert list(build_cache.records) == ["base", "other", "deps"]
+    build_cache.prune_builds = prune_while_retrying
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert (failed_deploy / "docker-compose.yml").exists()
+    assert (failed_deploy / "build-cache-ids").exists()
+    log = server / "docker.log"
+    assert "down" not in (log.read_text() if log.exists() else "")
 
 
 def test_destroy_warns_when_it_cant_save_the_leftovers(build_cache, server, capsys):

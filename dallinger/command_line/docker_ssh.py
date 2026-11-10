@@ -2556,10 +2556,10 @@ def _built_image(
             quiet=True,
         )
         cache_before = None if local_build else _build_cache_ids_or_none(docker_client)
-        cache_recorded = False
+        built_image, cache_recorded = None, False
         try:
             try:
-                image_name = build_image(
+                built_image = build_image(
                     tmp_dir,
                     image_base_name(config, app, _PUSH_OPTIONS if push_build else None),
                     out=Output(),
@@ -2571,30 +2571,27 @@ def _built_image(
                     cache_recorded = _record_build_cache(
                         docker_client, server, app, cache_before
                     )
-            built_image = image_name
 
-            try:
-                remote_build = not local_build
-                if remote_build and not push_build:
-                    # If built remotely and not pushing, the image is only on the remote daemon.
-                    # We need to get its full name (repo:tag) for deployment.
-                    # The build_image function already returns the image name, so we use that.
-                    logging.getLogger(__name__).debug(
-                        "Image %s built remotely, skipping push to registry "
-                        "because --push-build was not selected.",
-                        image_name,
-                    )
-                else:
-                    # If it's a local build, or if it's a remote build and push_build, then push.
-                    image_name = push_image(image_name)
-                yield image_name
-            except BaseException:
-                if remove_for_app:
-                    _remove_aborted_build(
-                        docker_client, built_image, server, local_build, remove_for_app
-                    )
-                raise
+            remote_build = not local_build
+            if remote_build and not push_build:
+                # If built remotely and not pushing, the image is only on the remote daemon.
+                # We need to get its full name (repo:tag) for deployment.
+                # The build_image function already returns the image name, so we use that.
+                logging.getLogger(__name__).debug(
+                    "Image %s built remotely, skipping push to registry "
+                    "because --push-build was not selected.",
+                    built_image,
+                )
+                image_name = built_image
+            else:
+                # If it's a local build, or if it's a remote build and push_build, then push.
+                image_name = push_image(built_image)
+            yield image_name
         except BaseException:
+            if remove_for_app and built_image:
+                _remove_aborted_build(
+                    docker_client, built_image, server, local_build, remove_for_app
+                )
             # The cache is kept, so that a retry builds faster.
             if remove_for_app and cache_recorded:
                 print(
@@ -2754,7 +2751,9 @@ def _prune_app_build_cache(executor, app, server):
         remaining = sorted(recorded - removed)
     if remaining:
         # App names start with a letter or digit, so no app takes this name.
-        # ``mv`` would move the file into a directory of that name.
+        # ``mv`` would move the file into a directory of that name; ``mv -T``,
+        # which wouldn't, is GNU-only, and as the name is reserved the gap
+        # between the check and ``mv`` is acceptable.
         written = executor.run(
             f"tmp=$(mktemp ~/dallinger/.{BUILD_CACHE_LEFTOVERS}.XXXXXX) && "
             f"{{ printf '%s\\n' {' '.join(map(quote, remaining))} > \"$tmp\" "
@@ -4409,13 +4408,12 @@ def destroy(
         raise_=False,
     )
     deployed = caddy_config_exists or docker_compose_exists or tunnel_token_exists
-    # A new deploy that failed after its build leaves only the build cache record.
-    build_cache_only = not deployed and executor.run(
-        f'test "$(ls -A ~/dallinger/{quoted_app} 2>/dev/null)" = '
-        f"{BUILD_CACHE_IDS_FILE} && echo Yes",
+    # A new deploy that failed after its build leaves the build cache record.
+    failed_build = not deployed and executor.run(
+        f"test -f ~/dallinger/{quoted_app}/{BUILD_CACHE_IDS_FILE} && echo Yes",
         raise_=False,
     )
-    present = deployed or build_cache_only
+    present = deployed or failed_build
     manifest = _load_remote_manifests(executor, [app]).get(app) if deployed else None
     if manifest:
         ingress = manifest.ingress
@@ -4471,10 +4469,9 @@ def destroy(
             ingress,
             keep_image=keep_image,
         )
-    elif build_cache_only:
+    elif failed_build:
         _prune_app_build_cache(executor, app, server)
-        executor.run(f"rm -rf ~/dallinger/{quoted_app}/")
-        print(f"Removed the folder of {app} left by a failed deploy.")
+        _remove_failed_deploy_folder(executor, app)
     delete_again = (
         delete_data_command
         or f"dallinger docker-ssh destroy --app {app} --server {server} --remove-data"
@@ -4496,6 +4493,31 @@ def destroy(
             raise click.ClickException(
                 f"App {app} is not deployed, so nothing was destroyed."
             )
+
+
+def _remove_failed_deploy_folder(executor, app):
+    """Remove the app's folder if it holds only files a failed deploy leaves.
+
+    Anything else, such as a Compose file that a retry wrote meanwhile, keeps
+    the whole folder, so this never removes the files of a live app.
+    """
+    app_dir = f"~/dallinger/{quote(app)}"
+    removed = executor.run(
+        f"d={app_dir} && "
+        f'test -z "$(ls -A "$d" | grep -vxE \'{BUILD_CACHE_IDS_FILE}|'
+        f"{re.escape(JSON_LOGFILE)}|secrets')\" && "
+        '{ [ ! -e "$d/secrets" ] || rmdir "$d/secrets"; } && '
+        f'rm -f "$d/{BUILD_CACHE_IDS_FILE}" "$d/{JSON_LOGFILE}" && rmdir "$d" '
+        "&& echo Yes",
+        raise_=False,
+    )
+    if removed:
+        print(f"Removed the folder of {app} left by a failed deploy.")
+    else:
+        print(
+            f"Left {app_dir} on the server, as it holds more than a failed "
+            "deploy leaves."
+        )
 
 
 def _tear_down_app(
