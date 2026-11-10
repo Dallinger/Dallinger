@@ -169,6 +169,8 @@ def test_servers_upgrade_copies_the_shared_database_into_postgres_18(
         "start postgresql",
         "myapp/docker-compose.yml stop",
         "sleepy/docker-compose.yml stop",
+        # Stops a dump left running by a run that lost its connection.
+        "rm -f dallinger_postgres_upgrade_dump",
         # The new version's client, which keeps the old privileges on public.
         f"--network container: -e PGPASSWORD=dallinger {POSTGRES_IMAGE} "
         "pg_dumpall -h 127.0.0.1 -U dallinger --no-role-passwords",

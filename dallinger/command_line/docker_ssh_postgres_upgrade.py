@@ -34,6 +34,9 @@ _SERVER_POSTGRES_VOLUME = f"dallinger_dallinger_pg{postgres.POSTGRES_MAJOR}_data
 _OLD_SERVER_POSTGRES_VOLUME = "dallinger_dallinger_pg_data"
 _POSTGRES_UPGRADE_CONTAINER = "dallinger_postgres_upgrade"
 _POSTGRES_UPGRADE_DUMP = "~/dallinger/postgres-upgrade.sql"
+# Named so that a dump left running by a run that lost its connection can be
+# stopped before it writes into the next run's dump.
+_POSTGRES_DUMP_CONTAINER = "dallinger_postgres_upgrade_dump"
 # Kept in the new volume until the shared services switch to it, so that a
 # copy left by an interrupted run, or by an undo that couldn't remove it, is
 # refused: apps may have written to the old database since. A volume that
@@ -464,9 +467,12 @@ def _migrate_shared_postgres(executor, major, apps):
         expected = _cluster_contents(executor, old)
         # The new version's pg_dumpall, as PostgreSQL recommends: an older one
         # leaves out the old default privileges on schema public, which the
-        # new version doesn't grant.
+        # new version doesn't grant. Removing the old file first keeps a dump
+        # that is still stopping writing to that file, not to this one.
         executor.run(
-            "umask 077 && docker run --rm --network "
+            f"docker rm -f {_POSTGRES_DUMP_CONTAINER} >/dev/null 2>&1; "
+            f"rm -f {_POSTGRES_UPGRADE_DUMP} && "
+            f"umask 077 && docker run --rm --name {_POSTGRES_DUMP_CONTAINER} --network "
             f"container:$({SERVER_COMPOSE} ps -q postgresql) -e PGPASSWORD=dallinger "
             f"{postgres.POSTGRES_IMAGE} pg_dumpall -h 127.0.0.1 -U dallinger "
             f"--no-role-passwords > {_POSTGRES_UPGRADE_DUMP}"
