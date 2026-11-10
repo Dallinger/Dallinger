@@ -2713,6 +2713,7 @@ def _prune_app_build_cache(executor, app, server):
     """Remove the unused build cache recorded for ``app`` and earlier destroys.
 
     What stays is kept in the server's ``build-cache-leftovers`` list.
+    Returns False if that list couldn't be written.
     """
     leftovers_file = f"~/dallinger/{BUILD_CACHE_LEFTOVERS}"
     own, leftovers = (
@@ -2721,7 +2722,7 @@ def _prune_app_build_cache(executor, app, server):
     )
     recorded = own | leftovers
     if not recorded:
-        return
+        return True
     removed, freed = set(), 0
     try:
         with _image_docker_client(server, local_build=False) as docker_client:
@@ -2764,15 +2765,17 @@ def _prune_app_build_cache(executor, app, server):
         if not written:
             print(
                 f"Warning: could not write {leftovers_file} on the server, so a "
-                f"later destroy won't remove this build cache: {' '.join(remaining)}"
+                f"later destroy may not remove this build cache: {' '.join(remaining)}"
             )
     else:
+        written = True
         executor.run(f"rm -f {leftovers_file}", raise_=False)
     if removed:
         sources = [f"the build cache of {app}"] if removed & own else []
         if removed - own:
             sources.append("build cache left by earlier destroys")
         print(f"Removed {' and '.join(sources)} ({_format_bytes(freed)}).")
+    return bool(written)
 
 
 def _report_ssh_failures(f):
@@ -4402,12 +4405,13 @@ def destroy(
         raise_=False,
     )
     # A Cloudflare deploy that failed after creating its tunnel leaves only
-    # the connector token behind.
-    tunnel_token_exists = executor.run(
-        f"test -f ~/dallinger/{quoted_app}/secrets/cloudflare-tunnel-token && echo Yes",
+    # the tunnel id and connector token behind.
+    tunnel_files_exist = executor.run(
+        f"test -f ~/dallinger/{quoted_app}/secrets/cloudflare-tunnel-id -o "
+        f"-f ~/dallinger/{quoted_app}/secrets/cloudflare-tunnel-token && echo Yes",
         raise_=False,
     )
-    deployed = caddy_config_exists or docker_compose_exists or tunnel_token_exists
+    deployed = caddy_config_exists or docker_compose_exists or tunnel_files_exist
     # A new deploy that failed after its build leaves the build cache record.
     failed_build = not deployed and executor.run(
         f"test -f ~/dallinger/{quoted_app}/{BUILD_CACHE_IDS_FILE} && echo Yes",
@@ -4417,7 +4421,7 @@ def destroy(
     manifest = _load_remote_manifests(executor, [app]).get(app) if deployed else None
     if manifest:
         ingress = manifest.ingress
-    elif tunnel_token_exists:
+    elif tunnel_files_exist:
         ingress = INGRESS_CLOUDFLARE
     else:
         ingress = INGRESS_CLASSIC
@@ -4470,8 +4474,13 @@ def destroy(
             keep_image=keep_image,
         )
     elif failed_build:
-        _prune_app_build_cache(executor, app, server)
-        _remove_failed_deploy_folder(executor, app)
+        if _prune_app_build_cache(executor, app, server):
+            _remove_failed_deploy_folder(executor, app)
+        else:
+            print(
+                f"Left ~/dallinger/{app} on the server, so that destroying {app} "
+                "again retries removing its build cache."
+            )
     delete_again = (
         delete_data_command
         or f"dallinger docker-ssh destroy --app {app} --server {server} --remove-data"
@@ -4502,22 +4511,27 @@ def _remove_failed_deploy_folder(executor, app):
     the whole folder, so this never removes the files of a live app.
     """
     app_dir = f"~/dallinger/{quote(app)}"
-    removed = executor.run(
-        f"d={app_dir} && "
-        f'test -z "$(ls -A "$d" | grep -vxE \'{BUILD_CACHE_IDS_FILE}|'
-        f"{re.escape(JSON_LOGFILE)}|secrets')\" && "
-        '{ [ ! -e "$d/secrets" ] || rmdir "$d/secrets"; } && '
-        f'rm -f "$d/{BUILD_CACHE_IDS_FILE}" "$d/{JSON_LOGFILE}" && rmdir "$d" '
-        "&& echo Yes",
-        raise_=False,
-    )
-    if removed:
+    outcome = (
+        executor.run(
+            f'd={app_dir}; if [ ! -d "$d" ]; then echo Gone; '
+            f'elif [ -n "$(ls -A "$d" | grep -vxE \'{BUILD_CACHE_IDS_FILE}|'
+            f"{re.escape(JSON_LOGFILE)}|secrets')\" ]; then echo Kept; "
+            'else { [ ! -e "$d/secrets" ] || rmdir "$d/secrets"; } && '
+            f'rm -f "$d/{BUILD_CACHE_IDS_FILE}" "$d/{JSON_LOGFILE}" && rmdir "$d" '
+            "&& echo Removed; fi",
+            raise_=False,
+        )
+        or ""
+    ).strip()
+    if outcome == "Removed":
         print(f"Removed the folder of {app} left by a failed deploy.")
-    else:
+    elif outcome == "Kept":
         print(
             f"Left {app_dir} on the server, as it holds more than a failed "
             "deploy leaves."
         )
+    elif outcome != "Gone":
+        print(f"Warning: could not remove {app_dir} on the server.")
 
 
 def _tear_down_app(

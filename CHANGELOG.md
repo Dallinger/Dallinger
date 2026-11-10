@@ -18,8 +18,8 @@
   app removes that cache, then the folder if it holds only the files a
   failed deploy leaves (`build-cache-ids`, `logs.jsonl` and an empty
   `secrets/`); otherwise it leaves the folder and says so. Apps deployed
-  before this change have no record, so
-  their cache stays; `docker builder du` on the server shows it.
+  before this change have no record, so their cache stays; the server's
+  `docker builder du` shows it.
 
 - Only the highest `X.Y.Z` release tags the `latest` Docker images
   (`ghcr.io/dallinger/dallinger:latest` and `dallinger-bot:latest`).

@@ -205,9 +205,10 @@ def test_aborted_build_cleanup_keeps_an_image_another_app_uses(monkeypatch, caps
     assert "because another app on the server uses it" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("remove", ["dlgr-1", None], ids=["new-app", "update"])
 @pytest.mark.parametrize("build_fails", [True, False], ids=["build", "later-step"])
-def test_failed_new_deploy_explains_how_to_remove_its_build_cache(
-    monkeypatch, capsys, build_fails
+def test_only_a_failed_new_deploy_explains_how_to_remove_its_build_cache(
+    monkeypatch, capsys, build_fails, remove
 ):
     client = _client()
     monkeypatch.setattr(
@@ -234,14 +235,13 @@ def test_failed_new_deploy_explains_how_to_remove_its_build_cache(
         mock.patch("dallinger.docker.tools.build_image", return_value="b:1", **build),
         pytest.raises(RuntimeError),
         docker_ssh_module._built_image(
-            config, [], None, "lab", False, False, app="dlgr-1", remove_for_app="dlgr-1"
+            config, [], None, "lab", False, False, app="dlgr-1", remove_for_app=remove
         ),
     ):
         raise RuntimeError("upload failed")
 
     assert "dlgr-1/build-cache-ids" in executor.run.call_args_list[0].args[0]
-    assert client.images.remove.called is not build_fails
-    assert (
-        "`dallinger docker-ssh destroy --server lab --app dlgr-1` removes the "
-        "build cache this deploy left." in capsys.readouterr().out
+    assert client.images.remove.called is (bool(remove) and not build_fails)
+    assert ("removes the build cache this deploy left" in capsys.readouterr().out) is (
+        bool(remove)
     )

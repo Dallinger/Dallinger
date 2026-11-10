@@ -691,6 +691,33 @@ def test_destroy_warns_when_it_cant_save_the_leftovers(build_cache, server, caps
     assert not list((server / "dallinger/build-cache-leftovers").iterdir())
 
 
+def test_destroy_keeps_a_failed_deploys_record_when_it_cant_save_the_leftovers(
+    build_cache, failed_deploy, server, capsys
+):
+    build_cache.shared = {"deps"}
+    (server / "dallinger/build-cache-leftovers").mkdir()
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert (failed_deploy / "build-cache-ids").read_text() == "deps\n"
+    assert "so that destroying myapp again retries" in capsys.readouterr().out
+
+
+def test_destroy_tears_down_the_tunnel_of_a_deploy_that_saved_only_its_id(
+    server, monkeypatch
+):
+    secrets = server / "dallinger/myapp/secrets"
+    secrets.mkdir(parents=True)
+    (secrets / "cloudflare-tunnel-id").write_text("t-1\n")
+    cloudflare = mock.Mock(return_value=True)
+    monkeypatch.setattr(docker_ssh, "_destroy_cloudflare_resources", cloudflare)
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert cloudflare.call_args.args == ("myapp", None, "t-1")
+    assert not (server / "dallinger/myapp").exists()
+
+
 def test_ip_server_without_a_saved_dns_host_uses_the_deploy_dns_host(
     server, monkeypatch, capsys
 ):

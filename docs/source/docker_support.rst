@@ -347,10 +347,10 @@ With either ingress, deploy also refuses app names the server already uses:
 ``caddy.d`` and ``root.d``, which are Caddy configuration directories beside the
 app directories in ``~/dallinger``; ``build-cache-leftovers``, the file in
 ``~/dallinger`` that lists build cache a destroy couldn't remove yet; and
-``dallinger``, the Compose project name of
-the shared services. The check ignores case, and for ``dallinger`` also covers
-names that Compose normalises to it, such as ``Dal.linger``. It applies to the
-app name from ``--app`` or from an ``--archive``.
+``dallinger``, the Compose project name of the shared services. The check
+ignores case, and for ``dallinger`` also covers names that Compose normalises
+to it, such as ``Dal.linger``. It applies to the app name from ``--app`` or
+from an ``--archive``.
 
 Each app also gets an unprivileged Caddy front door (WebSockets, no Docker
 socket), which host Caddy or the tunnel now reach instead of web, and a
@@ -779,10 +779,10 @@ names the destroy command that removes it. Destroying such an app removes
 that cache, then its folder if the folder holds only the files a failed
 deploy leaves (``build-cache-ids``, ``logs.jsonl`` and an empty
 ``secrets``); otherwise destroy leaves the folder and says so. A root-domain
-app deployed by an older
-Dallinger has its route inside the server's shared Caddyfile, which destroy
-leaves alone: it warns that the server's own host still points to the app and
-names ``servers upgrade``, which removes that route.
+app deployed by an older Dallinger has its route inside the server's shared
+Caddyfile, which destroy leaves alone: it warns that the server's own host
+still points to the app and names ``servers upgrade``, which removes that
+route.
 
 Destroy only deletes or keeps the experiment's data when you choose to, at its
 prompt or with a flag. The data is:
