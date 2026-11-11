@@ -600,15 +600,22 @@ more networks, give Docker smaller subnets in ``/etc/docker/daemon.json``
 .. code-block:: json
 
     {
-      "default-address-pools": [{"base": "172.16.0.0/12", "size": 24}]
+      "default-address-pools": [{"base": "10.200.0.0/16", "size": 24}]
     }
 
-This allows about 4,000 networks of 254 addresses each. Pick a ``base`` that
-does not overlap the server's own networks or VPNs. Then run
-``sudo systemctl restart docker``. The restart stops every container on the
-server, and containers without a restart policy stay stopped, so on a shared
-server agree a time with its other users first. Existing networks keep their
-subnets; only new networks use the new pools.
+This allows 256 networks of 254 addresses each. Pick a ``base`` that no
+other network the server talks to uses: its own LAN, VPNs, and the addresses
+users connect from (check ``ip route`` and ``who``). A Docker network that
+overlaps them cuts the server off from those machines, including SSH
+sessions. Avoid ``172.16.0.0/12`` on university and corporate networks,
+which often use it.
+
+Then run ``sudo systemctl restart docker``. The restart stops every container
+on the server, and containers without a restart policy stay stopped, so on a
+shared server agree a time with its other users first. To keep containers
+running through the restart, also add ``"live-restore": true`` and apply it
+with ``sudo systemctl reload docker`` before restarting. Existing networks
+keep their subnets; only new networks use the new pools.
 
 Verifying SSH Access
 --------------------

@@ -5449,7 +5449,8 @@ Each Dallinger app needs one network, and Docker's default pools allow only
 about 30 networks per server, counting every project on it.
 - See them with `docker network ls`; `docker network prune` removes the unused ones.
 - For more networks, give Docker smaller subnets in /etc/docker/daemon.json:
-    "default-address-pools": [{{"base": "172.16.0.0/12", "size": 24}}]
+    "default-address-pools": [{{"base": "10.200.0.0/16", "size": 24}}]
+  choosing a base that the server's LAN, VPNs and users' addresses don't use,
   then run `sudo systemctl restart docker`. The restart stops every container
   on the server, and those without a restart policy stay stopped, so agree a
   time with its other users. See "Docker network address pools" in
