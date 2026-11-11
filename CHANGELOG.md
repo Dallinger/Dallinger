@@ -28,13 +28,14 @@
     the new volume `dallinger_postgres18`. Remove the old data with
     `docker volume rm dallinger_postgres` once you no longer need it.
     Local `dallinger docker debug` databases also start empty.
-- Dependabot now opens pull requests for new Caddy releases. The docker-ssh
-  Caddy image, used by the shared classic-ingress server and each app's
-  front door, is pinned by tag and digest in
-  `dallinger/docker/ssh_templates/Dockerfile.caddy`, like cloudflared,
-  instead of by tag in the Compose templates. It stays at Caddy 2.10.2 for
-  now. Apps pick up the digest pin when next deployed with `--update`, and
-  the shared Caddy when you run `dallinger docker-ssh servers upgrade`.
+- The docker-ssh Caddy image, used by the shared classic-ingress server and
+  each app's front door, is now pinned by tag and digest in
+  `dallinger/docker/ssh_templates/Dockerfile.caddy`, like cloudflared, so
+  Dependabot opens pull requests for new Caddy releases. It stays at Caddy
+  2.10.2 for now. Apps pick up the digest pin when next deployed with
+  `--update`. The shared Caddy picks it up when you run `dallinger
+  docker-ssh servers upgrade`, which recreates it and so briefly interrupts
+  classic-ingress apps.
 
 ### Fixed
 
