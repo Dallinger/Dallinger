@@ -436,22 +436,38 @@ def test_compose_reads_the_database_password_from_the_app_env():
     database_url = result["services"]["web"]["environment"]["DATABASE_URL"]
     assert "${POSTGRES_PASSWORD}" in database_url
     assert (
-        "POSTGRESQL_PASSWORD=${POSTGRES_PASSWORD}"
+        "DB_PASSWORD=${POSTGRES_PASSWORD}"
         in (result["services"]["pgbouncer"]["environment"])
     )
 
 
+def test_pgbouncer_uses_the_pinned_image_and_its_settings():
+    from dallinger.command_line.docker_ssh import PGBOUNCER_IMAGE
+
+    pgbouncer = get_yaml({})["services"]["pgbouncer"]
+    assert pgbouncer["image"] == PGBOUNCER_IMAGE
+    assert re.fullmatch(
+        r"edoburu/pgbouncer:v\d+\.\d+\.\d+-p\d+@sha256:[0-9a-f]{64}", PGBOUNCER_IMAGE
+    )
+    assert pgbouncer["environment"] == [
+        "DB_HOST=postgresql",
+        "DB_NAME=dlgr-8c43a887",
+        "DB_USER=dlgr-8c43a887",
+        "DB_PASSWORD=${POSTGRES_PASSWORD}",
+        "AUTH_TYPE=scram-sha-256",
+        "POOL_MODE=transaction",
+        "MAX_CLIENT_CONN=10000",
+        "DEFAULT_POOL_SIZE=20",
+        "SERVER_IDLE_TIMEOUT=60",
+    ]
+    assert pgbouncer["healthcheck"]["test"] == ["CMD-SHELL", "nc -z 127.0.0.1 5432"]
+
+
 def test_pgbouncer_allows_more_connections_than_its_defaults():
     pgbouncer = get_yaml({}, ingress="cloudflare")["services"]["pgbouncer"]
-    assert "PGBOUNCER_MAX_CLIENT_CONN=10000" in pgbouncer["environment"]
-    assert "PGBOUNCER_DEFAULT_POOL_SIZE=80" in pgbouncer["environment"]
+    assert "MAX_CLIENT_CONN=10000" in pgbouncer["environment"]
+    assert "DEFAULT_POOL_SIZE=80" in pgbouncer["environment"]
     assert pgbouncer["ulimits"]["nofile"] == {"soft": 16384, "hard": 16384}
-
-
-def test_pgbouncer_keeps_a_small_pool_on_the_shared_postgres():
-    pgbouncer = get_yaml({}, ingress="classic")["services"]["pgbouncer"]
-    assert "PGBOUNCER_MAX_CLIENT_CONN=10000" in pgbouncer["environment"]
-    assert "PGBOUNCER_DEFAULT_POOL_SIZE=20" in pgbouncer["environment"]
 
 
 @pytest.mark.parametrize("n, shares", [(1, 102), (3, 34), (100, 2)])

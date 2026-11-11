@@ -173,6 +173,7 @@ def _read_pinned_image(name: str) -> str:
 
 CONTROLLER_IMAGE = _read_pinned_image("Dockerfile.controller")
 CLOUDFLARED_IMAGE = _read_pinned_image("Dockerfile.cloudflared")
+PGBOUNCER_IMAGE = _read_pinned_image("Dockerfile.pgbouncer")
 CADDY_IMAGE = _read_pinned_image("Dockerfile.caddy")
 DOCKER_COMPOSE_SERVER_TPL.globals.update(
     postgres.template_vars(), caddy_image=CADDY_IMAGE
@@ -398,6 +399,10 @@ def upgrade(host, contact_email, yes):
     PostgreSQL 12, it first copies every database into PostgreSQL 18. The
     copy needs free disk space for about twice their size, and the classic
     apps are stopped until it is done, which takes longer for larger databases.
+    It then seals the old volume by renaming its PG_VERSION file. If an older
+    Dallinger writes its compose file back afterwards, the shared Postgres
+    then fails to start, instead of running on the data from before the copy;
+    running this command again switches it back to PostgreSQL 18.
     Deploys never write these files. They are left read-only, so that an
     older Dallinger's deploy fails instead of rewriting them; if one did
     rewrite them, deploys stop until this command restores them.
@@ -4220,7 +4225,7 @@ def _remove_app_data(executor, app):
         'if [ -L "$p" ]; then kind="symlink $(readlink "$p")"; '
         'elif [ -e "$p" ]; then kind=dir; else echo absent; exit 0; fi; '
         'rm -rf "$p" 2>/dev/null || '
-        'docker run --rm -v "$parent:/data" alpine:3.20 rm -rf "/data/$app"; '
+        f'docker run --rm -v "$parent:/data" {quote(CONTROLLER_IMAGE)} rm -rf "/data/$app"; '
         'if [ -e "$p" ] || [ -L "$p" ]; then echo failed; '
         'else echo "removed $kind"; fi'
     )
@@ -5114,6 +5119,7 @@ def get_docker_compose_yml(
         idle_minutes=idle_minutes,
         controller_image=CONTROLLER_IMAGE,
         cloudflared_image=CLOUDFLARED_IMAGE,
+        pgbouncer_image=PGBOUNCER_IMAGE,
         caddy_image=CADDY_IMAGE,
         compose_project=_compose_project(experiment_id),
         run_as_ssh_user=run_as_ssh_user,
@@ -5218,8 +5224,8 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
 
     Older docker-ssh deploys left data dirs owned by root, so each dir from
     ``_remote_bind_mount_dirs`` is chowned recursively, falling back to a root
-    ``alpine:3.20`` container. If that fails too, warn rather than abort: a
-    fresh dir is still created as the SSH user.
+    container of the controller image. If that fails too, warn rather than
+    abort: a fresh dir is still created as the SSH user.
     """
     app = quote(experiment_id)
     dirs = " ".join(_remote_bind_mount_dirs(docker_volumes, experiment_id))
@@ -5235,7 +5241,7 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
         '  if chown -R "$uid:$gid" "$d" 2>/dev/null; then '
         "    :; "
         '  elif docker run --rm -v "$d:$d" '
-        'alpine:3.20 chown -R "$uid:$gid" "$d"; then '
+        f'{quote(CONTROLLER_IMAGE)} chown -R "$uid:$gid" "$d"; then '
         "    :; "
         "  else "
         '    echo "Warning: could not chown $d for $app; '

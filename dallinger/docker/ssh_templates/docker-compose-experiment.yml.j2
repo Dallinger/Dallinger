@@ -108,7 +108,7 @@ services:
 
   pgbouncer:
     restart: unless-stopped
-    image: docker.io/bitnamilegacy/pgbouncer:1.24.1
+    image: {{ pgbouncer_image }}
     container_name: {{ experiment_id }}_pgbouncer
 {%- if tunnel %}
     depends_on:
@@ -116,7 +116,8 @@ services:
         condition: service_healthy
 {%- endif %}
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/5432'"]
+      # A port check: pg_isready would log a login attempt every interval.
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 5432"]
       interval: 2s
       timeout: 5s
       retries: 15
@@ -128,15 +129,14 @@ services:
       dallinger:
 {%- endif %}
     environment:
-      - POSTGRESQL_HOST=postgresql
-      - PGBOUNCER_AUTH_TYPE=md5
-      - PGBOUNCER_SET_DATABASE_USER=yes
-      - PGBOUNCER_SET_DATABASE_PASSWORD=yes
-      - POSTGRESQL_USERNAME={{ experiment_id }}
-      - POSTGRESQL_PASSWORD=${POSTGRES_PASSWORD}
-      - PGBOUNCER_PORT=5432
-      - PGBOUNCER_DATABASE={{ experiment_id }}
-      - PGBOUNCER_POOL_MODE=transaction
+      - DB_HOST=postgresql
+      - DB_NAME={{ experiment_id }}
+      - DB_USER={{ experiment_id }}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      # With md5 the image stores only an md5 hash of the password, which
+      # can't log in to PostgreSQL's scram-sha-256 passwords.
+      - AUTH_TYPE=scram-sha-256
+      - POOL_MODE=transaction
       # Each web and worker process keeps up to DATABASE_POOL_SIZE (default
       # 20) idle client connections (more while busy), so the default of 100
       # refuses connections under load. Client connections are cheap; Postgres
@@ -144,16 +144,16 @@ services:
       # waiting for a server connection waits up to query_wait_timeout
       # (120 s). See "Database connection pool" in
       # docs/source/configuration.rst for the connection budget.
-      - PGBOUNCER_MAX_CLIENT_CONN=10000
+      - MAX_CLIENT_CONN=10000
       # A server connection stays tied to a request for its whole transaction,
       # including the Python work between queries, so the default pool of 20
       # queues requests at about 200 participants while the CPU is mostly
       # idle. An app with its own Postgres gets 80, below max_connections (100)
       # to leave room for exports and admin sessions. Classic-ingress apps
       # share one server-wide Postgres, so they keep the default of 20.
-      - PGBOUNCER_DEFAULT_POOL_SIZE={{ 80 if tunnel else 20 }}
+      - DEFAULT_POOL_SIZE={{ 80 if tunnel else 20 }}
       # Connections to postgres will be closed after 60 seconds of inactivity
-      - PGBOUNCER_SERVER_IDLE_TIMEOUT=60
+      - SERVER_IDLE_TIMEOUT=60
     ulimits:
       # Every client and server connection uses a file descriptor.
       nofile:

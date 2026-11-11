@@ -1223,7 +1223,7 @@ def test_experiment_image_from_compose_reads_web_not_infra_images():
         "redis",
         POSTGRES_IMAGE,
         docker_ssh_module.CADDY_IMAGE,
-        "docker.io/bitnamilegacy/pgbouncer:1.24.1",
+        docker_ssh_module.PGBOUNCER_IMAGE,
         "amir20/dozzle:v10.0.2",
     }
 
@@ -1835,7 +1835,8 @@ def test_remove_app_data_falls_back_to_a_root_container(tmp_path, capsys):
     finally:
         data.chmod(0o755)
     assert not (data / "demo").exists() and (data / "other").exists()
-    assert f"-v {data}:/data alpine:3.20 rm -rf /data/demo" in (
+    image = docker_ssh_module.CONTROLLER_IMAGE
+    assert f"-v {data}:/data {image} rm -rf /data/demo" in (
         (tmp_path / "docker-args").read_text()
     )
     assert "Deleted the folder ~/dallinger-data/demo.\n" in capsys.readouterr().out
@@ -2374,12 +2375,17 @@ def test_write_experiment_compose_env_reports_a_failed_chown(tmp_path, capsys):
     (tmp_path / "dallinger" / "demo").mkdir(parents=True)
     bin_dir = _fake_bin(tmp_path)
     for name in ("chown", "docker"):
-        (bin_dir / name).write_text("#!/bin/bash\nexit 1\n")
+        (bin_dir / name).write_text(
+            '#!/bin/bash\necho "$@" >> "$HOME/docker-args"\nexit 1\n'
+        )
         (bin_dir / name).chmod(0o755)
     docker_ssh_module._write_experiment_compose_env(
         LocalExecutor(tmp_path, bin_dir), "demo"
     )
     assert "Warning: could not chown" in capsys.readouterr().out
+    assert f"{docker_ssh_module.CONTROLLER_IMAGE} chown -R" in (
+        (tmp_path / "docker-args").read_text()
+    )
 
 
 def test_update_reads_back_the_secrets_deploy_wrote(tmp_path, monkeypatch):

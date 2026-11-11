@@ -8,18 +8,26 @@
   18 (`postgres:18-trixie`), in the shared server database, new Cloudflare
   apps, `dallinger docker debug` and `dallinger docker start-services`.
   PostgreSQL 18 can't open data written by 12, so each change uses a new
-  volume and leaves the old one alone:
+  volume and keeps the old one's data:
   - On a server set up by 13.0 or earlier, `dallinger docker-ssh servers
     upgrade` copies the shared databases into the new volume
     `dallinger_dallinger_pg18_data`, stopping the classic apps during the
     copy after asking first (hibernating apps are started again
     hibernated). It first checks that the server has free disk space for
-    about twice the size of the databases. It goes back to PostgreSQL 12 if anything
-    fails before the shared services start on 18, and refuses to use a copy
-    that an interrupted run left unfinished. Once the apps work, remove the
-    old volume with `docker volume rm dallinger_dallinger_pg_data` on the
-    server. Deploys keep using the server's current Postgres until the
-    upgrade.
+    about twice the size of the databases. It goes back to PostgreSQL 12 if
+    anything fails before the copy is marked finished, just before the shared
+    services start on 18. After that, the copy is kept. It refuses to use a
+    copy that an interrupted run left unfinished, and a PostgreSQL 18 volume
+    that is not a finished copy; the error says how to decide which volume to
+    remove. The apps that an interrupted run stopped are started again by the
+    next run. Once the copy is finished, it renames `PG_VERSION` in the old
+    volume, so that a server compose file written back by an older Dallinger
+    (a Dallinger 12 deploy or `servers upgrade` from 13.0) can't start
+    PostgreSQL 12 on the data from before the copy. If that rename fails, the
+    next run renames it and says that anything written to PostgreSQL 12 since
+    the copy stays on the old volume. Once the apps work, remove the old
+    volume with `docker volume rm dallinger_dallinger_pg_data` on the server.
+    Deploys keep using the server's current Postgres until the upgrade.
   - An existing Cloudflare app keeps the PostgreSQL version of its database
     volume when updated with `--update`. To move it to 18, export its data,
     destroy it and deploy it again with `--archive`.
@@ -40,6 +48,23 @@
   2.11.9 when next deployed with `--update`. The shared Caddy moves when
   you run `dallinger docker-ssh servers upgrade`, which recreates it and so
   briefly interrupts classic-ingress apps.
+- docker-ssh deploy and `destroy --remove-data` fix folder ownership and
+  delete root-owned data folders with the digest-pinned controller image
+  (`python:3.14-alpine`) instead of `alpine:3.20`, which no longer gets
+  updates. The server usually has the controller image already, so these
+  steps rarely pull anything.
+- docker-ssh apps now run PgBouncer 1.26.1 from `edoburu/pgbouncer`
+  instead of 1.24.1 from `bitnamilegacy/pgbouncer`, which Bitnami no
+  longer updates. 1.26 fixes several crash and denial-of-service bugs and,
+  in transaction pooling, keeps one request's `SET search_path` (on
+  PostgreSQL 18) or `SET default_transaction_read_only` (on PostgreSQL 14
+  and later) from reaching the next request on the same server
+  connection. PgBouncer now checks app logins with `scram-sha-256` instead
+  of `md5`, and the app's database user can no longer open PgBouncer's
+  admin console. The image is pinned by tag
+  and digest in `dallinger/docker/ssh_templates/Dockerfile.pgbouncer`, like
+  cloudflared, so Dependabot opens pull requests for new releases. Existing
+  apps switch when they are next deployed with `--update`.
 
 ### Fixed
 
@@ -51,6 +76,12 @@
   Before, every `v*` tag moved them, so a patch to an older release line
   (such as 12.4.1 after 13.0.0) or a pre-release tag replaced `latest`
   with an older or unfinished image.
+- The clock's "Session idle in transaction!" warning only reports sessions
+  in the experiment's own database. Before, on a shared PostgreSQL server
+  (such as parallel local runs or tests), it also reported other databases'
+  transactions. The warning now fires when a session has been idle for over
+  1 second and shows the real `idle_time` alongside the `transaction_age`;
+  before, it labelled the transaction's age as `idle_time`.
 
 ## [v13.0.0](https://github.com/dallinger/dallinger/tree/v13.0.0) (2026-11-07)
 
