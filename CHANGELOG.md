@@ -31,9 +31,10 @@
 - docker-ssh runs Caddy 2.11.9 instead of 2.10.2, for the shared
   classic-ingress server and each app's front door. 2.11 fixes several
   security issues. It also refuses requests whose headers exceed 16 KiB
-  (`431`), and aborts a request body upload or response download that
-  makes no progress for a minute; idle websockets and slow responses are
-  not affected. The image is now pinned by tag and digest in
+  (`431`), drops request headers whose names contain `_` or `.`, and
+  aborts a request body upload or response download that makes no
+  progress for a minute; idle websockets and slow responses are not
+  affected. The image is now pinned by tag and digest in
   `dallinger/docker/ssh_templates/Dockerfile.caddy`, like cloudflared, so
   Dependabot opens pull requests for new Caddy releases. Apps move to
   2.11.9 when next deployed with `--update`. The shared Caddy moves when
