@@ -174,6 +174,7 @@ def _read_pinned_image(name: str) -> str:
 
 CONTROLLER_IMAGE = _read_pinned_image("Dockerfile.controller")
 CLOUDFLARED_IMAGE = _read_pinned_image("Dockerfile.cloudflared")
+PGBOUNCER_IMAGE = _read_pinned_image("Dockerfile.pgbouncer")
 
 
 CADDYFILE_SERVER = """
@@ -395,6 +396,10 @@ def upgrade(host, contact_email, yes):
     PostgreSQL 12, it first copies every database into PostgreSQL 18. The
     copy needs free disk space for about twice their size, and the classic
     apps are stopped until it is done, which takes longer for larger databases.
+    It then seals the old volume by renaming its PG_VERSION file. If an older
+    Dallinger writes its compose file back afterwards, the shared Postgres
+    then fails to start, instead of running on the data from before the copy;
+    running this command again switches it back to PostgreSQL 18.
     Deploys never write these files. They are left read-only, so that an
     older Dallinger's deploy fails instead of rewriting them; if one did
     rewrite them, deploys stop until this command restores them.
@@ -5111,6 +5116,7 @@ def get_docker_compose_yml(
         idle_minutes=idle_minutes,
         controller_image=CONTROLLER_IMAGE,
         cloudflared_image=CLOUDFLARED_IMAGE,
+        pgbouncer_image=PGBOUNCER_IMAGE,
         compose_project=_compose_project(experiment_id),
         run_as_ssh_user=run_as_ssh_user,
         **postgres.template_vars(postgres_major or postgres.POSTGRES_MAJOR),
