@@ -582,6 +582,34 @@ Your deployment server must meet these requirements:
     * Your server's ``~/.ssh/authorized_keys`` file must contain the public key corresponding to your ``server_pem`` private key
     * The user on the server needs passwordless sudo
 
+.. _docker-network-address-pools:
+
+Docker network address pools
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each docker-ssh app creates one Docker network (``<app>_app``), and classic
+ingress adds one shared ``dallinger`` network per server. By default Docker
+gives every network a large subnet, so a server runs out of address space
+after about 30 networks, counting other Compose projects on it. A deploy then
+fails with ``all predefined address pools have been fully subnetted``.
+
+``docker network prune`` removes networks that no container uses. To host
+more networks, give Docker smaller subnets in ``/etc/docker/daemon.json``
+(merge this key into any settings already in the file):
+
+.. code-block:: json
+
+    {
+      "default-address-pools": [{"base": "172.16.0.0/12", "size": 24}]
+    }
+
+This allows about 4,000 networks of 254 addresses each. Pick a ``base`` that
+does not overlap the server's own networks or VPNs. Then run
+``sudo systemctl restart docker``. The restart stops every container on the
+server, and containers without a restart policy stay stopped, so on a shared
+server agree a time with its other users first. Existing networks keep their
+subnets; only new networks use the new pools.
+
 Verifying SSH Access
 --------------------
 

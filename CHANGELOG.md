@@ -51,6 +51,12 @@
 
 ### Fixed
 
+- A docker-ssh deploy that fails because Docker on the server has run out of
+  network address pools (`all predefined address pools have been fully
+  subnetted`) now explains the cause and how to fix it: prune unused
+  networks, or configure smaller `default-address-pools` subnets, which needs
+  a Docker restart. The new "Docker network address pools" section of the
+  Docker documentation describes the server setup.
 - `dallinger docker-ssh apps` and the other commands that list apps show a
   running app whose name has capitals or dots (such as `My.App`) as
   running, instead of inactive.

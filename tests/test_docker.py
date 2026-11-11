@@ -1113,6 +1113,24 @@ def test_failing_remote_command_stops_spinner_before_error(monkeypatch, capsys):
     assert capsys.readouterr().out.startswith("<spinner cleared>\nError: exit code")
 
 
+def test_failing_network_creation_explains_exhausted_address_pools(monkeypatch, capsys):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    monkeypatch.setattr(docker_ssh, "get_connected_ssh_client", mock.Mock())
+    executor = docker_ssh.Executor("example.com")
+    error = (
+        "failed to create network app_app: Error response from daemon: "
+        "all predefined address pools have been fully subnetted"
+    )
+    monkeypatch.setattr(executor, "run_with_status", lambda cmd: (1, "", error))
+
+    with pytest.raises(docker_ssh.ExecuteException):
+        executor.run("docker compose up -d")
+    out = capsys.readouterr().out
+    assert "Docker on 'example.com' has no address space left" in out
+    assert "default-address-pools" in out
+
+
 @pytest.mark.parametrize("key_format", ["TraditionalOpenSSL", "OpenSSH"])
 def test_get_connected_ssh_client_rejects_dsa_key(tmp_path, monkeypatch, key_format):
     import click

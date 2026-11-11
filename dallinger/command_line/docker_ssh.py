@@ -4909,6 +4909,8 @@ class Executor:
             if _is_remote_disk_full_error(stdout, stderr, compose_logs):
                 print(get_remote_disk_full_guidance(self.host))
                 self.offer_safe_disk_cleanup()
+            if ADDRESS_POOLS_EXHAUSTED in f"{stdout}\n{stderr}":
+                print(get_address_pools_exhausted_guidance(self.host))
             raise ExecuteException(
                 f"An error occurred when running the following command on the remote server: \n{cmd}"
             )
@@ -5434,6 +5436,25 @@ def get_remote_disk_full_guidance(host):
         "",
     ]
     return "\n".join(guidance)
+
+
+ADDRESS_POOLS_EXHAUSTED = "all predefined address pools have been fully subnetted"
+
+
+def get_address_pools_exhausted_guidance(host):
+    """Explain how to free or add Docker network address space on ``host``."""
+    return f"""
+Docker on '{host}' has no address space left for a new network.
+Each Dallinger app needs one network, and Docker's default pools allow only
+about 30 networks per server, counting every project on it.
+- See them with `docker network ls`; `docker network prune` removes the unused ones.
+- For more networks, give Docker smaller subnets in /etc/docker/daemon.json:
+    "default-address-pools": [{{"base": "172.16.0.0/12", "size": 24}}]
+  then run `sudo systemctl restart docker`. The restart stops every container
+  on the server, and those without a restart policy stay stopped, so agree a
+  time with its other users. See "Docker network address pools" in
+  Dallinger's Docker documentation.
+"""
 
 
 class ExecuteException(Exception):
