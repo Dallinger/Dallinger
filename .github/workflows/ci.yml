@@ -2,11 +2,13 @@ name: ci
 on:
   push:
   pull_request:
+  # Started by dependabot-changelog.yml after it pushes the changelog commit.
+  workflow_dispatch:
 
 jobs:
   check_changelog:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'pyup-pin-') && !startsWith(github.head_ref, 'pyup-update-')
+    if: github.event_name != 'push' && !startsWith(github.head_ref, 'pyup-pin-') && !startsWith(github.head_ref, 'pyup-update-')
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -15,8 +17,8 @@ jobs:
 
       - name: Check for CHANGELOG.md entry
         run: |
-          git fetch --quiet origin ${{ github.base_ref }}
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...${{ github.sha }})
+          git fetch --quiet origin ${{ github.base_ref || 'master' }}
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref || 'master' }}...${{ github.sha }})
           if ! echo "$CHANGED_FILES" | grep -q 'CHANGELOG.md'; then
             echo "ERROR: Pull requests must include a corresponding entry in CHANGELOG.md."
             echo "Changed files:"
@@ -235,7 +237,7 @@ jobs:
   docker-ssh-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    if: github.event_name == 'pull_request'
+    if: github.event_name != 'push'
     steps:
       - uses: actions/checkout@v5
       - name: Set up Python 3.14

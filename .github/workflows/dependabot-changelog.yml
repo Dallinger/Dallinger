@@ -1,7 +1,7 @@
 # Dependabot can't edit CHANGELOG.md, so add its pull request title as an
 # Unreleased entry. pull_request_target gives the job a writable token; it only
-# edits CHANGELOG.md and runs no code from the pull request. Commits pushed
-# with GITHUB_TOKEN start CI runs that wait for a maintainer's approval.
+# edits CHANGELOG.md and runs no code from the pull request. A push with
+# GITHUB_TOKEN doesn't start CI by itself, so the job dispatches ci.yml.
 name: dependabot-changelog
 
 on:
@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   add-entry:
@@ -49,3 +50,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "Add CHANGELOG entry"
           git push origin "HEAD:$HEAD_REF"
+
+      - name: Start CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$HEAD_REF"

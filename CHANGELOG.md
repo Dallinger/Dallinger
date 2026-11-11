@@ -49,7 +49,8 @@
   cloudflared, so Dependabot opens pull requests for new releases. Existing
   apps switch when they are next deployed with `--update`.
 - Dependabot pull requests now get a CHANGELOG.md entry from their title
-  under Unreleased **Updated**, so they pass the changelog check.
+  under Unreleased **Updated**, so they pass the changelog check. CI starts
+  on that commit automatically.
 
 ### Fixed
 
