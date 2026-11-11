@@ -395,6 +395,10 @@ def upgrade(host, contact_email, yes):
     PostgreSQL 12, it first copies every database into PostgreSQL 18. The
     copy needs free disk space for about twice their size, and the classic
     apps are stopped until it is done, which takes longer for larger databases.
+    It then seals the old volume by renaming its PG_VERSION file. If an older
+    Dallinger writes its compose file back afterwards, the shared Postgres
+    then fails to start, instead of running on the data from before the copy;
+    running this command again switches it back to PostgreSQL 18.
     Deploys never write these files. They are left read-only, so that an
     older Dallinger's deploy fails instead of rewriting them; if one did
     rewrite them, deploys stop until this command restores them.
