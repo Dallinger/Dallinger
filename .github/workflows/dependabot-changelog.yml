@@ -1,0 +1,51 @@
+# Dependabot can't edit CHANGELOG.md, so add its pull request title as an
+# Unreleased entry. pull_request_target gives the job a writable token; it only
+# edits CHANGELOG.md and runs no code from the pull request. Commits pushed
+# with GITHUB_TOKEN start CI runs that wait for a maintainer's approval.
+name: dependabot-changelog
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  add-entry:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Add CHANGELOG.md entry
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          URL: ${{ github.event.pull_request.html_url }}
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+
+          path = Path("CHANGELOG.md")
+          head, marker, rest = path.read_text().partition("## [Unreleased]\n")
+          assert marker, "CHANGELOG.md has no ## [Unreleased] section"
+          unreleased, next_heading, tail = rest.partition("\n## ")
+          entry = f"- {os.environ['TITLE']} ([#{os.environ['NUMBER']}]({os.environ['URL']})).\n"
+          if "### Updated\n\n" in unreleased:
+              unreleased = unreleased.replace("### Updated\n\n", "### Updated\n\n" + entry, 1)
+          else:
+              unreleased = unreleased.rstrip("\n") + "\n\n### Updated\n\n" + entry
+          path.write_text(head + marker + unreleased + next_heading + tail)
+
+      - name: Commit and push
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Add CHANGELOG entry"
+          git push origin "HEAD:$HEAD_REF"
