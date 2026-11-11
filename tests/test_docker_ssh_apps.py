@@ -1223,7 +1223,7 @@ def test_experiment_image_from_compose_reads_web_not_infra_images():
         "redis",
         POSTGRES_IMAGE,
         "caddy:2",
-        "docker.io/bitnamilegacy/pgbouncer:1.24.1",
+        docker_ssh_module.PGBOUNCER_IMAGE,
         "amir20/dozzle:v10.0.2",
     }
 

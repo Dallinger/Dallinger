@@ -1,8 +1,9 @@
 version: 2
 updates:
   # Base images: the experiment image's Dockerfile and the pinned docker-ssh
-  # hibernation controller and cloudflared images, which docker_ssh.py reads
-  # from pin-only Dockerfiles. Each image gets its own pull request.
+  # hibernation controller, cloudflared and PgBouncer images, which
+  # docker_ssh.py reads from pin-only Dockerfiles. Each image gets its own
+  # pull request.
   - package-ecosystem: docker
     directories:
       - /
