@@ -4222,7 +4222,7 @@ def _remove_app_data(executor, app):
         'if [ -L "$p" ]; then kind="symlink $(readlink "$p")"; '
         'elif [ -e "$p" ]; then kind=dir; else echo absent; exit 0; fi; '
         'rm -rf "$p" 2>/dev/null || '
-        'docker run --rm -v "$parent:/data" alpine:3.20 rm -rf "/data/$app"; '
+        f'docker run --rm -v "$parent:/data" {quote(CONTROLLER_IMAGE)} rm -rf "/data/$app"; '
         'if [ -e "$p" ] || [ -L "$p" ]; then echo failed; '
         'else echo "removed $kind"; fi'
     )
@@ -5220,8 +5220,8 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
 
     Older docker-ssh deploys left data dirs owned by root, so each dir from
     ``_remote_bind_mount_dirs`` is chowned recursively, falling back to a root
-    ``alpine:3.20`` container. If that fails too, warn rather than abort: a
-    fresh dir is still created as the SSH user.
+    container of the controller image. If that fails too, warn rather than
+    abort: a fresh dir is still created as the SSH user.
     """
     app = quote(experiment_id)
     dirs = " ".join(_remote_bind_mount_dirs(docker_volumes, experiment_id))
@@ -5237,7 +5237,7 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
         '  if chown -R "$uid:$gid" "$d" 2>/dev/null; then '
         "    :; "
         '  elif docker run --rm -v "$d:$d" '
-        'alpine:3.20 chown -R "$uid:$gid" "$d"; then '
+        f'{quote(CONTROLLER_IMAGE)} chown -R "$uid:$gid" "$d"; then '
         "    :; "
         "  else "
         '    echo "Warning: could not chown $d for $app; '

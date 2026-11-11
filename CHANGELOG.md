@@ -36,6 +36,11 @@
     the new volume `dallinger_postgres18`. Remove the old data with
     `docker volume rm dallinger_postgres` once you no longer need it.
     Local `dallinger docker debug` databases also start empty.
+- docker-ssh deploy and `destroy --remove-data` fix folder ownership and
+  delete root-owned data folders with the digest-pinned controller image
+  (`python:3.14-alpine`) instead of `alpine:3.20`, which no longer gets
+  updates. The server usually has the controller image already, so these
+  steps rarely pull anything.
 - docker-ssh apps now run PgBouncer 1.26.1 from `edoburu/pgbouncer`
   instead of 1.24.1 from `bitnamilegacy/pgbouncer`, which Bitnami no
   longer updates. 1.26 fixes several crash and denial-of-service bugs and,
