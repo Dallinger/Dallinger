@@ -8,18 +8,26 @@
   18 (`postgres:18-trixie`), in the shared server database, new Cloudflare
   apps, `dallinger docker debug` and `dallinger docker start-services`.
   PostgreSQL 18 can't open data written by 12, so each change uses a new
-  volume and leaves the old one alone:
+  volume and keeps the old one's data:
   - On a server set up by 13.0 or earlier, `dallinger docker-ssh servers
     upgrade` copies the shared databases into the new volume
     `dallinger_dallinger_pg18_data`, stopping the classic apps during the
     copy after asking first (hibernating apps are started again
     hibernated). It first checks that the server has free disk space for
-    about twice the size of the databases. It goes back to PostgreSQL 12 if anything
-    fails before the shared services start on 18, and refuses to use a copy
-    that an interrupted run left unfinished. Once the apps work, remove the
-    old volume with `docker volume rm dallinger_dallinger_pg_data` on the
-    server. Deploys keep using the server's current Postgres until the
-    upgrade.
+    about twice the size of the databases. It goes back to PostgreSQL 12 if
+    anything fails before the copy is marked finished, just before the shared
+    services start on 18. After that, the copy is kept. It refuses to use a
+    copy that an interrupted run left unfinished, and a PostgreSQL 18 volume
+    that is not a finished copy; the error says how to decide which volume to
+    remove. The apps that an interrupted run stopped are started again by the
+    next run. Once the copy is finished, it renames `PG_VERSION` in the old
+    volume, so that a server compose file written back by an older Dallinger
+    (a Dallinger 12 deploy or `servers upgrade` from 13.0) can't start
+    PostgreSQL 12 on the data from before the copy. If that rename fails, the
+    next run renames it and says that anything written to PostgreSQL 12 since
+    the copy stays on the old volume. Once the apps work, remove the old
+    volume with `docker volume rm dallinger_dallinger_pg_data` on the server.
+    Deploys keep using the server's current Postgres until the upgrade.
   - An existing Cloudflare app keeps the PostgreSQL version of its database
     volume when updated with `--update`. To move it to 18, export its data,
     destroy it and deploy it again with `--archive`.
