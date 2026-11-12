@@ -1145,6 +1145,51 @@ def test_failing_remote_command_stops_spinner_before_error(monkeypatch, capsys):
     assert capsys.readouterr().out.startswith("<spinner cleared>\nError: exit code")
 
 
+@pytest.mark.parametrize(
+    "daemon_error",
+    [
+        "all predefined address pools have been fully subnetted",
+        "could not find an available, non-overlapping IPv4 address pool "
+        "among the defaults to assign to the network",
+    ],
+)
+def test_failing_network_creation_explains_exhausted_address_pools(
+    monkeypatch, capsys, daemon_error
+):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    monkeypatch.setattr(docker_ssh, "get_connected_ssh_client", mock.Mock())
+    executor = docker_ssh.Executor("example.com")
+    error = (
+        f"failed to create network app_app: Error response from daemon: {daemon_error}"
+    )
+    monkeypatch.setattr(executor, "run_with_status", lambda cmd: (1, "", error))
+
+    with pytest.raises(docker_ssh.ExecuteException):
+        executor.run("docker compose up -d")
+    out = capsys.readouterr().out
+    assert "Docker on 'example.com' found no free address range" in out
+    assert '{"default-address-pools": [' in out
+    assert "merge the key into the settings" in out
+    assert "Don't run `docker network prune`" in out
+    assert "must not overlap any range in `ip route`" in out
+    assert "python3 -m json.tool" in out
+
+
+def test_other_failures_do_not_explain_address_pools(monkeypatch, capsys):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    monkeypatch.setattr(docker_ssh, "get_connected_ssh_client", mock.Mock())
+    executor = docker_ssh.Executor("example.com")
+    monkeypatch.setattr(
+        executor, "run_with_status", lambda cmd: (1, "", "pull access denied")
+    )
+
+    with pytest.raises(docker_ssh.ExecuteException):
+        executor.run("docker compose up -d")
+    assert "default-address-pools" not in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("key_format", ["TraditionalOpenSSL", "OpenSSH"])
 def test_get_connected_ssh_client_rejects_dsa_key(tmp_path, monkeypatch, key_format):
     import click

@@ -86,6 +86,16 @@
 
 ### Fixed
 
+- A docker-ssh deploy that fails because Docker on the server can't find an
+  address range for a new network (`all predefined address pools have been
+  fully subnetted`, or on older Docker `could not find an available,
+  non-overlapping IPv4 address pool`) now explains the two causes, used-up
+  pools and ranges that overlap the server's routes, and how to fix them:
+  configure `default-address-pools` in `daemon.json` (with a complete example,
+  checks to run first and a warning that the Docker restart stops the
+  server's containers), and avoid `docker network prune`, which breaks
+  stopped apps. The new "Docker network address pools"
+  section of the Docker documentation describes the server setup.
 - `dallinger docker-ssh apps` and the other commands that list apps show a
   running app whose name has capitals or dots (such as `My.App`) as
   running, instead of inactive.

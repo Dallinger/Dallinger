@@ -583,6 +583,60 @@ Your deployment server must meet these requirements:
     * Your server's ``~/.ssh/authorized_keys`` file must contain the public key corresponding to your ``server_pem`` private key
     * The user on the server needs passwordless sudo
 
+.. _docker-network-address-pools:
+
+Docker network address pools
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each docker-ssh app creates one Docker network (``<app>_app``), and classic
+ingress adds one shared ``dallinger`` network per server. By default Docker
+gives every network a large subnet, so a server runs out of address space
+after about 30 networks, counting other Compose projects on it. Docker also
+can't create networks when its default ranges overlap the server's own
+routes, for example a VPN's, even with only a few networks. Either way a
+deploy fails with ``all predefined address pools have been fully subnetted``
+(older Docker: ``could not find an available, non-overlapping IPv4 address
+pool among the defaults``). If ``docker network ls`` lists about 30
+networks, the pools are used up; otherwise look in ``ip route`` for routes,
+other than Docker's ``br-`` ones, inside ``172.16.0.0/12`` or
+``192.168.0.0/16``.
+
+Don't run ``docker network prune``: it removes every network that no running
+container uses, so fully stopped apps and other users' stopped Compose
+projects lose their networks and then fail to start. Remove a network with
+``docker network rm <name>`` only if its project is gone.
+
+To fix either cause, give Docker other subnets in ``/etc/docker/daemon.json``
+(merge this key into any settings already in the file):
+
+.. code-block:: json
+
+    {
+      "default-address-pools": [{"base": "10.200.0.0/16", "size": 24}]
+    }
+
+This allows 256 networks of 254 addresses each. Pick a ``base`` that no
+other network the server talks to uses: any range in ``ip route``, its own
+LAN, VPNs, and the addresses users connect from (check ``who``). Docker skips
+subnets that overlap a route and won't start if none is left; if the base
+overlaps other machines' addresses, the server can't reach them, including
+SSH sessions. Avoid
+``10.0.0.0/8`` ranges where a VPN routes them, and ``172.16.0.0/12`` on
+university and corporate networks, which often use it.
+
+Docker also won't start with an invalid file, so check it with
+``sudo dockerd --validate`` (Docker 23 or later) or
+``sudo python3 -m json.tool /etc/docker/daemon.json``. Neither check looks
+at routes. Then run ``sudo systemctl restart docker``, with console access
+at hand in case Docker doesn't come back. The restart stops every container
+on the server, and containers without a restart policy stay stopped, so on a
+shared server agree a time with its other users first. Adding
+``"live-restore": true`` and applying it with ``sudo systemctl reload
+docker`` before restarting usually keeps containers running through the
+restart, but Docker restores them on a best-effort basis; any it can't
+restore keep running unmanaged and must be stopped by hand. Existing
+networks keep their subnets; only new networks use the new pools.
+
 Verifying SSH Access
 --------------------
 
