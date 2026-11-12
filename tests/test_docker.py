@@ -1,5 +1,6 @@
 import importlib
 import io
+import json
 import os
 import re
 import sys
@@ -387,6 +388,37 @@ def test_postgres_services_run_postgres_18_without_jit(tmp_path, stub_config):
         assert "start_period" in postgres["healthcheck"]
 
 
+def test_caddy_services_use_the_pinned_image():
+    from dallinger.command_line.docker_ssh import CADDY_IMAGE, DOCKER_COMPOSE_SERVER_TPL
+
+    server = yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render())
+    assert server["services"]["httpserver"]["image"] == CADDY_IMAGE
+    app = get_yaml({}, ingress="cloudflare")
+    assert app["services"]["frontdoor"]["image"] == CADDY_IMAGE
+    assert re.fullmatch(r"caddy:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}", CADDY_IMAGE)
+
+
+def test_dozzle_uses_the_pinned_image():
+    from dallinger.command_line.docker_ssh import (
+        DOCKER_COMPOSE_SERVER_TPL,
+        DOZZLE_IMAGE,
+    )
+
+    server = yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render())
+    dozzle = server["services"]["dozzle"]
+    assert dozzle["image"] == DOZZLE_IMAGE
+    assert re.fullmatch(
+        r"amir20/dozzle:v\d+\.\d+\.\d+@sha256:[0-9a-f]{64}", DOZZLE_IMAGE
+    )
+    assert {
+        "DOZZLE_ENABLE_SHELL=false",
+        "DOZZLE_ENABLE_ACTIONS=false",
+        "DOZZLE_AUTO_UPDATE=off",
+        "DOZZLE_AUTO_CLEANUP=off",
+        "DOZZLE_UPDATE_CONTAINERS=off",
+    } <= set(dozzle["environment"])
+
+
 def test_an_existing_cloudflare_app_keeps_the_postgres_version_of_its_data(capsys):
     from dallinger.command_line.docker_ssh import _app_postgres_major
 
@@ -426,22 +458,38 @@ def test_compose_reads_the_database_password_from_the_app_env():
     database_url = result["services"]["web"]["environment"]["DATABASE_URL"]
     assert "${POSTGRES_PASSWORD}" in database_url
     assert (
-        "POSTGRESQL_PASSWORD=${POSTGRES_PASSWORD}"
+        "DB_PASSWORD=${POSTGRES_PASSWORD}"
         in (result["services"]["pgbouncer"]["environment"])
     )
 
 
+def test_pgbouncer_uses_the_pinned_image_and_its_settings():
+    from dallinger.command_line.docker_ssh import PGBOUNCER_IMAGE
+
+    pgbouncer = get_yaml({})["services"]["pgbouncer"]
+    assert pgbouncer["image"] == PGBOUNCER_IMAGE
+    assert re.fullmatch(
+        r"edoburu/pgbouncer:v\d+\.\d+\.\d+-p\d+@sha256:[0-9a-f]{64}", PGBOUNCER_IMAGE
+    )
+    assert pgbouncer["environment"] == [
+        "DB_HOST=postgresql",
+        "DB_NAME=dlgr-8c43a887",
+        "DB_USER=dlgr-8c43a887",
+        "DB_PASSWORD=${POSTGRES_PASSWORD}",
+        "AUTH_TYPE=scram-sha-256",
+        "POOL_MODE=transaction",
+        "MAX_CLIENT_CONN=10000",
+        "DEFAULT_POOL_SIZE=20",
+        "SERVER_IDLE_TIMEOUT=60",
+    ]
+    assert pgbouncer["healthcheck"]["test"] == ["CMD-SHELL", "nc -z 127.0.0.1 5432"]
+
+
 def test_pgbouncer_allows_more_connections_than_its_defaults():
     pgbouncer = get_yaml({}, ingress="cloudflare")["services"]["pgbouncer"]
-    assert "PGBOUNCER_MAX_CLIENT_CONN=10000" in pgbouncer["environment"]
-    assert "PGBOUNCER_DEFAULT_POOL_SIZE=80" in pgbouncer["environment"]
+    assert "MAX_CLIENT_CONN=10000" in pgbouncer["environment"]
+    assert "DEFAULT_POOL_SIZE=80" in pgbouncer["environment"]
     assert pgbouncer["ulimits"]["nofile"] == {"soft": 16384, "hard": 16384}
-
-
-def test_pgbouncer_keeps_a_small_pool_on_the_shared_postgres():
-    pgbouncer = get_yaml({}, ingress="classic")["services"]["pgbouncer"]
-    assert "PGBOUNCER_MAX_CLIENT_CONN=10000" in pgbouncer["environment"]
-    assert "PGBOUNCER_DEFAULT_POOL_SIZE=20" in pgbouncer["environment"]
 
 
 @pytest.mark.parametrize("n, shares", [(1, 102), (3, 34), (100, 2)])
@@ -1097,6 +1145,51 @@ def test_failing_remote_command_stops_spinner_before_error(monkeypatch, capsys):
     assert capsys.readouterr().out.startswith("<spinner cleared>\nError: exit code")
 
 
+@pytest.mark.parametrize(
+    "daemon_error",
+    [
+        "all predefined address pools have been fully subnetted",
+        "could not find an available, non-overlapping IPv4 address pool "
+        "among the defaults to assign to the network",
+    ],
+)
+def test_failing_network_creation_explains_exhausted_address_pools(
+    monkeypatch, capsys, daemon_error
+):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    monkeypatch.setattr(docker_ssh, "get_connected_ssh_client", mock.Mock())
+    executor = docker_ssh.Executor("example.com")
+    error = (
+        f"failed to create network app_app: Error response from daemon: {daemon_error}"
+    )
+    monkeypatch.setattr(executor, "run_with_status", lambda cmd: (1, "", error))
+
+    with pytest.raises(docker_ssh.ExecuteException):
+        executor.run("docker compose up -d")
+    out = capsys.readouterr().out
+    assert "Docker on 'example.com' found no free address range" in out
+    assert '{"default-address-pools": [' in out
+    assert "merge the key into the settings" in out
+    assert "Don't run `docker network prune`" in out
+    assert "must not overlap any range in `ip route`" in out
+    assert "python3 -m json.tool" in out
+
+
+def test_other_failures_do_not_explain_address_pools(monkeypatch, capsys):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    monkeypatch.setattr(docker_ssh, "get_connected_ssh_client", mock.Mock())
+    executor = docker_ssh.Executor("example.com")
+    monkeypatch.setattr(
+        executor, "run_with_status", lambda cmd: (1, "", "pull access denied")
+    )
+
+    with pytest.raises(docker_ssh.ExecuteException):
+        executor.run("docker compose up -d")
+    assert "default-address-pools" not in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("key_format", ["TraditionalOpenSSL", "OpenSSH"])
 def test_get_connected_ssh_client_rejects_dsa_key(tmp_path, monkeypatch, key_format):
     import click
@@ -1358,6 +1451,19 @@ def test_set_dozzle_password_skips_restart_when_not_running():
     docker_ssh.set_dozzle_password(executor, sftp, "secret-password")
 
     assert sftp.putfo.call_count == 2
+    uploaded = {
+        call.args[1]: call.args[0].getvalue() for call in sftp.putfo.call_args_list
+    }
+    users = json.loads(uploaded["dallinger/dozzle-users.yml"])
+    dallinger_user = users["users"]["dallinger"]
+    assert dallinger_user["roles"] == "download"
+    hashed = dallinger_user["password"]
+    # Dozzle 11 refuses to start unless a password hash is exactly 60
+    # characters, which is what bcrypt produces.
+    assert len(hashed) == 60
+    import bcrypt
+
+    assert bcrypt.checkpw(b"secret-password", hashed.encode())
     executor.restart_dozzle.assert_not_called()
 
 
@@ -1713,14 +1819,35 @@ def _docker(*args):
     return result.stdout.strip()
 
 
-def test_frontdoor_caddyfile_validates_on_caddy_2_10():
+def test_frontdoor_caddyfile_validates_on_the_pinned_caddy():
     import shutil
+
+    from dallinger.command_line.docker_ssh import CADDY_IMAGE
 
     if not shutil.which("docker"):
         pytest.skip("docker is required to validate the front-door Caddyfile")
     caddyfile = FRONTDOOR_CADDYFILE.resolve()
     _docker(
-        *("run", "--rm", "-v", f"{caddyfile}:/etc/caddy/Caddyfile:ro", "caddy:2.10.2"),
+        *("run", "--rm", "-v", f"{caddyfile}:/etc/caddy/Caddyfile:ro", CADDY_IMAGE),
+        *("caddy", "validate", "--config", "/etc/caddy/Caddyfile"),
+    )
+
+
+def test_server_caddyfile_validates_on_the_pinned_caddy(tmp_path):
+    from dallinger.command_line.docker_ssh import CADDY_IMAGE, CADDYFILE_SERVER
+
+    tls = "tls ops@example.org"
+    (tmp_path / "Caddyfile").write_text(
+        CADDYFILE_SERVER.format(host="lab.example.org", tls=tls)
+    )
+    (tmp_path / "caddy.d").mkdir()
+    (tmp_path / "caddy.d" / "demo").write_text(
+        f"demo.example.org {{\n    {tls}\n    reverse_proxy demo_web:5000\n}}"
+    )
+    (tmp_path / "root.d").mkdir()
+    (tmp_path / "root.d" / "home").write_text("reverse_proxy home_web:5000\n")
+    _docker(
+        *("run", "--rm", "-v", f"{tmp_path}:/etc/caddy:ro", CADDY_IMAGE),
         *("caddy", "validate", "--config", "/etc/caddy/Caddyfile"),
     )
 
@@ -1738,7 +1865,7 @@ def frontdoor(tmp_path):
     import urllib.error
     import urllib.request
 
-    from dallinger.command_line.docker_ssh import CONTROLLER_IMAGE
+    from dallinger.command_line.docker_ssh import CADDY_IMAGE, CONTROLLER_IMAGE
 
     if not shutil.which("docker"):
         pytest.skip("docker is required to exercise the front door")
@@ -1769,7 +1896,7 @@ def frontdoor(tmp_path):
             *("-e", "XDG_CONFIG_HOME=/state/caddy-config"),
             *("-e", "XDG_DATA_HOME=/state/caddy-data"),
             *("-v", f"{FRONTDOOR_CADDYFILE.resolve()}:/etc/caddy/Caddyfile:ro"),
-            "caddy:2.10.2",
+            CADDY_IMAGE,
         )
         listen = _docker("port", names[-1], "5000").splitlines()[0]
 

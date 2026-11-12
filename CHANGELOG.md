@@ -8,18 +8,26 @@
   18 (`postgres:18-trixie`), in the shared server database, new Cloudflare
   apps, `dallinger docker debug` and `dallinger docker start-services`.
   PostgreSQL 18 can't open data written by 12, so each change uses a new
-  volume and leaves the old one alone:
+  volume and keeps the old one's data:
   - On a server set up by 13.0 or earlier, `dallinger docker-ssh servers
     upgrade` copies the shared databases into the new volume
     `dallinger_dallinger_pg18_data`, stopping the classic apps during the
     copy after asking first (hibernating apps are started again
     hibernated). It first checks that the server has free disk space for
-    about twice the size of the databases. It goes back to PostgreSQL 12 if anything
-    fails before the shared services start on 18, and refuses to use a copy
-    that an interrupted run left unfinished. Once the apps work, remove the
-    old volume with `docker volume rm dallinger_dallinger_pg_data` on the
-    server. Deploys keep using the server's current Postgres until the
-    upgrade.
+    about twice the size of the databases. It goes back to PostgreSQL 12 if
+    anything fails before the copy is marked finished, just before the shared
+    services start on 18. After that, the copy is kept. It refuses to use a
+    copy that an interrupted run left unfinished, and a PostgreSQL 18 volume
+    that is not a finished copy; the error says how to decide which volume to
+    remove. The apps that an interrupted run stopped are started again by the
+    next run. Once the copy is finished, it renames `PG_VERSION` in the old
+    volume, so that a server compose file written back by an older Dallinger
+    (a Dallinger 12 deploy or `servers upgrade` from 13.0) can't start
+    PostgreSQL 12 on the data from before the copy. If that rename fails, the
+    next run renames it and says that anything written to PostgreSQL 12 since
+    the copy stays on the old volume. Once the apps work, remove the old
+    volume with `docker volume rm dallinger_dallinger_pg_data` on the server.
+    Deploys keep using the server's current Postgres until the upgrade.
   - An existing Cloudflare app keeps the PostgreSQL version of its database
     volume when updated with `--update`. To move it to 18, export its data,
     destroy it and deploy it again with `--archive`.
@@ -28,6 +36,53 @@
     the new volume `dallinger_postgres18`. Remove the old data with
     `docker volume rm dallinger_postgres` once you no longer need it.
     Local `dallinger docker debug` databases also start empty.
+- docker-ssh runs Caddy 2.11.9 instead of 2.10.2, for the shared
+  classic-ingress server and each app's front door. 2.11 fixes several
+  security issues. It also refuses requests whose headers exceed 16 KiB
+  (`431`), drops request headers whose names contain `_` or `.`, and
+  aborts a request body upload or response download that makes no
+  progress for a minute; idle websockets and slow responses are not
+  affected. The image is now pinned by tag and digest in
+  `dallinger/docker/ssh_templates/Dockerfile.caddy`, like cloudflared, so
+  Dependabot opens pull requests for new Caddy releases. Apps move to
+  2.11.9 when next deployed with `--update`. The shared Caddy moves when
+  you run `dallinger docker-ssh servers upgrade`, which recreates it and so
+  briefly interrupts classic-ingress apps.
+- docker-ssh deploy and `destroy --remove-data` fix folder ownership and
+  delete root-owned data folders with the digest-pinned controller image
+  (`python:3.14-alpine`) instead of `alpine:3.20`, which no longer gets
+  updates. The server usually has the controller image already, so these
+  steps rarely pull anything.
+- docker-ssh apps now run PgBouncer 1.26.1 from `edoburu/pgbouncer`
+  instead of 1.24.1 from `bitnamilegacy/pgbouncer`, which Bitnami no
+  longer updates. 1.26 fixes several crash and denial-of-service bugs and,
+  in transaction pooling, keeps one request's `SET search_path` (on
+  PostgreSQL 18) or `SET default_transaction_read_only` (on PostgreSQL 14
+  and later) from reaching the next request on the same server
+  connection. PgBouncer now checks app logins with `scram-sha-256` instead
+  of `md5`, and the app's database user can no longer open PgBouncer's
+  admin console. The image is pinned by tag
+  and digest in `dallinger/docker/ssh_templates/Dockerfile.pgbouncer`, like
+  cloudflared, so Dependabot opens pull requests for new releases. Existing
+  apps switch when they are next deployed with `--update`.
+- The log viewer on classic-ingress docker-ssh servers is Dozzle 11.4.2,
+  pinned by tag and digest in
+  `dallinger/docker/ssh_templates/Dockerfile.dozzle` so Dependabot can open
+  pull requests for later releases. It was `amir20/dozzle:v10.0.2` in the
+  server Compose template, which Dependabot cannot read. Run
+  `dallinger docker-ssh servers upgrade` to pick up the new image. The same
+  username and password still work. Existing logins are signed out, and a
+  later recreate of the Dozzle container signs them out again, because
+  Dozzle 11 keeps its session secret in the container rather than next to
+  `dozzle-users.yml`. The log viewer account can only view and download logs;
+  `servers upgrade` adds that restriction to existing Dallinger-generated
+  accounts without changing their password. Shell access, container actions
+  and Dozzle's scheduled updates and cleanup are now switched off in the
+  Compose file, so the log viewer login cannot turn them on from Dozzle 11's
+  setup page.
+- The changelog check now skips Dependabot pull requests, which can't edit
+  `CHANGELOG.md`. The `/release` skill adds their entries under
+  **Updated** when a release is cut.
 
 ### Fixed
 
@@ -50,6 +105,16 @@
   removes that Cloudflare tunnel and its DNS record. Apps deployed
   before this change have no record, so their cache stays; the server's
   `docker builder du` shows it.
+- A docker-ssh deploy that fails because Docker on the server can't find an
+  address range for a new network (`all predefined address pools have been
+  fully subnetted`, or on older Docker `could not find an available,
+  non-overlapping IPv4 address pool`) now explains the two causes, used-up
+  pools and ranges that overlap the server's routes, and how to fix them:
+  configure `default-address-pools` in `daemon.json` (with a complete example,
+  checks to run first and a warning that the Docker restart stops the
+  server's containers), and avoid `docker network prune`, which breaks
+  stopped apps. The new "Docker network address pools"
+  section of the Docker documentation describes the server setup.
 - `dallinger docker-ssh apps` and the other commands that list apps show a
   running app whose name has capitals or dots (such as `My.App`) as
   running, instead of inactive.
@@ -58,6 +123,12 @@
   Before, every `v*` tag moved them, so a patch to an older release line
   (such as 12.4.1 after 13.0.0) or a pre-release tag replaced `latest`
   with an older or unfinished image.
+- The clock's "Session idle in transaction!" warning only reports sessions
+  in the experiment's own database. Before, on a shared PostgreSQL server
+  (such as parallel local runs or tests), it also reported other databases'
+  transactions. The warning now fires when a session has been idle for over
+  1 second and shows the real `idle_time` alongside the `transaction_age`;
+  before, it labelled the transaction's age as `idle_time`.
 
 ## [v13.0.0](https://github.com/dallinger/dallinger/tree/v13.0.0) (2026-11-07)
 

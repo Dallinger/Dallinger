@@ -9,15 +9,18 @@ meant to be called from outside.
 
 The copy stops the server's classic apps, dumps every database and role with
 the new version's ``pg_dumpall``, restores them into a temporary container on
-the new volume and sets the apps' passwords again. The old volume is never
-changed, and a copy that fails before the shared services switch to it is
-undone. This module only handles the PostgreSQL 12 volume of Dallinger 13.0
-and earlier, so it can be deleted, with its tests, once no such server is
-left.
+the new volume and sets the apps' passwords again. The copy doesn't change
+the old volume, and a copy that fails before the shared services switch to it
+is undone. After the switch, the old volume is sealed so that PostgreSQL 12
+no longer starts on it. If that didn't happen, a later run seals it, but only
+when the new volume has the marker the copy left. This module only handles the
+PostgreSQL 12 volume of Dallinger 13.0 and earlier, so it can be deleted, with
+its tests, once no such server is left.
 """
 
+import json
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from shlex import quote
 
 import click
@@ -39,9 +42,28 @@ _POSTGRES_UPGRADE_DUMP = "~/dallinger/postgres-upgrade.sql"
 _POSTGRES_DUMP_CONTAINER = "dallinger_postgres_upgrade_dump"
 # Kept in the new volume until the shared services switch to it, so that a
 # copy left by an interrupted run, or by an undo that couldn't remove it, is
-# refused: apps may have written to the old database since. A volume that
-# the shared services created never has it.
-_POSTGRES_COPY_MARKER = ".dallinger-copy-in-progress"
+# refused: apps may have written to the old database since.
+_COPY_IN_PROGRESS_MARKER = ".dallinger-copy-in-progress"
+# Left in the new volume once the copy is switched to. After the marker above
+# is removed, a database the shared services created itself looks the same as
+# a finished copy; this file is how a later run tells them apart.
+_COPY_FINISHED_MARKER = ".dallinger-copied-from-postgres-12"
+# What PG_VERSION in the old volume is renamed to once the shared services
+# switch to the copy. A server compose file that an older Dallinger writes
+# back (with a Dallinger 12 deploy, or `servers upgrade` from 13.0) would
+# otherwise start PostgreSQL 12 on the data from before the copy, and the
+# apps would silently lose what they wrote since. Without PG_VERSION, the
+# image's initdb refuses the non-empty directory, so Postgres doesn't start.
+# Renaming the file back makes the volume usable again.
+_SEALED_PG_VERSION = f"PG_VERSION.copied-to-postgres-{postgres.POSTGRES_MAJOR}"
+# Lists the apps that a copy stops, with the services that ran, until they
+# are started again. A run cut off in between (by a closed connection, for
+# example) can't start them, so the next run does.
+_STOPPED_APPS_RECORD = "~/dallinger/postgres-upgrade-stopped-apps.json"
+_REMOVE_OLD_VOLUME = (
+    "Once the apps work, remove the old volume on the server with "
+    f"`docker volume rm {_OLD_SERVER_POSTGRES_VOLUME}`."
+)
 # A dump restored into a fresh cluster recreates the cluster's own owner and
 # database, which initdb already made.
 _EXPECTED_RESTORE_ERRORS = (
@@ -61,14 +83,17 @@ _RESET_PASSWORD_SQL = "\\getenv pw pw\nALTER ROLE :\"app\" PASSWORD :'pw';"
 
 
 def _shared_postgres_to_migrate(executor):
-    """Return the major version of a shared database still to be copied, or None.
+    """Return ``(major, copied)`` for an unsealed older shared database, or None.
 
     That is an older PostgreSQL's database in the volume that Dallinger 13.0
-    and earlier set up, on a server without the current version's volume.
-    Such a volume is a finished copy or was set up by this version, unless
-    it holds no database or the marker of an unfinished copy. That is
-    refused with the commands that remove it, because only the operator can
-    tell that nothing uses it.
+    and earlier set up. ``copied`` says whether the current version's volume
+    holds this command's finished copy (see :data:`_COPY_FINISHED_MARKER`).
+    A new volume with no database, or with the marker of an unfinished copy,
+    is refused with the commands that remove it, because only the operator
+    can tell that nothing uses it. A database without the finished-copy
+    marker is refused too, because only the operator can tell which volume
+    holds the data the apps need. If the check gives no
+    known answer, that is refused without advice.
     """
     volumes = set(executor.run("docker volume ls -q").split())
     if _OLD_SERVER_POSTGRES_VOLUME not in volumes:
@@ -77,17 +102,36 @@ def _shared_postgres_to_migrate(executor):
     if major is None or major == postgres.POSTGRES_MAJOR:
         return None
     if _SERVER_POSTGRES_VOLUME not in volumes:
-        return major
-    check = (
-        f"test -f /v/{_POSTGRES_COPY_MARKER} || ! ls /v/*/docker/PG_VERSION "
-        ">/dev/null 2>&1 && echo unfinished; true"
-    )
-    status = executor.run(
+        return major, False
+    state = executor.run(
         f"docker run --rm --entrypoint sh -v {_SERVER_POSTGRES_VOLUME}:/v:ro "
-        f"{postgres.POSTGRES_IMAGE} -c {quote(check)}"
-    )
-    if status.strip() != "unfinished":
-        return None
+        f"{postgres.POSTGRES_IMAGE} -c {quote(_new_volume_state_script())}"
+    ).strip()
+    if state == "copied":
+        return major, True
+    if state == "unrelated":
+        raise click.ClickException(
+            f"The volume {_SERVER_POSTGRES_VOLUME} holds a PostgreSQL "
+            f"{postgres.POSTGRES_MAJOR} database that isn't marked as a finished "
+            f"copy from {_OLD_SERVER_POSTGRES_VOLUME}, so nothing was changed. "
+            "Decide which volume holds the data your apps need; "
+            f"`docker ps -a --filter volume={_SERVER_POSTGRES_VOLUME}` lists the "
+            "containers that use the new one. If it is the new volume, remove "
+            "the old volume with "
+            f"`docker volume rm {_OLD_SERVER_POSTGRES_VOLUME}`, or seal it with "
+            f"`{_seal_command()}` to keep its data. If it is the old volume, "
+            "whose data was never copied, remove those containers (Docker "
+            "refuses to remove a volume that one still uses) and then the new "
+            f"volume with `docker volume rm {_SERVER_POSTGRES_VOLUME}` instead. "
+            "Then run this command again; in the second case it copies the "
+            "old data."
+        )
+    if state != "unfinished":
+        raise click.ClickException(
+            f"Could not tell what the volume {_SERVER_POSTGRES_VOLUME} holds: "
+            f"its check answered {state[:200]!r}, not `copied`, `unfinished` "
+            "or `unrelated`. Nothing was changed."
+        )
     raise click.ClickException(
         f"The volume {_SERVER_POSTGRES_VOLUME} holds no database or an unfinished "
         "copy of the shared database, left by an interrupted or undone "
@@ -95,8 +139,8 @@ def _shared_postgres_to_migrate(executor):
         f"the old volume {_OLD_SERVER_POSTGRES_VOLUME} is unchanged. Remove the "
         f"copy on the server with `docker rm -f {_POSTGRES_UPGRADE_CONTAINER}; "
         f"docker volume rm {_SERVER_POSTGRES_VOLUME}`, then run this command again. "
-        "Apps that the interrupted run stopped stay stopped; once the copy is done, "
-        "start each with `docker compose -f ~/dallinger/<app>/docker-compose.yml start`."
+        "The apps that the interrupted run stopped are started again once the "
+        "copy is done."
     )
 
 
@@ -128,34 +172,65 @@ def _classic_apps_to_stop(server, executor):
 class SharedPostgresCopy:
     """A copy of the shared database that ``servers upgrade`` is about to make.
 
-    ``major`` is the old cluster's version; ``apps`` maps each classic app to
-    stop to its running services.
+    ``major`` is the old cluster's version, or None if there is nothing to
+    copy or seal; ``apps`` maps each classic app to stop to its running
+    services. If ``copied``, an earlier run made the copy but didn't seal the
+    old volume, so only that is left to do. ``left`` maps each app that a
+    cut-off run stopped (see :data:`_STOPPED_APPS_RECORD`) to the services
+    that are still to be started and that ``apps`` doesn't list.
     """
 
-    major: int
+    major: int | None
     apps: dict
+    copied: bool = False
+    left: dict = field(default_factory=dict)
 
     def describe(self):
         """Explain the copy before ``servers upgrade`` asks to continue."""
-        print(
-            f"The shared PostgreSQL moves from version {self.major} to "
-            f"{postgres.POSTGRES_MAJOR}. Its databases are copied into the new "
-            f"volume {_SERVER_POSTGRES_VOLUME}; the old volume "
-            f"{_OLD_SERVER_POSTGRES_VOLUME} is kept unchanged."
-        )
+        if self.copied:
+            print(
+                f"The shared PostgreSQL {self.major} database in the old volume "
+                f"{_OLD_SERVER_POSTGRES_VOLUME} was already copied into "
+                f"{_SERVER_POSTGRES_VOLUME}. The old volume keeps its data, but "
+                f"its PG_VERSION file is renamed so that PostgreSQL {self.major} "
+                "no longer starts on it. Anything written to PostgreSQL "
+                f"{self.major} since that copy stays on the old volume."
+            )
+        elif self.major is not None:
+            print(
+                f"The shared PostgreSQL moves from version {self.major} to "
+                f"{postgres.POSTGRES_MAJOR}. Its databases are copied into the new "
+                f"volume {_SERVER_POSTGRES_VOLUME}; the old volume "
+                f"{_OLD_SERVER_POSTGRES_VOLUME} keeps its data, but its PG_VERSION "
+                f"file is renamed so that PostgreSQL {self.major} no longer starts "
+                "on it."
+            )
         if self.apps:
             print(
                 "These classic apps are stopped during the copy, and the services "
                 f"that ran are started again afterwards: {', '.join(self.apps)}."
             )
+        if self.left:
+            print(
+                "These classic apps, which an interrupted `servers upgrade` "
+                f"stopped, are started again afterwards: {', '.join(self.left)}."
+            )
 
 
 def planned_copy(server, executor):
     """Return the :class:`SharedPostgresCopy` that ``server`` needs, or None."""
-    major = _shared_postgres_to_migrate(executor)
-    if major is None:
-        return None
-    return SharedPostgresCopy(major, _classic_apps_to_stop(server, executor))
+    found = _shared_postgres_to_migrate(executor)
+    recorded = _recorded_stopped_apps(executor)
+    if found is None:
+        return SharedPostgresCopy(None, {}, left=recorded) if recorded else None
+    major, copied = found
+    apps = {} if copied else _classic_apps_to_stop(server, executor)
+    left = {
+        app: [service for service in services if service not in apps.get(app, ())]
+        for app, services in recorded.items()
+    }
+    left = {app: services for app, services in left.items() if services}
+    return SharedPostgresCopy(major, apps, copied, left)
 
 
 @contextmanager
@@ -163,21 +238,66 @@ def copied_shared_postgres(executor, server, copy):
     """Make ``copy``, if any, then let the caller switch the shared services to it.
 
     Yields a function that the caller calls right before it starts the shared
-    services on the new version; it marks the copy finished. From then on
-    apps may write to the copy, so a failure keeps it; a failure before that
-    undoes it. The stopped apps are
-    started again either way.
+    services on the new version; it marks the copy finished and seals the old
+    volume (see :func:`_seal_old_volume`). From then on apps may write to the
+    copy, so a failure keeps it; a failure before that undoes it. The stopped
+    apps are started again either way. A ``copy`` that an earlier run made
+    only has the old volume sealed. Apps that a cut-off run stopped (see
+    :data:`_STOPPED_APPS_RECORD`) are started again too, even without a copy.
     """
-    if copy is None:
-        yield lambda: None
-        return
+    stopping = copy.apps if copy else {}
+    left = copy.left if copy else {}
+    if stopping:
+        _record_stopped_apps(
+            executor,
+            {
+                app: [*stopping.get(app, []), *left.get(app, [])]
+                for app in {**stopping, **left}
+            },
+        )
+    try:
+        if copy is None or copy.major is None:
+            yield lambda: None
+        elif copy.copied:
+            yield from _seal_only(executor, server)
+        else:
+            yield from _copy(executor, server, copy)
+    finally:
+        if left:
+            print(
+                "Starting the apps that an interrupted `servers upgrade` stopped: "
+                f"{', '.join(left)}."
+            )
+            _start_apps(executor, left)
+        executor.run(f"rm -f {_STOPPED_APPS_RECORD}")
+
+
+def _seal_only(executor, server):
+    """Yield the switch of a ``servers upgrade`` that only has to seal the old volume."""
+    sealed = False
+
+    def seal():
+        nonlocal sealed
+        sealed = _seal_old_volume(executor, server)
+
+    yield seal
+    if sealed:
+        print(
+            f"Sealed the old volume {_OLD_SERVER_POSTGRES_VOLUME}. {_REMOVE_OLD_VOLUME}"
+        )
+
+
+def _copy(executor, server, copy):
+    """Make ``copy`` and yield the switch to it (see :func:`copied_shared_postgres`)."""
     stopped = _migrate_shared_postgres(executor, copy.major, copy.apps)
     switched = False
 
     def switch():
         nonlocal switched
-        executor.run(_copy_marker_command("rm"))
+        executor.run(_volume_file_command("touch", _COPY_FINISHED_MARKER))
+        executor.run(_volume_file_command("rm", _COPY_IN_PROGRESS_MARKER))
         switched = True
+        _seal_old_volume(executor, server)
 
     try:
         yield switch
@@ -196,8 +316,7 @@ def copied_shared_postgres(executor, server, copy):
         _start_apps(executor, stopped)
     print(
         "Copied the shared databases into PostgreSQL "
-        f"{postgres.POSTGRES_MAJOR}. Once the apps work, remove the old volume "
-        f"on the server with `docker volume rm {_OLD_SERVER_POSTGRES_VOLUME}`."
+        f"{postgres.POSTGRES_MAJOR}. {_REMOVE_OLD_VOLUME}"
     )
 
 
@@ -205,8 +324,38 @@ def _app_compose(app):
     return f"docker compose -f ~/dallinger/{quote(app)}/docker-compose.yml"
 
 
+def _record_stopped_apps(executor, apps):
+    """Save ``apps`` in :data:`_STOPPED_APPS_RECORD`, before any of them is stopped."""
+    executor.run(f"printf '%s\\n' {quote(json.dumps(apps))} > {_STOPPED_APPS_RECORD}")
+
+
+def _recorded_stopped_apps(executor):
+    """Return the apps that :data:`_STOPPED_APPS_RECORD` lists, with their services.
+
+    An unreadable record only warns, because the apps it lists can still be
+    started by hand.
+    """
+    output = executor.run(f"cat {_STOPPED_APPS_RECORD} 2>/dev/null || true")
+    if not output.strip():
+        return {}
+    try:
+        apps = {
+            str(app): [str(service) for service in services]
+            for app, services in json.loads(output).items()
+        }
+    except (AttributeError, TypeError, ValueError):
+        print(
+            f"{RED}Warning: ignoring {_STOPPED_APPS_RECORD}, which doesn't list "
+            f"apps: {output.strip()[:200]!r}.{END} Start any app that an "
+            "interrupted `servers upgrade` stopped with "
+            "`docker compose -f ~/dallinger/<app>/docker-compose.yml start`."
+        )
+        return {}
+    return apps
+
+
 def _start_apps(executor, apps):
-    """Start the services that :func:`_migrate_shared_postgres` stopped.
+    """Start the services of the apps that a copy stopped.
 
     ``apps`` maps each app to those services. Failures only warn.
     """
@@ -343,7 +492,7 @@ def _restore_shared_postgres(executor, expected):
         "docker volume create --label com.docker.compose.project=dallinger "
         f"--label com.docker.compose.volume=dallinger_pg{postgres.POSTGRES_MAJOR}_data "
         f"{_SERVER_POSTGRES_VOLUME} >/dev/null && "
-        f"{_copy_marker_command('touch')}"
+        f"{_volume_file_command('touch', _COPY_IN_PROGRESS_MARKER)}"
     )
     mount = postgres.data_mount_path(postgres.POSTGRES_MAJOR)
     executor.run(
@@ -393,12 +542,60 @@ def _restore_shared_postgres(executor, expected):
     )
 
 
-def _copy_marker_command(program):
-    """Return a command that runs ``program`` (``touch`` or ``rm``) on the copy's marker."""
+def _new_volume_state_script():
+    """Return a shell script that prints ``copied``, ``unfinished`` or ``unrelated``.
+
+    ``unfinished`` means the in-progress marker is present, or the volume
+    holds no database. It wins over the finished-copy marker, which a switch
+    cut off before it removed the in-progress one leaves too. ``copied``
+    means the finished-copy marker is present next to PostgreSQL 18's data
+    directory. Anything else initialized the volume some other way.
+    """
+    copied = f"/v/{_COPY_FINISHED_MARKER}"
+    pending = f"/v/{_COPY_IN_PROGRESS_MARKER}"
+    data = "/v/*/docker/PG_VERSION"
+    return (
+        f"if [ -f {pending} ] || ! ls {data} >/dev/null 2>&1; then echo unfinished; "
+        f"elif [ -f {copied} ]; then echo copied; "
+        "else echo unrelated; fi; true"
+    )
+
+
+def _volume_file_command(program, filename):
+    """Return a command that runs ``program`` on ``filename`` in the new volume."""
     return (
         f"docker run --rm --entrypoint {program} -v {_SERVER_POSTGRES_VOLUME}:/v "
-        f"{postgres.POSTGRES_IMAGE} /v/{_POSTGRES_COPY_MARKER}"
+        f"{postgres.POSTGRES_IMAGE} /v/{filename}"
     )
+
+
+def _seal_command():
+    """Return the command that renames PG_VERSION in the old volume."""
+    return (
+        f"docker run --rm --entrypoint mv -v {_OLD_SERVER_POSTGRES_VOLUME}:/v "
+        f"{postgres.POSTGRES_IMAGE} /v/PG_VERSION /v/{_SEALED_PG_VERSION}"
+    )
+
+
+def _seal_old_volume(executor, server):
+    """Rename PG_VERSION in the old volume, so that PostgreSQL 12 can't start on it.
+
+    See :data:`_SEALED_PG_VERSION`. The shared services are about to start on
+    the copy, so a failure only warns; the next ``servers upgrade`` tries again.
+    Returns whether the volume was sealed.
+    """
+    command = _seal_command()
+    status, _, error = executor.run_with_status(command)
+    if status != 0:
+        print(
+            f"{RED}Warning: could not seal the old volume "
+            f"{_OLD_SERVER_POSTGRES_VOLUME}: {error.strip() or 'this failed'}.{END} "
+            "Until it is sealed, a server compose file written back by an older "
+            "Dallinger starts PostgreSQL 12 on the data from before the copy. "
+            f"Run `dallinger docker-ssh servers upgrade --host {quote(server)}` "
+            f"again, or run this on the server: `{command}`"
+        )
+    return status == 0
 
 
 def _undo_shared_postgres_copy(executor, major):
@@ -433,7 +630,7 @@ def _migrate_shared_postgres(executor, major, apps):
     copy, dumps every database and role, and restores them into the new
     volume. The dump leaves out role passwords, whose MD5 hashes newer
     versions reject over the network, so they are set again (see
-    :func:`_reset_role_passwords`). The old volume is never changed. If
+    :func:`_reset_role_passwords`). The old volume is not changed. If
     anything fails, the copy is undone, the apps are started again and the
     error is raised. ``apps`` maps the apps to stop to their running
     services. Returns

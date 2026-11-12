@@ -4,6 +4,7 @@ import contextlib
 import hashlib
 import importlib
 import io
+import json
 import os
 import re
 import subprocess
@@ -191,6 +192,33 @@ def test_servers_upgrade_rewrites_server_files_and_keeps_backups(server):
     result = CliRunner().invoke(docker_ssh.servers, ["upgrade", "--host", "lab"])
     assert result.exit_code == 0, result.output
     assert "files on lab.example.org are up to date." in result.output
+
+
+def test_servers_upgrade_restricts_the_generated_dozzle_user(server):
+    users_path = server / "dallinger/dozzle-users.yml"
+    users_path.write_text(
+        json.dumps(
+            {
+                "users": {
+                    "dallinger": {
+                        "name": "Dallinger",
+                        "password": "hashed-password",
+                        "email": "dallinger@example.com",
+                    }
+                }
+            }
+        )
+    )
+
+    result = CliRunner().invoke(
+        docker_ssh.servers, ["upgrade", "--host", "lab", "--yes"]
+    )
+
+    assert result.exit_code == 0, result.output
+    user = json.loads(users_path.read_text())["users"]["dallinger"]
+    assert user["roles"] == "download"
+    assert user["password"] == "hashed-password"
+    assert len(list((server / "dallinger").glob("dozzle-users.yml.*.bak"))) == 1
 
 
 def test_servers_upgrade_saves_a_given_contact_email(server, monkeypatch):

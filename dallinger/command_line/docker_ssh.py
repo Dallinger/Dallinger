@@ -133,7 +133,6 @@ DOCKER_COMPOSE_SERVER_TPL = Template(
         "dallinger", "dallinger/docker/ssh_templates/docker-compose-server.yml.j2"
     ).read_text()
 )
-DOCKER_COMPOSE_SERVER_TPL.globals.update(postgres.template_vars())
 
 _SSH_TEMPLATE_ENV = Environment(
     loader=FileSystemLoader(
@@ -175,6 +174,12 @@ def _read_pinned_image(name: str) -> str:
 
 CONTROLLER_IMAGE = _read_pinned_image("Dockerfile.controller")
 CLOUDFLARED_IMAGE = _read_pinned_image("Dockerfile.cloudflared")
+PGBOUNCER_IMAGE = _read_pinned_image("Dockerfile.pgbouncer")
+CADDY_IMAGE = _read_pinned_image("Dockerfile.caddy")
+DOZZLE_IMAGE = _read_pinned_image("Dockerfile.dozzle")
+DOCKER_COMPOSE_SERVER_TPL.globals.update(
+    postgres.template_vars(), caddy_image=CADDY_IMAGE, dozzle_image=DOZZLE_IMAGE
+)
 
 
 CADDYFILE_SERVER = """
@@ -396,6 +401,10 @@ def upgrade(host, contact_email, yes):
     PostgreSQL 12, it first copies every database into PostgreSQL 18. The
     copy needs free disk space for about twice their size, and the classic
     apps are stopped until it is done, which takes longer for larger databases.
+    It then seals the old volume by renaming its PG_VERSION file. If an older
+    Dallinger writes its compose file back afterwards, the shared Postgres
+    then fails to start, instead of running on the data from before the copy;
+    running this command again switches it back to PostgreSQL 18.
     Deploys never write these files. They are left read-only, so that an
     older Dallinger's deploy fails instead of rewriting them; if one did
     rewrite them, deploys stop until this command restores them.
@@ -719,6 +728,22 @@ def _older_dallinger_message(server, state):
     )
 
 
+def _dozzle_users_with_download_role(content):
+    """Limit Dallinger's generated Dozzle user to viewing and downloading logs."""
+    try:
+        data = json.loads(content)
+        user = data["users"]["dallinger"]
+    except (KeyError, TypeError, ValueError):
+        return content
+    if not isinstance(user, dict):
+        return content
+    roles = user.get("roles")
+    if roles is not None and (not isinstance(roles, str) or roles.strip()):
+        return content
+    user["roles"] = "download"
+    return json.dumps(data)
+
+
 def _write_server_files(server, server_info, *, replace, yes=True):
     """Write the shared classic-ingress files and start the shared services.
 
@@ -763,6 +788,12 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         "dallinger/Caddyfile": CADDYFILE_SERVER.format(host=host, tls=tls),
     }
     current = {path: executor.run(f"cat ~/{path}", raise_=False) for path in files}
+    dozzle_users_path = "dallinger/dozzle-users.yml"
+    current_dozzle_users = executor.run(f"cat ~/{dozzle_users_path}", raise_=False)
+    restricted_dozzle_users = _dozzle_users_with_download_role(current_dozzle_users)
+    if restricted_dozzle_users != current_dozzle_users:
+        files[dozzle_users_path] = restricted_dozzle_users
+        current[dozzle_users_path] = current_dozzle_users
     changed = [path for path, content in files.items() if current[path] != content]
     # Imported here because it imports this module.
     from dallinger.command_line import docker_ssh_postgres_upgrade as pg_upgrade
@@ -3052,6 +3083,8 @@ def set_dozzle_password(executor, sftp, new_password):
                 "name": "Dallinger",
                 "password": hashed,
                 "email": "dallinger@example.com",
+                # Dozzle treats an omitted role as every role.
+                "roles": "download",
             }
         }
     }
@@ -4392,7 +4425,7 @@ def _remove_app_data(executor, app):
         'if [ -L "$p" ]; then kind="symlink $(readlink "$p")"; '
         'elif [ -e "$p" ]; then kind=dir; else echo absent; exit 0; fi; '
         'rm -rf "$p" 2>/dev/null || '
-        'docker run --rm -v "$parent:/data" alpine:3.20 rm -rf "/data/$app"; '
+        f'docker run --rm -v "$parent:/data" {quote(CONTROLLER_IMAGE)} rm -rf "/data/$app"; '
         'if [ -e "$p" ] || [ -L "$p" ]; then echo failed; '
         'else echo "removed $kind"; fi'
     )
@@ -5127,6 +5160,8 @@ class Executor:
             if _is_remote_disk_full_error(stdout, stderr, compose_logs):
                 print(get_remote_disk_full_guidance(self.host))
                 self.offer_safe_disk_cleanup()
+            if _is_address_pools_exhausted_error(stdout, stderr):
+                print(get_address_pools_exhausted_guidance(self.host))
             raise ExecuteException(
                 f"An error occurred when running the following command on the remote server: \n{cmd}"
             )
@@ -5334,6 +5369,8 @@ def get_docker_compose_yml(
         idle_minutes=idle_minutes,
         controller_image=CONTROLLER_IMAGE,
         cloudflared_image=CLOUDFLARED_IMAGE,
+        pgbouncer_image=PGBOUNCER_IMAGE,
+        caddy_image=CADDY_IMAGE,
         compose_project=_compose_project(experiment_id),
         run_as_ssh_user=run_as_ssh_user,
         **postgres.template_vars(postgres_major or postgres.POSTGRES_MAJOR),
@@ -5437,8 +5474,8 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
 
     Older docker-ssh deploys left data dirs owned by root, so each dir from
     ``_remote_bind_mount_dirs`` is chowned recursively, falling back to a root
-    ``alpine:3.20`` container. If that fails too, warn rather than abort: a
-    fresh dir is still created as the SSH user.
+    container of the controller image. If that fails too, warn rather than
+    abort: a fresh dir is still created as the SSH user.
     """
     app = quote(experiment_id)
     dirs = " ".join(_remote_bind_mount_dirs(docker_volumes, experiment_id))
@@ -5454,7 +5491,7 @@ def _write_experiment_compose_env(executor, experiment_id, docker_volumes=""):
         '  if chown -R "$uid:$gid" "$d" 2>/dev/null; then '
         "    :; "
         '  elif docker run --rm -v "$d:$d" '
-        'alpine:3.20 chown -R "$uid:$gid" "$d"; then '
+        f'{quote(CONTROLLER_IMAGE)} chown -R "$uid:$gid" "$d"; then '
         "    :; "
         "  else "
         '    echo "Warning: could not chown $d for $app; '
@@ -5651,6 +5688,49 @@ def get_remote_disk_full_guidance(host):
         "",
     ]
     return "\n".join(guidance)
+
+
+ADDRESS_POOLS_EXHAUSTED_MARKERS = (
+    "all predefined address pools have been fully subnetted",
+    "could not find an available, non-overlapping ipv4 address pool",
+)
+
+
+def _is_address_pools_exhausted_error(*outputs):
+    output = "\n".join(str(chunk) for chunk in outputs if chunk).lower()
+    return any(marker in output for marker in ADDRESS_POOLS_EXHAUSTED_MARKERS)
+
+
+def get_address_pools_exhausted_guidance(host):
+    """Explain how to free or add Docker network address space on ``host``."""
+    return f"""
+Docker on '{host}' found no free address range for a new network. Either its
+pools are used up (each Dallinger app needs one network, and the default
+pools allow only about 30 per server, counting every project on it), or its
+default ranges overlap the server's own routes, for example a VPN's.
+If `docker network ls` lists about 30 networks, the pools are used up;
+otherwise look in `ip route` for routes, other than Docker's `br-` ones,
+inside 172.16.0.0/12 or 192.168.0.0/16.
+- Don't run `docker network prune`: it also removes the networks of fully
+  stopped apps and of other users' stopped Compose projects, which then fail
+  to start. Remove a network with `docker network rm <name>` only if its
+  project is gone.
+- To fix either cause, give Docker other subnets in /etc/docker/daemon.json.
+  Create the file with this content, or merge the key into the settings
+  already in it (replacing the file would drop them):
+    {{"default-address-pools": [{{"base": "10.200.0.0/16", "size": 24}}]}}
+  The base must not overlap any range in `ip route`, the server's LAN, its
+  VPNs or the addresses users connect from: Docker skips subnets that overlap
+  a route and won't start if none is left, and other overlaps cut those
+  machines off, including over SSH.
+  Docker also won't start if the file is
+  invalid, so check it with `sudo dockerd --validate` (Docker 23 or later) or
+  `sudo python3 -m json.tool /etc/docker/daemon.json`,
+  then run `sudo systemctl restart docker`. The restart stops every container
+  on the server, and those without a restart policy stay stopped, so agree a
+  time with its other users. See "Docker network address pools" in
+  Dallinger's Docker documentation.
+"""
 
 
 class ExecuteException(Exception):

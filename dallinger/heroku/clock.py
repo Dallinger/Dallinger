@@ -77,17 +77,20 @@ def warn_on_idle_transactions():
     with db.engine.connect() as conn:
         result = conn.execute(
             text("""
-            SELECT pid, state, xact_start, query, now() - xact_start AS idle_time
+            SELECT pid, query,
+                   now() - state_change AS idle_time,
+                   now() - xact_start AS transaction_age
             FROM pg_stat_activity
             WHERE state = 'idle in transaction'
-              AND xact_start IS NOT NULL
-              AND now() - xact_start > interval '1 second'
+              AND datname = current_database()
+              AND now() - state_change > interval '1 second'
         """)
         )
         for row in result:
             print(
                 f"Session idle in transaction! pid={row.pid}, "
-                f"idle_time={row.idle_time}, last_query={row.query}"
+                f"idle_time={row.idle_time}, "
+                f"transaction_age={row.transaction_age}, last_query={row.query}"
             )
 
 

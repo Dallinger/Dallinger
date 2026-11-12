@@ -1,6 +1,6 @@
   frontdoor:
     restart: unless-stopped
-    image: caddy:2.10.2
+    image: {{ caddy_image }}
     user: "${UID}:${GID}"
     environment:
       HOME: /state
