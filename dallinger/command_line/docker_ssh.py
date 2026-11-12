@@ -2711,8 +2711,9 @@ def _build_cache_ids(docker_client):
     """Return the ids of the daemon's build cache records, oldest first.
 
     ``frontend`` and ``internal`` records, such as the ``docker/dockerfile``
-    frontend that every build pulls, are left out: a prune without ``all``
-    never removes them, and the next build on the server needs them anyway.
+    frontend that the default Dockerfile's ``# syntax=`` line pulls, are left
+    out: a prune without ``all`` never removes them, and other apps' builds
+    use them.
     """
     api = docker_client.api
     # docker-py's ``APIClient.df`` takes no parameters, hence the private

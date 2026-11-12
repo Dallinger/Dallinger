@@ -40,7 +40,7 @@
   that a running build uses, is listed in `~/dallinger/build-cache-leftovers`,
   and a later destroy removes it once it is unused, so
   `build-cache-leftovers` is now a reserved app name. The `docker/dockerfile`
-  frontend that every build uses stays on the server. If a first deploy's
+  frontend that the default Dockerfile pulls stays on the server. If a first deploy's
   build fails, or the deploy fails after it, the deploy keeps the cache for a
   retry and names the destroy command that removes it. Destroying such an
   app removes that cache, then the folder if it holds only the files a
