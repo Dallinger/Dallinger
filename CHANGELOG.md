@@ -53,6 +53,9 @@
   and digest in `dallinger/docker/ssh_templates/Dockerfile.pgbouncer`, like
   cloudflared, so Dependabot opens pull requests for new releases. Existing
   apps switch when they are next deployed with `--update`.
+- The changelog check now skips Dependabot pull requests, which can't edit
+  `CHANGELOG.md`. The `/release` skill adds their entries under
+  **Updated** when a release is cut.
 
 ### Fixed
 
