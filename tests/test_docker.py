@@ -1155,7 +1155,7 @@ def test_other_failures_do_not_explain_address_pools(monkeypatch, capsys):
 
     with pytest.raises(docker_ssh.ExecuteException):
         executor.run("docker compose up -d")
-    assert "address space" not in capsys.readouterr().out
+    assert "default-address-pools" not in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("key_format", ["TraditionalOpenSSL", "OpenSSH"])

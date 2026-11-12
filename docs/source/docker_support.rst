@@ -596,14 +596,15 @@ can't create networks when its default ranges overlap the server's own
 routes, for example a VPN's, even with only a few networks. Either way a
 deploy fails with ``all predefined address pools have been fully subnetted``
 (older Docker: ``could not find an available, non-overlapping IPv4 address
-pool among the defaults``). Compare ``docker network ls`` with ``ip route``
-to see which cause applies.
+pool among the defaults``). If ``docker network ls`` lists about 30
+networks, the pools are used up; otherwise look in ``ip route`` for routes,
+other than Docker's ``br-`` ones, inside ``172.16.0.0/12`` or
+``192.168.0.0/16``.
 
 Don't run ``docker network prune``: it removes every network that no running
-container uses, including those of stopped apps. A hibernated Dallinger app
-then can't wake up, and other users' stopped Compose projects lose their
-networks. Remove a network with ``docker network rm <name>`` only if its
-project is gone.
+container uses, so fully stopped apps and other users' stopped Compose
+projects lose their networks and then fail to start. Remove a network with
+``docker network rm <name>`` only if its project is gone.
 
 To fix either cause, give Docker other subnets in ``/etc/docker/daemon.json``
 (merge this key into any settings already in the file):
@@ -616,9 +617,10 @@ To fix either cause, give Docker other subnets in ``/etc/docker/daemon.json``
 
 This allows 256 networks of 254 addresses each. Pick a ``base`` that no
 other network the server talks to uses: any range in ``ip route``, its own
-LAN, VPNs, and the addresses users connect from (check ``who``). If the base
-overlaps a route, Docker won't start; if it overlaps other machines'
-addresses, the server can't reach them, including SSH sessions. Avoid
+LAN, VPNs, and the addresses users connect from (check ``who``). Docker skips
+subnets that overlap a route and won't start if none is left; if the base
+overlaps other machines' addresses, the server can't reach them, including
+SSH sessions. Avoid
 ``10.0.0.0/8`` ranges where a VPN routes them, and ``172.16.0.0/12`` on
 university and corporate networks, which often use it.
 

@@ -64,7 +64,7 @@
   configure `default-address-pools` in `daemon.json` (with a complete example,
   checks to run first and a warning that the Docker restart stops the
   server's containers), and avoid `docker network prune`, which breaks
-  stopped and hibernated apps. The new "Docker network address pools"
+  stopped apps. The new "Docker network address pools"
   section of the Docker documentation describes the server setup.
 - `dallinger docker-ssh apps` and the other commands that list apps show a
   running app whose name has capitals or dots (such as `My.App`) as

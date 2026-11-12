@@ -5456,17 +5456,21 @@ Docker on '{host}' found no free address range for a new network. Either its
 pools are used up (each Dallinger app needs one network, and the default
 pools allow only about 30 per server, counting every project on it), or its
 default ranges overlap the server's own routes, for example a VPN's.
-Compare `docker network ls` with `ip route` to see which.
-- Don't run `docker network prune`: it also removes the networks of stopped
-  apps, including hibernated Dallinger apps, which then can't wake up. Remove
-  a network with `docker network rm <name>` only if its project is gone.
+If `docker network ls` lists about 30 networks, the pools are used up;
+otherwise look in `ip route` for routes, other than Docker's `br-` ones,
+inside 172.16.0.0/12 or 192.168.0.0/16.
+- Don't run `docker network prune`: it also removes the networks of fully
+  stopped apps and of other users' stopped Compose projects, which then fail
+  to start. Remove a network with `docker network rm <name>` only if its
+  project is gone.
 - To fix either cause, give Docker other subnets in /etc/docker/daemon.json.
   Create the file with this content, or merge the key into the settings
   already in it (replacing the file would drop them):
     {{"default-address-pools": [{{"base": "10.200.0.0/16", "size": 24}}]}}
   The base must not overlap any range in `ip route`, the server's LAN, its
-  VPNs or the addresses users connect from: Docker won't start if it overlaps
-  a route, and other overlaps cut those machines off, including over SSH.
+  VPNs or the addresses users connect from: Docker skips subnets that overlap
+  a route and won't start if none is left, and other overlaps cut those
+  machines off, including over SSH.
   Docker also won't start if the file is
   invalid, so check it with `sudo dockerd --validate` (Docker 23 or later) or
   `sudo python3 -m json.tool /etc/docker/daemon.json`,
