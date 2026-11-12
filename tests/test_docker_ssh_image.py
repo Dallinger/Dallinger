@@ -207,8 +207,9 @@ def test_aborted_build_cleanup_keeps_an_image_another_app_uses(monkeypatch, caps
 
 @pytest.mark.parametrize("remove", ["dlgr-1", None], ids=["new-app", "update"])
 @pytest.mark.parametrize("build_fails", [True, False], ids=["build", "later-step"])
+@pytest.mark.parametrize("fully_cached", [False, True], ids=["new-cache", "retry"])
 def test_only_a_failed_new_deploy_explains_how_to_remove_its_build_cache(
-    monkeypatch, capsys, build_fails, remove
+    monkeypatch, capsys, build_fails, remove, fully_cached
 ):
     client = _client()
     monkeypatch.setattr(
@@ -216,10 +217,13 @@ def test_only_a_failed_new_deploy_explains_how_to_remove_its_build_cache(
         "_image_docker_client",
         lambda *a, **k: contextlib.nullcontext(client),
     )
+    after = [] if fully_cached else ["deps"]
     monkeypatch.setattr(
-        docker_ssh_module, "_build_cache_ids", mock.Mock(side_effect=[[], ["deps"]])
+        docker_ssh_module, "_build_cache_ids", mock.Mock(side_effect=[[], after])
     )
+    # A retry adds no records but finds those of the earlier attempt.
     executor = mock.Mock()
+    executor.run.return_value = "Yes\n"
     monkeypatch.setattr(docker_ssh_module, "_executor_for_server", lambda s: executor)
     monkeypatch.setattr(
         docker_ssh_module, "setup_experiment", lambda *a, **k: ("id", "/tmp/x")

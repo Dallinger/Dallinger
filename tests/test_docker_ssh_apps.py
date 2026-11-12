@@ -1202,6 +1202,8 @@ def test_docker_ssh_build_records_its_build_cache_on_the_server(
     new = [
         {"ID": "b", "CreatedAt": "2026-11-10T08:00:00.1Z"},
         {"ID": "a", "CreatedAt": "2026-11-10T08:00:00Z"},
+        # A prune without ``all`` can't remove it, so it isn't recorded.
+        {"ID": "dockerfile", "CreatedAt": "2026-11-10T07:30:00Z", "Type": "frontend"},
     ]
     client = FakeBuildCacheListing([old], [old, *new])
     server = mock.Mock()

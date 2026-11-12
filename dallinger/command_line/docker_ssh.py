@@ -2708,7 +2708,12 @@ BUILD_CACHE_LEFTOVERS = "build-cache-leftovers"
 
 
 def _build_cache_ids(docker_client):
-    """Return the ids of the daemon's build cache records, oldest first."""
+    """Return the ids of the daemon's build cache records, oldest first.
+
+    ``frontend`` and ``internal`` records, such as the ``docker/dockerfile``
+    frontend that every build pulls, are left out: a prune without ``all``
+    never removes them, and the next build on the server needs them anyway.
+    """
     api = docker_client.api
     # docker-py's ``APIClient.df`` takes no parameters, hence the private
     # calls. ``type`` limits the listing to the build cache (API 1.42), rather
@@ -2721,7 +2726,11 @@ def _build_cache_ids(docker_client):
         response.get("BuildCache") or [],
         key=lambda r: datetime.fromisoformat(r["CreatedAt"]),
     )
-    return [record["ID"] for record in records]
+    return [
+        record["ID"]
+        for record in records
+        if record.get("Type") not in ("frontend", "internal")
+    ]
 
 
 def _build_cache_ids_or_none(docker_client):
@@ -2740,20 +2749,26 @@ def _record_build_cache(docker_client, server, app, before):
     """Add the build cache records created since ``before`` to the app's list.
 
     The list is kept across updates, whose builds reuse earlier records. A
-    build by another app at the same time can add its records too; pruning
-    those only makes that app's next build slower. Returns whether any
-    records were added.
+    build on the server at the same time can add its records too; pruning
+    those only makes that build's next run slower. Returns whether the app
+    has any recorded build cache, including from earlier attempts.
     """
     try:
         before = set(before)
         new = [i for i in _build_cache_ids(docker_client) if i not in before]
+        app_dir = f"~/dallinger/{quote(app)}"
+        executor = _executor_for_server(server)
         if new:
-            app_dir = f"~/dallinger/{quote(app)}"
-            _executor_for_server(server).run(
+            executor.run(
                 f"mkdir -p {app_dir} && printf '%s\\n' {' '.join(map(quote, new))} "
                 f">> {app_dir}/{BUILD_CACHE_IDS_FILE}"
             )
-        return bool(new)
+            return True
+        return bool(
+            executor.run(
+                f"[ -s {app_dir}/{BUILD_CACHE_IDS_FILE} ] && echo Yes", raise_=False
+            )
+        )
     except Exception as exc:
         print(
             f"Warning: could not record the build cache of {app}, so destroy "

@@ -828,7 +828,8 @@ that another app's image shares, or that a running build uses, stays too,
 listed in ``~/dallinger/build-cache-leftovers``, and a later destroy removes
 it once it is unused. Apps deployed before Dallinger recorded their build
 cache have no record, so their cache stays; ``docker builder du`` on the
-server shows it. Updates keep the cache, so that rebuilds reuse it, but a
+server shows it. The ``docker/dockerfile`` frontend that builds pull stays
+as well, as every build on the server uses it. Updates keep the cache, so that rebuilds reuse it, but a
 root-domain deploy without ``--update`` destroys the server's other apps, and
 so their cache, before it builds. Builds with ``--local-build`` leave their
 cache on the local machine. If a first deploy's build fails, or the deploy
