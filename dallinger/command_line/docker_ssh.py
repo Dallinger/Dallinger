@@ -5452,24 +5452,27 @@ def _is_address_pools_exhausted_error(*outputs):
 def get_address_pools_exhausted_guidance(host):
     """Explain how to free or add Docker network address space on ``host``."""
     return f"""
-Docker on '{host}' has no free address space for a new network (or, on older
-Docker, its default ranges all overlap the server's own routes).
-Each Dallinger app needs one network, and Docker's default pools allow only
-about 30 networks per server, counting every project on it.
-- See them with `docker network ls`, and remove networks you know are orphaned
-  with `docker network rm <name>`. On a shared server, avoid
-  `docker network prune`: it also removes the networks of other users'
-  stopped Compose projects.
-- For more networks, give Docker smaller subnets in /etc/docker/daemon.json.
+Docker on '{host}' found no free address range for a new network. Either its
+pools are used up (each Dallinger app needs one network, and the default
+pools allow only about 30 per server, counting every project on it), or its
+default ranges overlap the server's own routes, for example a VPN's.
+Compare `docker network ls` with `ip route` to see which.
+- Don't run `docker network prune`: it also removes the networks of stopped
+  apps, including hibernated Dallinger apps, which then can't wake up. Remove
+  a network with `docker network rm <name>` only if its project is gone.
+- To fix either cause, give Docker other subnets in /etc/docker/daemon.json.
   Create the file with this content, or merge the key into the settings
   already in it (replacing the file would drop them):
     {{"default-address-pools": [{{"base": "10.200.0.0/16", "size": 24}}]}}
-  Choose a base that the server's LAN, VPNs and users' addresses don't use.
-  Docker won't start if the file is invalid, so check it first with
-  `sudo dockerd --validate` (Docker 23 or later) or
-  `sudo python3 -m json.tool /etc/docker/daemon.json`, then run `sudo systemctl restart docker`. The restart stops every
-  container on the server, and those without a restart policy stay stopped,
-  so agree a time with its other users. See "Docker network address pools" in
+  The base must not overlap any range in `ip route`, the server's LAN, its
+  VPNs or the addresses users connect from: Docker won't start if it overlaps
+  a route, and other overlaps cut those machines off, including over SSH.
+  Docker also won't start if the file is
+  invalid, so check it with `sudo dockerd --validate` (Docker 23 or later) or
+  `sudo python3 -m json.tool /etc/docker/daemon.json`,
+  then run `sudo systemctl restart docker`. The restart stops every container
+  on the server, and those without a restart policy stay stopped, so agree a
+  time with its other users. See "Docker network address pools" in
   Dallinger's Docker documentation.
 """
 

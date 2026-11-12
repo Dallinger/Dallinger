@@ -1136,9 +1136,11 @@ def test_failing_network_creation_explains_exhausted_address_pools(
     with pytest.raises(docker_ssh.ExecuteException):
         executor.run("docker compose up -d")
     out = capsys.readouterr().out
-    assert "Docker on 'example.com' has no free address space" in out
+    assert "Docker on 'example.com' found no free address range" in out
     assert '{"default-address-pools": [' in out
     assert "merge the key into the settings" in out
+    assert "Don't run `docker network prune`" in out
+    assert "must not overlap any range in `ip route`" in out
     assert "python3 -m json.tool" in out
 
 

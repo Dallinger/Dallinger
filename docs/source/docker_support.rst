@@ -591,14 +591,21 @@ Docker network address pools
 Each docker-ssh app creates one Docker network (``<app>_app``), and classic
 ingress adds one shared ``dallinger`` network per server. By default Docker
 gives every network a large subnet, so a server runs out of address space
-after about 30 networks, counting other Compose projects on it. A deploy then
-fails with ``all predefined address pools have been fully subnetted``.
+after about 30 networks, counting other Compose projects on it. Docker also
+can't create networks when its default ranges overlap the server's own
+routes, for example a VPN's, even with only a few networks. Either way a
+deploy fails with ``all predefined address pools have been fully subnetted``
+(older Docker: ``could not find an available, non-overlapping IPv4 address
+pool among the defaults``). Compare ``docker network ls`` with ``ip route``
+to see which cause applies.
 
-``docker network rm <name>`` removes a network you know is orphaned.
-``docker network prune`` removes every network that no running container
-uses, which on a shared server includes the networks of other users'
-stopped Compose projects, so avoid it there. To host
-more networks, give Docker smaller subnets in ``/etc/docker/daemon.json``
+Don't run ``docker network prune``: it removes every network that no running
+container uses, including those of stopped apps. A hibernated Dallinger app
+then can't wake up, and other users' stopped Compose projects lose their
+networks. Remove a network with ``docker network rm <name>`` only if its
+project is gone.
+
+To fix either cause, give Docker other subnets in ``/etc/docker/daemon.json``
 (merge this key into any settings already in the file):
 
 .. code-block:: json
@@ -608,28 +615,25 @@ more networks, give Docker smaller subnets in ``/etc/docker/daemon.json``
     }
 
 This allows 256 networks of 254 addresses each. Pick a ``base`` that no
-other network the server talks to uses: its own LAN, VPNs, and the addresses
-users connect from (check ``ip route`` and ``who``). A Docker network that
-overlaps them cuts the server off from those machines, including SSH
-sessions. Avoid ``172.16.0.0/12`` on university and corporate networks,
-which often use it.
+other network the server talks to uses: any range in ``ip route``, its own
+LAN, VPNs, and the addresses users connect from (check ``who``). If the base
+overlaps a route, Docker won't start; if it overlaps other machines'
+addresses, the server can't reach them, including SSH sessions. Avoid
+``10.0.0.0/8`` ranges where a VPN routes them, and ``172.16.0.0/12`` on
+university and corporate networks, which often use it.
 
-Docker won't start with an invalid file, so check it first with
+Docker also won't start with an invalid file, so check it with
 ``sudo dockerd --validate`` (Docker 23 or later) or
-``sudo python3 -m json.tool /etc/docker/daemon.json``, then run ``sudo systemctl restart docker``. The restart
-stops every container on the server, and containers without a restart policy
-stay stopped, so on a shared server agree a time with its other users first.
-Adding ``"live-restore": true`` and applying it with
-``sudo systemctl reload docker`` before restarting usually keeps containers
-running through the restart, but Docker restores them on a best-effort
-basis; any it can't restore keep running unmanaged and must be stopped by
-hand. Existing networks keep their subnets; only new networks use the new
-pools.
-
-Older Docker versions report the same problem as ``could not find an
-available, non-overlapping IPv4 address pool among the defaults``. They also
-print it when every default range overlaps one of the server's own routes,
-for example a VPN; the same ``default-address-pools`` setting fixes that.
+``sudo python3 -m json.tool /etc/docker/daemon.json``. Neither check looks
+at routes. Then run ``sudo systemctl restart docker``, with console access
+at hand in case Docker doesn't come back. The restart stops every container
+on the server, and containers without a restart policy stay stopped, so on a
+shared server agree a time with its other users first. Adding
+``"live-restore": true`` and applying it with ``sudo systemctl reload
+docker`` before restarting usually keeps containers running through the
+restart, but Docker restores them on a best-effort basis; any it can't
+restore keep running unmanaged and must be stopped by hand. Existing
+networks keep their subnets; only new networks use the new pools.
 
 Verifying SSH Access
 --------------------
