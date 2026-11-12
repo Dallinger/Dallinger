@@ -1410,7 +1410,9 @@ def test_set_dozzle_password_skips_restart_when_not_running():
         call.args[1]: call.args[0].getvalue() for call in sftp.putfo.call_args_list
     }
     users = json.loads(uploaded["dallinger/dozzle-users.yml"])
-    hashed = users["users"]["dallinger"]["password"]
+    dallinger_user = users["users"]["dallinger"]
+    assert dallinger_user["roles"] == "download"
+    hashed = dallinger_user["password"]
     # Dozzle 11 refuses to start unless a password hash is exactly 60
     # characters, which is what bcrypt produces.
     assert len(hashed) == 60
