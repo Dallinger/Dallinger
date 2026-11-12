@@ -5452,17 +5452,22 @@ def _is_address_pools_exhausted_error(*outputs):
 def get_address_pools_exhausted_guidance(host):
     """Explain how to free or add Docker network address space on ``host``."""
     return f"""
-Docker on '{host}' has no address space left for a new network.
+Docker on '{host}' has no free address space for a new network (or, on older
+Docker, its default ranges all overlap the server's own routes).
 Each Dallinger app needs one network, and Docker's default pools allow only
 about 30 networks per server, counting every project on it.
-- See them with `docker network ls`; `docker network prune` removes the unused ones.
+- See them with `docker network ls`, and remove networks you know are orphaned
+  with `docker network rm <name>`. On a shared server, avoid
+  `docker network prune`: it also removes the networks of other users'
+  stopped Compose projects.
 - For more networks, give Docker smaller subnets in /etc/docker/daemon.json.
   Create the file with this content, or merge the key into the settings
   already in it (replacing the file would drop them):
     {{"default-address-pools": [{{"base": "10.200.0.0/16", "size": 24}}]}}
   Choose a base that the server's LAN, VPNs and users' addresses don't use.
-  Check the file with `sudo dockerd --validate` (Docker won't start if it is
-  invalid), then run `sudo systemctl restart docker`. The restart stops every
+  Docker won't start if the file is invalid, so check it first with
+  `sudo dockerd --validate` (Docker 23 or later) or
+  `sudo python3 -m json.tool /etc/docker/daemon.json`, then run `sudo systemctl restart docker`. The restart stops every
   container on the server, and those without a restart policy stay stopped,
   so agree a time with its other users. See "Docker network address pools" in
   Dallinger's Docker documentation.

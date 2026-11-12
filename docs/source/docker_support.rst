@@ -594,7 +594,10 @@ gives every network a large subnet, so a server runs out of address space
 after about 30 networks, counting other Compose projects on it. A deploy then
 fails with ``all predefined address pools have been fully subnetted``.
 
-``docker network prune`` removes networks that no container uses. To host
+``docker network rm <name>`` removes a network you know is orphaned.
+``docker network prune`` removes every network that no running container
+uses, which on a shared server includes the networks of other users'
+stopped Compose projects, so avoid it there. To host
 more networks, give Docker smaller subnets in ``/etc/docker/daemon.json``
 (merge this key into any settings already in the file):
 
@@ -611,8 +614,9 @@ overlaps them cuts the server off from those machines, including SSH
 sessions. Avoid ``172.16.0.0/12`` on university and corporate networks,
 which often use it.
 
-Check the file with ``sudo dockerd --validate``, because Docker won't start
-with an invalid one, then run ``sudo systemctl restart docker``. The restart
+Docker won't start with an invalid file, so check it first with
+``sudo dockerd --validate`` (Docker 23 or later) or
+``sudo python3 -m json.tool /etc/docker/daemon.json``, then run ``sudo systemctl restart docker``. The restart
 stops every container on the server, and containers without a restart policy
 stay stopped, so on a shared server agree a time with its other users first.
 Adding ``"live-restore": true`` and applying it with
@@ -623,7 +627,9 @@ hand. Existing networks keep their subnets; only new networks use the new
 pools.
 
 Older Docker versions report the same problem as ``could not find an
-available, non-overlapping IPv4 address pool among the defaults``.
+available, non-overlapping IPv4 address pool among the defaults``. They also
+print it when every default range overlaps one of the server's own routes,
+for example a VPN; the same ``default-address-pools`` setting fixes that.
 
 Verifying SSH Access
 --------------------

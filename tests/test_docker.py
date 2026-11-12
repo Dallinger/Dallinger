@@ -1136,10 +1136,24 @@ def test_failing_network_creation_explains_exhausted_address_pools(
     with pytest.raises(docker_ssh.ExecuteException):
         executor.run("docker compose up -d")
     out = capsys.readouterr().out
-    assert "Docker on 'example.com' has no address space left" in out
+    assert "Docker on 'example.com' has no free address space" in out
     assert '{"default-address-pools": [' in out
-    assert "merge" in out
-    assert "dockerd --validate" in out
+    assert "merge the key into the settings" in out
+    assert "python3 -m json.tool" in out
+
+
+def test_other_failures_do_not_explain_address_pools(monkeypatch, capsys):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+
+    monkeypatch.setattr(docker_ssh, "get_connected_ssh_client", mock.Mock())
+    executor = docker_ssh.Executor("example.com")
+    monkeypatch.setattr(
+        executor, "run_with_status", lambda cmd: (1, "", "pull access denied")
+    )
+
+    with pytest.raises(docker_ssh.ExecuteException):
+        executor.run("docker compose up -d")
+    assert "address space" not in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("key_format", ["TraditionalOpenSSL", "OpenSSH"])
