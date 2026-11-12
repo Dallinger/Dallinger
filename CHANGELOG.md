@@ -80,6 +80,9 @@
   and Dozzle's scheduled updates and cleanup are now switched off in the
   Compose file, so the log viewer login cannot turn them on from Dozzle 11's
   setup page.
+- The changelog check now skips Dependabot pull requests, which can't edit
+  `CHANGELOG.md`. The `/release` skill adds their entries under
+  **Updated** when a release is cut.
 
 ### Fixed
 
