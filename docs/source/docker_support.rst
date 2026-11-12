@@ -611,12 +611,19 @@ overlaps them cuts the server off from those machines, including SSH
 sessions. Avoid ``172.16.0.0/12`` on university and corporate networks,
 which often use it.
 
-Then run ``sudo systemctl restart docker``. The restart stops every container
-on the server, and containers without a restart policy stay stopped, so on a
-shared server agree a time with its other users first. To keep containers
-running through the restart, also add ``"live-restore": true`` and apply it
-with ``sudo systemctl reload docker`` before restarting. Existing networks
-keep their subnets; only new networks use the new pools.
+Check the file with ``sudo dockerd --validate``, because Docker won't start
+with an invalid one, then run ``sudo systemctl restart docker``. The restart
+stops every container on the server, and containers without a restart policy
+stay stopped, so on a shared server agree a time with its other users first.
+Adding ``"live-restore": true`` and applying it with
+``sudo systemctl reload docker`` before restarting usually keeps containers
+running through the restart, but Docker restores them on a best-effort
+basis; any it can't restore keep running unmanaged and must be stopped by
+hand. Existing networks keep their subnets; only new networks use the new
+pools.
+
+Older Docker versions report the same problem as ``could not find an
+available, non-overlapping IPv4 address pool among the defaults``.
 
 Verifying SSH Access
 --------------------

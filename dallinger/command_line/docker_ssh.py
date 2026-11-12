@@ -4909,7 +4909,7 @@ class Executor:
             if _is_remote_disk_full_error(stdout, stderr, compose_logs):
                 print(get_remote_disk_full_guidance(self.host))
                 self.offer_safe_disk_cleanup()
-            if ADDRESS_POOLS_EXHAUSTED in f"{stdout}\n{stderr}":
+            if _is_address_pools_exhausted_error(stdout, stderr):
                 print(get_address_pools_exhausted_guidance(self.host))
             raise ExecuteException(
                 f"An error occurred when running the following command on the remote server: \n{cmd}"
@@ -5438,7 +5438,15 @@ def get_remote_disk_full_guidance(host):
     return "\n".join(guidance)
 
 
-ADDRESS_POOLS_EXHAUSTED = "all predefined address pools have been fully subnetted"
+ADDRESS_POOLS_EXHAUSTED_MARKERS = (
+    "all predefined address pools have been fully subnetted",
+    "could not find an available, non-overlapping ipv4 address pool",
+)
+
+
+def _is_address_pools_exhausted_error(*outputs):
+    output = "\n".join(str(chunk) for chunk in outputs if chunk).lower()
+    return any(marker in output for marker in ADDRESS_POOLS_EXHAUSTED_MARKERS)
 
 
 def get_address_pools_exhausted_guidance(host):
@@ -5448,12 +5456,15 @@ Docker on '{host}' has no address space left for a new network.
 Each Dallinger app needs one network, and Docker's default pools allow only
 about 30 networks per server, counting every project on it.
 - See them with `docker network ls`; `docker network prune` removes the unused ones.
-- For more networks, give Docker smaller subnets in /etc/docker/daemon.json:
-    "default-address-pools": [{{"base": "10.200.0.0/16", "size": 24}}]
-  choosing a base that the server's LAN, VPNs and users' addresses don't use,
-  then run `sudo systemctl restart docker`. The restart stops every container
-  on the server, and those without a restart policy stay stopped, so agree a
-  time with its other users. See "Docker network address pools" in
+- For more networks, give Docker smaller subnets in /etc/docker/daemon.json.
+  Create the file with this content, or merge the key into the settings
+  already in it (replacing the file would drop them):
+    {{"default-address-pools": [{{"base": "10.200.0.0/16", "size": 24}}]}}
+  Choose a base that the server's LAN, VPNs and users' addresses don't use.
+  Check the file with `sudo dockerd --validate` (Docker won't start if it is
+  invalid), then run `sudo systemctl restart docker`. The restart stops every
+  container on the server, and those without a restart policy stay stopped,
+  so agree a time with its other users. See "Docker network address pools" in
   Dallinger's Docker documentation.
 """
 
