@@ -17,6 +17,7 @@ import warnings
 import zipfile
 from contextlib import ExitStack, contextmanager, redirect_stdout
 from dataclasses import dataclass
+from datetime import datetime
 from functools import wraps
 from getpass import getuser
 from io import BytesIO
@@ -1206,7 +1207,7 @@ option_deploy_delete_data_command = click.option(
 
 
 # Names the server already uses, mapped to what uses them: subdomains it
-# serves (see CADDYFILE_SERVER), directories beside the app directories in
+# serves (see CADDYFILE_SERVER), files and directories beside the app ones in
 # ~/dallinger, and the Compose project of the shared stack (SERVER_COMPOSE),
 # which Compose names after ~/dallinger.
 SERVER_COMPOSE_PROJECT = "dallinger"
@@ -1214,6 +1215,7 @@ RESERVED_APP_NAMES = {
     "logs": "the server's log viewer",
     "caddy.d": "the server's Caddy configuration",
     "root.d": "the server's Caddy configuration",
+    "build-cache-leftovers": "the server's list of leftover build cache",
     SERVER_COMPOSE_PROJECT: "the server's shared services",
 }
 
@@ -2612,7 +2614,8 @@ def _built_image(
     ``push_build``. ``app`` is the deployed app name, which names the image
     when ``docker_image_base_name`` is unset. With ``remove_for_app``, the id
     of the new app the image is for, an image built here is removed again if
-    the block raises (see ``_remove_aborted_build``).
+    the block raises (see ``_remove_aborted_build``); if the build or the
+    block raises, the user is told how to remove the build cache it left.
     """
     from dallinger.command_line.docker import push_image
     from dallinger.docker.tools import (
@@ -2643,16 +2646,23 @@ def _built_image(
             experiment_files=experiment_files,
             quiet=True,
         )
-        image_name = build_image(
-            tmp_dir,
-            image_base_name(config, app, _PUSH_OPTIONS if push_build else None),
-            out=Output(),
-            image_tag=docker_tag_from_experiment_id(config.get("id")),
-            quiet=True,
-        )
-        built_image = image_name
-
+        cache_before = None if local_build else _build_cache_ids_or_none(docker_client)
+        built_image, cache_recorded = None, False
         try:
+            try:
+                built_image = build_image(
+                    tmp_dir,
+                    image_base_name(config, app, _PUSH_OPTIONS if push_build else None),
+                    out=Output(),
+                    image_tag=docker_tag_from_experiment_id(config.get("id")),
+                    quiet=True,
+                )
+            finally:
+                if cache_before is not None:
+                    cache_recorded = _record_build_cache(
+                        docker_client, server, app, cache_before
+                    )
+
             remote_build = not local_build
             if remote_build and not push_build:
                 # If built remotely and not pushing, the image is only on the remote daemon.
@@ -2661,16 +2671,23 @@ def _built_image(
                 logging.getLogger(__name__).debug(
                     "Image %s built remotely, skipping push to registry "
                     "because --push-build was not selected.",
-                    image_name,
+                    built_image,
                 )
+                image_name = built_image
             else:
                 # If it's a local build, or if it's a remote build and push_build, then push.
-                image_name = push_image(image_name)
+                image_name = push_image(built_image)
             yield image_name
         except BaseException:
-            if remove_for_app:
+            if remove_for_app and built_image:
                 _remove_aborted_build(
                     docker_client, built_image, server, local_build, remove_for_app
+                )
+            # The cache is kept, so that a retry builds faster.
+            if remove_for_app and cache_recorded:
+                print(
+                    f"`dallinger docker-ssh destroy --server {server} --app "
+                    f"{remove_for_app}` removes the build cache this deploy left."
                 )
             raise
 
@@ -2709,6 +2726,163 @@ def _remove_aborted_build(docker_client, image_name, server, local_build, app):
             print(f"Kept the image {image_name} built for this deploy: {exc}")
     else:
         print(f"Removed the image {image_name} built for this deploy.")
+
+
+# Lists the build cache records that the app's builds on the server created;
+# destroy prunes them. Build cache records carry no image labels, so this is
+# how they are told apart from other apps' caches.
+BUILD_CACHE_IDS_FILE = "build-cache-ids"
+# Lists the recorded build cache records that a destroy couldn't remove,
+# because an image or another app's build still used them. Each destroy tries
+# them again.
+BUILD_CACHE_LEFTOVERS = "build-cache-leftovers"
+
+
+def _build_cache_ids(docker_client):
+    """Return the ids of the daemon's build cache records, oldest first.
+
+    ``frontend`` and ``internal`` records, such as the ``docker/dockerfile``
+    frontend that the default Dockerfile's ``# syntax=`` line pulls, are left
+    out: a prune without ``all`` never removes them, and other apps' builds
+    use them.
+    """
+    api = docker_client.api
+    # docker-py's ``APIClient.df`` takes no parameters, hence the private
+    # calls. ``type`` limits the listing to the build cache (API 1.42), rather
+    # than also measuring every volume; older daemons ignore it.
+    response = api._result(
+        api._get(api._url("/system/df"), params={"type": "build-cache"}), True
+    )
+    # Parsed, because the daemon trims trailing zeros from the fraction.
+    records = sorted(
+        response.get("BuildCache") or [],
+        key=lambda r: datetime.fromisoformat(r["CreatedAt"]),
+    )
+    return [
+        record["ID"]
+        for record in records
+        if record.get("Type") not in ("frontend", "internal")
+    ]
+
+
+def _build_cache_ids_or_none(docker_client):
+    """Return the build cache ids, or None with a warning if they can't be listed."""
+    try:
+        return _build_cache_ids(docker_client)
+    except Exception as exc:
+        print(
+            f"Warning: could not list the server's build cache, so destroy won't "
+            f"remove the cache of this build: {exc}"
+        )
+        return None
+
+
+def _record_build_cache(docker_client, server, app, before):
+    """Add the build cache records created since ``before`` to the app's list.
+
+    The list is kept across updates, whose builds reuse earlier records. A
+    build on the server at the same time can add its records too; pruning
+    those only makes that build's next run slower. Returns whether the app
+    has any recorded build cache, including from earlier attempts.
+    """
+    try:
+        before = set(before)
+        new = [i for i in _build_cache_ids(docker_client) if i not in before]
+        app_dir = f"~/dallinger/{quote(app)}"
+        executor = _executor_for_server(server)
+        if new:
+            executor.run(
+                f"mkdir -p {app_dir} && printf '%s\\n' {' '.join(map(quote, new))} "
+                f">> {app_dir}/{BUILD_CACHE_IDS_FILE}"
+            )
+            return True
+        return bool(
+            executor.run(
+                f"[ -s {app_dir}/{BUILD_CACHE_IDS_FILE} ] && echo Yes", raise_=False
+            )
+        )
+    except Exception as exc:
+        print(
+            f"Warning: could not record the build cache of {app}, so destroy "
+            f"won't remove it: {exc}"
+        )
+        return False
+
+
+def _format_bytes(size):
+    """Format a byte count such as ``820 MB`` or ``6.1 GB``."""
+    if size < 1e6:
+        return "< 1 MB"
+    return f"{size / 1e9:.1f} GB" if size >= 1e9 else f"{size / 1e6:.0f} MB"
+
+
+def _prune_app_build_cache(executor, app, server):
+    """Remove the unused build cache recorded for ``app`` and earlier destroys.
+
+    What stays is kept in the server's ``build-cache-leftovers`` list.
+    Returns False if that list couldn't be written.
+    """
+    leftovers_file = f"~/dallinger/{BUILD_CACHE_LEFTOVERS}"
+    own, leftovers = (
+        set((executor.run(f"cat {path} 2>/dev/null", raise_=False) or "").split())
+        for path in (f"~/dallinger/{quote(app)}/{BUILD_CACHE_IDS_FILE}", leftovers_file)
+    )
+    recorded = own | leftovers
+    if not recorded:
+        return True
+    removed, freed = set(), 0
+    try:
+        with _image_docker_client(server, local_build=False) as docker_client:
+            # A prune without ``all`` skips records that an existing image
+            # shares, which keeps the cache of other apps' images. A record
+            # can't go while a newer one built on it exists, so the newest go
+            # first. The daemon takes one ``id`` per call and matches it as a
+            # regular expression, hence the anchors.
+            for cache_id in reversed(_build_cache_ids(docker_client)):
+                if cache_id not in recorded:
+                    continue
+                try:
+                    result = docker_client.api.prune_builds(
+                        filters={"id": f"^{re.escape(cache_id)}$"}
+                    )
+                except Exception as exc:
+                    print(f"Warning: could not remove build cache {cache_id}: {exc}")
+                    continue
+                removed.update(result.get("CachesDeleted") or [])
+                freed += result.get("SpaceReclaimed") or 0
+            remaining = [i for i in _build_cache_ids(docker_client) if i in recorded]
+    except Exception as exc:
+        print(
+            f"Warning: could not remove the build cache of {app}: {exc}\n"
+            "`docker builder du` on the server shows the build cache."
+        )
+        remaining = sorted(recorded - removed)
+    if remaining:
+        # App names start with a letter or digit, so no app takes this name.
+        # ``mv`` would move the file into a directory of that name; ``mv -T``,
+        # which wouldn't, is GNU-only, and as the name is reserved the gap
+        # between the check and ``mv`` is acceptable.
+        written = executor.run(
+            f"tmp=$(mktemp ~/dallinger/.{BUILD_CACHE_LEFTOVERS}.XXXXXX) && "
+            f"{{ printf '%s\\n' {' '.join(map(quote, remaining))} > \"$tmp\" "
+            f'&& [ ! -d {leftovers_file} ] && mv -f "$tmp" {leftovers_file} '
+            '&& echo Yes || { rm -f "$tmp"; false; }; }',
+            raise_=False,
+        )
+        if not written:
+            print(
+                f"Warning: could not write {leftovers_file} on the server, so a "
+                f"later destroy may not remove this build cache: {' '.join(remaining)}"
+            )
+    else:
+        written = True
+        executor.run(f"rm -f {leftovers_file}", raise_=False)
+    if removed:
+        sources = [f"the build cache of {app}"] if removed & own else []
+        if removed - own:
+            sources.append("build cache left by earlier destroys")
+        print(f"Removed {' and '.join(sources)} ({_format_bytes(freed)}).")
+    return bool(written)
 
 
 def _report_ssh_failures(f):
@@ -3474,8 +3648,9 @@ def _deploy_cloudflare_in_mode(
         )
     except Exception:
         if tunnel["tunnel_id"] != own_tunnel_id:
-            # Nothing on the server records this new tunnel, so no later
-            # deploy or destroy could find it.
+            # A saved tunnel id would let destroy find this new tunnel, but
+            # the install may have failed before saving it, and an app whose
+            # token is missing can't use the tunnel anyway.
             print("Deleting the new Cloudflare tunnel, which could not be recorded.")
             delete_experiment_tunnel(
                 account_id=settings["account_id"],
@@ -4340,24 +4515,31 @@ def destroy(
         raise_=False,
     )
     # A Cloudflare deploy that failed after creating its tunnel leaves only
-    # the connector token behind.
-    tunnel_token_exists = executor.run(
-        f"test -f ~/dallinger/{quoted_app}/secrets/cloudflare-tunnel-token && echo Yes",
+    # the tunnel id and connector token behind.
+    tunnel_files_exist = executor.run(
+        f"test -f ~/dallinger/{quoted_app}/secrets/cloudflare-tunnel-id -o "
+        f"-f ~/dallinger/{quoted_app}/secrets/cloudflare-tunnel-token && echo Yes",
         raise_=False,
     )
-    deployed = caddy_config_exists or docker_compose_exists or tunnel_token_exists
+    deployed = caddy_config_exists or docker_compose_exists or tunnel_files_exist
+    # A new deploy that failed after its build leaves the build cache record.
+    failed_build = not deployed and executor.run(
+        f"test -f ~/dallinger/{quoted_app}/{BUILD_CACHE_IDS_FILE} && echo Yes",
+        raise_=False,
+    )
+    present = deployed or failed_build
     manifest = _load_remote_manifests(executor, [app]).get(app) if deployed else None
     if manifest:
         ingress = manifest.ingress
-    elif tunnel_token_exists:
+    elif tunnel_files_exist:
         ingress = INGRESS_CLOUDFLARE
     else:
         ingress = INGRESS_CLASSIC
     data = _experiment_data(executor, app, cloudflare=ingress == INGRESS_CLOUDFLARE)
-    if not deployed and not data and remove_data:
+    if not present and not data and remove_data:
         print(f"Nothing left to delete for {app} on {ssh_host}.")
         return
-    if not deployed:
+    if not present:
         print(f"App {app} is not deployed.")
         if not data:
             print(f"No experiment data of {app} is left on {ssh_host}.")
@@ -4401,6 +4583,14 @@ def destroy(
             ingress,
             keep_image=keep_image,
         )
+    elif failed_build:
+        if _prune_app_build_cache(executor, app, server):
+            _remove_failed_deploy_folder(executor, app)
+        else:
+            print(
+                f"Left ~/dallinger/{app} on the server, so that destroying {app} "
+                "again retries removing its build cache."
+            )
     delete_again = (
         delete_data_command
         or f"dallinger docker-ssh destroy --app {app} --server {server} --remove-data"
@@ -4418,10 +4608,41 @@ def destroy(
             f"A new deploy of {app} without --update deletes its database and "
             f"volumes, but reuses ~/dallinger-data/{app}."
         )
-        if not deployed:
+        if not present:
             raise click.ClickException(
                 f"App {app} is not deployed, so nothing was destroyed."
             )
+
+
+def _remove_failed_deploy_folder(executor, app):
+    """Remove the app's folder if it holds only files a failed deploy leaves.
+
+    Anything else, such as a Compose file that a retry wrote meanwhile, keeps
+    the whole folder, so this never removes the files of a live app.
+    """
+    app_dir = f"~/dallinger/{quote(app)}"
+    outcome = (
+        executor.run(
+            f'd={app_dir}; if [ ! -d "$d" ]; then echo Gone; '
+            f'elif [ -n "$(ls -A "$d" | grep -vxE \'{BUILD_CACHE_IDS_FILE}|'
+            f"{re.escape(JSON_LOGFILE)}|secrets')\" ] || "
+            '[ -n "$(ls -A "$d/secrets" 2>/dev/null)" ]; then echo Kept; '
+            'else { [ ! -e "$d/secrets" ] || rmdir "$d/secrets"; } && '
+            f'rm -f "$d/{BUILD_CACHE_IDS_FILE}" "$d/{JSON_LOGFILE}" && rmdir "$d" '
+            "&& echo Removed; fi",
+            raise_=False,
+        )
+        or ""
+    ).strip()
+    if outcome == "Removed":
+        print(f"Removed the folder of {app} left by a failed deploy.")
+    elif outcome == "Kept":
+        print(
+            f"Left {app_dir} on the server, as it holds more than a failed "
+            "deploy leaves."
+        )
+    elif outcome != "Gone":
+        print(f"Warning: could not remove {app_dir} on the server.")
 
 
 def _tear_down_app(
@@ -4429,7 +4650,8 @@ def _tear_down_app(
 ):
     """Stop and remove a deployed app, keeping its data volumes and folder.
 
-    Its image is removed too unless another app uses it or it is ``keep_image``.
+    Its image is removed too unless another app uses it or it is ``keep_image``,
+    and so is the unused build cache its builds on the server recorded.
     """
     quoted_app = quote(app)
 
@@ -4480,6 +4702,7 @@ def _tear_down_app(
             raise click.Abort()
     if experiment_image != keep_image:
         remove_unshared_experiment_image(executor, experiment_image, except_app=app)
+    _prune_app_build_cache(executor, app, server)
     executor.run(f"rm -rf ~/dallinger/{quoted_app}/")
     print(f"App {app} removed.")
 

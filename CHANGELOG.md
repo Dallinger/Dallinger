@@ -86,6 +86,25 @@
 
 ### Fixed
 
+- `dallinger docker-ssh destroy` also removes the app's Docker build cache
+  from the server, which before stayed behind after the image was removed
+  (several GB for a few builds of a large experiment). Deploys and updates
+  that build on the server record the cache their builds create, in
+  `~/dallinger/<app>/build-cache-ids`, and destroy removes only that cache,
+  leaving other apps' caches alone. Cache that another app's image shares, or
+  that a running build uses, is listed in `~/dallinger/build-cache-leftovers`,
+  and a later destroy removes it once it is unused, so
+  `build-cache-leftovers` is now a reserved app name. The `docker/dockerfile`
+  frontend that the default Dockerfile pulls stays on the server. If a first deploy's
+  build fails, or the deploy fails after it, the deploy keeps the cache for a
+  retry and names the destroy command that removes it. Destroying such an
+  app removes that cache, then the folder if it holds only the files a
+  failed deploy leaves (`build-cache-ids`, `logs.jsonl` and an empty
+  `secrets/`); otherwise it leaves the folder and says so. A tunnel id
+  left in `secrets/` without its token now counts as deployed, so destroy
+  removes that Cloudflare tunnel and its DNS record. Apps deployed
+  before this change have no record, so their cache stays; the server's
+  `docker builder du` shows it.
 - A docker-ssh deploy that fails because Docker on the server can't find an
   address range for a new network (`all predefined address pools have been
   fully subnetted`, or on older Docker `could not find an available,

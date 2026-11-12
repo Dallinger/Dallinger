@@ -432,10 +432,12 @@ can be run again.
 With either ingress, deploy also refuses app names the server already uses:
 ``logs``, because the server serves its log viewer at ``logs.<server DNS name>``;
 ``caddy.d`` and ``root.d``, which are Caddy configuration directories beside the
-app directories in ``~/dallinger``; and ``dallinger``, the Compose project name of
-the shared services. The check ignores case, and for ``dallinger`` also covers
-names that Compose normalises to it, such as ``Dal.linger``. It applies to the
-app name from ``--app`` or from an ``--archive``.
+app directories in ``~/dallinger``; ``build-cache-leftovers``, the file in
+``~/dallinger`` that lists build cache a destroy couldn't remove yet; and
+``dallinger``, the Compose project name of the shared services. The check
+ignores case, and for ``dallinger`` also covers names that Compose normalises
+to it, such as ``Dal.linger``. It applies to the app name from ``--app`` or
+from an ``--archive``.
 
 Each app also gets an unprivileged Caddy front door (WebSockets, no Docker
 socket), which host Caddy or the tunnel now reach instead of web, and a
@@ -903,10 +905,30 @@ its Caddy configuration or Cloudflare tunnel,
 and its experiment image unless another app still uses that image. When you
 redeploy an app with ``--update``, the image it ran before is removed in the
 same way once the new containers are up. If the update fails before then, the
-old image stays on the server. A root-domain app deployed by an older
-Dallinger has its route inside the server's shared Caddyfile, which destroy
-leaves alone: it warns that the server's own host still points to the app and
-names ``servers upgrade``, which removes that route.
+old image stays on the server. Destroy also removes the Docker build cache
+that the app's builds on the server created, which deploys record in
+``~/dallinger/$APP_ID/build-cache-ids``; other apps' build cache stays. Cache
+that another app's image shares, or that a running build uses, stays too,
+listed in ``~/dallinger/build-cache-leftovers``, and a later destroy removes
+it once it is unused. Apps deployed before Dallinger recorded their build
+cache have no record, so their cache stays; ``docker builder du`` on the
+server shows it. The ``docker/dockerfile`` frontend that the default
+Dockerfile's ``# syntax=`` line pulls stays as well, as other apps' builds
+use it. Updates keep the cache, so that rebuilds reuse it, but a
+root-domain deploy without ``--update`` destroys the server's other apps, and
+so their cache, before it builds. Builds with ``--local-build`` leave their
+cache on the local machine. If a first deploy's build fails, or the deploy
+fails after it, the deploy keeps the cache so that a retry builds faster, and
+names the destroy command that removes it. Destroying such an app removes
+that cache, then its folder if the folder holds only the files a failed
+deploy leaves (``build-cache-ids``, ``logs.jsonl`` and an empty
+``secrets``); otherwise destroy leaves the folder and says so. A tunnel id
+left in ``secrets`` without its token also counts as deployed, so destroy
+removes that Cloudflare tunnel and its DNS record. A root-domain
+app deployed by an older Dallinger has its route inside the server's shared
+Caddyfile, which destroy leaves alone: it warns that the server's own host
+still points to the app and names ``servers upgrade``, which removes that
+route.
 
 Destroy only deletes or keeps the experiment's data when you choose to, at its
 prompt or with a flag. The data is:

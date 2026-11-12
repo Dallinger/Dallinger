@@ -542,6 +542,226 @@ def test_destroy_leaves_an_old_root_domain_caddyfile_alone(server, capsys):
     assert "servers upgrade --host lab" in capsys.readouterr().out
 
 
+class FakeBuildCache:
+    """A daemon's build cache records (id to parent).
+
+    A prune keeps a parent, and records an image shares (``shared``).
+    """
+
+    def __init__(self, records, home):
+        self.records, self.home, self.api, self.shared = records, home, self, set()
+
+    def prune_builds(self, filters):
+        # The daemon prunes every unused record whose id matches the expression.
+        deleted = [
+            i
+            for i in self.records
+            if re.search(filters["id"], i)
+            and i not in self.shared
+            and i not in self.records.values()
+        ]
+        for cache_id in deleted:
+            del self.records[cache_id]
+        return {
+            "CachesDeleted": deleted or None,
+            "SpaceReclaimed": 1_500_000_000 * len(deleted),
+        }
+
+    def build(self, app, layers):
+        before = list(self.records)
+        self.records.update(layers)
+        docker_ssh._record_build_cache(self, "lab", app, before)
+        (self.home / "dallinger" / app / "docker-compose.yml").write_text(
+            "services: {}\n"
+        )
+
+
+@pytest.fixture
+def build_cache(server, monkeypatch):
+    """A base image pulled earlier, and a layer another app's build added on it."""
+    cache = FakeBuildCache({"base": None, "other": "base"}, server)
+    monkeypatch.setattr(docker_ssh, "_build_cache_ids", lambda c: list(c.records))
+    monkeypatch.setattr(
+        docker_ssh,
+        "_image_docker_client",
+        lambda *a, **k: contextlib.nullcontext(cache),
+    )
+    return cache
+
+
+def test_destroy_removes_only_the_build_cache_of_the_apps_builds(build_cache, capsys):
+    # A deploy of myapp, then an update that reuses the deploy's dependencies.
+    build_cache.build("myapp", {"deps": "base", "code1": "deps"})
+    build_cache.build("myapp", {"code2": "deps"})
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert list(build_cache.records) == ["base", "other"]
+    assert "Removed the build cache of myapp (4.5 GB)." in capsys.readouterr().out
+
+
+def test_a_later_destroy_removes_build_cache_an_image_kept(build_cache, server, capsys):
+    build_cache.build("app1", {"deps": "base", "code1": "deps"})
+    build_cache.build("app2", {"code2": "deps"})
+    build_cache.shared = {"deps", "code2"}  # app2's image uses them
+
+    docker_ssh.destroy.callback(server="lab", app="app1")
+    assert (server / "dallinger/build-cache-leftovers").read_text() == "deps\n"
+
+    build_cache.shared = set()
+    docker_ssh.destroy.callback(server="lab", app="app2")
+    assert list(build_cache.records) == ["base", "other"]
+    assert not (server / "dallinger/build-cache-leftovers").exists()
+    assert "Removed the build cache of app2 and build cache left by earlier " in (
+        capsys.readouterr().out
+    )
+
+
+def test_destroy_carries_on_when_the_build_cache_cant_be_pruned(
+    build_cache, server, capsys
+):
+    build_cache.build("myapp", {"deps": "base"})
+    build_cache.prune_builds = mock.Mock(side_effect=RuntimeError("daemon busy"))
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    out = capsys.readouterr().out
+    assert "Warning: could not remove build cache deps: daemon busy" in out
+    assert "App myapp removed." in out
+    assert not (server / "dallinger/myapp").exists()
+    assert (server / "dallinger/build-cache-leftovers").read_text() == "deps\n"
+
+
+def test_destroy_keeps_the_record_when_the_build_cache_cant_be_listed(
+    build_cache, server, monkeypatch, capsys
+):
+    build_cache.build("myapp", {"deps": "base", "code": "deps"})
+    monkeypatch.setattr(
+        docker_ssh, "_build_cache_ids", mock.Mock(side_effect=RuntimeError("down"))
+    )
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert "could not remove the build cache of myapp: down" in capsys.readouterr().out
+    leftovers = server / "dallinger/build-cache-leftovers"
+    assert leftovers.read_text() == "code\ndeps\n"
+
+
+def test_destroy_of_an_app_without_a_record_leaves_the_build_cache(
+    build_cache, server, capsys
+):
+    (server / "dallinger/myapp").mkdir()
+    (server / "dallinger/myapp/docker-compose.yml").write_text("services: {}\n")
+    build_cache.records["deps"] = "base"
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert list(build_cache.records) == ["base", "other", "deps"]
+    assert "App myapp removed." in capsys.readouterr().out
+
+
+def test_destroy_prunes_only_the_exact_recorded_id(build_cache, server):
+    build_cache.build("app1", {"ab": "base"})
+    build_cache.build("app2", {"abcd": "base"})
+
+    docker_ssh.destroy.callback(server="lab", app="app1")
+
+    assert list(build_cache.records) == ["base", "other", "abcd"]
+
+
+@pytest.fixture
+def failed_deploy(build_cache, server):
+    """The folder of a first deploy that failed after its build."""
+    build_cache.build("myapp", {"deps": "base"})
+    app_dir = server / "dallinger/myapp"
+    (app_dir / "docker-compose.yml").unlink()
+    (app_dir / "logs.jsonl").touch()
+    (app_dir / "secrets").mkdir()
+    return app_dir
+
+
+def test_destroy_removes_the_folder_a_failed_deploy_left(
+    build_cache, failed_deploy, capsys
+):
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert list(build_cache.records) == ["base", "other"]
+    assert not failed_deploy.exists()
+    assert "left by a failed deploy" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("extra", [".env", "secrets/notes"])
+def test_destroy_leaves_a_failed_deploys_folder_with_other_files(
+    build_cache, failed_deploy, capsys, extra
+):
+    (failed_deploy / extra).write_text("KEY=1\n")
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert list(build_cache.records) == ["base", "other"]
+    assert (failed_deploy / extra).exists()
+    assert "Left ~/dallinger/myapp on the server" in capsys.readouterr().out
+
+
+def test_destroy_keeps_a_folder_a_retry_deploys_during_the_prune(
+    build_cache, failed_deploy, server
+):
+    prune = build_cache.prune_builds
+
+    def prune_while_retrying(filters):
+        (failed_deploy / "docker-compose.yml").write_text("services: {}\n")
+        return prune(filters)
+
+    build_cache.prune_builds = prune_while_retrying
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert (failed_deploy / "docker-compose.yml").exists()
+    assert (failed_deploy / "build-cache-ids").exists()
+    log = server / "docker.log"
+    assert "down" not in (log.read_text() if log.exists() else "")
+
+
+def test_destroy_warns_when_it_cant_save_the_leftovers(build_cache, server, capsys):
+    build_cache.build("myapp", {"deps": "base"})
+    build_cache.shared = {"deps"}
+    (server / "dallinger/build-cache-leftovers").mkdir()
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    out = capsys.readouterr().out
+    assert "could not write ~/dallinger/build-cache-leftovers" in out
+    assert "App myapp removed." in out
+    assert not list((server / "dallinger/build-cache-leftovers").iterdir())
+
+
+def test_destroy_keeps_a_failed_deploys_record_when_it_cant_save_the_leftovers(
+    build_cache, failed_deploy, server, capsys
+):
+    build_cache.shared = {"deps"}
+    (server / "dallinger/build-cache-leftovers").mkdir()
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert (failed_deploy / "build-cache-ids").read_text() == "deps\n"
+    assert "so that destroying myapp again retries" in capsys.readouterr().out
+
+
+def test_destroy_tears_down_the_tunnel_of_a_deploy_that_saved_only_its_id(
+    server, monkeypatch
+):
+    secrets = server / "dallinger/myapp/secrets"
+    secrets.mkdir(parents=True)
+    (secrets / "cloudflare-tunnel-id").write_text("t-1\n")
+    cloudflare = mock.Mock(return_value=True)
+    monkeypatch.setattr(docker_ssh, "_destroy_cloudflare_resources", cloudflare)
+
+    docker_ssh.destroy.callback(server="lab", app="myapp")
+
+    assert cloudflare.call_args.args == ("myapp", None, "t-1")
+    assert not (server / "dallinger/myapp").exists()
+
+
 def test_ip_server_without_a_saved_dns_host_uses_the_deploy_dns_host(
     server, monkeypatch, capsys
 ):

@@ -1,3 +1,4 @@
+import contextlib
 import importlib
 import json
 from unittest import mock
@@ -202,3 +203,49 @@ def test_aborted_build_cleanup_keeps_an_image_another_app_uses(monkeypatch, caps
 
     client.images.remove.assert_not_called()
     assert "because another app on the server uses it" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("remove", ["dlgr-1", None], ids=["new-app", "update"])
+@pytest.mark.parametrize("build_fails", [True, False], ids=["build", "later-step"])
+@pytest.mark.parametrize("fully_cached", [False, True], ids=["new-cache", "retry"])
+def test_only_a_failed_new_deploy_explains_how_to_remove_its_build_cache(
+    monkeypatch, capsys, build_fails, remove, fully_cached
+):
+    client = _client()
+    monkeypatch.setattr(
+        docker_ssh_module,
+        "_image_docker_client",
+        lambda *a, **k: contextlib.nullcontext(client),
+    )
+    after = [] if fully_cached else ["deps"]
+    monkeypatch.setattr(
+        docker_ssh_module, "_build_cache_ids", mock.Mock(side_effect=[[], after])
+    )
+    # A retry adds no records but finds those of the earlier attempt.
+    executor = mock.Mock()
+    executor.run.return_value = "Yes\n"
+    monkeypatch.setattr(docker_ssh_module, "_executor_for_server", lambda s: executor)
+    monkeypatch.setattr(
+        docker_ssh_module, "setup_experiment", lambda *a, **k: ("id", "/tmp/x")
+    )
+    config = mock.Mock()
+    config.get.side_effect = lambda key, default=None: {"id": "a" * 8}.get(key)
+    config.as_dict.return_value = {}
+    monkeypatch.setattr(
+        docker_ssh_module, "image_pinned_by_other_apps", lambda *a, **k: False
+    )
+    build = {"side_effect": RuntimeError("no space")} if build_fails else {}
+    with (
+        mock.patch("dallinger.docker.tools.build_image", return_value="b:1", **build),
+        pytest.raises(RuntimeError),
+        docker_ssh_module._built_image(
+            config, [], None, "lab", False, False, app="dlgr-1", remove_for_app=remove
+        ),
+    ):
+        raise RuntimeError("upload failed")
+
+    assert "dlgr-1/build-cache-ids" in executor.run.call_args_list[0].args[0]
+    assert client.images.remove.called is (bool(remove) and not build_fails)
+    assert ("removes the build cache this deploy left" in capsys.readouterr().out) is (
+        bool(remove)
+    )
