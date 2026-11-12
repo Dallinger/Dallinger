@@ -33,7 +33,9 @@ git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | he
 ```
 
 Read the `## [Unreleased]` section of `CHANGELOG.md` (everything until the
-next `## [` heading). If that section has no entries, stop — there is
+next `## [` heading). If that section has no entries and no Dependabot
+pull request was merged since the last release (see
+[3. Finalize `CHANGELOG.md`](#3-finalize-changelogmd)), stop — there is
 nothing to release.
 
 ### Classify the bump
@@ -142,6 +144,31 @@ recent releases.
 ## 3. Finalize `CHANGELOG.md`
 
 Do not commit yet — CHANGELOG edits go into the version-bump commit.
+
+- Add entries for the Dependabot pull requests merged since the last
+  release. `check_changelog` skips Dependabot branches, so they usually
+  have none:
+
+  ```bash
+  LAST=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+  gh pr list --repo Dallinger/Dallinger --author app/dependabot --state merged \
+    --base master --search "merged:>=$(git log -1 --format=%cs "$LAST")" \
+    --json number,title,url
+  ```
+
+  Skip a pull request whose entry is already in `CHANGELOG.md`: one merged
+  on the day of the last release may be in that release's section, and
+  someone may have added an entry by hand. Put the rest under
+  `### Updated`, written for users instead of copying the title: say what
+  uses the image and its new version, and give successive bumps of one
+  image a single entry with the latest version. Link each pull request,
+  for example:
+
+  ```markdown
+  - Cloudflare Tunnel deployments use cloudflared 2026.10.7
+    ([#10238](https://github.com/Dallinger/Dallinger/pull/10238),
+    [#10348](https://github.com/Dallinger/Dallinger/pull/10348)).
+  ```
 
 - Rename the top `## [Unreleased]` heading to
   `## [vX.Y.Z](https://github.com/dallinger/dallinger/tree/vX.Y.Z) (YYYY-MM-DD)`.
