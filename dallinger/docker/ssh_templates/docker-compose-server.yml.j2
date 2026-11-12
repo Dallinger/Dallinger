@@ -36,12 +36,20 @@ services:
   dozzle:
     container_name: dozzle
     restart: unless-stopped
-    image: amir20/dozzle:v10.0.2
+    image: {{ dozzle_image }}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./dozzle-users.yml:/data/users.yml
     environment:
       - DOZZLE_AUTH_PROVIDER=simple
+      # Dozzle's setup page lets the dallinger login change any of these that
+      # no variable sets. With the Docker socket, shell and actions reach every
+      # container on the server.
+      - DOZZLE_ENABLE_SHELL=false
+      - DOZZLE_ENABLE_ACTIONS=false
+      - DOZZLE_AUTO_UPDATE=off
+      - DOZZLE_AUTO_CLEANUP=off
+      - DOZZLE_UPDATE_CONTAINERS=off
     networks:
       - dallinger
 

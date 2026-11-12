@@ -175,8 +175,9 @@ CONTROLLER_IMAGE = _read_pinned_image("Dockerfile.controller")
 CLOUDFLARED_IMAGE = _read_pinned_image("Dockerfile.cloudflared")
 PGBOUNCER_IMAGE = _read_pinned_image("Dockerfile.pgbouncer")
 CADDY_IMAGE = _read_pinned_image("Dockerfile.caddy")
+DOZZLE_IMAGE = _read_pinned_image("Dockerfile.dozzle")
 DOCKER_COMPOSE_SERVER_TPL.globals.update(
-    postgres.template_vars(), caddy_image=CADDY_IMAGE
+    postgres.template_vars(), caddy_image=CADDY_IMAGE, dozzle_image=DOZZLE_IMAGE
 )
 
 
@@ -726,6 +727,22 @@ def _older_dallinger_message(server, state):
     )
 
 
+def _dozzle_users_with_download_role(content):
+    """Limit Dallinger's generated Dozzle user to viewing and downloading logs."""
+    try:
+        data = json.loads(content)
+        user = data["users"]["dallinger"]
+    except (KeyError, TypeError, ValueError):
+        return content
+    if not isinstance(user, dict):
+        return content
+    roles = user.get("roles")
+    if roles is not None and (not isinstance(roles, str) or roles.strip()):
+        return content
+    user["roles"] = "download"
+    return json.dumps(data)
+
+
 def _write_server_files(server, server_info, *, replace, yes=True):
     """Write the shared classic-ingress files and start the shared services.
 
@@ -770,6 +787,12 @@ def _write_server_files(server, server_info, *, replace, yes=True):
         "dallinger/Caddyfile": CADDYFILE_SERVER.format(host=host, tls=tls),
     }
     current = {path: executor.run(f"cat ~/{path}", raise_=False) for path in files}
+    dozzle_users_path = "dallinger/dozzle-users.yml"
+    current_dozzle_users = executor.run(f"cat ~/{dozzle_users_path}", raise_=False)
+    restricted_dozzle_users = _dozzle_users_with_download_role(current_dozzle_users)
+    if restricted_dozzle_users != current_dozzle_users:
+        files[dozzle_users_path] = restricted_dozzle_users
+        current[dozzle_users_path] = current_dozzle_users
     changed = [path for path, content in files.items() if current[path] != content]
     # Imported here because it imports this module.
     from dallinger.command_line import docker_ssh_postgres_upgrade as pg_upgrade
@@ -2886,6 +2909,8 @@ def set_dozzle_password(executor, sftp, new_password):
                 "name": "Dallinger",
                 "password": hashed,
                 "email": "dallinger@example.com",
+                # Dozzle treats an omitted role as every role.
+                "roles": "download",
             }
         }
     }

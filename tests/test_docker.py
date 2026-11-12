@@ -1,5 +1,6 @@
 import importlib
 import io
+import json
 import os
 import re
 import sys
@@ -395,6 +396,27 @@ def test_caddy_services_use_the_pinned_image():
     app = get_yaml({}, ingress="cloudflare")
     assert app["services"]["frontdoor"]["image"] == CADDY_IMAGE
     assert re.fullmatch(r"caddy:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}", CADDY_IMAGE)
+
+
+def test_dozzle_uses_the_pinned_image():
+    from dallinger.command_line.docker_ssh import (
+        DOCKER_COMPOSE_SERVER_TPL,
+        DOZZLE_IMAGE,
+    )
+
+    server = yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render())
+    dozzle = server["services"]["dozzle"]
+    assert dozzle["image"] == DOZZLE_IMAGE
+    assert re.fullmatch(
+        r"amir20/dozzle:v\d+\.\d+\.\d+@sha256:[0-9a-f]{64}", DOZZLE_IMAGE
+    )
+    assert {
+        "DOZZLE_ENABLE_SHELL=false",
+        "DOZZLE_ENABLE_ACTIONS=false",
+        "DOZZLE_AUTO_UPDATE=off",
+        "DOZZLE_AUTO_CLEANUP=off",
+        "DOZZLE_UPDATE_CONTAINERS=off",
+    } <= set(dozzle["environment"])
 
 
 def test_an_existing_cloudflare_app_keeps_the_postgres_version_of_its_data(capsys):
@@ -1384,6 +1406,19 @@ def test_set_dozzle_password_skips_restart_when_not_running():
     docker_ssh.set_dozzle_password(executor, sftp, "secret-password")
 
     assert sftp.putfo.call_count == 2
+    uploaded = {
+        call.args[1]: call.args[0].getvalue() for call in sftp.putfo.call_args_list
+    }
+    users = json.loads(uploaded["dallinger/dozzle-users.yml"])
+    dallinger_user = users["users"]["dallinger"]
+    assert dallinger_user["roles"] == "download"
+    hashed = dallinger_user["password"]
+    # Dozzle 11 refuses to start unless a password hash is exactly 60
+    # characters, which is what bcrypt produces.
+    assert len(hashed) == 60
+    import bcrypt
+
+    assert bcrypt.checkpw(b"secret-password", hashed.encode())
     executor.restart_dozzle.assert_not_called()
 
 

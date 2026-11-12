@@ -65,6 +65,21 @@
   and digest in `dallinger/docker/ssh_templates/Dockerfile.pgbouncer`, like
   cloudflared, so Dependabot opens pull requests for new releases. Existing
   apps switch when they are next deployed with `--update`.
+- The log viewer on classic-ingress docker-ssh servers is Dozzle 11.4.2,
+  pinned by tag and digest in
+  `dallinger/docker/ssh_templates/Dockerfile.dozzle` so Dependabot can open
+  pull requests for later releases. It was `amir20/dozzle:v10.0.2` in the
+  server Compose template, which Dependabot cannot read. Run
+  `dallinger docker-ssh servers upgrade` to pick up the new image. The same
+  username and password still work. Existing logins are signed out, and a
+  later recreate of the Dozzle container signs them out again, because
+  Dozzle 11 keeps its session secret in the container rather than next to
+  `dozzle-users.yml`. The log viewer account can only view and download logs;
+  `servers upgrade` adds that restriction to existing Dallinger-generated
+  accounts without changing their password. Shell access, container actions
+  and Dozzle's scheduled updates and cleanup are now switched off in the
+  Compose file, so the log viewer login cannot turn them on from Dozzle 11's
+  setup page.
 - The changelog check now skips Dependabot pull requests, which can't edit
   `CHANGELOG.md`. The `/release` skill adds their entries under
   **Updated** when a release is cut.
