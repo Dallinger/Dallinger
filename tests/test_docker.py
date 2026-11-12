@@ -405,10 +405,18 @@ def test_dozzle_uses_the_pinned_image():
     )
 
     server = yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render())
-    assert server["services"]["dozzle"]["image"] == DOZZLE_IMAGE
+    dozzle = server["services"]["dozzle"]
+    assert dozzle["image"] == DOZZLE_IMAGE
     assert re.fullmatch(
         r"amir20/dozzle:v\d+\.\d+\.\d+@sha256:[0-9a-f]{64}", DOZZLE_IMAGE
     )
+    assert {
+        "DOZZLE_ENABLE_SHELL=false",
+        "DOZZLE_ENABLE_ACTIONS=false",
+        "DOZZLE_AUTO_UPDATE=off",
+        "DOZZLE_AUTO_CLEANUP=off",
+        "DOZZLE_UPDATE_CONTAINERS=off",
+    } <= set(dozzle["environment"])
 
 
 def test_an_existing_cloudflare_app_keeps_the_postgres_version_of_its_data(capsys):

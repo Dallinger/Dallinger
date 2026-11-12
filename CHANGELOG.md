@@ -74,7 +74,9 @@
   username and password still work. Existing logins are signed out, and a
   later recreate of the Dozzle container signs them out again, because
   Dozzle 11 keeps its session secret in the container rather than next to
-  `dozzle-users.yml`.
+  `dozzle-users.yml`. Shell access, container actions and Dozzle's scheduled
+  updates and cleanup are now switched off in the Compose file, so the log
+  viewer login cannot turn them on from Dozzle 11's setup page.
 
 ### Fixed
 
