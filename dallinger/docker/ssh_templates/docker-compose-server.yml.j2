@@ -20,7 +20,7 @@ services:
       - dallinger
 
   httpserver:
-    image: caddy:2.10.2
+    image: {{ caddy_image }}
     restart: unless-stopped
     ports:
       - "80:80"

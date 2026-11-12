@@ -387,6 +387,16 @@ def test_postgres_services_run_postgres_18_without_jit(tmp_path, stub_config):
         assert "start_period" in postgres["healthcheck"]
 
 
+def test_caddy_services_use_the_pinned_image():
+    from dallinger.command_line.docker_ssh import CADDY_IMAGE, DOCKER_COMPOSE_SERVER_TPL
+
+    server = yaml.safe_load(DOCKER_COMPOSE_SERVER_TPL.render())
+    assert server["services"]["httpserver"]["image"] == CADDY_IMAGE
+    app = get_yaml({}, ingress="cloudflare")
+    assert app["services"]["frontdoor"]["image"] == CADDY_IMAGE
+    assert re.fullmatch(r"caddy:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}", CADDY_IMAGE)
+
+
 def test_an_existing_cloudflare_app_keeps_the_postgres_version_of_its_data(capsys):
     from dallinger.command_line.docker_ssh import _app_postgres_major
 
@@ -1729,14 +1739,35 @@ def _docker(*args):
     return result.stdout.strip()
 
 
-def test_frontdoor_caddyfile_validates_on_caddy_2_10():
+def test_frontdoor_caddyfile_validates_on_the_pinned_caddy():
     import shutil
+
+    from dallinger.command_line.docker_ssh import CADDY_IMAGE
 
     if not shutil.which("docker"):
         pytest.skip("docker is required to validate the front-door Caddyfile")
     caddyfile = FRONTDOOR_CADDYFILE.resolve()
     _docker(
-        *("run", "--rm", "-v", f"{caddyfile}:/etc/caddy/Caddyfile:ro", "caddy:2.10.2"),
+        *("run", "--rm", "-v", f"{caddyfile}:/etc/caddy/Caddyfile:ro", CADDY_IMAGE),
+        *("caddy", "validate", "--config", "/etc/caddy/Caddyfile"),
+    )
+
+
+def test_server_caddyfile_validates_on_the_pinned_caddy(tmp_path):
+    from dallinger.command_line.docker_ssh import CADDY_IMAGE, CADDYFILE_SERVER
+
+    tls = "tls ops@example.org"
+    (tmp_path / "Caddyfile").write_text(
+        CADDYFILE_SERVER.format(host="lab.example.org", tls=tls)
+    )
+    (tmp_path / "caddy.d").mkdir()
+    (tmp_path / "caddy.d" / "demo").write_text(
+        f"demo.example.org {{\n    {tls}\n    reverse_proxy demo_web:5000\n}}"
+    )
+    (tmp_path / "root.d").mkdir()
+    (tmp_path / "root.d" / "home").write_text("reverse_proxy home_web:5000\n")
+    _docker(
+        *("run", "--rm", "-v", f"{tmp_path}:/etc/caddy:ro", CADDY_IMAGE),
         *("caddy", "validate", "--config", "/etc/caddy/Caddyfile"),
     )
 
@@ -1754,7 +1785,7 @@ def frontdoor(tmp_path):
     import urllib.error
     import urllib.request
 
-    from dallinger.command_line.docker_ssh import CONTROLLER_IMAGE
+    from dallinger.command_line.docker_ssh import CADDY_IMAGE, CONTROLLER_IMAGE
 
     if not shutil.which("docker"):
         pytest.skip("docker is required to exercise the front door")
@@ -1785,7 +1816,7 @@ def frontdoor(tmp_path):
             *("-e", "XDG_CONFIG_HOME=/state/caddy-config"),
             *("-e", "XDG_DATA_HOME=/state/caddy-data"),
             *("-v", f"{FRONTDOOR_CADDYFILE.resolve()}:/etc/caddy/Caddyfile:ro"),
-            "caddy:2.10.2",
+            CADDY_IMAGE,
         )
         listen = _docker("port", names[-1], "5000").splitlines()[0]
 

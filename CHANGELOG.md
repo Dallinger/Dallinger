@@ -36,6 +36,18 @@
     the new volume `dallinger_postgres18`. Remove the old data with
     `docker volume rm dallinger_postgres` once you no longer need it.
     Local `dallinger docker debug` databases also start empty.
+- docker-ssh runs Caddy 2.11.9 instead of 2.10.2, for the shared
+  classic-ingress server and each app's front door. 2.11 fixes several
+  security issues. It also refuses requests whose headers exceed 16 KiB
+  (`431`), drops request headers whose names contain `_` or `.`, and
+  aborts a request body upload or response download that makes no
+  progress for a minute; idle websockets and slow responses are not
+  affected. The image is now pinned by tag and digest in
+  `dallinger/docker/ssh_templates/Dockerfile.caddy`, like cloudflared, so
+  Dependabot opens pull requests for new Caddy releases. Apps move to
+  2.11.9 when next deployed with `--update`. The shared Caddy moves when
+  you run `dallinger docker-ssh servers upgrade`, which recreates it and so
+  briefly interrupts classic-ingress apps.
 - docker-ssh deploy and `destroy --remove-data` fix folder ownership and
   delete root-owned data folders with the digest-pinned controller image
   (`python:3.14-alpine`) instead of `alpine:3.20`, which no longer gets
