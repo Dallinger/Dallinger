@@ -317,6 +317,26 @@ changes ``handle_effect`` makes together with the session's record, so
 should run only once the changes are saved, such as sending a message to a
 page, can be passed to :func:`~dallinger.db.run_after_commit`.
 
+Work that needs the session's ending, such as recording each player's score
+from the outcome, goes in
+:meth:`~dallinger.realtime.RealtimeGame.handle_ending`. Dallinger calls it
+once per session, after the session's effects, with the session's row, whose
+``status``, ``end_reason``, ``outcome`` and ``members`` are then set. It runs
+however the session ended, including at its time limit, and its changes are
+saved together with the ending, as for ``handle_effect``. A session that
+failed can have no outcome::
+
+    class CoinGame(RealtimeGame):
+        ...
+
+        def handle_ending(self, session_row):
+            if session_row.outcome is None:
+                return
+            for participant_id in session_row.members:
+                coins = session_row.outcome["coins"][str(participant_id)]
+                participant = Participant.query.get(participant_id)
+                db.session.add(Info(origin=participant.nodes()[0], contents=str(coins)))
+
 Sessions
 --------
 
@@ -496,7 +516,7 @@ saved:
 - a method returns a value that isn't JSON
 - the methods run for longer than the game type's
   :attr:`~dallinger.realtime.RealtimeGame.time_limit`
-- ``handle_effect`` raises an error
+- ``handle_effect`` or ``handle_ending`` raises an error
 - saving the session's record raises an error, for example because the
   database is unavailable. Dallinger doesn't try again.
 

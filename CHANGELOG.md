@@ -84,6 +84,15 @@
   `CHANGELOG.md`. The `/release` skill adds their entries under
   **Updated** when a release is cut.
 
+### Added
+
+- A real-time game type can define `handle_ending(session_row)`, which
+  Dallinger calls once per session when it writes the session's ending, after
+  the session's effects, however the session ended, including at its
+  `max_duration`. Like `handle_effect`, it runs on a worker and its database
+  changes are saved together with the ending, so a game can record each
+  player's result from the outcome without a separate job.
+
 ### Fixed
 
 - `dallinger docker-ssh destroy` also removes the app's Docker build cache

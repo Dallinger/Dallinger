@@ -357,6 +357,50 @@ class TestEnding:
         ]
         assert keys_expire(session_id)
 
+    def test_the_game_handles_its_ending_once_after_its_effects(
+        self, realtime_experiment
+    ):
+        class Paying(Scoring):
+            def handle_ending(self, session_row):
+                db.session.add(
+                    Notification(
+                        assignment_id=",".join(map(str, session_row.members)),
+                        event_type="{} {} {}".format(
+                            session_row.status,
+                            session_row.end_reason,
+                            session_row.outcome["moves"],
+                        ),
+                    )
+                )
+
+        realtime_experiment.realtime_games = [Paying]
+        session_id = create_session(Paying, ["1", "2"])
+        save(session_id, [message(1, "1", "effect"), message(2, "1", "stop")], now=2)
+
+        write_ending(session_id)
+        write_records(session_id)
+
+        assert [
+            (each.assignment_id, each.event_type)
+            for each in db.session.query(Notification).order_by(Notification.id)
+        ] == [("{}:1".format(session_id), "scored"), ("1,2", "ended finished 2")]
+
+    def test_an_error_handling_the_ending_fails_the_session(self, realtime_experiment):
+        class Raising(TurnTally):
+            def handle_ending(self, session_row):
+                raise ValueError("no ending")
+
+        realtime_experiment.realtime_games = [Raising]
+        session_id = create_session(Raising, ["1"])
+        save(session_id, [message(1, "1", "stop")], now=1)
+
+        with pytest.raises(ValueError, match="no ending"):
+            write_ending(session_id)
+
+        failed = row(session_id)
+        assert (failed.status, failed.outcome) == ("failed", None)
+        assert "ValueError: no ending" in failed.error
+
     def test_a_final_job_that_fails_still_tells_the_pages_and_expires_the_keys(
         self, saved_frames
     ):
