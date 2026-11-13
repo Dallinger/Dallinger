@@ -28,6 +28,8 @@
     the copy stays on the old volume. Once the apps work, remove the old
     volume with `docker volume rm dallinger_dallinger_pg_data` on the server.
     Deploys keep using the server's current Postgres until the upgrade.
+    The new "Moving to PostgreSQL 18" section of the Docker documentation
+    lists the steps.
   - An existing Cloudflare app keeps the PostgreSQL version of its database
     volume when updated with `--update`. To move it to 18, export its data,
     destroy it and deploy it again with `--archive`.

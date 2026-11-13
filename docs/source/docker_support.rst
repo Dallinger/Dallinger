@@ -251,92 +251,10 @@ server, so upgrade when no classic experiment is live. For example, the Postgres
 ``servers upgrade``. Caddy may re-issue the server's certificates once, on that
 first upgrade.
 
-Dallinger 13.1 moves the shared Postgres from PostgreSQL 12 to 18, which can't
-open data written by 12. On a server set up by Dallinger 13.0 or earlier,
-``servers upgrade`` therefore copies the shared databases into a new volume,
-``dallinger_dallinger_pg18_data``, after listing the classic apps it stops
-during the copy and asking first. Hibernating apps are stopped too, so that
-no visitor wakes one during the copy, and only the services that ran are
-started again, so they stay hibernated. Before it stops any app, it checks
-that the server has free disk space for about twice the size of the shared
-databases, for the dump and the copy. Once the apps are stopped, it checks
-that none of them has started again. It dumps every database and role with
-PostgreSQL 18's ``pg_dumpall``, which keeps the permissions that apps
-deployed by Dallinger 12 rely on. It then restores them into PostgreSQL 18,
-checks that the same databases and roles exist, sets each app's database
-password again from
-``~/dallinger/<app>/.env`` (or, for an app deployed by Dallinger 12, from its
-``docker-compose.yml``), and then starts the apps again. An app whose
-password it can't find stops the upgrade, because the app couldn't log in
-afterwards. The copy doesn't change the old volume,
-``dallinger_dallinger_pg_data``. Just before the shared services start on
-PostgreSQL 18, ``servers upgrade`` marks the copy as finished. If anything
-fails before that, the copy is removed and the server goes back to
-PostgreSQL 12 with its apps running. After that, the copy is kept, and
-running ``servers upgrade`` again starts the shared services on it.
-
-When the shared services switch to the copy, ``servers upgrade`` seals the old
-volume: it renames its ``PG_VERSION`` file to
-``PG_VERSION.copied-to-postgres-18``, and PostgreSQL 12 doesn't start on a
-volume without that file. This matters because a Dallinger 12 classic deploy
-rewrites the server's ``docker-compose.yml``, and so does a ``servers upgrade``
-from Dallinger 13.0. The read-only shared files stop such a Dallinger 12
-deploy, but not one made as ``root``. The rewritten file points the shared
-Postgres back at PostgreSQL 12 and the old volume. Without the seal, the apps
-would quietly run on their data from before the copy. With it, the shared
-Postgres doesn't start and no classic app on the server can reach its
-database until ``servers upgrade`` is run again with Dallinger 13.1 or later,
-which switches back to 18 without copying. To avoid that outage, make sure
-that everyone who deploys to the server uses Dallinger 13.0 or later, and runs
-``servers upgrade`` only with Dallinger 13.1 or later.
-
-If the seal fails, ``servers upgrade`` warns, and the next run seals the
-volume. So does a run cut off after the copy was marked finished and before
-the seal; a run cut off earlier leaves an unfinished copy, described below.
-Until the old volume is sealed, an older client can still start PostgreSQL 12
-on it, so before sealing, ``servers upgrade`` says that anything written to
-PostgreSQL 12 since the copy stays on the old volume.
-
-``servers upgrade`` also refuses a PostgreSQL 18 volume that is not a finished
-copy, which it recognizes by a marker file in the new volume. An example is one
-that ``servers add`` started while the old volume was still there. Nothing is
-changed. The error asks which volume holds the data your apps need. If it is
-the new volume, remove the old volume or seal it. If it is the old volume,
-whose data was never copied, remove the containers that use the new volume
-and then the new volume itself, and the next run copies the old data. The
-error gives the commands.
-
-To open the old data in PostgreSQL 12 again, for example to look up a record
-from before the copy, rename the file back on the server. The next
-``servers upgrade`` seals the volume again, after the same warning.
-
-.. code-block:: shell
-
-    docker run --rm --entrypoint mv -v dallinger_dallinger_pg_data:/v \
-        postgres:18-trixie /v/PG_VERSION.copied-to-postgres-18 /v/PG_VERSION
-
-Once the apps work on the new version, remove the old volume on the server:
-
-.. code-block:: shell
-
-    docker volume rm dallinger_dallinger_pg_data
-
-A run that was cut off during the copy, for example by a lost connection,
-leaves an unfinished copy in ``dallinger_dallinger_pg18_data``. The next
-``servers upgrade`` refuses to use it and prints the commands that remove it;
-after those, it starts the old Postgres again and copies once more. Before
-stopping any app, a run lists the apps it stops, with the services that ran,
-in ``~/dallinger/postgres-upgrade-stopped-apps.json`` on the server. The next
-run that gets past these checks names those apps before it asks to continue.
-It starts their services once it is done, whether its own copy succeeded,
-failed or wasn't needed, and then removes the file.
-
-Each Cloudflare app has its own Postgres. A new deploy runs PostgreSQL 18; an
-``--update`` of an app keeps the version that created the app's database
-volume, so an app deployed by Dallinger 13.0 or earlier stays on PostgreSQL
-12, which gets no security fixes. To move one to 18, export its data with
-``dallinger docker-ssh export --app <app> --no-scrub``, destroy the app, and
-deploy it again under the same name with ``--archive`` and the exported zip.
+On a server set up by Dallinger 13.0 or earlier, ``servers upgrade`` also
+moves the shared Postgres from PostgreSQL 12 to 18 and stops every classic app
+while it copies their data. Read :ref:`moving-to-postgresql-18` before you run
+it there.
 
 ``servers add`` (on a fresh server) and ``servers upgrade`` leave the shared
 files ``Caddyfile``, ``docker-compose.yml``, ``dozzle-users.yml`` and
@@ -514,6 +432,116 @@ experiment's Dallinger pin.
 .. note::
 
       The intended use case is a server that you provisioned exclusively for use with Dallnger.
+
+.. _moving-to-postgresql-18:
+
+Moving to PostgreSQL 18
+-----------------------
+
+Dallinger 13.1 moves the shared Postgres from PostgreSQL 12 to 18, which can't
+open data written by 12. A server set up by Dallinger 13.0 or earlier keeps
+PostgreSQL 12, and deploys keep using it, until ``servers upgrade`` copies its
+databases. To move a server:
+
+1. Make sure that nobody deploys to the server with Dallinger 12 and nobody
+   runs ``servers upgrade`` with Dallinger 13.0. Either can write back a
+   server compose file that takes every classic app on the server offline
+   after the move, as described below. Deploys with Dallinger 13.0 are fine.
+2. Pick a time when no classic app on the server has participants. The copy
+   stops every classic app on the server, and takes longer for larger
+   databases.
+3. Run ``servers upgrade`` with Dallinger 13.1 or later:
+
+   .. code-block:: shell
+
+       dallinger docker-ssh servers upgrade --host $SERVER
+
+   It checks that the server has free disk space for about twice the size of
+   the shared databases, then lists the apps it stops and asks before it
+   starts.
+4. Check that the apps work. What they write from now on is only in
+   PostgreSQL 18; the old volume keeps the data from before the copy.
+5. Remove the old volume on the server:
+
+   .. code-block:: shell
+
+       docker volume rm dallinger_dallinger_pg_data
+
+``servers upgrade`` copies the shared databases into a new volume,
+``dallinger_dallinger_pg18_data``. Hibernating apps are stopped too, so that
+no visitor wakes one during the copy, and only the services that ran are
+started again, so they stay hibernated. The disk space check runs before it
+stops any app; the dump and the copy each need about the size of the shared
+databases. Once the apps are stopped, it checks
+that none of them has started again. It dumps every database and role with
+PostgreSQL 18's ``pg_dumpall``, which keeps the permissions that apps
+deployed by Dallinger 12 rely on. It then restores them into PostgreSQL 18,
+checks that the same databases and roles exist, sets each app's database
+password again from
+``~/dallinger/<app>/.env`` (or, for an app deployed by Dallinger 12, from its
+``docker-compose.yml``), and then starts the apps again. An app whose
+password it can't find stops the upgrade, because the app couldn't log in
+afterwards. The copy doesn't change the old volume,
+``dallinger_dallinger_pg_data``. Just before the shared services start on
+PostgreSQL 18, ``servers upgrade`` marks the copy as finished. If anything
+fails before that, the copy is removed and the server goes back to
+PostgreSQL 12 with its apps running. After that, the copy is kept, and
+running ``servers upgrade`` again starts the shared services on it.
+
+When the shared services switch to the copy, ``servers upgrade`` seals the old
+volume: it renames its ``PG_VERSION`` file to
+``PG_VERSION.copied-to-postgres-18``, and PostgreSQL 12 doesn't start on a
+volume without that file. This matters because a Dallinger 12 classic deploy
+rewrites the server's ``docker-compose.yml``, and so does a ``servers upgrade``
+from Dallinger 13.0. The read-only shared files stop such a Dallinger 12
+deploy, but not one made as ``root``. The rewritten file points the shared
+Postgres back at PostgreSQL 12 and the old volume. Without the seal, the apps
+would quietly run on their data from before the copy. With it, the shared
+Postgres doesn't start and no classic app on the server can reach its
+database until ``servers upgrade`` is run again with Dallinger 13.1 or later,
+which switches back to 18 without copying. Step 1 avoids that outage.
+
+If the seal fails, ``servers upgrade`` warns, and the next run seals the
+volume. So does a run cut off after the copy was marked finished and before
+the seal; a run cut off earlier leaves an unfinished copy, described below.
+Until the old volume is sealed, an older client can still start PostgreSQL 12
+on it, so before sealing, ``servers upgrade`` says that anything written to
+PostgreSQL 12 since the copy stays on the old volume.
+
+``servers upgrade`` also refuses a PostgreSQL 18 volume that is not a finished
+copy, which it recognizes by a marker file in the new volume. An example is one
+that ``servers add`` started while the old volume was still there. Nothing is
+changed. The error asks which volume holds the data your apps need. If it is
+the new volume, remove the old volume or seal it. If it is the old volume,
+whose data was never copied, remove the containers that use the new volume
+and then the new volume itself, and the next run copies the old data. The
+error gives the commands.
+
+To open the old data in PostgreSQL 12 again, for example to look up a record
+from before the copy, rename the file back on the server. The next
+``servers upgrade`` seals the volume again, after the same warning.
+
+.. code-block:: shell
+
+    docker run --rm --entrypoint mv -v dallinger_dallinger_pg_data:/v \
+        postgres:18-trixie /v/PG_VERSION.copied-to-postgres-18 /v/PG_VERSION
+
+A run that was cut off during the copy, for example by a lost connection,
+leaves an unfinished copy in ``dallinger_dallinger_pg18_data``. The next
+``servers upgrade`` refuses to use it and prints the commands that remove it;
+after those, it starts the old Postgres again and copies once more. Before
+stopping any app, a run lists the apps it stops, with the services that ran,
+in ``~/dallinger/postgres-upgrade-stopped-apps.json`` on the server. The next
+run that gets past these checks names those apps before it asks to continue.
+It starts their services once it is done, whether its own copy succeeded,
+failed or wasn't needed, and then removes the file.
+
+Each Cloudflare app has its own Postgres. A new deploy runs PostgreSQL 18; an
+``--update`` of an app keeps the version that created the app's database
+volume, so an app deployed by Dallinger 13.0 or earlier stays on PostgreSQL
+12, which gets no security fixes. To move one to 18, export its data with
+``dallinger docker-ssh export --app <app> --no-scrub``, destroy the app, and
+deploy it again under the same name with ``--archive`` and the exported zip.
 
 .. _idle-hibernation-rolling-recruitment:
 
