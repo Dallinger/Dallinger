@@ -1,5 +1,7 @@
 # Changelog
 
+## [Unreleased]
+
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 
 ### Migration Notes
