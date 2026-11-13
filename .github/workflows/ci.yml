@@ -235,7 +235,8 @@ jobs:
 
   docker-ssh-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Recent PR runs: median about 11 minutes, slowest about 22.
+    timeout-minutes: 25
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v5
