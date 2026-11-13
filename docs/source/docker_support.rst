@@ -443,10 +443,13 @@ open data written by 12. A server set up by Dallinger 13.0 or earlier keeps
 PostgreSQL 12, and deploys keep using it, until ``servers upgrade`` copies its
 databases. To move a server:
 
-1. Make sure that nobody deploys to the server with Dallinger 12 and nobody
-   runs ``servers upgrade`` with Dallinger 13.0. Either can write back a
-   server compose file that takes every classic app on the server offline
-   after the move, as described below. Deploys with Dallinger 13.0 are fine.
+1. Tell everyone who deploys to the server that, once it has moved, nobody
+   may deploy to it with Dallinger 12 or run ``servers upgrade`` on it with
+   Dallinger 13.0, for as long as the server is in use. Either can write back
+   a server compose file that starts PostgreSQL 12 again, which takes every
+   classic app on the server offline until ``servers upgrade`` is run again
+   with Dallinger 13.1 or later, as described below. Deploys with Dallinger
+   13.0 are fine.
 2. Pick a time when no classic app on the server has participants. The copy
    stops every classic app on the server, and takes longer for larger
    databases.
@@ -499,7 +502,10 @@ Postgres back at PostgreSQL 12 and the old volume. Without the seal, the apps
 would quietly run on their data from before the copy. With it, the shared
 Postgres doesn't start and no classic app on the server can reach its
 database until ``servers upgrade`` is run again with Dallinger 13.1 or later,
-which switches back to 18 without copying. Step 1 avoids that outage.
+which switches back to 18 without copying. Once you have removed the old
+volume, such a file starts PostgreSQL 12 on a new, empty volume instead,
+where the apps' database users don't exist, with the same result. Step 1
+avoids that outage.
 
 If the seal fails, ``servers upgrade`` warns, and the next run seals the
 volume. So does a run cut off after the copy was marked finished and before
