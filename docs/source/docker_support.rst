@@ -438,41 +438,58 @@ experiment's Dallinger pin.
 Moving to PostgreSQL 18
 -----------------------
 
-Dallinger 13.1 moves the shared Postgres from PostgreSQL 12 to 18, which can't
-open data written by 12. A server set up by Dallinger 13.0 or earlier keeps
-PostgreSQL 12, and deploys keep using it, until ``servers upgrade`` copies its
-databases. To move a server:
+Dallinger 13.1 runs the shared Postgres on PostgreSQL 18, which can't open
+data written by PostgreSQL 12, the version of Dallinger 13.0 and earlier.
 
-1. Ensure that, once the server has moved and for as long as it remains in
-   use, no one deploys to it with Dallinger 12 or earlier or runs
-   ``servers upgrade`` on it with Dallinger 13.0, and notify everyone who
-   deploys to the server of this requirement. Either action can rewrite the
-   server compose file, ``~/dallinger/docker-compose.yml``, so that it starts
-   PostgreSQL 12 again, which takes every classic app on the server offline
-   until ``servers upgrade`` is run again with Dallinger 13.1 or later (see
-   below). Deployments with Dallinger 13.0 are permitted, because they do not
-   write the server compose file.
-2. Pick a time when no classic app on the server has participants. The copy
-   stops every classic app on the server, and takes longer for larger
+- **New server:** a server set up with ``servers add`` or
+  ``dallinger ec2 provision`` from Dallinger 13.1 or later starts on
+  PostgreSQL 18. No action is required.
+- **Existing server:** a server set up by Dallinger 13.0 or earlier stays on
+  PostgreSQL 12, and deploys keep using it, until you move it with the steps
+  below.
+- **Cloudflare app:** each one has its own Postgres. A new deploy starts on
+  PostgreSQL 18 and requires no action. An ``--update`` keeps the version that
+  created the app's database volume, so an app deployed by Dallinger 13.0 or
+  earlier stays on PostgreSQL 12, which gets no security fixes. To move one to
+  18, export its data with ``dallinger docker-ssh export --app <app>
+  --no-scrub``, destroy the app, and deploy it again under the same name with
+  ``--archive`` and the exported zip.
+
+On every server that runs PostgreSQL 18, new or moved, no one may deploy with
+Dallinger 12 or earlier or run ``servers upgrade`` with Dallinger 13.0. Either
+can rewrite ``~/dallinger/docker-compose.yml`` so that it starts PostgreSQL 12,
+which takes every classic app on the server offline until ``servers upgrade``
+is run again with Dallinger 13.1 or later. Deploying with Dallinger 13.0 is
+permitted, because it doesn't write that file.
+
+To move an existing server:
+
+1. Notify everyone who deploys to the server of the rule above.
+2. Choose a time when no classic app on the server has participants. The move
+   stops every classic app while it copies the databases, which takes longer
+   for larger databases.
+3. Run ``servers upgrade`` with Dallinger 13.1 or later. It asks before it
+   stops any app, and needs free disk space for about twice the size of the
    databases.
-3. Run ``servers upgrade`` with Dallinger 13.1 or later:
 
    .. code-block:: shell
 
        dallinger docker-ssh servers upgrade --host $SERVER
 
-   It lists the classic apps it stops and asks before it continues. Before
-   it stops any of them, it checks that the server has free disk space for
-   about twice the size of the shared databases.
-4. Check that the apps work. What they write from now on is only in
-   PostgreSQL 18; the old volume keeps the data from before the copy.
+4. Check that the apps work. From then on, new data exists only in
+   PostgreSQL 18. The old volume keeps the data from before the move.
 5. Remove the old volume on the server:
 
    .. code-block:: shell
 
        docker volume rm dallinger_dallinger_pg_data
 
-``servers upgrade`` copies the shared databases into a new volume,
+How the move works
+~~~~~~~~~~~~~~~~~~
+
+``servers upgrade`` lists the classic apps it stops and asks before it
+continues (``--yes`` skips the question). It copies the shared databases into
+a new volume,
 ``dallinger_dallinger_pg18_data``. Hibernating apps are stopped too, so that
 no visitor wakes one during the copy, and only the services that ran are
 started again, so they stay hibernated. The disk space check runs before it
@@ -507,7 +524,8 @@ database until ``servers upgrade`` is run again with Dallinger 13.1 or later,
 which switches back to 18 without copying. Once you have removed the old
 volume, such a file starts PostgreSQL 12 on a new, empty volume instead,
 where the apps' database users don't exist, so the classic apps already on
-the server can't reach their databases either. Step 1 avoids that outage.
+the server can't reach their databases either. The rule above avoids that
+outage.
 
 If the seal fails, ``servers upgrade`` warns, and the next run seals the
 volume. So does a run cut off after the copy was marked finished and before
@@ -543,13 +561,6 @@ in ``~/dallinger/postgres-upgrade-stopped-apps.json`` on the server. The next
 run that gets past these checks names those apps before it asks to continue.
 It starts their services once it is done, whether its own copy succeeded,
 failed or wasn't needed, and then removes the file.
-
-Each Cloudflare app has its own Postgres. A new deploy runs PostgreSQL 18; an
-``--update`` of an app keeps the version that created the app's database
-volume, so an app deployed by Dallinger 13.0 or earlier stays on PostgreSQL
-12, which gets no security fixes. To move one to 18, export its data with
-``dallinger docker-ssh export --app <app> --no-scrub``, destroy the app, and
-deploy it again under the same name with ``--archive`` and the exported zip.
 
 .. _idle-hibernation-rolling-recruitment:
 
