@@ -465,8 +465,9 @@ permitted, because it doesn't write that file.
 To move an existing server:
 
 1. Notify everyone who deploys to the server of the rule above.
-2. Export the data of every app you still need. The old volume keeps that data
-   on the server too, but an export also survives a mistake or a lost server.
+2. As a precaution, export the data of every app you still need. The move
+   normally runs without problems, and the old volume keeps that data on the
+   server too, but an export also survives a mistake or a lost server.
    ``--no-scrub`` keeps the participants' recruiter IDs, which the default
    export replaces, and ``--local`` keeps the zip off Amazon S3. The zip is
    saved as ``data/<app>-data.zip`` in the current directory.
