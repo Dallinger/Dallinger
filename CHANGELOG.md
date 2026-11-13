@@ -92,6 +92,11 @@
   `max_duration`. Like `handle_effect`, it runs on a worker and its database
   changes are saved together with the ending, so a game can record each
   player's result from the outcome without a separate job.
+- A socket's `predict` option gets a third argument, `sentAt`: the session
+  time when the page sent the message, or `null` if it wasn't known yet. It
+  stays the same each time the message is predicted again after a new view,
+  so a prediction can say when something happens, such as when a moving
+  piece arrives.
 
 ### Fixed
 

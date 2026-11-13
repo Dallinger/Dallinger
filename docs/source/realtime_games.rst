@@ -772,6 +772,13 @@ movement message should say how far, or for how long, the player moved, rather
 than ``tick`` moving players while a key is held, which the page can't
 predict. A move the game rejects is undone by the next view.
 
+``predict`` also gets the session time when the page sent the message, as a
+third argument, ``sentAt`` (``null`` if the page didn't know the session time
+yet). A message is predicted again each time a new view arrives until the game
+handles it, and ``sentAt`` stays the same each time, so use it rather than
+``sessionTime()`` to predict when something happens, such as
+``view.me.arrives_at = sentAt + view.travel_seconds``.
+
 :js:func:`~dallinger.Socket.interpolatedView` shows the game two tick
 intervals behind ``sessionTime``, between the tick views either side of that
 time. ``interpolate`` is passed those two views and how far between them that
