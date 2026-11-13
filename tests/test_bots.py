@@ -13,6 +13,34 @@ class TestBots:
         bot = BotBase("http://dallinger.io?participant_id=1")
         assert bot
 
+    def test_lost_consent_click_is_repeated(self, monkeypatch):
+        from selenium.common.exceptions import StaleElementReferenceException
+
+        from dallinger import bots
+
+        class Button:
+            clicks = 0
+
+            def is_displayed(self):
+                return True
+
+            def is_enabled(self):
+                if self.clicks > 1:
+                    raise StaleElementReferenceException()
+                return True
+
+            def click(self):
+                self.clicks += 1
+
+        button = Button()
+        driver = mock.Mock(**{"find_element.return_value": button})
+        driver.execute_script.return_value = "complete"
+        bot = bots.BotBase("http://dallinger.io?participant_id=1")
+        monkeypatch.setattr(bots.BotBase, "driver", driver)
+
+        bot._click_until_page_changes(("id", "consent"), attempts=3, timeout=0.1)
+        assert button.clicks == 2
+
     @pytest.mark.slow
     def test_bot_driver_default_is_chrome(self, active_config):
         from dallinger.bots import BotBase
