@@ -22,14 +22,16 @@
     remove. The apps that an interrupted run stopped are started again by the
     next run. Once the copy is finished, it renames `PG_VERSION` in the old
     volume, so that a server compose file written back by an older Dallinger
-    (a Dallinger 12 deploy or `servers upgrade` from 13.0) can't start
-    PostgreSQL 12 on the data from before the copy. If that rename fails, the
+    (a deploy with Dallinger 12 or earlier, or `servers upgrade` from 13.0)
+    can't start PostgreSQL 12 on the data from before the copy. If that
+    rename fails, the
     next run renames it and says that anything written to PostgreSQL 12 since
     the copy stays on the old volume. Once the apps work, remove the old
     volume with `docker volume rm dallinger_dallinger_pg_data` on the server.
     Deploys keep using the server's current Postgres until the upgrade.
-    The new "Moving to PostgreSQL 18" section of the Docker documentation
-    lists the steps.
+    The new
+    [Moving to PostgreSQL 18](https://dallinger.readthedocs.io/latest/docker_support.html#moving-to-postgresql-18)
+    section of the Docker documentation lists the steps.
   - An existing Cloudflare app keeps the PostgreSQL version of its database
     volume when updated with `--update`. To move it to 18, export its data,
     destroy it and deploy it again with `--archive`.

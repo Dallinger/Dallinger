@@ -444,12 +444,14 @@ PostgreSQL 12, and deploys keep using it, until ``servers upgrade`` copies its
 databases. To move a server:
 
 1. Ensure that, once the server has moved and for as long as it remains in
-   use, no one deploys to it with Dallinger 12 or runs ``servers upgrade`` on
-   it with Dallinger 13.0, and notify everyone who deploys to the server of
-   this requirement. Either action can rewrite the server compose file so
-   that it starts PostgreSQL 12 again, which takes every classic app on the
-   server offline until ``servers upgrade`` is run again with Dallinger 13.1
-   or later (see below). Deployments with Dallinger 13.0 are not affected.
+   use, no one deploys to it with Dallinger 12 or earlier or runs
+   ``servers upgrade`` on it with Dallinger 13.0, and notify everyone who
+   deploys to the server of this requirement. Either action can rewrite the
+   server compose file, ``~/dallinger/docker-compose.yml``, so that it starts
+   PostgreSQL 12 again, which takes every classic app on the server offline
+   until ``servers upgrade`` is run again with Dallinger 13.1 or later (see
+   below). Deployments with Dallinger 13.0 are permitted, because they do not
+   write the server compose file.
 2. Pick a time when no classic app on the server has participants. The copy
    stops every classic app on the server, and takes longer for larger
    databases.
@@ -459,9 +461,9 @@ databases. To move a server:
 
        dallinger docker-ssh servers upgrade --host $SERVER
 
-   It checks that the server has free disk space for about twice the size of
-   the shared databases, then lists the apps it stops and asks before it
-   starts.
+   It lists the classic apps it stops and asks before it continues. Before
+   it stops any of them, it checks that the server has free disk space for
+   about twice the size of the shared databases.
 4. Check that the apps work. What they write from now on is only in
    PostgreSQL 18; the old volume keeps the data from before the copy.
 5. Remove the old volume on the server:
@@ -494,18 +496,18 @@ running ``servers upgrade`` again starts the shared services on it.
 When the shared services switch to the copy, ``servers upgrade`` seals the old
 volume: it renames its ``PG_VERSION`` file to
 ``PG_VERSION.copied-to-postgres-18``, and PostgreSQL 12 doesn't start on a
-volume without that file. This matters because a Dallinger 12 classic deploy
-rewrites the server's ``docker-compose.yml``, and so does a ``servers upgrade``
-from Dallinger 13.0. The read-only shared files stop such a Dallinger 12
-deploy, but not one made as ``root``. The rewritten file points the shared
+volume without that file. This matters because a classic deploy with
+Dallinger 12 or earlier rewrites the server's ``docker-compose.yml``, and so
+does a ``servers upgrade`` from Dallinger 13.0. The read-only shared files stop
+such a deploy, but not one made as ``root``. The rewritten file points the shared
 Postgres back at PostgreSQL 12 and the old volume. Without the seal, the apps
 would quietly run on their data from before the copy. With it, the shared
 Postgres doesn't start and no classic app on the server can reach its
 database until ``servers upgrade`` is run again with Dallinger 13.1 or later,
 which switches back to 18 without copying. Once you have removed the old
 volume, such a file starts PostgreSQL 12 on a new, empty volume instead,
-where the apps' database users don't exist, with the same result. Step 1
-avoids that outage.
+where the apps' database users don't exist, so the classic apps already on
+the server can't reach their databases either. Step 1 avoids that outage.
 
 If the seal fails, ``servers upgrade`` warns, and the next run seals the
 volume. So does a run cut off after the copy was marked finished and before
