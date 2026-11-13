@@ -16,9 +16,9 @@ beautifulsoup4==4.15.0
     # via dallinger
 blinker==1.9.0
     # via flask
-boto3==1.44.1
+boto3==1.44.2
     # via dallinger
-botocore==1.44.1
+botocore==1.44.2
     # via
     #   boto3
     #   s3transfer
@@ -65,7 +65,7 @@ greenlet==3.5.6
     # via
     #   gevent
     #   sqlalchemy
-gunicorn==27.0.0
+gunicorn==27.0.1
     # via dallinger
 h11==0.16.0
     # via wsproto
