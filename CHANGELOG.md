@@ -1,6 +1,39 @@
 # Changelog
 
-## [Unreleased]
+## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
+
+### Migration Notes
+
+PostgreSQL moves from 12 to 18. New docker-ssh servers, new Cloudflare apps
+and new local databases start on PostgreSQL 18 and require no action.
+[Moving to PostgreSQL 18](https://dallinger.readthedocs.io/latest/docker_support.html#moving-to-postgresql-18)
+in the Docker documentation gives the details.
+
+- **docker-ssh servers set up by Dallinger 13.0 or earlier** stay on
+  PostgreSQL 12, and deploys keep using it, until you run
+  `dallinger docker-ssh servers upgrade` with 13.1. That run stops every
+  classic app on the server while it copies the databases, so run it when
+  no app has participants. The upgrade normally runs without problems, but
+  as a precaution, export the data of apps you still need first, with
+  `dallinger docker-ssh export --app <app> --no-scrub --local`. The
+  upgrade asks before it stops any app and needs free disk space for about
+  twice the size of the databases. It also moves the shared Caddy and
+  Dozzle to their new versions. Once the apps work, remove the old volume
+  with `docker volume rm dallinger_dallinger_pg_data`; it holds only the
+  data from before the move.
+- **Every docker-ssh server on PostgreSQL 18**, new or moved: no one may
+  deploy to it with Dallinger 12 or earlier or run `servers upgrade` on it
+  with 13.0. Either can rewrite `~/dallinger/docker-compose.yml` so that it
+  starts PostgreSQL 12, which takes every classic app on the server offline
+  until `servers upgrade` is run again with 13.1. Deploying with 13.0 is
+  permitted. Notify everyone who deploys to the server.
+- **Cloudflare apps deployed by 13.0 or earlier** stay on PostgreSQL 12
+  when updated with `--update`. To move one, export its data with
+  `dallinger docker-ssh export --app <app> --no-scrub`, destroy it and
+  deploy it again under the same name with `--archive`.
+- **Local** `dallinger docker start-services` and `dallinger docker debug`
+  start with an empty PostgreSQL 18 database. The old PostgreSQL 12
+  volumes are kept, not copied.
 
 ### Changed
 
@@ -13,8 +46,8 @@
     upgrade` copies the shared databases into the new volume
     `dallinger_dallinger_pg18_data`, stopping the classic apps during the
     copy after asking first (hibernating apps are started again
-    hibernated). It first checks that the server has free disk space for
-    about twice the size of the databases. It goes back to PostgreSQL 12 if
+    hibernated). Before it stops any app, it checks that the server has free
+    disk space for about twice the size of the databases. It goes back to PostgreSQL 12 if
     anything fails before the copy is marked finished, just before the shared
     services start on 18. After that, the copy is kept. It refuses to use a
     copy that an interrupted run left unfinished, and a PostgreSQL 18 volume
@@ -24,9 +57,8 @@
     volume, so that a server compose file written back by an older Dallinger
     (a deploy with Dallinger 12 or earlier, or `servers upgrade` from 13.0)
     can't start PostgreSQL 12 on the data from before the copy. If that
-    rename fails, the
-    next run renames it and says that anything written to PostgreSQL 12 since
-    the copy stays on the old volume. Once the apps work, remove the old
+    rename fails, the next run renames it and says that anything written to
+    PostgreSQL 12 since the copy stays on the old volume. Once the apps work, remove the old
     volume with `docker volume rm dallinger_dallinger_pg_data` on the server.
     Deploys keep using the server's current Postgres until the upgrade.
     The new
