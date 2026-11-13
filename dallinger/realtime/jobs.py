@@ -119,6 +119,11 @@ def _write(session_id):
             _handle_effect(game, record["name"], record["payload"], row)
         elif record["type"] == "end":
             _record_ending(row, record_id, record)
+            game = game or store.experiment_games()[row.game_type]
+            _without_commits(
+                "{}.handle_ending".format(type(game).__name__),
+                lambda: game.handle_ending(row),
+            )
     # Saved before the commit, which expires the row.
     last_written = row.last_written_record = records[-1][0]
     db.session.commit()
@@ -142,6 +147,11 @@ def _handle_effect(game, name, payload, row):
     what = "{}.handle_effect, handling the effect {!r},".format(
         type(game).__name__, name
     )
+    _without_commits(what, lambda: game.handle_effect(name, payload, row))
+
+
+def _without_commits(what, call):
+    """Run a game's ``call``, failing if it ends the job's transaction."""
 
     def refuse_commit(session):
         raise RuntimeError(
@@ -152,7 +162,7 @@ def _handle_effect(game, name, payload, row):
     transaction = session.get_transaction()
     event.listen(session, "before_commit", refuse_commit)
     try:
-        game.handle_effect(name, payload, row)
+        call()
     finally:
         event.remove(session, "before_commit", refuse_commit)
     if db.session().get_transaction() is not transaction:

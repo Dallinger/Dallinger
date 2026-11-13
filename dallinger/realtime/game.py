@@ -367,6 +367,27 @@ class RealtimeGame(ABC):
             )
         )
 
+    def handle_ending(self, session_row):
+        """Do work that needs the session's ending, such as paying each
+        player from the outcome.
+
+        Runs once per session, on one of the experiment's worker processes,
+        after the effects the session queued, when Dallinger writes the
+        session's ending. ``session_row`` then has the ending: its ``status``
+        (``"ended"``, or ``"failed"`` if the game's code raised an error),
+        ``end_reason``, ``outcome`` and ``members``. As for
+        :meth:`handle_effect`, Dallinger saves the changes this makes together
+        with the ending, so it doesn't call ``db.session.commit()``,
+        ``rollback()`` or ``close()``, and if it raises an error, the ending
+        isn't saved and the session fails without an outcome. A session whose
+        record couldn't be written, and so has no saved ending, never calls
+        it. By default, it does nothing.
+
+        :param session_row: the session's
+            :class:`~dallinger.models.RealtimeSession`
+        """
+        return None
+
 
 def _and(names):
     if len(names) == 1:

@@ -458,6 +458,9 @@
       this.unacknowledged.push({
         number: number,
         payload: copy,
+        // Kept, so that each time predict replays the message it gets the
+        // same time.
+        sentAt: this.sessionTime(),
         connection: wentNow ? this._connection : null
       });
     }
@@ -571,7 +574,7 @@
         view: this.view,
         count: messages.length,
         predicted: messages.reduce(function (view, message) {
-          var next = predict(view, message.payload);
+          var next = predict(view, message.payload, message.sentAt);
           return next === undefined ? view : next;
         }, copyJson(this.view.view))
       };
@@ -875,10 +878,14 @@
    *
    * It is the newest view, with the player's moves that the game hasn't
    * handled yet applied by ``predict``, in the order they were sent.
-   * ``predict(view, message)`` gets a view and a message as it was passed
-   * to ``send``, and returns the view as it would be once the game applied
-   * the message. It may change the view it's given and return nothing, but
-   * must not change the message.
+   * ``predict(view, message, sentAt)`` gets a view and a message as it was
+   * passed to ``send``, and returns the view as it would be once the game
+   * applied the message. It may change the view it's given and return
+   * nothing, but must not change the message. ``sentAt`` is the session
+   * time (see ``sessionTime``) when the page sent the message, or ``null``
+   * if it wasn't known yet. It stays the same each time ``predict`` is
+   * applied again, after a new view, so use it rather than the time now to
+   * predict when something happens, such as when a moving piece arrives.
    *
    * ``predict`` has to do to the view what the game type's ``apply`` method
    * does to the state, or the player's piece jumps when the next view
