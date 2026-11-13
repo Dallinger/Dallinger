@@ -465,10 +465,20 @@ permitted, because it doesn't write that file.
 To move an existing server:
 
 1. Notify everyone who deploys to the server of the rule above.
-2. Choose a time when no classic app on the server has participants. The move
+2. Export the data of every app you still need. The old volume keeps that data
+   on the server too, but an export also survives a mistake or a lost server.
+   ``--no-scrub`` keeps the participants' recruiter IDs, which the default
+   export replaces, and ``--local`` keeps the zip off Amazon S3. The zip is
+   saved as ``data/<app>-data.zip`` in the current directory.
+
+   .. code-block:: shell
+
+       dallinger docker-ssh export --server $SERVER --app <app> --no-scrub --local
+
+3. Choose a time when no classic app on the server has participants. The move
    stops every classic app while it copies the databases, which takes longer
    for larger databases.
-3. Run ``servers upgrade`` with Dallinger 13.1 or later. It asks before it
+4. Run ``servers upgrade`` with Dallinger 13.1 or later. It asks before it
    stops any app, and needs free disk space for about twice the size of the
    databases.
 
@@ -476,9 +486,9 @@ To move an existing server:
 
        dallinger docker-ssh servers upgrade --host $SERVER
 
-4. Check that the apps work. From then on, new data exists only in
+5. Check that the apps work. From then on, new data exists only in
    PostgreSQL 18. The old volume keeps the data from before the move.
-5. Remove the old volume on the server:
+6. Remove the old volume on the server:
 
    .. code-block:: shell
 
