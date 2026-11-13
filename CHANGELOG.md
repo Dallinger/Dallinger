@@ -130,6 +130,13 @@
   1 second and shows the real `idle_time` alongside the `transaction_age`;
   before, it labelled the transaction's age as `idle_time`.
 
+### Updated
+
+- Updated Python dependencies (regenerated `requirements.txt`,
+  `dev-requirements.txt`, and `constraints.txt`). Runtime updates include
+  gunicorn 27.0.0, croniter 7.0.0, boto3/botocore 1.44.1, faker 40.54.0,
+  soupsieve 4.1 and uv 0.13.8.
+
 ## [v13.0.0](https://github.com/dallinger/dallinger/tree/v13.0.0) (2026-11-07)
 
 ### Breaking Changes
