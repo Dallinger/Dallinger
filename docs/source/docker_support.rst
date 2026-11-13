@@ -443,13 +443,13 @@ open data written by 12. A server set up by Dallinger 13.0 or earlier keeps
 PostgreSQL 12, and deploys keep using it, until ``servers upgrade`` copies its
 databases. To move a server:
 
-1. Tell everyone who deploys to the server that, once it has moved, nobody
-   may deploy to it with Dallinger 12 or run ``servers upgrade`` on it with
-   Dallinger 13.0, for as long as the server is in use. Either can write back
-   a server compose file that starts PostgreSQL 12 again, which takes every
-   classic app on the server offline until ``servers upgrade`` is run again
-   with Dallinger 13.1 or later, as described below. Deploys with Dallinger
-   13.0 are fine.
+1. Ensure that, once the server has moved and for as long as it remains in
+   use, no one deploys to it with Dallinger 12 or runs ``servers upgrade`` on
+   it with Dallinger 13.0, and notify everyone who deploys to the server of
+   this requirement. Either action can rewrite the server compose file so
+   that it starts PostgreSQL 12 again, which takes every classic app on the
+   server offline until ``servers upgrade`` is run again with Dallinger 13.1
+   or later (see below). Deployments with Dallinger 13.0 are not affected.
 2. Pick a time when no classic app on the server has participants. The copy
    stops every classic app on the server, and takes longer for larger
    databases.
