@@ -2,6 +2,7 @@
 
 from .game import RealtimeGame, Reject, Sent, validate_game_types
 from .store import (
+    add_realtime_player,
     create_realtime_session,
     end_realtime_session,
     realtime_result,
@@ -13,6 +14,7 @@ __all__ = [
     "RealtimeGame",
     "Reject",
     "Sent",
+    "add_realtime_player",
     "create_realtime_session",
     "end_realtime_session",
     "realtime_result",

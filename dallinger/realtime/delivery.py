@@ -57,7 +57,14 @@ one more frame, on every page they have open:
 - ``view``: the player's final view
 
 It can arrive before the player's last ``realtime_view``, so a page can end on
-it alone. A page that joins just as its session ends may get no view at all,
+it alone.
+
+A player whose game ends before the session's, when the game type's
+:meth:`~dallinger.realtime.RealtimeGame.is_done` says they're done, gets the
+same frames for their own ending: a last ``realtime_view`` whose ``ended`` is
+their ending's reason, then, once their ending is saved, a ``realtime_saved``
+frame with the status ``"ended"``, their ending's reason and their final view.
+Their pages get no frames for the session's ending. A page that joins just as its session ends may get no view at all,
 but it gets this frame.
 
 A page whose socket joins a session that has already ended gets no views. If
@@ -176,6 +183,23 @@ def publish_saved(origin, session_id, ending):
         for player in ending["views"]
     ]
     redis_conn.publish(REALTIME_SESSION_CHANNEL, direct_envelope(origin, items))
+
+
+def publish_player_saved(origin, session_id, participant, ending):
+    """Tell a player's pages that their ending, from before the session's, is
+    saved, with its reason and their final view.
+
+    :param origin: names the sender, a string
+    :param participant: the player's participant id, a string
+    :param ending: the player's ending, as
+        :func:`~dallinger.realtime.store.load_player_ending` returns it
+    """
+    send = {
+        "participant_ids": [participant],
+        "scope": None,
+        "payload": ending_payload(session_id, ending, participant),
+    }
+    redis_conn.publish(REALTIME_SESSION_CHANNEL, direct_envelope(origin, [send]))
 
 
 def publish_views(origin, passes):

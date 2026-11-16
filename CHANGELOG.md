@@ -100,6 +100,20 @@
 - A real-time game's `is_over` can return a non-empty string instead of
   `True`, to end the session with that string as its reason, such as
   `"timeout"` for a limit the game keeps itself.
+- Players can join a real-time session while it's played, and finish before
+  it ends. `add_realtime_player(session_id, participant)` adds a player to a
+  running session once the transaction commits, and the game type's new
+  `on_add(state, player_id, now)` makes room for them; a game type without it
+  can't have players added. The session's `members` lists the player once
+  the record job writes their addition, in the order the session added its
+  players. A game type's new `is_done(state, player_id)`,
+  checked after each change to the state, can end one player's game early:
+  they get their final view, with the reason `"done"` or the string
+  `is_done` returned, the session refuses their messages from then on, and
+  the new `handle_player_ending(session_row, player_id, ending)` can pay
+  them. Their pages get the same ending frames as for the session's ending,
+  so page code needs no change. The record gets `player_add` and
+  `player_end` events.
 
 ### Fixed
 

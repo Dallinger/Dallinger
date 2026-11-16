@@ -442,6 +442,54 @@ progress, for example on a route of its own, can pass the session's id to
 :func:`~dallinger.realtime.realtime_state`, which returns the session's
 state, a moment behind the game.
 
+Players Who Join or Finish During a Session
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A session's players are usually the ones it was created with. A game that
+keeps going while people come and go, such as a market or a society that
+newcomers join, can add players and let each one finish before the
+session ends.
+
+To add a player to a running session, call
+:func:`~dallinger.realtime.add_realtime_player` with the session's id and the
+participant, inside a database transaction, as for
+:func:`~dallinger.realtime.create_realtime_session`. The player is added once
+the transaction commits. The game type must define
+:meth:`~dallinger.realtime.RealtimeGame.on_add`, which makes room for them in
+the state:
+
+.. code-block:: python
+
+    class Market(RealtimeGame):
+        ...
+
+        def on_add(self, state, player_id, now):
+            state["cash"][player_id] = 100
+
+A player's game can end before the session does, for example once they've
+had their time or chosen to leave. After each change to the state, Dallinger
+asks the game type's :meth:`~dallinger.realtime.RealtimeGame.is_done` about
+each player still playing:
+
+.. code-block:: python
+
+        def apply(self, state, player_id, message, now, sent):
+            if message == "leave":
+                state["left"].append(player_id)
+            ...
+
+        def is_done(self, state, player_id):
+            return player_id in state["left"]
+
+A player who is done gets their final view, with their ending's reason,
+``"done"`` unless ``is_done`` returns a string. The session refuses their
+messages from then on, and their pages get no more views. The record notes
+the player's ending, with the reason and the ``outcome`` of the state then,
+and :meth:`~dallinger.realtime.RealtimeGame.handle_player_ending` can pay
+them, as ``handle_ending`` does for everyone at the end of the session. Their
+pages then get the ending as saved, just as they would for the session's, so
+a page needs no code of its own for it.
+
 Endings
 ~~~~~~~
 
@@ -806,6 +854,8 @@ order they happened:
 - copies of the state, about every
   :attr:`~dallinger.realtime.RealtimeGame.checkpoint_interval` seconds of
   session time, 5 by default
+- each player added to the running session, and each player whose game
+  ended before the session's, with the reason and the outcome then
 - the ending, with its reason, the outcome and the final state
 - the clock measurements a page reports, so browser times can be put on the
   server's clock during analysis
@@ -865,6 +915,10 @@ Game Type Reference
 
 .. autodata:: dallinger.realtime.game.FAILED
 
+.. autodata:: dallinger.realtime.game.DONE
+
+.. autodata:: dallinger.realtime.game.PLAYER_DONE_REASON
+
 .. autodata:: dallinger.realtime.game.MAX_TIME_LIMIT
 
 .. autodata:: dallinger.realtime.runner.MAX_HANDOVERS
@@ -875,6 +929,8 @@ Session Reference
 .. automodule:: dallinger.realtime.store
 
 .. autofunction:: dallinger.realtime.create_realtime_session
+
+.. autofunction:: dallinger.realtime.add_realtime_player
 
 .. autofunction:: dallinger.realtime.realtime_state
 

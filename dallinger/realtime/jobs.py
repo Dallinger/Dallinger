@@ -9,7 +9,7 @@ from sqlalchemy import event
 from dallinger import db
 from dallinger.models import RealtimeEvent, RealtimeSession
 from dallinger.realtime import store
-from dallinger.realtime.delivery import publish_saved
+from dallinger.realtime.delivery import publish_player_saved, publish_saved
 from dallinger.realtime.game import FAILED
 
 logger = logging.getLogger(__name__)
@@ -21,8 +21,11 @@ def write_records(session_id):
     A runner queues this job every few seconds while a session has new
     records, and :func:`write_ending` runs it once the session has ended. In
     one transaction, the job adds a :class:`~dallinger.models.RealtimeEvent`
-    for each record, passes each effect to the game type's
-    :meth:`~dallinger.realtime.RealtimeGame.handle_effect`, and keeps the
+    for each record, adds each player added while the session ran to its
+    ``members``, passes each effect to the game type's
+    :meth:`~dallinger.realtime.RealtimeGame.handle_effect` and each player's
+    ending to its
+    :meth:`~dallinger.realtime.RealtimeGame.handle_player_ending`, and keeps the
     latest checkpoint on the session's
     :class:`~dallinger.models.RealtimeSession`. The job that writes the
     session's end record also saves the ending on the row, with the status
@@ -36,18 +39,23 @@ def write_records(session_id):
     with the reason :data:`~dallinger.realtime.game.FAILED`. Later jobs for a
     failed session write nothing, and end it if it's still running.
 
-    After the commit, the job removes the records it wrote from redis. An
+    After the commit, the job tells the pages of each player whose ending it
+    wrote that it's saved, and removes the records it wrote from redis. An
     error there is raised without failing the session, since the next job
     starts after the last record written.
     """
     try:
-        written = _write(session_id)
+        written, players_ended = _write(session_id)
     except Exception as error:
         db.session.rollback()
         _fail(session_id, error)
         raise
     finally:
         db.session.remove()
+    for participant in players_ended:
+        ending = store.note_player_ending_saved(session_id, participant)
+        if ending is not None:
+            publish_player_saved("write_records", session_id, participant, ending)
     if written is not None:
         store.trim_records(session_id, written)
 
@@ -101,12 +109,13 @@ def _write(session_id):
         db.session.commit()
         store.end_realtime_session(session_id, FAILED)
         store.delete_records(session_id)
-        return None
+        return None, []
     records = store.read_records(session_id, row.last_written_record)
     if not records:
         db.session.commit()
-        return None
+        return None, []
     game = None
+    players_ended = []
     for record_id, record in records:
         # The end record of a session whose saved state can't be read has no
         # sequence number, so it can't be an event, but its ending is saved.
@@ -117,6 +126,20 @@ def _write(session_id):
         elif record["type"] == "effect":
             game = game or store.experiment_games()[row.game_type]
             _handle_effect(game, record["name"], record["payload"], row)
+        elif record["type"] == "player_add":
+            _record_player_added(row, record)
+        elif record["type"] == "player_end":
+            game = game or store.experiment_games()[row.game_type]
+            ending = {
+                "time": record["time"],
+                "reason": record["reason"],
+                "outcome": record["outcome"],
+            }
+            _without_commits(
+                "{}.handle_player_ending".format(type(game).__name__),
+                lambda: game.handle_player_ending(row, record["participant"], ending),
+            )
+            players_ended.append(record["participant"])
         elif record["type"] == "end":
             _record_ending(row, record_id, record)
             game = game or store.experiment_games()[row.game_type]
@@ -127,7 +150,15 @@ def _write(session_id):
     # Saved before the commit, which expires the row.
     last_written = row.last_written_record = records[-1][0]
     db.session.commit()
-    return last_written
+    return last_written, players_ended
+
+
+def _record_player_added(row, record):
+    # New lists, which is what marks the columns as changed.
+    participant_id = int(record["participant"])
+    row.members = [*row.members, participant_id]
+    if record["bot"]:
+        row.bots = [*row.bots, participant_id]
 
 
 def _record_ending(row, record_id, record):
@@ -211,6 +242,17 @@ def _event(session_id, record):
         fields.update(name=record["name"], payload=record["payload"])
     elif kind == "checkpoint":
         fields.update(state=record["state"])
+    elif kind == "player_add":
+        fields.update(
+            participant_id=int(record["participant"]),
+            payload={"bot": record["bot"]},
+        )
+    elif kind == "player_end":
+        fields.update(
+            participant_id=int(record["participant"]),
+            reason=record["reason"],
+            outcome=record["outcome"],
+        )
     elif kind == "end":
         fields.update(
             reason=record["reason"],

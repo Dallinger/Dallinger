@@ -29,6 +29,8 @@ values, and no view acknowledges it. A frame that is JSON is passed to
 
 A page whose session has already ended gets no join. Its socket gets the
 session's ending instead, as :mod:`dallinger.realtime.delivery` describes.
+So does a page whose player's game ended before the session's, once the
+runner has saved that ending: it gets the player's ending.
 
 A page that doesn't know its session's id yet opens a websocket to
 ``/experiment-socket`` with a game type's channel in the ``wait_for_game``
@@ -213,18 +215,20 @@ class SessionSocket(NoSession):
 
     def join(self):
         """Add the connection's join to its session and return ``None``, or,
-        if the session has ended, return the frame that tells the page how it
-        ended.
+        if the session or the player's game has ended, return the frame that
+        tells the page how it ended.
 
         :raises SessionExpired: if the session's keys have expired
         """
         self.clock_offset = store.server_time() - time.time()
-        if self.add_socket_entry("join") is not None:
-            self.joined = True
-            return None
-        ending = store.load_ending(self.session_id)
+        ending = store.load_player_ending(self.session_id, self.participant)
         if ending is None:
-            raise SessionExpired(self.session_id)
+            if self.add_socket_entry("join") is not None:
+                self.joined = True
+                return None
+            ending = store.load_ending(self.session_id)
+            if ending is None:
+                raise SessionExpired(self.session_id)
         return channel_frame(
             REALTIME_SESSION_CHANNEL,
             ending_payload(self.session_id, ending, self.participant),

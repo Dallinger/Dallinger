@@ -18,6 +18,8 @@ Entries are dicts, each with a ``type`` and a ``time`` on the session clock:
   :mod:`dallinger.realtime.session_sockets` describes. It's recorded, and no
   game code sees it.
 - ``end``: ``reason``, a non-empty string
+- ``add``: ``participant`` and ``bot``, whether the runner plays for them, for
+  a player :func:`~dallinger.realtime.add_realtime_player` added
 
 A pass keeps each entry's time between the session's time before the pass and
 the pass's own time. A page stays open while any of its sockets is, so a
@@ -35,13 +37,16 @@ finds outside a pass.
 import json
 import math
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from dallinger.realtime.game import (
+    DONE,
     FAILED,
     FINISHED,
     MAX_DURATION,
     NOT_JOINED,
+    PLAYER_DONE_REASON,
+    RealtimeGame,
     Reject,
     Sent,
     queued_effects,
@@ -84,6 +89,11 @@ class PassResult:
       ``browser_time``, ``server_time``, ``round_trip`` and ``received``
     - ``effect``: the ``name`` and ``payload`` game code queued
     - ``checkpoint``: the ``state``
+    - ``player_add``: the ``participant`` an ``add`` entry added, and whether
+      it's a ``bot``
+    - ``player_end``: the ``participant`` whose game
+      :meth:`~dallinger.realtime.RealtimeGame.is_done` ended, its ``reason``
+      and the ``outcome`` then
     - ``end``: the ``reason``, ``outcome``, final ``state`` and ``error``
 
     ``ended`` is the session's ending if this pass ended it, otherwise
@@ -97,6 +107,10 @@ class PassResult:
     :attr:`~dallinger.realtime.RealtimeGame.join_timeout`, if that comes
     first: the time by which the session needs another pass even if no entry
     arrives. It's ``None`` if neither is coming, or the session has ended.
+
+    ``players_done`` lists a ``{"participant", "reason", "view"}`` dict for
+    each player who isn't a bot and whose game this pass ended before the
+    session's, with their final view.
     """
 
     saved: str
@@ -104,6 +118,7 @@ class PassResult:
     records: list
     ended: dict | None
     next_due: float | None
+    players_done: list = field(default_factory=list)
 
 
 def new_session(game, members, bots=()):
@@ -139,6 +154,8 @@ def new_session(game, members, bots=()):
             "started": False,
             # Whether a page has opened. Bots have no pages.
             "joined": False,
+            # The reason each player whose game ended early stopped, by player.
+            "done": {},
             "ended": None,
         }
     )
@@ -319,6 +336,8 @@ class _Pass:
         self.state_name = "{}'s state".format(self.name)
         self.saved = saved
         self.session = session = json.loads(saved)
+        # Saved by a Dallinger from before players could finish early.
+        session.setdefault("done", {})
         self.state = session["state"]
         self.time = session["time"]
         self.now = max(now, self.time)
@@ -332,6 +351,9 @@ class _Pass:
         self.ticked = False
         self.end_reason = None
         self.failed = False
+        # The final view of each player this pass ended the game of.
+        self.newly_done = {}
+        self.checks_done = type(game).is_done is not RealtimeGame.is_done
 
     def run(self, entries):
         session = self.session
@@ -427,6 +449,8 @@ class _Pass:
                 self.open_page(*_read_socket(entry))
             elif kind == "leave":
                 self.close_page(*_read_socket(entry))
+            elif kind == "add":
+                self.add_member(entry["participant"], entry["bot"])
         self.time = self.now
         self.end_reason = FAILED
         self.end(error="".join(traceback.format_exception(error)))
@@ -456,7 +480,22 @@ class _Pass:
         views = self.page_views(everyone)
         saved = dump_json(self.session, self.state_name)
         copied = copy_json({"records": self.records, "ended": self.session["ended"]})
-        return PassResult(saved, views, copied["records"], copied["ended"], next_due)
+        players_done = [
+            {
+                "participant": player,
+                "reason": self.session["done"][player],
+                "view": view,
+            }
+            for player, view in self.newly_done.items()
+        ]
+        return PassResult(
+            saved,
+            views,
+            copied["records"],
+            copied["ended"],
+            next_due,
+            players_done,
+        )
 
     def call(self, name, *args, returns=False):
         """Call the game's method ``name`` within the time limit.
@@ -546,12 +585,21 @@ class _Pass:
             self.join(*_read_socket(entry))
         elif kind == "leave":
             self.leave(*_read_socket(entry))
+        elif kind == "add":
+            self.add(entry["participant"], entry["bot"])
         else:
             raise ValueError("Unknown entry type {!r}.".format(kind))
         if not self.game.tick_rate:
             self.bots_play()
 
     def apply(self, participant, scope, payload, sent, received):
+        if participant in self.session["done"]:
+            record = self.message_record(
+                participant, scope, payload, sent, received, "rejected"
+            )
+            record["reason"] = PLAYER_DONE_REASON
+            self.add_record("message", **record)
+            return False
         record = self.message_record(
             participant, scope, payload, sent, received, "accepted"
         )
@@ -617,18 +665,50 @@ class _Pass:
             self.recipients.add((participant, scope))
 
     def join(self, participant, scope, socket):
-        if self.open_page(participant, scope, socket):
+        if (
+            self.open_page(participant, scope, socket)
+            and participant not in self.session["done"]
+        ):
             self.record_effects(
                 self.effects_of("on_join", self.state, participant, self.time)
             )
             self.check_over()
 
     def leave(self, participant, scope, socket):
-        if self.close_page(participant, scope, socket):
+        if (
+            self.close_page(participant, scope, socket)
+            and participant not in self.session["done"]
+        ):
             self.record_effects(
                 self.effects_of("on_leave", self.state, participant, self.time)
             )
             self.check_over()
+
+    def add(self, participant, bot):
+        """Add a player to the running session, unless they're already one."""
+        if not self.add_member(participant, bot):
+            return
+        self.add_record("player_add", participant=participant, bot=bot)
+        self.record_effects(
+            self.effects_of("on_add", self.state, participant, self.time)
+        )
+        if bot:
+            # A bot has no page, so it joins as it's added.
+            self.record_effects(
+                self.effects_of("on_join", self.state, participant, self.time)
+            )
+        self.check_over()
+
+    def add_member(self, participant, bot):
+        """Note a new member, returning whether they weren't one already."""
+        session = self.session
+        if participant in session["members"]:
+            return False
+        session["members"].append(participant)
+        if bot:
+            session["bots"].append(participant)
+            session["bot_messages"][participant] = 0
+        return True
 
     def open_page(self, participant, scope, socket):
         """Note a socket opening, returning whether it's the participant's
@@ -694,6 +774,8 @@ class _Pass:
         for bot in self.session["bots"]:
             if self.end_reason is not None:
                 break
+            if bot in self.session["done"]:
+                continue
             view = self.call("view", self.state, bot, returns=True)
             message = self.call("bot", view, bot, self.time, returns=True)
             if message is None:
@@ -716,6 +798,33 @@ class _Pass:
             self.end_reason = over
         elif over:
             self.end_reason = FINISHED
+        elif self.checks_done:
+            self.check_done()
+
+    def check_done(self):
+        """End the game of each player still playing that ``is_done`` says
+        is done."""
+        done = self.session["done"]
+        for player in list(self.session["members"]):
+            if player in done:
+                continue
+            result = self.call("is_done", self.state, player)
+            if isinstance(result, str) and result:
+                self.end_player(player, result)
+            elif result:
+                self.end_player(player, DONE)
+
+    def end_player(self, player, reason):
+        """End a player's game before the session's."""
+        self.session["done"][player] = reason
+        self.add_record(
+            "player_end",
+            participant=player,
+            reason=reason,
+            outcome=self.value_of("outcome", self.state, reason),
+        )
+        if player not in self.session["bots"]:
+            self.newly_done[player] = self.value_of("view", self.state, player)
 
     def end(self, error=None):
         outcome = self.value_of("outcome", self.state, self.end_reason)
@@ -727,7 +836,7 @@ class _Pass:
             "views": {
                 member: self.value_of("view", self.state, member)
                 for member in self.session["members"]
-                if member not in bots
+                if member not in bots and member not in self.session["done"]
             },
             "error": error,
         }
@@ -741,16 +850,22 @@ class _Pass:
 
     def page_views(self, everyone):
         session = self.session
+        done = session["done"]
         pages = [
             page
             for page in session["pages"]
-            if everyone or (page["participant"], page["scope"]) in self.recipients
+            if page["participant"] in self.newly_done
+            or (
+                (everyone and page["participant"] not in done)
+                or (page["participant"], page["scope"]) in self.recipients
+            )
         ]
         if not pages:
             return []
         session["view_number"] += 1
         ended = session["ended"]
         player_views = dict(ended["views"]) if ended is not None else {}
+        player_views.update(self.newly_done)
         views = []
         shown = set()
         for page in pages:
@@ -775,7 +890,13 @@ class _Pass:
                         "tick_rate": self.game.tick_rate,
                         "last_processed": page["last_processed"],
                         "rejected": page["rejected"],
-                        "ended": None if ended is None else ended["reason"],
+                        "ended": (
+                            done[participant]
+                            if participant in done
+                            else None
+                            if ended is None
+                            else ended["reason"]
+                        ),
                         "view": view,
                     },
                 }

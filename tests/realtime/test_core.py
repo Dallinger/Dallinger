@@ -8,6 +8,7 @@ from dallinger.realtime.core import new_session, parse_message, run_pass
 from dallinger.realtime.game import FAILED, FINISHED, MAX_DURATION, NOT_JOINED
 from tests.realtime.helpers import (
     CLOCK,
+    Growing,
     Restless,
     Tally,
     TurnTally,
@@ -1076,3 +1077,98 @@ class TestReplay:
         assert without_checkpoints(
             [record for each in split for record in each.records]
         ) == without_checkpoints(whole.records)
+
+
+def added(time, participant, bot=False):
+    return {"type": "add", "time": time, "participant": participant, "bot": bot}
+
+
+class TestAddedAndFinishedPlayers:
+    def test_an_added_player_is_made_room_for_then_joins_with_their_page(self):
+        game = Growing()
+        entries = [
+            added(0.1, "3"),
+            added(0.15, "3"),
+            join(0.2, "3"),
+            message(0.3, "3", "move"),
+        ]
+
+        result = play(game, started(game), entries, 0.3)
+
+        assert session(result)["members"] == ["1", "2", "3"]
+        assert session(result)["state"]["players"] == ["1", "2", "3"]
+        assert log(result)[-3:] == [
+            ["add", "3", 0.1],
+            ["join", "3", 0.2],
+            ["3", "move", 0.3],
+        ]
+        assert [r for r in result.records if r["type"] == "player_add"] == [
+            {
+                "sequence": 1,
+                "type": "player_add",
+                "time": 0.1,
+                "participant": "3",
+                "bot": False,
+            }
+        ]
+
+    def test_an_added_bot_joins_at_once_and_plays(self):
+        class GrowingBots(Growing):
+            def bot(self, view, player_id, now):
+                return None if [player_id, "move", now] in view["log"] else "move"
+
+        game = GrowingBots()
+
+        result = play(game, started(game), [added(0.5, "9", bot=True)], 0.5)
+
+        assert log(result)[-3:] == [
+            ["add", "9", 0.5],
+            ["join", "9", 0.5],
+            ["9", "move", 0.5],
+        ]
+
+    def test_a_player_who_is_done_gets_their_ending_and_nothing_after_it(self):
+        game = Growing()
+        saved = started(game)
+
+        first = play(game, saved, [message(0.1, "1", "leave", number=1)], 0.1)
+
+        assert first.ended is None
+        assert first.players_done == [
+            {
+                "participant": "1",
+                "reason": "done",
+                "view": {"for": "1", "log": log(first)},
+            }
+        ]
+        assert views_by_page(first)[("1", "page")]["ended"] == "done"
+        (ending,) = [r for r in first.records if r["type"] == "player_end"]
+        assert ending["participant"] == "1" and ending["outcome"]["moves"] == 3
+
+        entries = [
+            message(0.2, "1", "move", number=2),
+            message(0.3, "2", "move"),
+            leave(0.4, "1"),
+            {"type": "end", "time": 0.5, "reason": "stopped"},
+        ]
+        second = play(game, first.saved, entries, 0.5)
+
+        refused = [r for r in second.records if r["type"] == "message"][0]
+        assert refused["status"] == "rejected"
+        assert refused["reason"] == "Your game has ended."
+        assert ["1", "move", 0.2] not in log(second)
+        assert ["leave", "1", 0.4] not in log(second)
+        assert {each["participant"] for each in second.views} == {"2"}
+        assert second.players_done == []
+        assert set(second.ended["views"]) == {"2"}
+
+    def test_is_done_can_give_the_reason(self):
+        class Quitting(Growing):
+            def is_done(self, state, player_id):
+                return "quit" if super().is_done(state, player_id) else False
+
+        game = Quitting()
+
+        result = play(game, started(game), [message(0.1, "2", "leave")], 0.1)
+
+        assert result.players_done[0]["reason"] == "quit"

@@ -678,7 +678,9 @@
    *   game has applied or rejected (see ``send``), or ``null``
    * - ``rejected``: this page's messages the game rejected since its last
    *   view, also passed to ``onRejected``
-   * - ``ended``: why the session ended, once it has, otherwise ``null``
+   * - ``ended``: why the session ended, once it has, or why this player's
+   *   game ended, if the game type's ``is_done`` ended it first, otherwise
+   *   ``null``
    * - ``clock``: the server's clock, in seconds since 1970, when the
    *   session time was ``time``
    * - ``tick_rate``: the game type's ``tick_rate``, how many tick views
@@ -718,7 +720,8 @@
 
   /**
    * Call ``callback`` once, as soon as the page learns the session has
-   * ended, with the reason it ended and this player's final view. Use it to
+   * ended, or this player's game has, if the game type's ``is_done`` ended
+   * it first, with the reason it ended and this player's final view. Use it to
    * stop taking moves and show how the game turned out. Don't submit the
    * page yet, since the result may not be saved (see ``resultSaved``).
    *
@@ -731,6 +734,9 @@
    *   type's ``join_timeout``
    * - ``"failed"``: the game's code failed
    * - or the reason the experiment passed to ``end_realtime_session``
+   *
+   * A player's own ending has ``"done"`` as its reason, or the reason the
+   * game type's ``is_done`` returned.
    *
    * It also runs for a page that joins after the session has ended, which
    * gets no views. The final view can reach ``onView`` after this callback,
@@ -745,8 +751,8 @@
   };
 
   /**
-   * Call ``callback`` once, when the session's result has been saved, so the
-   * page can move on. It does what ``resultSaved`` does, as a callback, and
+   * Call ``callback`` once, when the session's result has been saved, or
+   * this player's, if their game ended first, so the page can move on. It does what ``resultSaved`` does, as a callback, and
    * is passed the same object.
    *
    * @param {function} callback - Called with the saved result
@@ -765,7 +771,8 @@
    * The returned promise resolves with an object holding:
    *
    * - ``status``: ``"ended"``, or ``"failed"`` if the game's code failed
-   * - ``reason``: why the session ended (see ``onEnded``)
+   * - ``reason``: why the session or this player's game ended (see
+   *   ``onEnded``)
    * - ``view``: this player's final view
    *
    * A failed session's result is saved too, so the page can move on either
