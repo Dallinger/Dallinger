@@ -97,6 +97,9 @@
   stays the same each time the message is predicted again after a new view,
   so a prediction can say when something happens, such as when a moving
   piece arrives.
+- A real-time game's `is_over` can return a non-empty string instead of
+  `True`, to end the session with that string as its reason, such as
+  `"timeout"` for a limit the game keeps itself.
 
 ### Fixed
 

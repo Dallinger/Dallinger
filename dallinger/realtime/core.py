@@ -709,7 +709,12 @@ class _Pass:
         return accepted
 
     def check_over(self):
-        if self.end_reason is None and self.call("is_over", self.state):
+        if self.end_reason is not None:
+            return
+        over = self.call("is_over", self.state)
+        if isinstance(over, str) and over:
+            self.end_reason = over
+        elif over:
             self.end_reason = FINISHED
 
     def end(self, error=None):

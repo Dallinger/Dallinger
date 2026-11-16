@@ -411,6 +411,21 @@ class TestJoinAndLeave:
         assert log(result) == [["9", "stop", 0]]
         assert (result.ended["time"], result.ended["reason"]) == (0, FINISHED)
 
+    def test_is_over_can_give_the_end_reason(self):
+        class StopsWithReason(TurnTally):
+            def is_over(self, state):
+                return "timeout" if state["log"] else False
+
+            def on_join(self, state, player_id, now):
+                state["log"].append([player_id, "join", now])
+
+        game = StopsWithReason()
+
+        result = play(game, new_session(game, ["1", "9"], bots=["9"]), [], 1)
+
+        assert result.ended["reason"] == "timeout"
+        assert result.ended["outcome"]["reason"] == "timeout"
+
     def test_a_page_that_left_gets_no_view(self):
         game = Tally()
 

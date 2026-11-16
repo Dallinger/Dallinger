@@ -245,6 +245,10 @@ class RealtimeGame(ABC):
         """Return whether the game has finished. Checked after every change
         to the state.
 
+        Return a non-empty string instead of ``True`` to end the session with
+        that string as its reason, such as ``"timeout"``. ``True`` ends it
+        with the reason :data:`~dallinger.realtime.game.FINISHED`.
+
         It should only read ``state``, not change it.
         """
         return False
@@ -259,8 +263,9 @@ class RealtimeGame(ABC):
             :data:`~dallinger.realtime.game.FINISHED`,
             :data:`~dallinger.realtime.game.MAX_DURATION`,
             :data:`~dallinger.realtime.game.NOT_JOINED`,
-            :data:`~dallinger.realtime.game.FAILED`, or the reason the
-            experiment gave when it ended the session. A session that failed
+            :data:`~dallinger.realtime.game.FAILED`, the reason ``is_over``
+            returned, or the reason the experiment gave when it ended the
+            session. A session that failed
             passes the state from before the failure.
         """
         return None

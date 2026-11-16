@@ -447,7 +447,8 @@ Endings
 
 Dallinger ends a session automatically when any of these happens:
 
-- ``is_over`` returns true
+- ``is_over`` returns true, or a string, which becomes the session's end
+  reason
 - the session time reaches the game type's
   :attr:`~dallinger.realtime.RealtimeGame.max_duration`
 - no player other than a bot has opened the game's page within
