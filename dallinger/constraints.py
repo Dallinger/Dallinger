@@ -58,6 +58,16 @@ extra_option = click.option(
     multiple=True,
     help=extra_option_help,
 )
+constraint_option = click.option(
+    "--constraint",
+    "constraints",
+    multiple=True,
+    help=(
+        "Additional constraints file (path or URL) to compile against, after "
+        "Dallinger's dev-requirements.txt. Relative paths are resolved from "
+        "the experiment directory. May be repeated."
+    ),
+)
 
 
 class ConstraintsCliError(Exception):
@@ -74,6 +84,10 @@ class PyprojectTomlError(ConstraintsCliError, ValueError):
 
 class MissingPyprojectError(ConstraintsCliError, ValueError):
     """Raised when extras are requested but pyproject.toml is missing."""
+
+
+class MissingConstraintsFileError(ConstraintsCliError, FileNotFoundError):
+    """Raised when an additional constraints file path does not exist."""
 
 
 @click.group()
@@ -146,16 +160,23 @@ def assert_constraints_file_presence():
 
 @constraints_cli.command()
 @extra_option
+@constraint_option
 @click.pass_obj
-def generate(group_extras, extras):
+def generate(group_extras, extras, constraints):
     """
     Generate a constraints.txt file for the current directory.
     """
     extras = _combine_extras(group_extras, extras)
-    _run_with_cli_errors(generate_constraints, extras=extras)
+    _run_with_cli_errors(
+        generate_constraints, extras=extras, constraints=list(constraints)
+    )
 
 
-def generate_constraints(extras: Optional[List[str]] = None, upgrade: bool = False):
+def generate_constraints(
+    extras: Optional[List[str]] = None,
+    upgrade: bool = False,
+    constraints: Optional[List[str]] = None,
+):
     """
     Generate a constraints.txt file for the current working directory.
 
@@ -199,9 +220,17 @@ def generate_constraints(extras: Optional[List[str]] = None, upgrade: bool = Fal
     upgrade : bool, optional
         When true, ignore pins in an existing constraints.txt except where
         Dallinger's dev requirements constrain them.
+    constraints : list of str, optional
+        Additional constraints files (paths or URLs) passed to ``uv pip compile``
+        after Dallinger's dev requirements, for example a framework's own tested
+        pins for packages that Dallinger does not pin. They are not part of the
+        constraints signature, so changing one does not make constraints.txt
+        stale; regenerate it yourself.
 
     """
     extras = extras or []
+    constraints = constraints or []
+    _assert_constraints_files_exist(constraints)
     input_path = _find_input_path(extras=extras)
     output_path = Path("constraints.txt")
 
@@ -214,13 +243,14 @@ def generate_constraints(extras: Optional[List[str]] = None, upgrade: bool = Fal
     _test_dallinger_dev_requirements_path(dallinger_dev_requirements_path)
 
     print(
-        f"Compiling constraints.txt file from {input_path} and {dallinger_dev_requirements_path}"
+        f"Compiling constraints.txt file from {input_path} and "
+        + ", ".join([dallinger_dev_requirements_path, *constraints])
     )
 
     _compile_with_uv(
         input_path,
         output_path,
-        constraints=[dallinger_dev_requirements_path],
+        constraints=[dallinger_dev_requirements_path, *constraints],
         extras=extras,
         upgrade_packages=["dallinger"],
         upgrade=upgrade,
@@ -231,8 +261,9 @@ def generate_constraints(extras: Optional[List[str]] = None, upgrade: bool = Fal
 
 @constraints_cli.command()
 @extra_option
+@constraint_option
 @click.pass_obj
-def ensure(group_extras, extras):
+def ensure(group_extras, extras, constraints):
     """
     Ensure that a constraints.txt file exists for the specified directory,
     preserving the existing constraints.txt file if it exists and is up to date,
@@ -240,12 +271,19 @@ def ensure(group_extras, extras):
     """
     extras = _combine_extras(group_extras, extras)
     _run_with_cli_errors(
-        ensure_constraints_file_presence, Path.cwd(), extras=extras, report=click.echo
+        ensure_constraints_file_presence,
+        Path.cwd(),
+        extras=extras,
+        report=click.echo,
+        constraints=list(constraints),
     )
 
 
 def ensure_constraints_file_presence(
-    directory, extras: Optional[List[str]] = None, report=None
+    directory,
+    extras: Optional[List[str]] = None,
+    report=None,
+    constraints: Optional[List[str]] = None,
 ):
     """
     Ensures that a ``constraints.txt`` file exists in the specified directory.
@@ -268,6 +306,9 @@ def ensure_constraints_file_presence(
     report : callable, optional
         Called with a message when no action is taken because the file was
         written manually or is up to date. Defaults to a debug-level log.
+    constraints : list of str, optional
+        Additional constraints files passed to ``generate_constraints``.
+        Relative paths are resolved from *directory*.
     """
     extras = extras or []
     report = report or logger.debug
@@ -291,7 +332,17 @@ def ensure_constraints_file_presence(
                 "%s is out of date with %s, updating.", constraints_path, input_path
             )
 
-        generate_constraints(extras=extras)
+        generate_constraints(extras=extras, constraints=constraints)
+
+
+def _assert_constraints_files_exist(constraints: List[str]) -> None:
+    for constraint in constraints:
+        if re.match(r"^[a-z][a-z0-9+.-]*://", constraint, re.IGNORECASE):
+            continue
+        if not Path(constraint).is_file():
+            raise MissingConstraintsFileError(
+                f"Constraints file {constraint} not found in {Path.cwd()}."
+            )
 
 
 def _combine_extras(group_extras, extras):
