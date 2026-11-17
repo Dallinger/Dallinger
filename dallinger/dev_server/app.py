@@ -2,6 +2,12 @@ import gevent.monkey  # noqa: E402
 
 gevent.monkey.patch_all()
 # ^ patch must happen at top of file before other imports
+import psycogreen.gevent  # noqa: E402
+
+# As gunicorn's workers do (``post_worker_init``): without it, every
+# PostgreSQL query blocks the whole server, including the greenlets that
+# relay real-time views, which then reach pages late and in bursts.
+psycogreen.gevent.patch_psycopg()
 import atexit  # noqa: E402
 import codecs  # noqa: E402
 import logging  # noqa: E402
@@ -13,7 +19,11 @@ import psutil  # noqa: E402
 import werkzeug  # noqa: E402
 import werkzeug.serving  # noqa: E402
 
-from dallinger import dev_logging  # noqa: E402
+from dallinger import dev_logging, dev_reloader  # noqa: E402
+
+# Werkzeug's reloader would otherwise scan files on the hub's thread, pausing
+# the whole server about once a second.
+dev_reloader.scan_in_a_thread()
 
 try:
     from dallinger.experiment_server import sockets  # noqa: E402

@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `dallinger develop debug` no longer pauses about once a second while its
+  reloader checks files for changes, and no longer pauses for each PostgreSQL
+  query. Either pause held back every real-time view the server relayed, so
+  a game that ticks reached its pages late and in bursts, and other players'
+  movement stalled or jumped. The reloader now scans in a thread of gevent's
+  thread pool, and the server makes `psycopg2` cooperative with gevent, as
+  gunicorn's workers already do.
+
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 
 ### Migration Notes
