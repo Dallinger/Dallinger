@@ -593,6 +593,26 @@ class TestSlowPasses:
         assert len(caplog.records) == 1
 
 
+def test_runners_count_their_passes_and_how_late_ticks_and_messages_ran(
+    runner, published
+):
+    session_id = create_session(Ticker, ["1"])
+    add(session_id, message(0, "1", "a"))
+    runner.step()
+    time.sleep(0.6)
+    runner.step()
+    runner.save_counts()
+
+    stats = store.realtime_runner_stats()
+
+    assert stats["runners"] == 1
+    ticker = stats["games"]["ticker"]
+    assert ticker["passes"] == 2
+    assert sum(ticker["tick_delays"]) == 1
+    assert ticker["message_delays"][: store.delay_range(0.05) + 1] == [1, 0, 0]
+    assert 0 < ticker["seconds"] <= stats["busy"]
+
+
 class TestDelivery:
     """A runner in a thread, delivering through a web process's listener."""
 

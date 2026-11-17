@@ -891,6 +891,12 @@ Runners log at the experiment's ``loglevel_worker``. They log each session
 that fails, with its error, and warn when they fall behind, naming the slowest
 sessions, so slow game code shows up while testing.
 
+For load tests, the runners also count what they do in redis.
+:func:`~dallinger.realtime.realtime_runner_stats` returns the counts: how long
+the runners were busy, and for each game type, how long its passes took and
+how late its ticks and its players' messages were applied. The counts only
+grow, so read them before and after a test and subtract.
+
 API Reference
 -------------
 
@@ -939,6 +945,10 @@ Session Reference
 .. autofunction:: dallinger.realtime.realtime_result
 
 .. autofunction:: dallinger.realtime.realtime_sessions_for
+
+.. autofunction:: dallinger.realtime.realtime_runner_stats
+
+.. autodata:: dallinger.realtime.store.DELAY_BOUNDS
 
 .. autodata:: dallinger.realtime.store.ENDED_SESSION_TTL
 

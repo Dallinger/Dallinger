@@ -34,6 +34,11 @@ once and sending their views takes longer than the time between ticks of the
 fastest game among them, or :data:`SLOW` seconds when none of them has ticks.
 The warning names the sessions that took longest, so slow game code shows up
 while testing. It comes at most every :data:`SLOW_LOG_INTERVAL` seconds.
+
+For load tests, the runners also count what they do in redis, as
+:func:`~dallinger.realtime.realtime_runner_stats` describes: how long they're
+busy, and for each game type, its passes, the time they took, and how late
+its ticks and players' messages were applied.
 """
 
 import hashlib
@@ -43,6 +48,7 @@ import socket
 import threading
 import time
 import uuid
+from collections import Counter
 from dataclasses import dataclass
 
 from dallinger.db import get_queue
@@ -155,6 +161,8 @@ class Runner:
         self.next_records = 0
         self.next_slow_log = 0
         self.last_heartbeat = 0
+        # What the runner has done since it last added to the runners' counts.
+        self.counts = Counter()
 
     def stop(self):
         """Stop the runner once it has finished what it's doing, which takes
@@ -179,6 +187,7 @@ class Runner:
         while not self.stopping.is_set():
             self.step()
         self.let_go()
+        self.save_counts()
 
     def let_go(self):
         """Give up every session the runner holds, and stop counting as
@@ -203,6 +212,7 @@ class Runner:
             self.next_claim = clock + CLAIM_INTERVAL
         if clock >= self.next_records:
             self.queue_records()
+            self.save_counts()
             self.next_records = clock + RECORDS_INTERVAL
         wake = min(
             [session.next_pass for session in self.sessions.values()]
@@ -296,6 +306,29 @@ class Runner:
                     get_queue("default").enqueue(write_records, session_id)
                 session.records = False
 
+    def save_counts(self):
+        """Add what the runner has done since it last did so to the runners'
+        counts in redis."""
+        store.add_runner_counts(self.counts)
+        self.counts = Counter()
+
+    def count(self, timings, results, seconds):
+        """Count a step that took ``seconds``: its sessions' ``timings``, and
+        the ``results`` of their passes, by session id."""
+        counts = self.counts
+        counts[store.BUSY] += seconds
+        for took, session in timings:
+            channel = session.channel or ""
+            counts[(store.PASSES, channel)] += 1
+            counts[(store.SECONDS, channel)] += took
+            result = results[session.id]
+            for measure, delays in (
+                (store.TICK_DELAYS, result.tick_delays),
+                (store.MESSAGE_DELAYS, result.message_delays),
+            ):
+                for delay in delays:
+                    counts[(measure, store.delay_range(delay), channel)] += 1
+
     def play(self, read):
         """Play the sessions that have new entries or are due, save them, and
         send their views.
@@ -336,6 +369,11 @@ class Runner:
         for session_id, applied, result in kept:
             self.after_save(self.sessions[session_id], applied, result, saved_at)
         seconds = time.monotonic() - started
+        self.count(
+            timings,
+            {session_id: result for session_id, _, _, result in passes},
+            seconds,
+        )
         limit = min(_tick_interval(session.game) for _, session in timings)
         if seconds > limit:
             self.log_slow(seconds, limit, timings)

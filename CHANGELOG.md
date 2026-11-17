@@ -114,6 +114,10 @@
   them. Their pages get the same ending frames as for the session's ending,
   so page code needs no change. The record gets `player_add` and
   `player_end` events.
+- Real-time runners count what they do in redis, for load tests:
+  `realtime_runner_stats()` returns how long the runners were busy, and for
+  each game type, its passes, the time they took, and how many ticks and
+  players' messages were applied within each range of delay.
 
 ### Fixed
 

@@ -7,8 +7,10 @@ state with
 :func:`~dallinger.realtime.realtime_state`, ends it early with
 :func:`~dallinger.realtime.end_realtime_session` and reads its saved outcome
 with :func:`~dallinger.realtime.realtime_result`. It finds a participant's
-sessions with :func:`~dallinger.realtime.realtime_sessions_for`. All six can
-be imported from ``dallinger.realtime``. The rest of this module is for the
+sessions with :func:`~dallinger.realtime.realtime_sessions_for`. Load tests
+read what the runners have done with
+:func:`~dallinger.realtime.realtime_runner_stats`. All seven can be imported
+from ``dallinger.realtime``. The rest of this module is for the
 web process and the runners.
 """
 
@@ -48,6 +50,12 @@ web process and the runners.
 # realtime:runners is a sorted set of the runners, each scored by the time its
 # heartbeat expires.
 #
+# realtime:runner_counts is a hash of what the runners have done, which they
+# add to every few seconds. Its fields are "busy", "passes|<channel>",
+# "seconds|<channel>", "tick_delays|<range>|<channel>" and
+# "message_delays|<range>|<channel>", where <range> is the index in
+# DELAY_BOUNDS of the range a delay fell in.
+#
 # Redis 7.0 is needed for XINFO STREAM's count of the entries ever added. The
 # save relies on a watched key that expires aborting the transaction that
 # watches it.
@@ -80,6 +88,18 @@ MAX_ENTRIES = 10000
 
 RUNNING = "realtime:running"
 RUNNERS = "realtime:runners"
+RUNNER_COUNTS = "realtime:runner_counts"
+
+#: The upper bounds, in seconds, of the ranges that runners count tick and
+#: message delays in. Each range includes its upper bound.
+DELAY_BOUNDS = (0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, float("inf"))
+
+# The runner counts' fields, as tuples of their parts.
+BUSY = ("busy",)
+PASSES = "passes"
+SECONDS = "seconds"
+TICK_DELAYS = "tick_delays"
+MESSAGE_DELAYS = "message_delays"
 
 #: Seconds an ended session stays in redis after its record is written, or
 #: fails to be.
@@ -1035,6 +1055,73 @@ def mark_runner_alive(runner, clock, ttl):
         # ZRANGE 0 -1 returns every member.
         pipe.zrange(RUNNERS, 0, -1)
         return sorted(name.decode() for name in pipe.execute()[-1])
+
+
+def delay_range(delay):
+    """Return the index in :data:`DELAY_BOUNDS` of the range ``delay`` falls in."""
+    return next(i for i, bound in enumerate(DELAY_BOUNDS) if delay <= bound)
+
+
+def add_runner_counts(counts):
+    """Add ``counts``, a dict from a runner count's field, as a tuple of its
+    parts, to a number, to the runners' counts.
+    """
+    if not counts:
+        return
+    with redis_conn.pipeline(transaction=False) as pipe:
+        for parts, number in counts.items():
+            pipe.hincrbyfloat(RUNNER_COUNTS, "|".join(map(str, parts)), number)
+        pipe.execute()
+
+
+def realtime_runner_stats():
+    """Return what the experiment's runners have done, for load tests.
+
+    The counts only grow, so a load test reads them before and after and
+    subtracts. Runners add to them every few seconds, and when they stop.
+
+    :returns: a dict with:
+
+        - ``runners``: how many runners are running now
+        - ``busy``: the seconds the runners spent playing sessions, saving
+          them and sending their views, rather than waiting
+        - ``games``: for each game type's channel, a dict with its
+          ``passes``, the ``seconds`` they took, and its ``tick_delays``
+          and ``message_delays``: how many ticks ran, and how many messages
+          from pages were applied, within each range of delay that
+          :data:`DELAY_BOUNDS` gives, as a list in the same order. A tick's
+          delay is how long after it was due it ran, and a message's is how
+          long it waited between reaching the server and being applied.
+    """
+    with redis_conn.pipeline(transaction=False) as pipe:
+        pipe.hgetall(RUNNER_COUNTS)
+        pipe.zcount(RUNNERS, server_time(), "+inf")
+        fields, runners = pipe.execute()
+    stats = {"runners": runners, "busy": 0.0, "games": {}}
+    for field, value in fields.items():
+        measure, _, rest = field.decode().partition("|")
+        value = float(value)
+        if measure == BUSY[0]:
+            stats["busy"] = value
+            continue
+        if measure in (TICK_DELAYS, MESSAGE_DELAYS):
+            index, _, channel = rest.partition("|")
+        else:
+            index, channel = None, rest
+        game = stats["games"].setdefault(
+            channel,
+            {
+                PASSES: 0,
+                SECONDS: 0.0,
+                TICK_DELAYS: [0] * len(DELAY_BOUNDS),
+                MESSAGE_DELAYS: [0] * len(DELAY_BOUNDS),
+            },
+        )
+        if index is None:
+            game[measure] = int(value) if measure == PASSES else value
+        else:
+            game[measure][int(index)] = int(value)
+    return stats
 
 
 def remove_runner(runner):

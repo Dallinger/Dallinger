@@ -142,6 +142,14 @@ class TestTimeOrder:
         assert session(result)["next_tick"] == 1.0
         assert session(result)["time"] == 0.8
 
+    def test_a_pass_says_how_late_its_ticks_and_messages_were(self):
+        game = Tally()
+
+        result = play(game, started(game), [message(0.2, "1", "a")], 0.8)
+
+        assert result.tick_delays == pytest.approx([0.55, 0.3, 0.05])
+        assert result.message_delays == [CLOCK - 100.2]
+
     def test_entry_times_are_kept_within_the_pass(self):
         game = TurnTally()
         saved = play(game, started(game), [], 1).saved

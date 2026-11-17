@@ -111,6 +111,11 @@ class PassResult:
     ``players_done`` lists a ``{"participant", "reason", "view"}`` dict for
     each player who isn't a bot and whose game this pass ended before the
     session's, with their final view.
+
+    ``tick_delays`` lists how many seconds after it was due each of the
+    pass's ticks ran, and ``message_delays`` how many seconds each message
+    from a page waited between reaching the server and the pass that applied
+    it. They show how well the runner keeps up.
     """
 
     saved: str
@@ -119,6 +124,8 @@ class PassResult:
     ended: dict | None
     next_due: float | None
     players_done: list = field(default_factory=list)
+    tick_delays: list = field(default_factory=list)
+    message_delays: list = field(default_factory=list)
 
 
 def new_session(game, members, bots=()):
@@ -353,6 +360,8 @@ class _Pass:
         self.failed = False
         # The final view of each player this pass ended the game of.
         self.newly_done = {}
+        self.tick_delays = []
+        self.message_delays = []
         self.checks_done = type(game).is_done is not RealtimeGame.is_done
 
     def run(self, entries):
@@ -495,6 +504,8 @@ class _Pass:
             copied["ended"],
             next_due,
             players_done,
+            self.tick_delays,
+            self.message_delays,
         )
 
     def call(self, name, *args, returns=False):
@@ -559,6 +570,7 @@ class _Pass:
         return min(times, default=None)
 
     def tick(self):
+        self.tick_delays.append(self.now - self.time)
         self.record_effects(self.effects_of("tick", self.state, self.time))
         self.ticked = True
         self.session["last_tick"] = self.time
@@ -580,6 +592,7 @@ class _Pass:
             self.add_record("clock", **_read_clock(entry))
             return
         if kind == "message":
+            self.message_delays.append(self.clock - entry["received"])
             self.apply(*_read_message(entry))
         elif kind == "join":
             self.join(*_read_socket(entry))
