@@ -212,7 +212,6 @@ class Runner:
             self.next_claim = clock + CLAIM_INTERVAL
         if clock >= self.next_records:
             self.queue_records()
-            self.save_counts()
             self.next_records = clock + RECORDS_INTERVAL
         wake = min(
             [session.next_pass for session in self.sessions.values()]
@@ -374,6 +373,9 @@ class Runner:
             {session_id: result for session_id, _, _, result in passes},
             seconds,
         )
+        # Saved with each step, so a load test reading the counts sees every
+        # pass that was saved before it.
+        self.save_counts()
         limit = min(_tick_interval(session.game) for _, session in timings)
         if seconds > limit:
             self.log_slow(seconds, limit, timings)

@@ -601,7 +601,6 @@ def test_runners_count_their_passes_and_how_late_ticks_and_messages_ran(
     runner.step()
     time.sleep(0.6)
     runner.step()
-    runner.save_counts()
 
     stats = store.realtime_runner_stats()
 

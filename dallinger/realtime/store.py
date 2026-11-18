@@ -51,8 +51,8 @@ web process and the runners.
 # heartbeat expires.
 #
 # realtime:runner_counts is a hash of what the runners have done, which they
-# add to every few seconds. Its fields are "busy", "passes|<channel>",
-# "seconds|<channel>", "tick_delays|<range>|<channel>" and
+# add to after each step that plays sessions. Its fields are "busy",
+# "passes|<channel>", "seconds|<channel>", "tick_delays|<range>|<channel>" and
 # "message_delays|<range>|<channel>", where <range> is the index in
 # DELAY_BOUNDS of the range a delay fell in.
 #
@@ -1078,7 +1078,7 @@ def realtime_runner_stats():
     """Return what the experiment's runners have done, for load tests.
 
     The counts only grow, so a load test reads them before and after and
-    subtracts. Runners add to them every few seconds, and when they stop.
+    subtracts. Runners add to them after each step that plays sessions.
 
     :returns: a dict with:
 
