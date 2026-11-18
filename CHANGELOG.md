@@ -116,8 +116,9 @@
   `player_end` events.
 - Real-time runners count what they do in redis, for load tests:
   `realtime_runner_stats()` returns how long the runners were busy, and for
-  each game type, its passes, the time they took, and how many ticks and
-  players' messages were applied within each range of delay.
+  each game type, its passes, the time they took, and how many ticks ran,
+  and how many players' messages reached the pass that applied them, within
+  each range of delay.
 
 ### Fixed
 

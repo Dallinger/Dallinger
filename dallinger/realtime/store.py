@@ -1091,7 +1091,8 @@ def realtime_runner_stats():
           from pages were applied, within each range of delay that
           :data:`DELAY_BOUNDS` gives, as a list in the same order. A tick's
           delay is how long after it was due it ran, and a message's is how
-          long it waited between reaching the server and being applied.
+          long it waited between reaching the server and the start of the
+          pass that applied it.
     """
     with redis_conn.pipeline(transaction=False) as pipe:
         pipe.hgetall(RUNNER_COUNTS)

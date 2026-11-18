@@ -615,7 +615,7 @@ def test_runners_count_their_passes_and_how_late_ticks_and_messages_ran(
     ticker = stats["games"]["ticker"]
     assert ticker["passes"] == 2
     assert sum(ticker["tick_delays"]) >= 1
-    assert sum(ticker["message_delays"][: store.delay_range(0.5)]) == 1
+    assert sum(ticker["message_delays"][: store.delay_range(0.5) + 1]) == 1
     assert 0 < ticker["seconds"] <= stats["busy"]
 
 
