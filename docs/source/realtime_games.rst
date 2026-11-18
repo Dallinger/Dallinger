@@ -564,7 +564,11 @@ saved:
   ``apply`` raising ``Reject``
 - a method returns a value that isn't JSON
 - the methods run for longer than the game type's
-  :attr:`~dallinger.realtime.RealtimeGame.time_limit`
+  :attr:`~dallinger.realtime.RealtimeGame.time_limit` in one pass. A pass
+  runs every tick that's due, so this includes a session whose runner fell
+  so far behind that the overdue ticks don't fit in the limit. The session
+  fails rather than playing on at a pace its players didn't see, so a
+  study's data never silently include a game that stalled.
 - ``handle_effect`` or ``handle_ending`` raises an error
 - saving the session's record raises an error, for example because the
   database is unavailable. Dallinger doesn't try again.
