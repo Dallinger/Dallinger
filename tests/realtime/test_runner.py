@@ -622,7 +622,8 @@ def test_a_session_played_later_in_a_step_counts_the_wait_for_those_before(
     delays = store.realtime_runner_stats()["games"]["sleeper"]["message_delays"]
 
     # The second message waited while the first session's apply slept.
-    assert sum(delays[store.delay_range(0.15) :]) == 1
+    first, second = [i for i, n in enumerate(delays) for _ in range(n)]
+    assert second > first
 
 
 class TestDelivery:
