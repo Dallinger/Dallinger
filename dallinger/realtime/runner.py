@@ -314,15 +314,18 @@ class Runner:
     def count(self, timings, starts, results, seconds):
         """Count a step that took ``seconds``: its sessions' ``timings``, and
         by session id, the seconds into the step each pass ``starts``, and
-        the ``results`` of the passes."""
+        the ``results`` of the passes that were saved. Another runner plays
+        the others again, so they count only towards busy time."""
         counts = self.counts
         counts[store.BUSY] += seconds
         for took, session in timings:
+            result = results.get(session.id)
+            if result is None:
+                continue
             started = starts[session.id]
             channel = session.channel or ""
             counts[(store.PASSES, channel)] += 1
             counts[(store.SECONDS, channel)] += took
-            result = results[session.id]
             for measure, delays in (
                 (store.TICK_DELAYS, result.tick_delays),
                 (store.MESSAGE_DELAYS, result.message_delays),
@@ -378,7 +381,7 @@ class Runner:
         self.count(
             timings,
             starts,
-            {session_id: result for session_id, _, _, result in passes},
+            {session_id: result for session_id, _, result in kept},
             seconds,
         )
         # Saved with each step, so a load test reading the counts sees every

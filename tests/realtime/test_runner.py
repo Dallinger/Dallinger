@@ -372,11 +372,18 @@ class TestLostClaims:
         store.redis_conn.delete(store.session_key(stolen, "claim"))
         store.claim(stolen, "another runner", 30)
 
+        def passes():
+            games = store.realtime_runner_stats()["games"].values()
+            return sum(game["passes"] for game in games)
+
+        before = passes()
         runner.step()
 
         assert list(published[-1]) == [kept]
         assert list(runner.sessions) == [kept]
         assert store.realtime_state(stolen)["log"] == []
+        # Only the saved pass counts.
+        assert passes() - before == 1
 
 
 class TestFailures:
