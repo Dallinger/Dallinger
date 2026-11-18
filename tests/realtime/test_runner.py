@@ -612,6 +612,19 @@ def test_runners_count_their_passes_and_how_late_ticks_and_messages_ran(
     assert 0 < ticker["seconds"] <= stats["busy"]
 
 
+def test_a_session_played_later_in_a_step_counts_the_wait_for_those_before(
+    runner, published
+):
+    for _ in range(2):
+        add(create_session(Sleeper, ["1"]), message(0, "1", "a"))
+    runner.step()
+
+    delays = store.realtime_runner_stats()["games"]["sleeper"]["message_delays"]
+
+    # The second message waited while the first session's apply slept.
+    assert sum(delays[store.delay_range(0.15) :]) == 1
+
+
 class TestDelivery:
     """A runner in a thread, delivering through a web process's listener."""
 

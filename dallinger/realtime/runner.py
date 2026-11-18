@@ -311,12 +311,14 @@ class Runner:
         store.add_runner_counts(self.counts)
         self.counts = Counter()
 
-    def count(self, timings, results, seconds):
+    def count(self, timings, starts, results, seconds):
         """Count a step that took ``seconds``: its sessions' ``timings``, and
-        the ``results`` of their passes, by session id."""
+        by session id, the seconds into the step each pass ``starts``, and
+        the ``results`` of the passes."""
         counts = self.counts
         counts[store.BUSY] += seconds
         for took, session in timings:
+            started = starts[session.id]
             channel = session.channel or ""
             counts[(store.PASSES, channel)] += 1
             counts[(store.SECONDS, channel)] += took
@@ -326,7 +328,10 @@ class Runner:
                 (store.MESSAGE_DELAYS, result.message_delays),
             ):
                 for delay in delays:
-                    counts[(measure, store.delay_range(delay), channel)] += 1
+                    # A pass plays at the step's clock, so a session played
+                    # later in the step was later by the time before it.
+                    late = delay + started
+                    counts[(measure, store.delay_range(late), channel)] += 1
 
     def play(self, read):
         """Play the sessions that have new entries or are due, save them, and
@@ -339,6 +344,7 @@ class Runner:
         )
         passes = []
         timings = []
+        starts = {}
         for session_id, session in list(self.sessions.items()):
             items = read.get(session_id, [])
             if not items and clock < session.next_pass:
@@ -347,6 +353,7 @@ class Runner:
             if session_id not in self.sessions:
                 continue
             began = time.monotonic()
+            starts[session_id] = began - started
             result = self.play_session(session, items, lost.get(session_id, 0), clock)
             timings.append((time.monotonic() - began, session))
             applied = [entry_id for entry_id, _ in items]
@@ -370,6 +377,7 @@ class Runner:
         seconds = time.monotonic() - started
         self.count(
             timings,
+            starts,
             {session_id: result for session_id, _, _, result in passes},
             seconds,
         )
