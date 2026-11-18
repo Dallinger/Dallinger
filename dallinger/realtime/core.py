@@ -115,7 +115,8 @@ class PassResult:
     ``tick_delays`` lists how many seconds after it was due each of the
     pass's ticks ran, and ``message_delays`` how many seconds each message
     from a page waited between reaching the server and the pass that applied
-    it. They show how well the runner keeps up.
+    it, both by the pass's clock. The runner adds the time its step spent on
+    earlier sessions. They show how well the runner keeps up.
     """
 
     saved: str
