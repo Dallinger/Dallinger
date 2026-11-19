@@ -2739,7 +2739,12 @@ BUILD_CACHE_LEFTOVERS = "build-cache-leftovers"
 
 
 def _build_cache_ids(docker_client):
-    """Return the ids of the daemon's build cache records, oldest first.
+    """Return the ids of the daemon's build cache records, oldest first."""
+    return list(_build_cache_sizes(docker_client))
+
+
+def _build_cache_sizes(docker_client):
+    """Return the sizes of the daemon's build cache records by id, oldest first.
 
     ``frontend`` and ``internal`` records, such as the ``docker/dockerfile``
     frontend that the default Dockerfile's ``# syntax=`` line pulls, are left
@@ -2758,11 +2763,11 @@ def _build_cache_ids(docker_client):
         response.get("BuildCache") or [],
         key=lambda r: datetime.fromisoformat(r["CreatedAt"]),
     )
-    return [
-        record["ID"]
+    return {
+        record["ID"]: record.get("Size") or 0
         for record in records
         if record.get("Type") not in ("frontend", "internal")
-    ]
+    }
 
 
 def _build_cache_ids_or_none(docker_client):
@@ -2816,6 +2821,28 @@ def _format_bytes(size):
     return f"{size / 1e9:.1f} GB" if size >= 1e9 else f"{size / 1e6:.0f} MB"
 
 
+def _prune_build_cache(executor, cache_ids):
+    """Prune the build cache records ``cache_ids`` in order, in one SSH command.
+
+    Docker over SSH logs in again for every request, which takes seconds per
+    record. A prune without ``--all`` skips records that an existing image
+    shares, which keeps the cache of other apps' images. The daemon takes one
+    ``id`` per prune and matches it as a regular expression, hence the
+    anchors. Returns the error of each prune that failed, by id.
+    """
+    if not cache_ids:
+        return {}
+    script = "\n".join(
+        f"out=$(docker builder prune --force "
+        f"--filter {quote(f'id=^{re.escape(cache_id)}$')} 2>&1) || "
+        f"printf '%s\\t%s\\n' {quote(cache_id)} \"$(printf %s \"$out\" | tr '\\n' ' ')\""
+        for cache_id in cache_ids
+    )
+    _, stdout, _ = executor.run_with_status(script)
+    failures = (line.split("\t", 1) for line in stdout.splitlines() if "\t" in line)
+    return {cache_id: error for cache_id, error in failures}
+
+
 def _prune_app_build_cache(executor, app, server):
     """Remove the unused build cache recorded for ``app`` and earlier destroys.
 
@@ -2833,30 +2860,21 @@ def _prune_app_build_cache(executor, app, server):
     removed, freed = set(), 0
     try:
         with _image_docker_client(server, local_build=False) as docker_client:
-            # A prune without ``all`` skips records that an existing image
-            # shares, which keeps the cache of other apps' images. A record
-            # can't go while a newer one built on it exists, so the newest go
-            # first. The daemon takes one ``id`` per call and matches it as a
-            # regular expression, hence the anchors.
-            for cache_id in reversed(_build_cache_ids(docker_client)):
-                if cache_id not in recorded:
-                    continue
-                try:
-                    result = docker_client.api.prune_builds(
-                        filters={"id": f"^{re.escape(cache_id)}$"}
-                    )
-                except Exception as exc:
-                    print(f"Warning: could not remove build cache {cache_id}: {exc}")
-                    continue
-                removed.update(result.get("CachesDeleted") or [])
-                freed += result.get("SpaceReclaimed") or 0
+            sizes = _build_cache_sizes(docker_client)
+            # A record can't go while a newer one built on it exists, so the
+            # newest go first.
+            pruning = [i for i in reversed(sizes) if i in recorded]
+            for cache_id, error in _prune_build_cache(executor, pruning).items():
+                print(f"Warning: could not remove build cache {cache_id}: {error}")
             remaining = [i for i in _build_cache_ids(docker_client) if i in recorded]
+            removed = set(pruning) - set(remaining)
+            freed = sum(sizes[i] for i in removed)
     except Exception as exc:
         print(
             f"Warning: could not remove the build cache of {app}: {exc}\n"
             "`docker builder du` on the server shows the build cache."
         )
-        remaining = sorted(recorded - removed)
+        remaining = sorted(recorded)
     if remaining:
         # App names start with a letter or digit, so no app takes this name.
         # ``mv`` would move the file into a directory of that name; ``mv -T``,

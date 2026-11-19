@@ -562,10 +562,17 @@ class FakeBuildCache:
         ]
         for cache_id in deleted:
             del self.records[cache_id]
-        return {
-            "CachesDeleted": deleted or None,
-            "SpaceReclaimed": 1_500_000_000 * len(deleted),
-        }
+        return {"CachesDeleted": deleted or None}
+
+    def run_prunes(self, script):
+        """Answer the server command of ``_prune_build_cache`` with ``prune_builds``."""
+        failures = ""
+        for cache_id in re.findall(r"id=\^(\S+)\$", script):
+            try:
+                self.prune_builds(filters={"id": f"^{cache_id}$"})
+            except Exception as exc:
+                failures += f"{cache_id}\t{exc}\n"
+        return 0, failures, ""
 
     def build(self, app, layers):
         before = list(self.records)
@@ -580,7 +587,18 @@ class FakeBuildCache:
 def build_cache(server, monkeypatch):
     """A base image pulled earlier, and a layer another app's build added on it."""
     cache = FakeBuildCache({"base": None, "other": "base"}, server)
-    monkeypatch.setattr(docker_ssh, "_build_cache_ids", lambda c: list(c.records))
+    monkeypatch.setattr(
+        docker_ssh, "_build_cache_sizes", lambda c: dict.fromkeys(c.records, 1.5e9)
+    )
+    executor = docker_ssh.Executor()
+    run_with_status = executor.run_with_status
+    monkeypatch.setattr(
+        executor,
+        "run_with_status",
+        lambda cmd: (
+            cache.run_prunes(cmd) if "builder prune" in cmd else run_with_status(cmd)
+        ),
+    )
     monkeypatch.setattr(
         docker_ssh,
         "_image_docker_client",
@@ -637,7 +655,7 @@ def test_destroy_keeps_the_record_when_the_build_cache_cant_be_listed(
 ):
     build_cache.build("myapp", {"deps": "base", "code": "deps"})
     monkeypatch.setattr(
-        docker_ssh, "_build_cache_ids", mock.Mock(side_effect=RuntimeError("down"))
+        docker_ssh, "_build_cache_sizes", mock.Mock(side_effect=RuntimeError("down"))
     )
 
     docker_ssh.destroy.callback(server="lab", app="myapp")
@@ -658,6 +676,26 @@ def test_destroy_of_an_app_without_a_record_leaves_the_build_cache(
 
     assert list(build_cache.records) == ["base", "other", "deps"]
     assert "App myapp removed." in capsys.readouterr().out
+
+
+def test_build_cache_is_pruned_in_one_server_command(tmp_path, monkeypatch):
+    home = set_up_server(
+        tmp_path,
+        monkeypatch,
+        docker_cases='  *"id=^used$"*)\n    echo "in use" >&2; exit 1;;\n',
+    )
+    executor = docker_ssh.Executor()
+    run_with_status = mock.Mock(wraps=executor.run_with_status)
+    monkeypatch.setattr(executor, "run_with_status", run_with_status)
+
+    failures = docker_ssh._prune_build_cache(executor, ["new", "used", "old"])
+
+    assert failures == {"used": "in use"}
+    run_with_status.assert_called_once()
+    assert docker_calls(home).splitlines() == [
+        f"builder prune --force --filter id=^{cache_id}$"
+        for cache_id in ("new", "used", "old")
+    ]
 
 
 def test_destroy_prunes_only_the_exact_recorded_id(build_cache, server):
