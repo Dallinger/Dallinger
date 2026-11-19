@@ -501,7 +501,10 @@ Dallinger ends a session automatically when any of these happens:
   :attr:`~dallinger.realtime.RealtimeGame.max_duration`
 - no player other than a bot has opened the game's page within
   :attr:`~dallinger.realtime.RealtimeGame.join_timeout`, which is 60
-  seconds by default
+  seconds by default. This applies only to a session created with players
+  other than bots: one created with only bots never ends this way, even
+  once players are added to it, and an added player doesn't restart the
+  time
 
 The experiment's code can also end a session early, for example when a player
 drops out, by calling :func:`~dallinger.realtime.end_realtime_session`

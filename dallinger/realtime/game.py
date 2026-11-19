@@ -153,8 +153,11 @@ class RealtimeGame(ABC):
 
     #: Seconds on the session clock within which a player who isn't a bot
     #: must open the game's page, or the session ends, so a session whose
-    #: players never load the page doesn't run forever. A session whose
-    #: players are all bots never ends this way. ``None`` means no limit.
+    #: players never load the page doesn't run forever. Any player's page
+    #: counts, including one added with
+    #: :func:`~dallinger.realtime.add_realtime_player`. A session created
+    #: with only bots never ends this way, even once players are added to it,
+    #: and an added player doesn't restart the time. ``None`` means no limit.
     join_timeout = 60
 
     #: Whether a player's page gets a view as soon as the player's message is

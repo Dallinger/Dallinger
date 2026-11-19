@@ -160,8 +160,10 @@ def new_session(game, members, bots=()):
             "pages": [],
             "bot_messages": {bot: 0 for bot in bots},
             "started": False,
-            # Whether a page has opened. Bots have no pages.
-            "joined": False,
+            # Whether a page has opened, so join_timeout no longer applies.
+            # Bots have no pages, so a session created with only bots counts
+            # as joined, even once players are added to it.
+            "joined": set(members) <= set(bots),
             # The reason each player whose game ended early stopped, by player.
             "done": {},
             "ended": None,
@@ -476,12 +478,7 @@ class _Pass:
         ends = []
         if self.game.max_duration is not None:
             ends.append((self.game.max_duration, MAX_DURATION))
-        session = self.session
-        if (
-            self.game.join_timeout is not None
-            and not session["joined"]
-            and set(session["members"]) - set(session["bots"])
-        ):
+        if self.game.join_timeout is not None and not self.session["joined"]:
             ends.append((self.game.join_timeout, NOT_JOINED))
         return min(ends, default=(None, None))
 

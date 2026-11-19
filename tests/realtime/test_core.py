@@ -1135,6 +1135,15 @@ class TestAddedAndFinishedPlayers:
             ["9", "move", 0.5],
         ]
 
+    def test_a_player_added_to_a_bot_session_after_its_join_timeout_plays(self):
+        game = type("Patient", (Growing,), {"join_timeout": 5})()
+        saved = play(game, new_session(game, ["9"], bots=["9"]), [], 10).saved
+
+        result = play(game, saved, [added(10, "3"), join(10, "3")], 10)
+
+        assert result.ended is None
+        assert log(result)[-2:] == [["add", "3", 10], ["join", "3", 10]]
+
     def test_a_player_who_is_done_gets_their_ending_and_nothing_after_it(self):
         game = Growing()
         saved = started(game)
