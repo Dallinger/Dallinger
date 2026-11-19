@@ -1722,6 +1722,21 @@ def test_destroy_remove_data_after_destroy_cleans_up_leftovers(monkeypatch):
         assert not _deletes(commands)
 
 
+def test_destroy_of_an_unknown_app_suggests_the_closest_one(monkeypatch):
+    typo = dict(deployed=False, db="", volumes=(), folder=False)
+    for args, exit_code in ([], 1), (["--remove-data", "--yes"], 0):
+        _, result = _destroy_with_data(
+            monkeypatch, args, server_apps="my-app\nother\n", **typo
+        )
+        assert result.exit_code == exit_code
+        assert "Did you mean my-app? Apps on the server: my-app, other." in (
+            result.output
+        )
+
+    _, result = _destroy_with_data(monkeypatch, [], server_apps="", **typo)
+    assert "No apps are deployed on the server." in result.output
+
+
 def test_destroy_stops_if_compose_down_fails(monkeypatch):
     commands, result = _destroy_with_data(
         monkeypatch, ["--remove-data", "--yes"], down_status=1

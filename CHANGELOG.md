@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `dallinger docker-ssh destroy` for an app that isn't on the server lists
+  the server's apps and suggests the closest name, e.g. "Did you mean
+  my-app?", so that a mistyped `--app` no longer looks like a successful
+  destroy.
+
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 
 ### Migration Notes
