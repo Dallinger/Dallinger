@@ -4,7 +4,12 @@ import random
 import pytest
 
 from dallinger.realtime import RealtimeGame, Reject, Sent, core
-from dallinger.realtime.core import new_session, parse_message, run_pass
+from dallinger.realtime.core import (
+    fail_session,
+    new_session,
+    parse_message,
+    run_pass,
+)
 from dallinger.realtime.game import FAILED, FINISHED, MAX_DURATION, NOT_JOINED
 from tests.realtime.helpers import (
     CLOCK,
@@ -1178,6 +1183,32 @@ class TestAddedAndFinishedPlayers:
         assert {each["participant"] for each in second.views} == {"2"}
         assert second.players_done == []
         assert set(second.ended["views"]) == {"2"}
+
+    @pytest.mark.parametrize("failing", [False, True])
+    def test_a_done_player_who_joins_again_gets_no_view(self, failing):
+        class Forgetting(Growing):
+            def view(self, state, player_id):
+                if player_id not in state["players"]:
+                    raise KeyError(player_id)
+                return super().view(state, player_id)
+
+            def apply(self, state, player_id, message, now, sent):
+                super().apply(state, player_id, message, now, sent)
+                if message == "forget 1":
+                    state["players"].remove("1")
+
+        game = Forgetting()
+        first = play(game, started(game), [message(0.1, "1", "leave")], 0.1)
+        entries = [join(0.2, "1", socket="again"), message(0.3, "2", "forget 1")]
+
+        if failing:
+            second = fail_session(
+                game, first.saved, entries, 0.3, CLOCK, RuntimeError("x")
+            )
+        else:
+            second = play(game, first.saved, entries, 0.3)
+
+        assert {each["participant"] for each in second.views} == {"2"}
 
     def test_is_done_can_give_the_reason(self):
         class Quitting(Growing):

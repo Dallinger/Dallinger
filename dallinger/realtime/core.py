@@ -867,8 +867,10 @@ class _Pass:
             for page in session["pages"]
             if page["participant"] in self.newly_done
             or (
-                (everyone and page["participant"] not in done)
-                or (page["participant"], page["scope"]) in self.recipients
+                page["participant"] not in done
+                and (
+                    everyone or (page["participant"], page["scope"]) in self.recipients
+                )
             )
         ]
         if not pages:
