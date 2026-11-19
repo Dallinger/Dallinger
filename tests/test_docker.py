@@ -1013,15 +1013,11 @@ def test_get_connected_ssh_client_reuses_one_quiet_connection(
         def close(self):
             self.closed = True
 
-        def load_host_keys(self, filename):
-            if not Path(filename).exists():
-                raise IOError("missing")
-
         def set_missing_host_key_policy(self, policy):
             pass
 
-        def load_system_host_keys(self):
-            pass
+        def get_host_keys(self):
+            return mock.Mock()
 
         def connect(self, **kwargs):
             pass
@@ -1029,15 +1025,11 @@ def test_get_connected_ssh_client_reuses_one_quiet_connection(
         def get_transport(self):
             return self.transport
 
-        def save_host_keys(self, filename):
-            assert Path(filename).exists()
-
     monkeypatch.setattr(docker_ssh.paramiko, "SSHClient", DummyClient)
     monkeypatch.setattr(docker_ssh.socket, "create_connection", mock.Mock())
 
     client = docker_ssh.get_connected_ssh_client("localhost:2222", user="root")
     assert isinstance(client, DummyClient)
-    assert (tmp_path / ".ssh" / "known_hosts").exists()
     assert docker_ssh.get_connected_ssh_client("localhost:2222", user="root") is client
     assert capsys.readouterr().out == "Connecting to localhost:2222...\nConnected.\n"
 
@@ -1054,6 +1046,36 @@ def test_get_connected_ssh_client_reuses_one_quiet_connection(
     assert executor.client is docker_ssh.get_connected_ssh_client(
         "localhost:2222", "root"
     )
+
+
+def test_a_new_host_key_is_appended_without_rewriting_known_hosts(
+    tmp_path, monkeypatch
+):
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    known_hosts = tmp_path / ".ssh" / "known_hosts"
+    known_hosts.parent.mkdir()
+    lab_key = "AAAAC3NzaC1lZDI1NTE5AAAAIGNBMWTj48duOhAiibcPE2mPiBF0SWGH7J6y/uPvmAnX"
+    # Paramiko can't load the @cert-authority line (connecting failed) and
+    # rewrote the file without the comment and the security key line.
+    existing = (
+        "# lab servers\n"
+        f"@cert-authority *.lab.example ssh-ed25519 {lab_key}\n"
+        f"pc.lab.example sk-ssh-ed25519@openssh.com {lab_key}\n"
+        f"old.example ssh-ed25519 {lab_key}"
+    )
+    known_hosts.write_text(existing)
+    key = docker_ssh.paramiko.ECDSAKey.generate()
+    client = docker_ssh._new_ssh_client()
+
+    client._policy.missing_host_key(client, "[new.example]:2222", key)
+
+    assert known_hosts.read_text() == (
+        f"{existing}\n[new.example]:2222 {key.get_name()} {key.get_base64()}\n"
+    )
+    host_keys = client.get_host_keys()
+    assert host_keys.lookup("old.example")["ssh-ed25519"].get_base64() == lab_key
+    assert host_keys.lookup("[new.example]:2222")
 
 
 def _client_refusing_sessions(docker_ssh, error, connection_dies):

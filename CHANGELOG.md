@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- docker-ssh commands no longer rewrite `~/.ssh/known_hosts`. They used
+  Paramiko to save the whole file after each connection, which dropped
+  comments and lines Paramiko can't read (such as security-key host keys)
+  and could lose a key that a concurrent command, e.g. a second
+  `psynet debug ssh`, had just added. They now append only the new server's
+  key. A `@cert-authority` line in `known_hosts`, which made every docker-ssh
+  command fail before it connected, is now skipped.
+
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 
 ### Migration Notes
