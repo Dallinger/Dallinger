@@ -127,6 +127,7 @@ class RealtimeGame(ABC):
     - its messages, each with its sender, the message, and whether it was
       accepted, rejected with a reason, or failed
     - its effects, each with its name and payload
+    - each player added while the session ran (see :meth:`on_add`)
     - copies of the state, at most every :attr:`checkpoint_interval` seconds
       of session time
     - each player whose game ended before the session did, with the reason

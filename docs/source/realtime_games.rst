@@ -603,11 +603,19 @@ saved:
 - saving the session's record raises an error, for example because the
   database is unavailable. Dallinger doesn't try again.
 
-A failed session ends with the reason :data:`~dallinger.realtime.game.FAILED`,
-so its players can still move on, and the experiment's other sessions carry
-on. ``outcome`` is given the state from before the error. The session's
-:class:`~dallinger.models.RealtimeSession` row has the status ``failed`` and
-the error's traceback, and the experiment decides what its players are paid.
+A session still running when it fails ends with the reason
+:data:`~dallinger.realtime.game.FAILED`, so its players can still move on, and
+the experiment's other sessions carry on. ``outcome`` is given the state from
+before the error. The session's :class:`~dallinger.models.RealtimeSession` row
+has the status ``failed`` and the error's traceback, and the experiment decides
+what its players are paid.
+
+A session that had already ended, as when ``handle_ending`` raises or saving
+its last records fails, keeps its reason: its pages are told the status
+``failed`` with the reason the session ended with. A player whose game ended
+before the session's keeps their own reason in the same way. When writing the
+record failed, including the ``handle_`` methods raising, the row's
+``end_reason`` stays empty, and only ``status`` says the session failed.
 
 Game Pages
 ----------
