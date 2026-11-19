@@ -1134,8 +1134,9 @@ def add_runner_counts(counts):
 def realtime_runner_stats():
     """Return what the experiment's runners have done, for load tests.
 
-    The counts only grow, so a load test reads them before and after and
-    subtracts. Runners add to them after each step that plays sessions.
+    The counts only grow until the database is recreated, which resets them,
+    so a load test reads them before and after and subtracts. Runners add to
+    them after each step that plays sessions.
 
     :returns: a dict with:
 
