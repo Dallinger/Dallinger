@@ -356,8 +356,9 @@ rather than on a worker, and the budget above applies to it.
 Making Database Waits Cooperative
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Dallinger applies ``psycogreen`` in the gunicorn web workers and in the RQ
-gevent workers. ``psycogreen`` registers a gevent wait callback so that
+Dallinger applies ``psycogreen`` in the gunicorn web workers, in the
+development server (``dallinger develop debug``) and in the RQ gevent
+workers. ``psycogreen`` registers a gevent wait callback so that
 psycopg2 socket waits yield to the gevent event loop rather than blocking the
 OS thread — a database wait in one greenlet no longer stalls every other
 request on the same worker.
