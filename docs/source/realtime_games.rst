@@ -572,7 +572,8 @@ saved:
   so far behind that the overdue ticks don't fit in the limit. The session
   fails rather than playing on at a pace its players didn't see, so a
   study's data never silently include a game that stalled.
-- ``handle_effect`` or ``handle_ending`` raises an error
+- ``handle_effect``, ``handle_ending`` or ``handle_player_ending`` raises an
+  error
 - saving the session's record raises an error, for example because the
   database is unavailable. Dallinger doesn't try again.
 

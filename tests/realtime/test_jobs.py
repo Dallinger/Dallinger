@@ -19,6 +19,7 @@ from dallinger.realtime.jobs import write_ending, write_records
 from dallinger.realtime.utils import dump_json
 from tests.realtime.helpers import (
     CLOCK,
+    Growing,
     TurnTally,
     clock,
     create_session,
@@ -385,17 +386,26 @@ class TestEnding:
             for each in db.session.query(Notification).order_by(Notification.id)
         ] == [("{}:1".format(session_id), "scored"), ("1,2", "ended finished 2")]
 
-    def test_an_error_handling_the_ending_fails_the_session(self, realtime_experiment):
-        class Raising(TurnTally):
-            def handle_ending(self, session_row):
-                raise ValueError("no ending")
+    @pytest.mark.parametrize(
+        "method, ending, write",
+        [
+            ("handle_ending", "stop", write_ending),
+            ("handle_player_ending", "leave", write_records),
+        ],
+    )
+    def test_an_error_handling_an_ending_fails_the_session(
+        self, realtime_experiment, method, ending, write
+    ):
+        def raising(self, *args):
+            raise ValueError("no ending")
 
+        Raising = type("Raising", (Growing,), {"channel": "tally", method: raising})
         realtime_experiment.realtime_games = [Raising]
-        session_id = create_session(Raising, ["1"])
-        save(session_id, [message(1, "1", "stop")], now=1)
+        session_id = create_session(Raising, ["1", "2"])
+        save(session_id, [message(1, "1", ending)], now=1)
 
         with pytest.raises(ValueError, match="no ending"):
-            write_ending(session_id)
+            write(session_id)
 
         failed = row(session_id)
         assert (failed.status, failed.outcome) == ("failed", None)
