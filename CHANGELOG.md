@@ -17,26 +17,14 @@
   piece arrives.
 - Players can join a real-time session while it's played, and finish before
   it ends. `add_realtime_player(session_id, participant)` adds a player to a
-  running session once the transaction commits, and the game type's new
-  `on_add(state, player_id, now)` makes room for them; a game type without it
-  can't have players added. The player's pages that wait with
-  `dallinger.waitForRealtimeSession` get the session, including a page that
-  starts waiting after the player was added; a player added just before the
-  session ends gets its saved ending, with no view. The session's `members`
-  lists the player once the record job writes their addition, in the order the
-  session added its players. A session created with only bots never ends at
-  its `join_timeout`, even once players are added to it, and an added player
-  doesn't restart that time. A game type's new `is_done(state, player_id)`,
-  checked after each change to the state, can end one player's game early:
-  they get their final view, with the reason `"done"` or the string
-  `is_done` returned, the session refuses their messages from then on, and
-  the new `handle_player_ending(session_row, player_id, ending)` can pay
-  them; like `handle_ending`, an error there fails the session. They stay in
-  the session's `members`, so a game that pays in both hooks skips them in
-  `handle_ending`, using the session's `player_end` events. Their pages get
-  the same ending frames as for the session's ending, including when the
-  session fails, so page code needs no change. The record gets `player_add`
-  and `player_end` events.
+  running session, and the game type's new `on_add(state, player_id, now)`
+  makes room for them. A game type's new `is_done(state, player_id)` can end
+  one player's game early, and the new
+  `handle_player_ending(session_row, player_id, ending)` can pay them. Their
+  pages get the same frames as for the session's ending, so page code needs
+  no change. See
+  [Players Who Join or Finish During a Session](https://dallinger.readthedocs.io/latest/realtime_games.html#players-who-join-or-finish-during-a-session)
+  for how this works with `members`, `join_timeout` and payment.
 - Real-time runners count what they do in redis, for load tests:
   `realtime_runner_stats()` returns how many runners are running, how long
   they were busy, and for each game type, its passes, the time they took,

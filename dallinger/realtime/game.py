@@ -318,15 +318,10 @@ class RealtimeGame(ABC):
         """Return whether a player's game has ended while the session carries
         on, such as once they've played their turns or chosen to leave.
         Checked for each player still playing after every change to the
-        state, while the session runs.
-
-        A player who is done gets their final view, the session refuses their
-        messages with the reason
-        :data:`~dallinger.realtime.game.PLAYER_DONE_REASON`, and their pages
-        get no more views. Bots stop playing. The record notes the player's
-        ending, with the reason and the :meth:`outcome` of the state then, and
-        :meth:`handle_player_ending` handles it. Their game doesn't start
-        again.
+        state, while the session runs. :ref:`Players Who Join or Finish
+        During a Session` says what happens to a player who is done; the
+        session refuses their messages with the reason
+        :data:`~dallinger.realtime.game.PLAYER_DONE_REASON`.
 
         Return a non-empty string instead of ``True`` to give that string as
         the reason. ``True`` gives the reason
@@ -433,10 +428,8 @@ class RealtimeGame(ABC):
         after the effects the session queued, when Dallinger writes the
         session's ending. ``session_row`` then has the ending: its ``status``
         (``"ended"``, or ``"failed"`` if the game's code raised an error),
-        ``end_reason``, ``outcome`` and ``members``. ``members`` includes the
-        players :meth:`is_done` ended early, whose endings are the session's
-        ``player_end`` events, so a game that pays them in
-        :meth:`handle_player_ending` skips them here. As for
+        ``end_reason``, ``outcome`` and ``members``, which still includes the
+        players :meth:`is_done` ended early, as :ref:`Effects` shows. As for
         :meth:`handle_effect`, Dallinger saves the changes this makes together
         with the ending, so it doesn't call ``db.session.commit()``,
         ``rollback()`` or ``close()``, and if it raises an error, the ending
