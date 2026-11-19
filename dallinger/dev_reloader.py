@@ -25,10 +25,10 @@ def scan_in_a_thread():
     logs a warning and leaves the reloader as it is."""
     try:
         from werkzeug import _reloader
-
-        _reloader._find_stat_paths
-        loop = _reloader.StatReloaderLoop
-    except (ImportError, AttributeError):
+    except ImportError:
+        _reloader = None
+    loop = getattr(_reloader, "StatReloaderLoop", None)
+    if not (hasattr(_reloader, "_find_stat_paths") and hasattr(loop, "run_step")):
         logger.warning(
             "Werkzeug's stat reloader has changed, so the development server's "
             "reloader still scans files on the server's own thread."
