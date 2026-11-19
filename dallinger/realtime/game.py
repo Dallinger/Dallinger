@@ -399,7 +399,9 @@ class RealtimeGame(ABC):
         handled once, in the order the session queued them. Dallinger saves
         the changes this makes together with the session's record, so it
         doesn't call ``db.session.commit()``, ``rollback()`` or ``close()``,
-        any of which fails the session. Code that should run only once the
+        any of which fails the session. It can use savepoints
+        (``db.session.begin_nested()``) if it closes each one. Code that
+        should run only once the
         changes are saved, such as sending a message to a page, can use
         :func:`dallinger.db.run_after_commit`.
 
