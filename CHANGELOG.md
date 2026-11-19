@@ -2,6 +2,53 @@
 
 ## [Unreleased]
 
+### Added
+
+- A real-time game type can define `handle_ending(session_row)`, which
+  Dallinger calls once per session when it writes the session's ending, after
+  the session's effects, however the session ended, including at its
+  `max_duration`. Like `handle_effect`, it runs on a worker and its database
+  changes are saved together with the ending, so a game can record each
+  player's result from the outcome without a separate job.
+- A socket's `predict` option gets a third argument, `sentAt`: the session
+  time when the page sent the message, or `null` if it wasn't known yet. It
+  stays the same each time the message is predicted again after a new view,
+  so a prediction can say when something happens, such as when a moving
+  piece arrives.
+- Players can join a real-time session while it's played, and finish before
+  it ends. `add_realtime_player(session_id, participant)` adds a player to a
+  running session once the transaction commits, and the game type's new
+  `on_add(state, player_id, now)` makes room for them; a game type without it
+  can't have players added. The player's pages that wait with
+  `dallinger.waitForRealtimeSession` get the session, including a page that
+  starts waiting after the player was added. The session's `members` lists
+  the player once the record job writes their addition, in the order the
+  session added its players. A session created with only bots never ends at
+  its `join_timeout`, even once players are added to it, and an added player
+  doesn't restart that time. A game type's new `is_done(state, player_id)`,
+  checked after each change to the state, can end one player's game early:
+  they get their final view, with the reason `"done"` or the string
+  `is_done` returned, the session refuses their messages from then on, and
+  the new `handle_player_ending(session_row, player_id, ending)` can pay
+  them; like `handle_ending`, an error there fails the session. Their pages
+  get the same ending frames as for the session's ending, so page code needs
+  no change. The record gets `player_add` and `player_end` events.
+- Real-time runners count what they do in redis, for load tests:
+  `realtime_runner_stats()` returns how many runners are running, how long
+  they were busy, and for each game type, its passes, the time they took,
+  and how many ticks ran, and how many messages from pages were applied,
+  within each range of delay.
+
+### Changed
+
+- A real-time game's `is_over` can return a non-empty string instead of
+  `True`, to end the session with that string as its reason, such as
+  `"timeout"` for a limit the game keeps itself. Before, any true value
+  ended the session with the reason `"finished"`, so an `is_over` that
+  returned a string such as a winner's name now gives that string as the
+  reason; return `True` to keep `"finished"`. No game in Dallinger's demos
+  returns a string.
+
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 
 ### Migration Notes
@@ -121,42 +168,6 @@ in the Docker documentation gives the details.
 - The changelog check now skips Dependabot pull requests, which can't edit
   `CHANGELOG.md`. The `/release` skill adds their entries under
   **Updated** when a release is cut.
-
-### Added
-
-- A real-time game type can define `handle_ending(session_row)`, which
-  Dallinger calls once per session when it writes the session's ending, after
-  the session's effects, however the session ended, including at its
-  `max_duration`. Like `handle_effect`, it runs on a worker and its database
-  changes are saved together with the ending, so a game can record each
-  player's result from the outcome without a separate job.
-- A socket's `predict` option gets a third argument, `sentAt`: the session
-  time when the page sent the message, or `null` if it wasn't known yet. It
-  stays the same each time the message is predicted again after a new view,
-  so a prediction can say when something happens, such as when a moving
-  piece arrives.
-- A real-time game's `is_over` can return a non-empty string instead of
-  `True`, to end the session with that string as its reason, such as
-  `"timeout"` for a limit the game keeps itself.
-- Players can join a real-time session while it's played, and finish before
-  it ends. `add_realtime_player(session_id, participant)` adds a player to a
-  running session once the transaction commits, and the game type's new
-  `on_add(state, player_id, now)` makes room for them; a game type without it
-  can't have players added. The session's `members` lists the player once
-  the record job writes their addition, in the order the session added its
-  players. A game type's new `is_done(state, player_id)`,
-  checked after each change to the state, can end one player's game early:
-  they get their final view, with the reason `"done"` or the string
-  `is_done` returned, the session refuses their messages from then on, and
-  the new `handle_player_ending(session_row, player_id, ending)` can pay
-  them. Their pages get the same ending frames as for the session's ending,
-  so page code needs no change. The record gets `player_add` and
-  `player_end` events.
-- Real-time runners count what they do in redis, for load tests:
-  `realtime_runner_stats()` returns how long the runners were busy, and for
-  each game type, its passes, the time they took, and how many ticks ran,
-  and how many players' messages reached the pass that applied them, within
-  each range of delay.
 
 ### Fixed
 
