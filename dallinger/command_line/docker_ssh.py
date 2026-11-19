@@ -4966,6 +4966,61 @@ def _open_ssh_socket(host, port):
         ) from exc
 
 
+KNOWN_HOSTS_PATH = "~/.ssh/known_hosts"
+
+
+class _AppendToKnownHostsPolicy(paramiko.MissingHostKeyPolicy):
+    """Trust a server's new host key and append it to ``~/.ssh/known_hosts``.
+
+    Paramiko's ``AutoAddPolicy`` and ``save_host_keys`` rewrite the whole file
+    from the entries Paramiko could parse. That drops comments,
+    ``@cert-authority`` lines and key types Paramiko doesn't support, and
+    loses keys another command added meanwhile.
+    """
+
+    def missing_host_key(self, client, hostname, key):
+        client.get_host_keys().add(hostname, key.get_name(), key)
+        path = os.path.expanduser(KNOWN_HOSTS_PATH)
+        line = f"{hostname} {key.get_name()} {key.get_base64()}\n".encode()
+        try:
+            os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+            with open(path, "ab+") as f:
+                f.seek(0, os.SEEK_END)
+                if f.tell():
+                    f.seek(-1, os.SEEK_END)
+                    if f.read(1) != b"\n":
+                        line = b"\n" + line
+                # One append, so that concurrent commands can't interleave.
+                f.write(line)
+        except OSError as exc:
+            logging.getLogger(__name__).warning(
+                "Could not persist SSH known host for %s: %s", hostname, exc
+            )
+
+
+def _new_ssh_client():
+    """Return an SSH client that trusts known hosts and appends new ones."""
+    client = paramiko.SSHClient()
+    host_keys = client.get_host_keys()
+    try:
+        lines = Path(KNOWN_HOSTS_PATH).expanduser().read_text().splitlines()
+    except OSError:
+        lines = []
+    for line in lines:
+        # Paramiko raises on OpenSSH marker lines such as @cert-authority and
+        # on malformed lines, which would stop every connection.
+        if not line.strip() or line.lstrip().startswith(("#", "@")):
+            continue
+        try:
+            entry = paramiko.hostkeys.HostKeyEntry.from_line(line)
+        except (paramiko.hostkeys.InvalidHostKey, paramiko.SSHException):
+            continue
+        for hostname in entry.hostnames if entry else ():
+            host_keys.add(hostname, entry.key.get_name(), entry.key)
+    client.set_missing_host_key_policy(_AppendToKnownHostsPolicy())
+    return client
+
+
 def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
     """Create and connect an SSH client with proper authentication.
 
@@ -4977,9 +5032,9 @@ def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
         paramiko.SSHClient: A connected SSH client instance
 
     Note:
-        The client is configured to automatically trust the remote host's key.
-        This is a deliberate choice to simplify the connection process, as the server
-        is expected to be under our control.
+        The client trusts a new host's key and appends it to
+        ``~/.ssh/known_hosts``. This is a deliberate choice to simplify the
+        connection process, as the server is expected to be under our control.
     """
     ssh_host, ssh_port = split_ssh_host_port(host)
     pem_path = get_server_pem_path()
@@ -4990,20 +5045,7 @@ def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
             "https://dallinger.readthedocs.io/latest/docker_support.html"
             "#replacing-a-dsa-key"
         )
-    client = paramiko.SSHClient()
-
-    known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
-    try:
-        client.load_host_keys(known_hosts_path)
-    except IOError:
-        # Paramiko may try to save host keys during connect(), which requires
-        # the target file to already exist.
-        os.makedirs(os.path.dirname(known_hosts_path), exist_ok=True)
-        Path(known_hosts_path).touch(exist_ok=True)
-        client.load_host_keys(known_hosts_path)
-
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.load_system_host_keys()
+    client = _new_ssh_client()
 
     connect_kwargs = dict(
         hostname=ssh_host,
@@ -5052,12 +5094,7 @@ def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
             )
             # Recreate the client from the cleaned known_hosts so no
             # stale keys remain in memory for any key type.
-            client = paramiko.SSHClient()
-            try:
-                client.load_host_keys(known_hosts_path)
-            except IOError:
-                pass
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            client = _new_ssh_client()
             spinner.start()
             connect(client)
             spinner.ok("Connected (host key updated).")
@@ -5070,14 +5107,6 @@ def _connect_ssh_client(host, user=None) -> paramiko.SSHClient:
     # Deploys can sit idle for minutes (public URL wait, slow /launch);
     # keepalives stop NATs and firewalls from dropping the connection.
     client.get_transport().set_keepalive(30)
-
-    try:
-        client.save_host_keys(known_hosts_path)
-    except IOError as exc:
-        logging.getLogger(__name__).warning(
-            "Could not persist SSH known host for %s: %s", connecting_to, exc
-        )
-
     return client
 
 
