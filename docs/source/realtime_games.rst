@@ -939,7 +939,8 @@ For load tests, the runners also count what they do in redis.
 :func:`~dallinger.realtime.realtime_runner_stats` returns the counts: how long
 the runners were busy, and for each game type, how long its passes took and
 how late its ticks and its players' messages were applied. The counts only
-grow, so read them before and after a test and subtract.
+grow until the database is recreated, which resets them, so read them before
+and after a test and subtract.
 
 API Reference
 -------------
