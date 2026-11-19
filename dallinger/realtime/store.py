@@ -621,16 +621,22 @@ def newest_session(game_type, participant_id, after=None):
             session_id
             for (session_id,) in query.order_by(RealtimeSession.id.desc()).all()
         ]
-    # The players are the session's members in redis, not the row's: a row is
-    # committed before its keys are set, and lists a player added to the
-    # running session only once their addition is written. A session whose
-    # keys have expired has no members.
-    with redis_conn.pipeline(transaction=False) as pipe:
+    # The players are the session's members in redis, not the row's: the row
+    # lists a player added to the running session only once their addition is
+    # written. Members are set before the session starts and stay if it fails
+    # to start, so a session counts only once it's running or has its final
+    # views. A session whose keys have expired has no members.
+    # MULTI runs the checks at once, so a session can't leave the running set
+    # for its ending between them.
+    with redis_conn.pipeline(transaction=True) as pipe:
         for session_id in candidates:
             pipe.hget(session_key(session_id, "members"), participant_id)
-        flags = pipe.execute()
-    for session_id, is_bot in zip(candidates, flags):
-        if is_bot == b"0":
+            pipe.sismember(RUNNING, session_id)
+            pipe.exists(session_key(session_id, "final"))
+        replies = pipe.execute()
+    for index, session_id in enumerate(candidates):
+        is_bot, running, ended = replies[3 * index : 3 * index + 3]
+        if is_bot == b"0" and (running or ended):
             return session_id
     return None
 
