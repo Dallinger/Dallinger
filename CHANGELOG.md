@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- When docker-ssh can't find the DNS name of a server that
+  `dallinger ec2 provision` saved under both its DNS name and its AWS
+  hostname, the error says that a name created in the last 15 minutes may
+  still be cached as missing, and names the AWS hostname to use with
+  `--server` until it resolves.
+
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 
 ### Migration Notes
