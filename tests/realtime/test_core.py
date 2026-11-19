@@ -1097,6 +1097,15 @@ def added(time, participant, bot=False):
 
 
 class TestAddedAndFinishedPlayers:
+    def test_a_session_saved_before_players_could_finish_early_still_ends(self):
+        game = TurnTally()
+        saved = json.loads(started(game))
+        del saved["done"]
+
+        result = play(game, json.dumps(saved), [message(0.1, "1", "stop")], 0.1)
+
+        assert result.ended["reason"] == FINISHED
+
     def test_an_added_player_is_made_room_for_then_joins_with_their_page(self):
         game = Growing()
         entries = [
