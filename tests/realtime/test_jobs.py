@@ -504,6 +504,19 @@ class TestEnding:
         assert row(session_id).status == "failed"
         assert events(session_id) == []
 
+    def test_records_of_a_session_that_ended_after_its_game_type_went_fail_it(
+        self, realtime_experiment
+    ):
+        session_id = create_session(TurnTally, ["1"])
+        save(session_id, [message(1, "1", "stop")], now=1)
+        realtime_experiment.realtime_games = []
+
+        with pytest.raises(LookupError):
+            write_ending(session_id)
+
+        assert row(session_id).status == "failed"
+        assert events(session_id) == []
+
     def test_a_player_added_just_before_the_ending_is_told_it_is_saved(
         self, realtime_experiment, saved_frames
     ):
