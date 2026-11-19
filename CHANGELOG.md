@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `dallinger docker-ssh destroy` removes an app's build cache in one SSH
+  command. It made one Docker request per cache record, and Docker over SSH
+  logs in again for each request, so destroying an app with a few dozen
+  records sat silent for minutes.
+
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 
 ### Migration Notes
