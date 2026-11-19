@@ -92,7 +92,15 @@ def _publish_saved(session_id):
     # Noted before the frame goes out, so a page that joins in between and
     # finds the ending unsaved is already listening for it.
     store.note_ending_saved(session_id, status)
-    publish_saved("write_ending", session_id, store.load_ending(session_id))
+    # A player added just before the session ended can have a page open
+    # without a final view.
+    done = store.players_done(session_id)
+    players = [
+        player
+        for player, is_bot in store.session_members(session_id).items()
+        if not is_bot and player not in done
+    ]
+    publish_saved("write_ending", session_id, store.load_ending(session_id), players)
     # A player whose own ending failed to save, which failed the session, is
     # told now.
     for participant, ending in store.note_unsaved_player_endings(session_id, status):
@@ -124,14 +132,14 @@ def _write(session_id):
     game = None
     if any(record["type"] in _HANDLED for _, record in records):
         game = store.experiment_games().get(row.game_type)
-        # The runner fails a session whose game type has gone. Its records
-        # are still written, with nothing to handle their effects and endings.
-        if game is None:
-            logger.warning(
-                "No game type has session %s's channel %r, so its records are "
-                "written without handling their effects and endings.",
-                session_id,
-                row.game_type,
+        # The runner fails a session whose game type has gone, and its
+        # failed ending is written without handlers. Anything else fails.
+        last = records[-1][1]
+        if game is None and (last["type"], last.get("reason")) != ("end", FAILED):
+            raise LookupError(
+                "No game type has session {}'s channel {!r}.".format(
+                    session_id, row.game_type
+                )
             )
     players_ended = []
     for record_id, record in records:
@@ -159,7 +167,7 @@ def _write(session_id):
                         row, record["participant"], ending
                     ),
                 )
-            players_ended.append(record["participant"])
+                players_ended.append(record["participant"])
         elif record["type"] == "end":
             _record_ending(row, record_id, record)
             if game is not None:

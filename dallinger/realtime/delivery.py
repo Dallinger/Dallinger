@@ -54,7 +54,8 @@ one more frame, on every page they have open:
   :attr:`~dallinger.models.RealtimeSession.status`, ``"ended"`` or
   ``"failed"``
 - ``reason``: why the session ended
-- ``view``: the player's final view
+- ``view``: the player's final view, or ``None`` for a player added too late
+  to play
 
 It can arrive before the player's last ``realtime_view``, so a page can end on
 it alone.
@@ -63,9 +64,10 @@ A player whose game ends before the session's, when the game type's
 :meth:`~dallinger.realtime.RealtimeGame.is_done` says they're done, gets the
 same frames for their own ending: a last ``realtime_view`` whose ``ended`` is
 their ending's reason, then, once their ending is saved, a ``realtime_saved``
-frame with the status ``"ended"``, their ending's reason and their final view.
-Their pages get no frames for the session's ending. A page that joins just as its session ends may get no view at all,
-but it gets this frame.
+frame with the status ``"ended"`` (or ``"failed"`` if saving their ending
+failed the session), their ending's reason and their final view. Their pages
+get no frames for the session's ending. A page that joins just as its session
+ends may get no view at all, but it gets this frame.
 
 A page whose socket joins a session that has already ended gets no views. If
 the ending is saved, the socket gets the ``realtime_saved`` frame. Otherwise it
@@ -166,13 +168,16 @@ def publish_started(origin, session_id, game_type, players):
     redis_conn.publish(REALTIME_SESSION_CHANNEL, direct_envelope(origin, [send]))
 
 
-def publish_saved(origin, session_id, ending):
+def publish_saved(origin, session_id, ending, players=()):
     """Tell each player's pages that the session's ending is saved, with the
     session's status, the ending's reason and the player's final view.
 
     :param origin: names the sender, a string
     :param ending: the session's saved ending, as
         :func:`~dallinger.realtime.store.load_ending` returns it
+    :param players: participant ids, as strings, to tell as well as those
+        with a final view in ``ending``, who get ``None`` as their view if
+        they have none
     """
     items = [
         {
@@ -180,7 +185,10 @@ def publish_saved(origin, session_id, ending):
             "scope": None,
             "payload": ending_payload(session_id, ending, player),
         }
-        for player in ending["views"]
+        for player in [
+            *ending["views"],
+            *(p for p in players if p not in ending["views"]),
+        ]
     ]
     redis_conn.publish(REALTIME_SESSION_CHANNEL, direct_envelope(origin, items))
 

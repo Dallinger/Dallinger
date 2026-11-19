@@ -468,7 +468,7 @@ class TestEnding:
         assert '"realtime_saved"' in reload.join()
 
     def test_a_session_whose_game_type_is_gone_keeps_its_failure(
-        self, realtime_experiment
+        self, realtime_experiment, saved_frames
     ):
         Gone = type("Gone", (Growing,), {"channel": "tally"})
         realtime_experiment.realtime_games = [Gone]
@@ -483,6 +483,45 @@ class TestEnding:
         assert failed.end_reason == FAILED
         assert "RuntimeError: game type gone" in failed.error
         assert "player_end" in [each.event_type for each in events(session_id)]
+        assert store.load_player_ending(session_id, "1")["status"] == "failed"
+        assert sorted(
+            (players, payload["status"]) for players, _, payload in saved_frames()
+        ) == [(["1"], "failed"), (["2"], "failed")]
+
+    def test_records_of_a_running_session_whose_game_type_is_gone_fail_it(
+        self, realtime_experiment
+    ):
+        Gone = type("Gone", (Growing,), {"channel": "tally"})
+        realtime_experiment.realtime_games = [Gone]
+        session_id = create_session(Gone, ["1", "2"])
+        save(session_id, [message(1, "1", "leave")], now=1)
+        realtime_experiment.realtime_games = []
+
+        with pytest.raises(LookupError):
+            write_records(session_id)
+
+        assert row(session_id).status == "failed"
+        assert events(session_id) == []
+
+    def test_a_player_added_just_before_the_ending_is_told_it_is_saved(
+        self, realtime_experiment, saved_frames
+    ):
+        Adding = type("Adding", (Growing,), {"channel": "tally"})
+        realtime_experiment.realtime_games = [Adding]
+        session_id = create_session(Adding, ["1"])
+        store.end_realtime_session(session_id, "stopped")
+        store.add_realtime_player(session_id, 3)
+        db.session.commit()
+        assert [each["type"] for each in entries(session_id)] == ["end", "add"]
+        ending = {"type": "end", "time": 1, "reason": "stopped"}
+        added = {"type": "add", "time": 1, "participant": "3", "bot": False}
+        save(session_id, [ending, added], now=1)
+
+        write_ending(session_id)
+
+        assert [(players, payload["view"]) for players, _, payload in saved_frames()][
+            1:
+        ] == [(["3"], None)]
 
     def test_a_final_job_that_fails_still_tells_the_pages_and_expires_the_keys(
         self, saved_frames

@@ -21,8 +21,9 @@
   `on_add(state, player_id, now)` makes room for them; a game type without it
   can't have players added. The player's pages that wait with
   `dallinger.waitForRealtimeSession` get the session, including a page that
-  starts waiting after the player was added. The session's `members` lists
-  the player once the record job writes their addition, in the order the
+  starts waiting after the player was added; a player added just before the
+  session ends gets its saved ending, with no view. The session's `members`
+  lists the player once the record job writes their addition, in the order the
   session added its players. A session created with only bots never ends at
   its `join_timeout`, even once players are added to it, and an added player
   doesn't restart that time. A game type's new `is_done(state, player_id)`,

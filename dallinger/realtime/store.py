@@ -40,8 +40,8 @@ web process and the runners.
 #   "views" of the players who aren't bots and were still playing, as JSON.
 # - done: a hash from the participant id of each player who isn't a bot and
 #   whose game ended before the session's to the JSON of their ending's
-#   "reason", final "view" and "status": "ended" once it's saved in Postgres,
-#   otherwise null.
+#   "reason", final "view" and "status": once it's saved in Postgres, "ended",
+#   or "failed" if saving it failed the session, otherwise null.
 # - saved: the session's status in Postgres, once its ending is saved there.
 #
 # Once an ended session's final job has run, the keys it still has expire.
@@ -664,6 +664,14 @@ def load_player_ending(session_id, participant_id):
         "reason": done["reason"],
         "views": {participant_id: done["view"]},
         "status": done["status"],
+    }
+
+
+def players_done(session_id):
+    """Return the participant ids, as strings, of the players whose game
+    ended before the session's."""
+    return {
+        player.decode() for player in redis_conn.hkeys(session_key(session_id, "done"))
     }
 
 
