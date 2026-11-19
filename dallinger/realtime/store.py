@@ -670,16 +670,10 @@ def load_player_ending(session_id, participant_id):
 def note_player_ending_saved(session_id, participant_id):
     """Note that a player's ending is saved in Postgres, and return it, as
     :func:`load_player_ending` does, or ``None`` if their ending has gone
-    from redis.
+    from redis or was already noted, with this status or the session's.
     """
-    key = session_key(session_id, "done")
-    done = redis_conn.hget(key, participant_id)
-    if done is None:
+    if not _note_player_ending_status(session_id, participant_id, "ended"):
         return None
-    done = {**json.loads(done), "status": "ended"}
-    # Only this job writes it once the runner has, so nothing else changes
-    # it in between.
-    redis_conn.hset(key, participant_id, dump_json(done))
     return load_player_ending(session_id, participant_id)
 
 
@@ -688,20 +682,38 @@ def note_unsaved_player_endings(session_id, status):
     the session's that isn't noted as saved yet, as when writing it failed
     the session, and return a ``(participant_id, ending)`` pair for each, with
     the ending as :func:`load_player_ending` returns it.
+    """
+    noted = []
+    for participant in redis_conn.hkeys(session_key(session_id, "done")):
+        participant = participant.decode()
+        if _note_player_ending_status(session_id, participant, status):
+            noted.append((participant, load_player_ending(session_id, participant)))
+    return noted
 
-    Called once the session's record is written, or has failed, so nothing
-    else changes these endings any more.
+
+def _note_player_ending_status(session_id, participant_id, status):
+    """Set a player ending's ``status`` if it has none yet, returning whether
+    it did.
+
+    The record job and the session's last job can both try, from different
+    workers, so the first one wins.
     """
     key = session_key(session_id, "done")
-    noted = []
-    for participant, done in redis_conn.hgetall(key).items():
+
+    def update(pipe):
+        # WATCH makes the transaction fail, and redis-py retry it, if the
+        # hash changes before EXEC.
+        done = pipe.hget(key, participant_id)
+        if done is None:
+            return False
         done = json.loads(done)
         if done["status"] is not None:
-            continue
-        participant = participant.decode()
-        redis_conn.hset(key, participant, dump_json({**done, "status": status}))
-        noted.append((participant, load_player_ending(session_id, participant)))
-    return noted
+            return False
+        pipe.multi()
+        pipe.hset(key, participant_id, dump_json({**done, "status": status}))
+        return True
+
+    return redis_conn.transaction(update, key, value_from_callable=True)
 
 
 def note_ending_saved(session_id, status):

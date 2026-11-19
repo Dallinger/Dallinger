@@ -14,6 +14,9 @@ from dallinger.realtime.game import FAILED
 
 logger = logging.getLogger(__name__)
 
+# The records a game type handles when they're written.
+_HANDLED = ("effect", "player_end", "end")
+
 
 def write_records(session_id):
     """Write the session's new records to Postgres, and handle their effects.
@@ -119,6 +122,17 @@ def _write(session_id):
         db.session.commit()
         return None, []
     game = None
+    if any(record["type"] in _HANDLED for _, record in records):
+        game = store.experiment_games().get(row.game_type)
+        # The runner fails a session whose game type has gone. Its records
+        # are still written, with nothing to handle their effects and endings.
+        if game is None:
+            logger.warning(
+                "No game type has session %s's channel %r, so its records are "
+                "written without handling their effects and endings.",
+                session_id,
+                row.game_type,
+            )
     players_ended = []
     for record_id, record in records:
         # The end record of a session whose saved state can't be read has no
@@ -128,27 +142,26 @@ def _write(session_id):
         if record["type"] == "checkpoint":
             row.checkpoint = record["state"]
         elif record["type"] == "effect":
-            game = game or store.experiment_games()[row.game_type]
-            _handle_effect(game, record["name"], record["payload"], row)
+            if game is not None:
+                _handle_effect(game, record["name"], record["payload"], row)
         elif record["type"] == "player_add":
             _record_player_added(row, record)
         elif record["type"] == "player_end":
-            game = game or store.experiment_games()[row.game_type]
-            ending = {
-                "time": record["time"],
-                "reason": record["reason"],
-                "outcome": record["outcome"],
-            }
-            _without_commits(
-                "{}.handle_player_ending".format(type(game).__name__),
-                lambda: game.handle_player_ending(row, record["participant"], ending),
-            )
+            if game is not None:
+                ending = {
+                    "time": record["time"],
+                    "reason": record["reason"],
+                    "outcome": record["outcome"],
+                }
+                _without_commits(
+                    "{}.handle_player_ending".format(type(game).__name__),
+                    lambda: game.handle_player_ending(
+                        row, record["participant"], ending
+                    ),
+                )
             players_ended.append(record["participant"])
         elif record["type"] == "end":
             _record_ending(row, record_id, record)
-            # The runner fails a session whose game type has gone, and
-            # nothing is left to handle that ending.
-            game = game or store.experiment_games().get(row.game_type)
             if game is not None:
                 _without_commits(
                     "{}.handle_ending".format(type(game).__name__),
