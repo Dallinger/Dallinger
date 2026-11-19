@@ -50,7 +50,8 @@ def write_records(session_id):
     try:
         written, players_ended = _write(session_id)
     except Exception as error:
-        db.session.rollback()
+        # Unlike rollback(), which ends only a savepoint the game left open.
+        db.session.close()
         _fail(session_id, error)
         raise
     finally:
@@ -211,25 +212,38 @@ def _handle_effect(game, name, payload, row):
 
 
 def _without_commits(what, call):
-    """Run a game's ``call``, failing if it ends the job's transaction."""
+    """Run a game's ``call``, failing if it ends the job's transaction.
+
+    The game can use savepoints (``db.session.begin_nested()``), but must
+    close each one it opens.
+    """
 
     def refuse_commit(session):
-        raise RuntimeError(
-            "{} committed. The job commits once every new record is saved.".format(what)
-        )
+        # Releasing a savepoint the game opened also fires before_commit.
+        if session.get_nested_transaction() is savepoint:
+            raise RuntimeError(
+                "{} committed. The job commits once every new record is saved.".format(
+                    what
+                )
+            )
 
     session = db.session()
     transaction = session.get_transaction()
+    savepoint = session.get_nested_transaction()
     event.listen(session, "before_commit", refuse_commit)
     try:
         call()
     finally:
         event.remove(session, "before_commit", refuse_commit)
-    if db.session().get_transaction() is not transaction:
+    session = db.session()
+    if session.get_transaction() is not transaction:
         raise RuntimeError(
             "{} ended the job's transaction, by rolling back or closing the "
             "session.".format(what)
         )
+    # The job's commit would release only a savepoint left open.
+    if session.get_nested_transaction() is not savepoint:
+        raise RuntimeError("{} left a savepoint open.".format(what))
 
 
 def _event(session_id, record):

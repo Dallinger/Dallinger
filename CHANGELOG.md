@@ -49,6 +49,13 @@
   one it has played passes that session as `afterSession`, as the docs
   already advised, or it now joins the ended session again.
 
+### Fixed
+
+- A real-time game's `handle_effect` can use savepoints
+  (`db.session.begin_nested()`). Before, closing one failed the session as
+  if the handler had committed. A handler that leaves a savepoint open now
+  fails the session, instead of its changes being lost or partly saved.
+
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 
 ### Migration Notes

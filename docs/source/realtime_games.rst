@@ -315,7 +315,8 @@ effect queued by an ``apply`` that then raises ``Reject`` is dropped.
 
 Each effect is handled once, in the order it was queued. Dallinger saves the
 changes ``handle_effect`` makes together with the session's record, so
-``handle_effect`` doesn't call ``db.session.commit()`` itself. Code that
+``handle_effect`` doesn't call ``db.session.commit()`` itself. It can use
+savepoints (``db.session.begin_nested()``), if it closes each one. Code that
 should run only once the changes are saved, such as sending a message to a
 page, can be passed to :func:`~dallinger.db.run_after_commit`.
 

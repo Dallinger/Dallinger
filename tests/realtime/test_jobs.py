@@ -630,6 +630,60 @@ class TestFailing:
         assert events(session_id) == []
         assert row(session_id).status == "failed"
 
+    def test_a_handler_can_use_savepoints(self, realtime_experiment):
+        class Nesting(TurnTally):
+            def handle_ending(self, session_row):
+                with db.session.begin_nested():
+                    db.session.add(
+                        Notification(assignment_id="kept", event_type="ending")
+                    )
+                savepoint = db.session.begin_nested()
+                db.session.add(
+                    Notification(assignment_id="dropped", event_type="ending")
+                )
+                savepoint.rollback()
+
+        realtime_experiment.realtime_games = [Nesting]
+        session_id = create_session(Nesting, ["1"])
+        save(session_id, [message(1, "1", "stop")], now=1)
+
+        write_ending(session_id)
+
+        assert row(session_id).status == "ended"
+        assert [each.assignment_id for each in db.session.query(Notification)] == [
+            "kept"
+        ]
+
+    @pytest.mark.parametrize(
+        "ending", ["commit after a savepoint", "open savepoint", "raise in a savepoint"]
+    )
+    def test_a_handler_that_commits_around_a_savepoint_fails_the_session(
+        self, realtime_experiment, ending
+    ):
+        class Nesting(TurnTally):
+            def handle_ending(self, session_row):
+                db.session.add(Notification(assignment_id="lost", event_type="ending"))
+                if ending == "open savepoint":
+                    db.session.begin_nested()
+                elif ending == "raise in a savepoint":
+                    db.session.begin_nested()
+                    raise RuntimeError("Nesting.handle_ending failed")
+                else:
+                    with db.session.begin_nested():
+                        pass
+                    db.session.commit()
+
+        realtime_experiment.realtime_games = [Nesting]
+        session_id = create_session(Nesting, ["1"])
+        save(session_id, [message(1, "1", "stop")], now=1)
+
+        with pytest.raises(RuntimeError) as raised:
+            write_ending(session_id)
+
+        assert str(raised.value).startswith("Nesting.handle_ending ")
+        assert row(session_id).status == "failed"
+        assert db.session.query(Notification).count() == 0
+
     def test_a_later_job_ends_a_failed_session_the_failing_one_couldnt(
         self, monkeypatch
     ):
