@@ -464,6 +464,7 @@ class TestEnding:
         assert store.load_player_ending(session_id, "1")["status"] == saved_as
         assert store.note_player_ending_saved(session_id, "1") is None
         assert store.load_player_ending(session_id, "1")["status"] == saved_as
+        assert store.newest_session("tally", "1") == session_id
         reload = SessionSocket(session_id, Ending(), "1", "page", "a reload")
         assert '"realtime_saved"' in reload.join()
 
@@ -522,6 +523,10 @@ class TestEnding:
         assert [(players, payload["view"]) for players, _, payload in saved_frames()][
             1:
         ] == [(["3"], None)]
+        # A page that only starts waiting now finds the session and its ending.
+        assert store.newest_session("tally", "3") == session_id
+        late = SessionSocket(session_id, Adding(), "3", "page", "a late page")
+        assert '"realtime_saved"' in late.join()
 
     def test_a_final_job_that_fails_still_tells_the_pages_and_expires_the_keys(
         self, saved_frames

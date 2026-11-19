@@ -76,8 +76,8 @@
    * It waits as ``waitForRealtimeSession`` does, on a connection of its
    * own, so the promise resolves at once if the participant is already
    * playing a session of the game type, and a page that is reloaded during
-   * a game finds its session again. A session whose ending has been saved
-   * isn't reported. It then opens the socket with ``openExperimentSocket``.
+   * a game finds its session again, or its ending if the game has ended.
+   * It then opens the socket with ``openExperimentSocket``.
    * Set the socket's callbacks, such as ``onView``, in the ``done``
    * callback, which runs before the socket has received anything.
    *
@@ -156,15 +156,17 @@
    * that needs the id before it joins, or that joins on ``/chat`` with
    * ``openChatSocket``.
    *
-   * If the participant is already a player in a running session of the
-   * game type, the promise resolves at once, with the newest such session,
-   * so a page that is reloaded during a game finds its session again. A
-   * session whose ending has been saved isn't reported.
+   * If the participant is already a player in a session of the game type,
+   * the promise resolves at once, with the newest such session, so a page
+   * that is reloaded during a game finds its session again. A session that
+   * has ended counts too, for an hour after its ending is saved, so a page
+   * that starts waiting after its game ended can join it and get the
+   * ending.
    *
    * When the participant plays several sessions of the game type, one
    * after another, pass the id of the session the page already has as
-   * ``afterSession``, so that only a newer one counts. Otherwise a
-   * still-running earlier session is the answer.
+   * ``afterSession``, so that only a newer one counts. Otherwise an earlier
+   * session, running or ended, is the answer.
    *
    * It waits on a connection of its own to the ``/experiment-socket``
    * route, which closes once it has the id. Like any experiment socket, that

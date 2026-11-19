@@ -602,17 +602,18 @@ def player_game_channel(session_id, participant_id):
     return channel.decode()
 
 
-def newest_running_session(game_type, participant_id, after=None):
-    """Return the id of the newest running session of the game type on the
-    channel ``game_type`` that has ``participant_id`` as a player other than
-    a bot, or ``None``.
+def newest_session(game_type, participant_id, after=None):
+    """Return the id of the newest session of the game type on the channel
+    ``game_type`` that has ``participant_id`` as a player other than a bot,
+    or ``None``. A session counts while it runs and, once it has ended, until
+    its keys expire, :data:`ENDED_SESSION_TTL` seconds after its ending is
+    saved.
 
     :param after: a session id, so only newer sessions count, or ``None``
     """
     with db.session_factory() as own:
         query = own.query(RealtimeSession.id).filter(
-            RealtimeSession.status == "running",
-            RealtimeSession.game_type == game_type,
+            RealtimeSession.game_type == game_type
         )
         if after is not None:
             query = query.filter(RealtimeSession.id > after)
@@ -622,7 +623,8 @@ def newest_running_session(game_type, participant_id, after=None):
         ]
     # The players are the session's members in redis, not the row's: a row is
     # committed before its keys are set, and lists a player added to the
-    # running session only once their addition is written.
+    # running session only once their addition is written. A session whose
+    # keys have expired has no members.
     with redis_conn.pipeline(transaction=False) as pipe:
         for session_id in candidates:
             pipe.hget(session_key(session_id, "members"), participant_id)

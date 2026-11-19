@@ -631,7 +631,7 @@ Every helper is listed in the
 to exist before the game can start. The page before the game's page, such as
 the instructions or a waiting room, creates it with
 :js:func:`dallinger.createAgent`, and the game's page only joins the session.
-That keeps the game's page safe to reload: it finds a running session again,
+That keeps the game's page safe to reload: it finds its session again,
 whereas calling ``createAgent`` a second time would put the participant in
 another network.
 
@@ -717,15 +717,17 @@ starts the session once a group is complete. The page joins it with
 returned promise resolves with the page's socket for the session once the
 experiment has started a session of that game type with the participant as a
 player. If the participant is already playing one, it resolves at once, so a
-page that is reloaded during a game finds its session again. A session stops
-counting once its ending is saved, a moment after it ends, so a page reloaded
-after its game has ended keeps waiting.
+page that is reloaded during a game finds its session again. A session that
+has ended still counts for an hour after its ending is saved, so a page that
+is reloaded, or only starts waiting, after its game has ended joins the session
+and gets the ending, with no view if the player never played.
 The page sets the socket's callbacks, such as ``onView``, as soon as it has the
 socket, as ``SealedBid``'s page does.
 
 A participant who plays several sessions of the game type, one after another,
 passes the id of the session the page already has, the socket's ``session``,
-as the ``afterSession`` option, so that only a newer one counts.
+as the ``afterSession`` option, so that only a newer one counts. Without it,
+the page would join the earlier session again once that one has ended.
 
 Each load of a page needs a scope of its own, the value that tells a session
 one of a player's pages from another. Dallinger's helpers use

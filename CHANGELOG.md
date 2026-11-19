@@ -52,6 +52,14 @@
   returned a string such as a winner's name now gives that string as the
   reason; return `True` to keep `"finished"`. No game in Dallinger's demos
   returns a string.
+- `dallinger.waitForRealtimeSession` and `dallinger.joinRealtimeSession` also
+  find a session of the game type that has ended, for an hour after its
+  ending is saved, so a page reloaded or opened after its game ended gets the
+  saved ending instead of waiting forever. This includes a player added just
+  before the session ended and a player who finished early. Before, they
+  found only running sessions. A page that waits for a later session than
+  one it has played passes that session as `afterSession`, as the docs
+  already advised, or it now joins the ended session again.
 
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 
