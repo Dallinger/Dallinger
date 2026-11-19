@@ -2988,6 +2988,14 @@ def _ssh_failure_message(exc, ssh_address, user, docker_over_ssh=False):
         return None
     if isinstance(exc, socket.gaierror):
         reason = f"can't find a host called {host}"
+        other_name = _other_name_of_ec2_instance(ssh_address)
+        if other_name:
+            return (
+                f"Couldn't connect to {address} over SSH: {reason}. If `dallinger "
+                f"ec2 provision` created this DNS name in the last 15 minutes, your "
+                "computer may still remember that it didn't exist. Until it "
+                f"resolves, use --server {other_name}, the same EC2 instance."
+            )
     elif isinstance(exc, paramiko.ssh_exception.NoValidConnectionsError):
         reason = f"nothing accepted the connection on port {port}"
     elif isinstance(exc, TimeoutError):
@@ -2999,6 +3007,32 @@ def _ssh_failure_message(exc, ssh_address, user, docker_over_ssh=False):
     return (
         f"Couldn't connect to {address} over SSH: {reason}. Check the server's "
         f"address and that it is running, then try `{ssh_line(user)}`."
+    )
+
+
+def _other_name_of_ec2_instance(ssh_address):
+    """Return another saved server name of the EC2 instance saved as ``ssh_address``.
+
+    ``ec2 provision`` saves an instance under its AWS hostname and its DNS host.
+    """
+    try:
+        hosts = get_configured_hosts()
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "Could not read the saved docker-ssh servers: %r", exc
+        )
+        return None
+    hosts = {host: info for host, info in hosts.items() if isinstance(info, dict)}
+    instance_id = hosts.get(ssh_address, {}).get("ec2_instance_id")
+    if not instance_id:
+        return None
+    return next(
+        (
+            host
+            for host, info in hosts.items()
+            if host != ssh_address and info.get("ec2_instance_id") == instance_id
+        ),
+        None,
     )
 
 
