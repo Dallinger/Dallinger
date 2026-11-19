@@ -45,11 +45,18 @@ def test_the_dev_server_starts_only_with_valid_game_types(tmp_path, game_type, s
 
 
 @pytest.mark.slow
-def test_the_dev_server_keeps_its_hub_free_for_queries_and_reloader_scans(tmp_path):
+@pytest.mark.parametrize("werkzeug_changed", [False, True])
+def test_the_dev_server_keeps_its_hub_free_for_queries_and_reloader_scans(
+    tmp_path, werkzeug_changed
+):
     (tmp_path / "experiment.py").write_text(EXPERIMENT.format("Duel"))
     (tmp_path / "config.txt").write_text("[Experiment]\nmode = debug\n")
+    change_werkzeug = (
+        "import werkzeug._reloader\ndel werkzeug._reloader._find_stat_paths\n"
+    )
     check = (
-        "import dallinger.dev_server.app, psycopg2.extensions\n"
+        (change_werkzeug if werkzeug_changed else "")
+        + "import dallinger.dev_server.app, psycopg2.extensions\n"
         "from werkzeug._reloader import StatReloaderLoop\n"
         "print(psycopg2.extensions.get_wait_callback() is not None)\n"
         "print(StatReloaderLoop.run_step.__module__)\n"
@@ -64,4 +71,6 @@ def test_the_dev_server_keeps_its_hub_free_for_queries_and_reloader_scans(tmp_pa
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.split() == ["True", "dallinger.dev_reloader"]
+    scanner = "werkzeug._reloader" if werkzeug_changed else "dallinger.dev_reloader"
+    assert result.stdout.split() == ["True", scanner]
+    assert ("stat reloader has changed" in result.stderr) is werkzeug_changed
