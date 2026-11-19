@@ -204,8 +204,9 @@ the state as session times.
 
 A game can use Python's ``random`` module, for example to shuffle a deck or roll
 a die. It can draw in the methods that change the state, ``apply``, ``tick``,
-``on_join`` and ``on_leave``, and use what it drew in the state. ``view``,
-``is_over``, ``outcome``, ``next_deadline`` and ``save_message`` should only
+``on_join``, ``on_leave`` and ``on_add``, and use what it drew in the state.
+``view``, ``is_over``, ``is_done``, ``outcome``, ``next_deadline`` and
+``save_message`` should only
 read the state, not change it: Dallinger can call them several times for the
 same state, so a number drawn in ``view`` could come out differently each time,
 and a change one of them makes is kept without any error.
@@ -308,7 +309,8 @@ as described under Reading the Outcome, rather than in an effect. A
 participant's ``bonus`` records the bonus Dallinger has paid them, and
 Dallinger pays no bonus to a participant whose ``bonus`` is already set.
 
-Only ``apply``, ``tick``, ``on_join`` and ``on_leave`` can queue effects. An
+Only ``apply``, ``tick``, ``on_join``, ``on_leave`` and ``on_add`` can queue
+effects. An
 effect queued by an ``apply`` that then raises ``Reject`` is dropped.
 
 Each effect is handled once, in the order it was queued. Dallinger saves the

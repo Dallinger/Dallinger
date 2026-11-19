@@ -278,7 +278,8 @@ class RealtimeGame(ABC):
             :data:`~dallinger.realtime.game.NOT_JOINED`,
             :data:`~dallinger.realtime.game.FAILED`, the reason ``is_over``
             returned, or the reason the experiment gave when it ended the
-            session. A session that failed
+            session; or, for one player's ending, :data:`~dallinger.realtime.game.DONE`
+            or the reason ``is_done`` returned. A session that failed
             passes the state from before the failure.
         """
         return None
@@ -361,7 +362,7 @@ class RealtimeGame(ABC):
         Bots are players the runner plays for, and their messages go through
         :meth:`apply` like any other player's. In a game with ticks, each bot
         is asked once per tick. In a game without ticks, bots are asked when
-        the session starts and after every message, join, leave and tick,
+        the session starts and after every message, join, leave, addition and tick,
         including each other's messages, until a round passes in which no
         bot's message is accepted. A bot in a game without ticks must
         therefore return ``None`` once it has nothing to do.
