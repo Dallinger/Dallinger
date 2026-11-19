@@ -324,18 +324,7 @@ once per session, after the session's effects, with the session's row, whose
 ``status``, ``end_reason``, ``outcome`` and ``members`` are then set. It runs
 however the session ended, including at its time limit, and its changes are
 saved together with the ending, as for ``handle_effect``. A session that
-failed can have no outcome::
-
-    class CoinGame(RealtimeGame):
-        ...
-
-        def handle_ending(self, session_row):
-            if session_row.outcome is None:
-                return
-            for participant_id in session_row.members:
-                coins = session_row.outcome["coins"][str(participant_id)]
-                participant = Participant.query.get(participant_id)
-                db.session.add(Info(origin=participant.nodes()[0], contents=str(coins)))
+failed can have no outcome.
 
 ``members`` also lists the players whose game ended before the session's
 (see `Players Who Join or Finish During a Session`_). A game that pays them in
@@ -345,16 +334,25 @@ events::
 
     from dallinger.models import RealtimeEvent
 
-    finished = {
-        event.participant_id
-        for event in RealtimeEvent.query.filter_by(
-            session_id=session_row.id, event_type="player_end"
-        )
-    }
-    for participant_id in session_row.members:
-        if participant_id in finished:
-            continue
+    class CoinGame(RealtimeGame):
         ...
+
+        def handle_ending(self, session_row):
+            if session_row.outcome is None:
+                return
+            # Paid in handle_player_ending.
+            finished = {
+                event.participant_id
+                for event in RealtimeEvent.query.filter_by(
+                    session_id=session_row.id, event_type="player_end"
+                )
+            }
+            for participant_id in session_row.members:
+                if participant_id in finished:
+                    continue
+                coins = session_row.outcome["coins"][str(participant_id)]
+                participant = Participant.query.get(participant_id)
+                db.session.add(Info(origin=participant.nodes()[0], contents=str(coins)))
 
 Sessions
 --------
