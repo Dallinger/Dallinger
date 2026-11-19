@@ -346,8 +346,6 @@ class _Pass:
         self.state_name = "{}'s state".format(self.name)
         self.saved = saved
         self.session = session = json.loads(saved)
-        # Saved by a Dallinger from before players could finish early.
-        session.setdefault("done", {})
         self.state = session["state"]
         self.time = session["time"]
         self.now = max(now, self.time)

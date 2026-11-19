@@ -92,8 +92,9 @@ def _publish_saved(session_id):
     # Noted before the frame goes out, so a page that joins in between and
     # finds the ending unsaved is already listening for it.
     store.note_ending_saved(session_id, status)
-    # A player added just before the session ended can have a page open
-    # without a final view.
+    # The members include every player with a final view, since a player is a
+    # member before the session starts or adds them, and a player added just
+    # before the session ended, who can have a page open without one.
     done = store.players_done(session_id)
     players = [
         player

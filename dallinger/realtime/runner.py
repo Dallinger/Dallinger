@@ -317,24 +317,25 @@ class Runner:
         the ``results`` of the passes that were saved. Another runner plays
         the others again, so they count only towards busy time."""
         counts = self.counts
-        counts[store.BUSY] += seconds
+        counts["busy"] += seconds
         for took, session in timings:
             result = results.get(session.id)
             if result is None:
                 continue
             started = starts[session.id]
             channel = session.channel or ""
-            counts[(store.PASSES, channel)] += 1
-            counts[(store.SECONDS, channel)] += took
+            counts["passes|" + channel] += 1
+            counts["seconds|" + channel] += took
             for measure, delays in (
-                (store.TICK_DELAYS, result.tick_delays),
-                (store.MESSAGE_DELAYS, result.message_delays),
+                ("tick_delays", result.tick_delays),
+                ("message_delays", result.message_delays),
             ):
                 for delay in delays:
                     # A pass plays at the step's clock, so a session played
                     # later in the step was later by the time before it.
                     late = delay + started
-                    counts[(measure, store.delay_range(late), channel)] += 1
+                    index = store.delay_range(late)
+                    counts["{}|{}|{}".format(measure, index, channel)] += 1
 
     def play(self, read):
         """Play the sessions that have new entries or are due, save them, and

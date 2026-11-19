@@ -168,16 +168,15 @@ def publish_started(origin, session_id, game_type, players):
     redis_conn.publish(REALTIME_SESSION_CHANNEL, direct_envelope(origin, [send]))
 
 
-def publish_saved(origin, session_id, ending, players=()):
+def publish_saved(origin, session_id, ending, players):
     """Tell each player's pages that the session's ending is saved, with the
     session's status, the ending's reason and the player's final view.
 
     :param origin: names the sender, a string
     :param ending: the session's saved ending, as
         :func:`~dallinger.realtime.store.load_ending` returns it
-    :param players: participant ids, as strings, to tell as well as those
-        with a final view in ``ending``, who get ``None`` as their view if
-        they have none
+    :param players: the participant ids, as strings, to tell. One without a
+        final view in ``ending`` gets ``None`` as their view.
     """
     items = [
         {
@@ -185,10 +184,7 @@ def publish_saved(origin, session_id, ending, players=()):
             "scope": None,
             "payload": ending_payload(session_id, ending, player),
         }
-        for player in [
-            *ending["views"],
-            *(p for p in players if p not in ending["views"]),
-        ]
+        for player in players
     ]
     redis_conn.publish(REALTIME_SESSION_CHANNEL, direct_envelope(origin, items))
 

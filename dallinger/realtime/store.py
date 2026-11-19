@@ -94,13 +94,6 @@ RUNNER_COUNTS = "realtime:runner_counts"
 #: message delays in. Each range includes its upper bound.
 DELAY_BOUNDS = (0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, float("inf"))
 
-# The runner counts' fields, as tuples of their parts.
-BUSY = ("busy",)
-PASSES = "passes"
-SECONDS = "seconds"
-TICK_DELAYS = "tick_delays"
-MESSAGE_DELAYS = "message_delays"
-
 #: Seconds an ended session stays in redis after its record is written, or
 #: fails to be.
 ENDED_SESSION_TTL = 3600
@@ -328,13 +321,7 @@ def add_realtime_player(session_id, participant, bot=False):
         isn't added twice, and that's logged.
     :raises KeyError: if there is no session ``session_id``
     """
-    if isinstance(participant, Participant):
-        participant = participant.id
-    participant_id = normalized_participant_id(participant)
-    if participant_id is None:
-        raise ValueError(
-            "{!r} isn't a participant or a participant id.".format(participant)
-        )
+    participant_id = _participant_id(participant)
     row = (
         db.session.query(RealtimeSession)
         .filter_by(id=session_id)
@@ -473,6 +460,17 @@ def _experiment_game(game_type):
     return channel, game
 
 
+def _participant_id(participant):
+    if isinstance(participant, Participant):
+        participant = participant.id
+    participant_id = normalized_participant_id(participant)
+    if participant_id is None:
+        raise ValueError(
+            "{!r} isn't a participant or a participant id.".format(participant)
+        )
+    return participant_id
+
+
 def _participant_ids(values, what):
     ids = []
     for value in values:
@@ -550,13 +548,7 @@ def realtime_sessions_for(participant, game_type):
         types
     """
     channel, _ = _experiment_game(game_type)
-    if isinstance(participant, Participant):
-        participant = participant.id
-    participant_id = normalized_participant_id(participant)
-    if participant_id is None:
-        raise ValueError(
-            "{!r} isn't a participant or a participant id.".format(participant)
-        )
+    participant_id = _participant_id(participant)
     # populate_existing reads rows the caller's session already loaded again,
     # since a runner saves the ending from another session.
     return (
@@ -665,9 +657,10 @@ def load_player_ending(session_id, participant_id):
     """
     # HGET returns None for a missing key or field.
     done = redis_conn.hget(session_key(session_id, "done"), participant_id)
-    if done is None:
-        return None
-    done = json.loads(done)
+    return None if done is None else _player_ending(participant_id, json.loads(done))
+
+
+def _player_ending(participant_id, done):
     return {
         "reason": done["reason"],
         "views": {participant_id: done["view"]},
@@ -688,9 +681,7 @@ def note_player_ending_saved(session_id, participant_id):
     :func:`load_player_ending` does, or ``None`` if their ending has gone
     from redis or was already noted, with this status or the session's.
     """
-    if not _note_player_ending_status(session_id, participant_id, "ended"):
-        return None
-    return load_player_ending(session_id, participant_id)
+    return _note_player_ending_status(session_id, participant_id, "ended")
 
 
 def note_unsaved_player_endings(session_id, status):
@@ -702,14 +693,15 @@ def note_unsaved_player_endings(session_id, status):
     noted = []
     for participant in redis_conn.hkeys(session_key(session_id, "done")):
         participant = participant.decode()
-        if _note_player_ending_status(session_id, participant, status):
-            noted.append((participant, load_player_ending(session_id, participant)))
+        ending = _note_player_ending_status(session_id, participant, status)
+        if ending is not None:
+            noted.append((participant, ending))
     return noted
 
 
 def _note_player_ending_status(session_id, participant_id, status):
-    """Set a player ending's ``status`` if it has none yet, returning whether
-    it did.
+    """Set a player ending's ``status`` if it has none yet, returning the
+    ending, as :func:`load_player_ending` does, if it did, otherwise ``None``.
 
     The record job and the session's last job can both try, from different
     workers, so the first one wins.
@@ -721,13 +713,14 @@ def _note_player_ending_status(session_id, participant_id, status):
         # hash changes before EXEC.
         done = pipe.hget(key, participant_id)
         if done is None:
-            return False
+            return None
         done = json.loads(done)
         if done["status"] is not None:
-            return False
+            return None
+        done["status"] = status
         pipe.multi()
-        pipe.hset(key, participant_id, dump_json({**done, "status": status}))
-        return True
+        pipe.hset(key, participant_id, dump_json(done))
+        return _player_ending(participant_id, done)
 
     return redis_conn.transaction(update, key, value_from_callable=True)
 
@@ -1120,14 +1113,14 @@ def delay_range(delay):
 
 
 def add_runner_counts(counts):
-    """Add ``counts``, a dict from a runner count's field, as a tuple of its
-    parts, to a number, to the runners' counts.
+    """Add ``counts``, a dict from a runner count's field to a number, to the
+    runners' counts.
     """
     if not counts:
         return
     with redis_conn.pipeline(transaction=False) as pipe:
-        for parts, number in counts.items():
-            pipe.hincrbyfloat(RUNNER_COUNTS, "|".join(map(str, parts)), number)
+        for field, number in counts.items():
+            pipe.hincrbyfloat(RUNNER_COUNTS, field, number)
         pipe.execute()
 
 
@@ -1158,26 +1151,26 @@ def realtime_runner_stats():
         fields, runners = pipe.execute()
     stats = {"runners": runners, "busy": 0.0, "games": {}}
     for field, value in fields.items():
-        measure, _, rest = field.decode().partition("|")
+        # A channel can contain "|", so it's split off last.
+        measure, _, channel = field.decode().partition("|")
         value = float(value)
-        if measure == BUSY[0]:
+        if measure == "busy":
             stats["busy"] = value
             continue
-        if measure in (TICK_DELAYS, MESSAGE_DELAYS):
-            index, _, channel = rest.partition("|")
-        else:
-            index, channel = None, rest
+        index = None
+        if measure.endswith("_delays"):
+            index, _, channel = channel.partition("|")
         game = stats["games"].setdefault(
             channel,
             {
-                PASSES: 0,
-                SECONDS: 0.0,
-                TICK_DELAYS: [0] * len(DELAY_BOUNDS),
-                MESSAGE_DELAYS: [0] * len(DELAY_BOUNDS),
+                "passes": 0,
+                "seconds": 0.0,
+                "tick_delays": [0] * len(DELAY_BOUNDS),
+                "message_delays": [0] * len(DELAY_BOUNDS),
             },
         )
         if index is None:
-            game[measure] = int(value) if measure == PASSES else value
+            game[measure] = int(value) if measure == "passes" else value
         else:
             game[measure][int(index)] = int(value)
     return stats
