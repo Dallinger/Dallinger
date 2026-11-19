@@ -15,6 +15,7 @@ from dallinger import db
 from dallinger.models import Notification, RealtimeEvent, RealtimeSession
 from dallinger.realtime import store
 from dallinger.realtime.core import fail_session, run_pass
+from dallinger.realtime.game import FAILED
 from dallinger.realtime.jobs import write_ending, write_records
 from dallinger.realtime.utils import dump_json
 from tests.realtime.helpers import (
@@ -410,6 +411,42 @@ class TestEnding:
         failed = row(session_id)
         assert (failed.status, failed.outcome) == ("failed", None)
         assert "ValueError: no ending" in failed.error
+
+    def test_a_player_whose_ending_failed_to_save_is_told_when_the_session_ends(
+        self, realtime_experiment, saved_frames
+    ):
+        class Raising(Growing):
+            channel = "tally"
+
+            def handle_player_ending(self, session_row, player_id, ending):
+                raise ValueError("no ending")
+
+        realtime_experiment.realtime_games = [Raising]
+        session_id = create_session(Raising, ["1", "2"])
+        save(session_id, [message(1, "1", "leave")], now=1)
+        with pytest.raises(ValueError):
+            write_records(session_id)
+        save(session_id, [{"type": "end", "time": 2, "reason": FAILED}], now=2)
+
+        write_ending(session_id)
+
+        assert sorted(
+            (players, payload["status"]) for players, _, payload in saved_frames()
+        ) == [(["1"], "failed"), (["2"], "failed")]
+        assert store.load_player_ending(session_id, "1")["status"] == "failed"
+
+    def test_a_session_whose_game_type_is_gone_keeps_its_failure(
+        self, realtime_experiment
+    ):
+        session_id = create_session(TurnTally, ["1"])
+        save(session_id, [], now=1, error=RuntimeError("game type gone"))
+        realtime_experiment.realtime_games = []
+
+        write_ending(session_id)
+
+        failed = row(session_id)
+        assert failed.end_reason == FAILED
+        assert "RuntimeError: game type gone" in failed.error
 
     def test_a_final_job_that_fails_still_tells_the_pages_and_expires_the_keys(
         self, saved_frames

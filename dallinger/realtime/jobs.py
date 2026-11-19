@@ -90,6 +90,10 @@ def _publish_saved(session_id):
     # finds the ending unsaved is already listening for it.
     store.note_ending_saved(session_id, status)
     publish_saved("write_ending", session_id, store.load_ending(session_id))
+    # A player whose own ending failed to save, which failed the session, is
+    # told now.
+    for participant, ending in store.note_unsaved_player_endings(session_id, status):
+        publish_player_saved("write_ending", session_id, participant, ending)
 
 
 def _write(session_id):
@@ -142,11 +146,14 @@ def _write(session_id):
             players_ended.append(record["participant"])
         elif record["type"] == "end":
             _record_ending(row, record_id, record)
-            game = game or store.experiment_games()[row.game_type]
-            _without_commits(
-                "{}.handle_ending".format(type(game).__name__),
-                lambda: game.handle_ending(row),
-            )
+            # The runner fails a session whose game type has gone, and
+            # nothing is left to handle that ending.
+            game = game or store.experiment_games().get(row.game_type)
+            if game is not None:
+                _without_commits(
+                    "{}.handle_ending".format(type(game).__name__),
+                    lambda: game.handle_ending(row),
+                )
     # Saved before the commit, which expires the row.
     last_written = row.last_written_record = records[-1][0]
     db.session.commit()

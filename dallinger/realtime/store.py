@@ -683,6 +683,27 @@ def note_player_ending_saved(session_id, participant_id):
     return load_player_ending(session_id, participant_id)
 
 
+def note_unsaved_player_endings(session_id, status):
+    """Note an ended session's ``status`` on each player ending from before
+    the session's that isn't noted as saved yet, as when writing it failed
+    the session, and return a ``(participant_id, ending)`` pair for each, with
+    the ending as :func:`load_player_ending` returns it.
+
+    Called once the session's record is written, or has failed, so nothing
+    else changes these endings any more.
+    """
+    key = session_key(session_id, "done")
+    noted = []
+    for participant, done in redis_conn.hgetall(key).items():
+        done = json.loads(done)
+        if done["status"] is not None:
+            continue
+        participant = participant.decode()
+        redis_conn.hset(key, participant, dump_json({**done, "status": status}))
+        noted.append((participant, load_player_ending(session_id, participant)))
+    return noted
+
+
 def note_ending_saved(session_id, status):
     """Note that an ended session's ending is saved in Postgres, with the
     session's ``status``, for :data:`ENDED_SESSION_TTL` seconds.
