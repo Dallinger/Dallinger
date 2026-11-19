@@ -1106,6 +1106,18 @@ class TestAddedAndFinishedPlayers:
 
         assert result.ended["reason"] == FINISHED
 
+    def test_a_bot_only_session_saved_by_dallinger_13_1_plays_past_its_join_timeout(
+        self,
+    ):
+        game = type("Unjoined", (TurnTally,), {"join_timeout": 5, "max_duration": 20})()
+        saved = json.loads(new_session(game, ["9"], bots=["9"]))
+        saved["joined"] = False
+        del saved["done"]
+
+        result = play(game, json.dumps(saved), [], 10)
+
+        assert (result.ended, result.next_due) == (None, 20)
+
     def test_an_added_player_is_made_room_for_then_joins_with_their_page(self):
         game = Growing()
         entries = [

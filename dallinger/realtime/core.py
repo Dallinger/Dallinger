@@ -346,8 +346,12 @@ class _Pass:
         self.state_name = "{}'s state".format(self.name)
         self.saved = saved
         self.session = session = json.loads(saved)
-        # Saved by Dallinger 13.1 or earlier, before players could finish early.
-        session.setdefault("done", {})
+        if "done" not in session:
+            # Saved by Dallinger 13.1 or earlier, before players could finish
+            # early and before a bot-only session started out joined.
+            session["done"] = {}
+            if set(session["members"]) <= set(session["bots"]):
+                session["joined"] = True
         self.state = session["state"]
         self.time = session["time"]
         self.now = max(now, self.time)
