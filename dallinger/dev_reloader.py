@@ -15,14 +15,14 @@ gevent's thread pool, a real thread, so the hub keeps serving while it runs.
 import logging
 import os
 
+import gevent
+
 logger = logging.getLogger(__name__)
 
 
 def scan_in_a_thread():
-    """Make Werkzeug's stat reloader scan the watched files in a thread of
-    gevent's thread pool, rather than in the hub's thread. It reloads on the
-    same changes as before. If Werkzeug's reloader isn't as this expects, it
-    logs a warning and leaves the reloader as it is."""
+    """Run the stat reloader's scan in gevent's thread pool; warn and leave
+    it unchanged if Werkzeug's internals differ."""
     try:
         from werkzeug import _reloader
     except ImportError:
@@ -36,8 +36,9 @@ def scan_in_a_thread():
         return
 
     def run_step(self):
-        mtimes = _in_a_thread(
-            _mtimes, _reloader._find_stat_paths, self.extra_files, self.exclude_patterns
+        mtimes = gevent.get_hub().threadpool.apply(
+            _mtimes,
+            (_reloader._find_stat_paths, self.extra_files, self.exclude_patterns),
         )
         # As Werkzeug's own run_step, on the hub's thread, since
         # trigger_reload exits the process.
@@ -60,11 +61,3 @@ def _mtimes(find_paths, extra_files, exclude_patterns):
         except OSError:
             continue
     return mtimes
-
-
-def _in_a_thread(function, *args):
-    """Return ``function(*args)``, run in a thread of gevent's thread pool,
-    while the calling greenlet waits and the hub runs the others."""
-    import gevent
-
-    return gevent.get_hub().threadpool.apply(function, args)

@@ -42,9 +42,7 @@ werkzeug.serving._log_add_style = (
     and "NO_COLOR" not in os.environ
 )
 dev_logging.setup_dev_server(app)
-# Werkzeug's reloader would otherwise scan files on the hub's thread, pausing
-# the whole server about once a second. After logging is set up, so that its
-# warning, if any, is shown.
+# After logging is set up, so that its warning, if any, is shown.
 dev_reloader.scan_in_a_thread()
 if load_error is not None:
     dev_logging.report_load_error(load_error)
