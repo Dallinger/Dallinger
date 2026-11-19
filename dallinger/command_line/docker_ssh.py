@@ -1,4 +1,5 @@
 import base64
+import difflib
 import errno
 import hashlib
 import io
@@ -1426,6 +1427,16 @@ def _discover_server_apps(executor):
             existing.add(entry)
 
     return sorted(existing)
+
+
+def _server_apps_hint(executor, app):
+    """Name the apps on the server, suggesting the one ``app`` most resembles."""
+    apps = _discover_server_apps(executor)
+    if not apps:
+        return "No apps are deployed on the server."
+    close = difflib.get_close_matches(app, apps, n=1)
+    suggestion = f"Did you mean {close[0]}? " if close else ""
+    return f"{suggestion}Apps on the server: {', '.join(apps)}."
 
 
 def _host_caddy_apps(executor):
@@ -4538,9 +4549,11 @@ def destroy(
     data = _experiment_data(executor, app, cloudflare=ingress == INGRESS_CLOUDFLARE)
     if not present and not data and remove_data:
         print(f"Nothing left to delete for {app} on {ssh_host}.")
+        print(_server_apps_hint(executor, app))
         return
     if not present:
         print(f"App {app} is not deployed.")
+        print(_server_apps_hint(executor, app))
         if not data:
             print(f"No experiment data of {app} is left on {ssh_host}.")
             raise click.Abort()
