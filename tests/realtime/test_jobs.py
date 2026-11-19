@@ -387,6 +387,29 @@ class TestEnding:
             for each in db.session.query(Notification).order_by(Notification.id)
         ] == [("{}:1".format(session_id), "scored"), ("1,2", "ended finished 2")]
 
+    def test_handle_ending_finds_the_players_who_finished_early(
+        self, realtime_experiment
+    ):
+        class Finding(Growing):
+            channel = "tally"
+            finished = None
+
+            def handle_ending(self, session_row):
+                Finding.finished = {
+                    event.participant_id
+                    for event in RealtimeEvent.query.filter_by(
+                        session_id=session_row.id, event_type="player_end"
+                    )
+                }
+
+        realtime_experiment.realtime_games = [Finding]
+        session_id = create_session(Finding, ["1", "2"])
+        save(session_id, [message(1, "1", "leave"), message(2, "2", "stop")], now=2)
+
+        write_ending(session_id)
+
+        assert Finding.finished == {1}
+
     @pytest.mark.parametrize(
         "method, ending, write",
         [

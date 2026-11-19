@@ -727,7 +727,8 @@
    *
    * The reason is the one the game type's ``outcome`` method was passed:
    *
-   * - ``"finished"``: the game type's ``is_over`` method returned true
+   * - ``"finished"``: the game type's ``is_over`` method returned true, or
+   *   the string ``is_over`` returned
    * - ``"max_duration"``: the session ran for the game type's
    *   ``max_duration``
    * - ``"not_joined"``: no player other than a bot joined within the game

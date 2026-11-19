@@ -38,7 +38,7 @@ query parameter, instead of a ``session``. The socket is sent a
 ``realtime_started`` frame for the newest running session of that game type
 with the participant as a player other than a bot: at once if there is one,
 otherwise when :func:`~dallinger.realtime.create_realtime_session` starts
-one. A participant's sockets also get the frames of their other game types'
+one or :func:`~dallinger.realtime.add_realtime_player` adds them to one. A participant's sockets also get the frames of their other game types'
 sessions, so a page checks the frame's ``game_type``. A page whose participant
 plays several sessions of the game type, one after another, gives the id of
 the session it has in ``after_session``, so that only newer sessions count.

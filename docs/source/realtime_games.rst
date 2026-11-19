@@ -337,6 +337,25 @@ failed can have no outcome::
                 participant = Participant.query.get(participant_id)
                 db.session.add(Info(origin=participant.nodes()[0], contents=str(coins)))
 
+``members`` also lists the players whose game ended before the session's
+(see `Players Who Join or Finish During a Session`_). A game that pays them in
+:meth:`~dallinger.realtime.RealtimeGame.handle_player_ending` skips them here,
+or they're paid twice. Their endings are the session's ``player_end``
+events::
+
+    from dallinger.models import RealtimeEvent
+
+    finished = {
+        event.participant_id
+        for event in RealtimeEvent.query.filter_by(
+            session_id=session_row.id, event_type="player_end"
+        )
+    }
+    for participant_id in session_row.members:
+        if participant_id in finished:
+            continue
+        ...
+
 Sessions
 --------
 
@@ -481,14 +500,21 @@ each player still playing:
         def is_done(self, state, player_id):
             return player_id in state["left"]
 
+``is_done`` isn't given the time, so a player's own time limit is a flag that
+:meth:`~dallinger.realtime.RealtimeGame.tick` sets in the state once their
+time is up, and that ``is_done`` reads.
+
 A player who is done gets their final view, with their ending's reason,
 ``"done"`` unless ``is_done`` returns a string. The session refuses their
-messages from then on, and their pages get no more views. The record notes
-the player's ending, with the reason and the ``outcome`` of the state then,
-and :meth:`~dallinger.realtime.RealtimeGame.handle_player_ending` can pay
-them, as ``handle_ending`` does for everyone at the end of the session. Their
-pages then get the ending as saved, just as they would for the session's, so
-a page needs no code of its own for it.
+messages from then on, and their pages get no more views. They stay in the
+state, and in the other players' views, unless the game removes them. The
+record notes the player's ending, with the reason and the ``outcome`` of the
+state then, and :meth:`~dallinger.realtime.RealtimeGame.handle_player_ending`
+can pay them. They're still among the session's ``members`` when
+``handle_ending`` runs, so a game that pays in both skips them there, as
+`Effects`_ shows. Their pages then get the ending as saved,
+just as they would for the session's, so a page needs no code of its own for
+it.
 
 Endings
 ~~~~~~~

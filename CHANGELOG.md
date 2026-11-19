@@ -30,9 +30,12 @@
   they get their final view, with the reason `"done"` or the string
   `is_done` returned, the session refuses their messages from then on, and
   the new `handle_player_ending(session_row, player_id, ending)` can pay
-  them; like `handle_ending`, an error there fails the session. Their pages
-  get the same ending frames as for the session's ending, so page code needs
-  no change. The record gets `player_add` and `player_end` events.
+  them; like `handle_ending`, an error there fails the session. They stay in
+  the session's `members`, so a game that pays in both hooks skips them in
+  `handle_ending`, using the session's `player_end` events. Their pages get
+  the same ending frames as for the session's ending, including when the
+  session fails, so page code needs no change. The record gets `player_add`
+  and `player_end` events.
 - Real-time runners count what they do in redis, for load tests:
   `realtime_runner_stats()` returns how many runners are running, how long
   they were busy, and for each game type, its passes, the time they took,

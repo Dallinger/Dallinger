@@ -431,7 +431,10 @@ class RealtimeGame(ABC):
         after the effects the session queued, when Dallinger writes the
         session's ending. ``session_row`` then has the ending: its ``status``
         (``"ended"``, or ``"failed"`` if the game's code raised an error),
-        ``end_reason``, ``outcome`` and ``members``. As for
+        ``end_reason``, ``outcome`` and ``members``. ``members`` includes the
+        players :meth:`is_done` ended early, whose endings are the session's
+        ``player_end`` events, so a game that pays them in
+        :meth:`handle_player_ending` skips them here. As for
         :meth:`handle_effect`, Dallinger saves the changes this makes together
         with the ending, so it doesn't call ``db.session.commit()``,
         ``rollback()`` or ``close()``, and if it raises an error, the ending
