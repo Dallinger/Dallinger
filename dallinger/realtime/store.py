@@ -613,14 +613,22 @@ def newest_running_session(game_type, participant_id, after=None):
         query = own.query(RealtimeSession.id).filter(
             RealtimeSession.status == "running",
             RealtimeSession.game_type == game_type,
-            RealtimeSession.members.contains([int(participant_id)]),
         )
         if after is not None:
             query = query.filter(RealtimeSession.id > after)
-        candidates = query.order_by(RealtimeSession.id.desc()).all()
-    # A session's row is committed before its keys are set in redis.
-    for (session_id,) in candidates:
-        if player_game_channel(session_id, participant_id) == game_type:
+        candidates = [
+            session_id
+            for (session_id,) in query.order_by(RealtimeSession.id.desc()).all()
+        ]
+    # The players are the session's members in redis, not the row's: a row is
+    # committed before its keys are set, and lists a player added to the
+    # running session only once their addition is written.
+    with redis_conn.pipeline(transaction=False) as pipe:
+        for session_id in candidates:
+            pipe.hget(session_key(session_id, "members"), participant_id)
+        flags = pipe.execute()
+    for session_id, is_bot in zip(candidates, flags):
+        if is_bot == b"0":
             return session_id
     return None
 

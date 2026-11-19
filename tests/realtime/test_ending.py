@@ -86,6 +86,8 @@ def test_a_player_added_to_a_running_game_plays_and_can_finish_before_it(
     add_realtime_player(session_id, 3)
     db.session.commit()
     assert db.session.get(RealtimeSession, session_id).members == [1]
+    # A page that starts waiting now, after the session was announced
+    assert store.newest_running_session(Growing.channel, "3") == session_id
     add(session_id, join(0, "3"))
     add(session_id, message(0, "3", "leave"))
 
