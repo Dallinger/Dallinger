@@ -159,10 +159,7 @@ class BotBase:
             self.driver.switch_to.window(self.driver.window_handles[-1])
             self.driver.set_window_size(1024, 768)
             logger.info("Switched to experiment popup.")
-            consent = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, "consent"))
-            )
-            consent.click()
+            self._click_until_page_changes((By.ID, "consent"), attempts=3)
             logger.info("Clicked consent button.")
             participate = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable((By.CLASS_NAME, "btn-success"))
@@ -172,7 +169,7 @@ class BotBase:
 
             # Extract participant_id from URL after clicking start
             if not self.participant_id:
-                # Browser has already navigated to a new page that includes participant_id in the URL
+                WebDriverWait(self.driver, 10).until(EC.staleness_of(participate))
                 url = self.driver.current_url
                 query_params = parse.parse_qs(parse.urlparse(url).query)
                 self.participant_id = self.get_from_query(
@@ -187,6 +184,31 @@ class BotBase:
         except TimeoutException:
             logger.error("Error during experiment sign up.")
             return False
+
+    def _click_until_page_changes(self, locator, attempts, timeout=5):
+        """Click the element at ``locator`` until the browser leaves its page.
+
+        A click can land while the page still moves (its styles loading, the
+        window resizing) and hit nothing, and WebDriver doesn't report that.
+        Only use this for clicks that are safe to repeat.
+        """
+        for attempt in range(1, attempts + 1):
+            WebDriverWait(self.driver, 10).until(
+                lambda d: d.execute_script("return document.readyState") == "complete"
+            )
+            element = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable(locator)
+            )
+            element.click()
+            try:
+                WebDriverWait(self.driver, timeout).until(EC.staleness_of(element))
+                return
+            except TimeoutException:
+                if attempt == attempts:
+                    raise
+                logger.warning(
+                    "Clicking %s didn't leave the page; clicking it again.", locator
+                )
 
     def participate(self):
         """Participate in the experiment.

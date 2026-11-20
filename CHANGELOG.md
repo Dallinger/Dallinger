@@ -220,6 +220,10 @@ in the Docker documentation gives the details.
   transactions. The warning now fires when a session has been idle for over
   1 second and shows the real `idle_time` alongside the `transaction_age`;
   before, it labelled the transaction's age as `idle_time`.
+- Selenium bots (`BotBase.sign_up`) wait for the consent page to finish
+  loading and click "I agree" again if the click didn't leave the page.
+  Before, a click that landed while the page was still changing layout was
+  sometimes lost, and selenium tests such as the Bartlett demo's timed out.
 
 ### Updated
 
