@@ -50,11 +50,12 @@ web process and the runners.
 # realtime:runners is a sorted set of the runners, each scored by the time its
 # heartbeat expires.
 #
-# realtime:runner_counts is a hash of what the runners have done, which they
-# add to after each step that plays sessions. Its fields are "busy",
-# "passes|<channel>", "seconds|<channel>", "tick_delays|<range>|<channel>" and
-# "message_delays|<range>|<channel>", where <range> is the index in
-# DELAY_BOUNDS of the range a delay fell in.
+# The runners count what they do after each step that plays sessions:
+# realtime:runner_busy is the seconds they've been busy, realtime:runner_games
+# the set of the channels they've played, and realtime:runner_counts:<channel>
+# a hash of that game type's "passes", their "seconds", and its
+# "tick_delays:<range>" and "message_delays:<range>", where <range> is the
+# index in DELAY_BOUNDS of the range a delay fell in.
 #
 # Redis 7.0 is needed for XINFO STREAM's count of the entries ever added. The
 # save relies on a watched key that expires aborting the transaction that
@@ -88,7 +89,8 @@ MAX_ENTRIES = 10000
 
 RUNNING = "realtime:running"
 RUNNERS = "realtime:runners"
-RUNNER_COUNTS = "realtime:runner_counts"
+RUNNER_BUSY = "realtime:runner_busy"
+RUNNER_GAMES = "realtime:runner_games"
 
 #: The upper bounds, in seconds, of the ranges that runners count tick and
 #: message delays in. Each range includes its upper bound.
@@ -1112,15 +1114,24 @@ def delay_range(delay):
     return next(i for i, bound in enumerate(DELAY_BOUNDS) if delay <= bound)
 
 
-def add_runner_counts(counts):
-    """Add ``counts``, a dict from a runner count's field to a number, to the
-    runners' counts.
+def _runner_counts_key(channel):
+    return "realtime:runner_counts:" + channel
+
+
+def add_runner_counts(busy, games):
+    """Add ``busy`` seconds and, by channel, ``games``' counts, dicts from a
+    field of the game type's counts to a number, to the runners' counts.
     """
-    if not counts:
-        return
     with redis_conn.pipeline(transaction=False) as pipe:
-        for field, number in counts.items():
-            pipe.hincrbyfloat(RUNNER_COUNTS, field, number)
+        pipe.incrbyfloat(RUNNER_BUSY, busy)
+        for channel, counts in games.items():
+            pipe.sadd(RUNNER_GAMES, channel)
+            key = _runner_counts_key(channel)
+            for field, number in counts.items():
+                if field == "seconds":
+                    pipe.hincrbyfloat(key, field, number)
+                else:
+                    pipe.hincrby(key, field, number)
         pipe.execute()
 
 
@@ -1145,35 +1156,28 @@ def realtime_runner_stats():
           long it waited between reaching the server and the start of the
           pass that applied it.
     """
+    channels = sorted(channel.decode() for channel in redis_conn.smembers(RUNNER_GAMES))
     with redis_conn.pipeline(transaction=False) as pipe:
-        pipe.hgetall(RUNNER_COUNTS)
         pipe.zcount(RUNNERS, server_time(), "+inf")
-        fields, runners = pipe.execute()
-    stats = {"runners": runners, "busy": 0.0, "games": {}}
-    for field, value in fields.items():
-        # A channel can contain "|", so it's split off last.
-        measure, _, channel = field.decode().partition("|")
-        value = float(value)
-        if measure == "busy":
-            stats["busy"] = value
-            continue
-        index = None
-        if measure.endswith("_delays"):
-            index, _, channel = channel.partition("|")
-        game = stats["games"].setdefault(
-            channel,
-            {
-                "passes": 0,
-                "seconds": 0.0,
-                "tick_delays": [0] * len(DELAY_BOUNDS),
-                "message_delays": [0] * len(DELAY_BOUNDS),
+        pipe.get(RUNNER_BUSY)
+        for channel in channels:
+            pipe.hgetall(_runner_counts_key(channel))
+        runners, busy, *counts = pipe.execute()
+    games = {}
+    for channel, fields in zip(channels, counts):
+        fields = {field.decode(): value for field, value in fields.items()}
+        games[channel] = {
+            "passes": int(fields.get("passes", 0)),
+            "seconds": float(fields.get("seconds", 0)),
+            **{
+                measure: [
+                    int(fields.get("{}:{}".format(measure, index), 0))
+                    for index in range(len(DELAY_BOUNDS))
+                ]
+                for measure in ("tick_delays", "message_delays")
             },
-        )
-        if index is None:
-            game[measure] = int(value) if measure == "passes" else value
-        else:
-            game[measure][int(index)] = int(value)
-    return stats
+        }
+    return {"runners": runners, "busy": float(busy or 0), "games": games}
 
 
 def remove_runner(runner):

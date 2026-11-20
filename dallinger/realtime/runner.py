@@ -161,8 +161,6 @@ class Runner:
         self.next_records = 0
         self.next_slow_log = 0
         self.last_heartbeat = 0
-        # What the runner has done since it last added to the runners' counts.
-        self.counts = Counter()
 
     def stop(self):
         """Stop the runner once it has finished what it's doing, which takes
@@ -187,7 +185,6 @@ class Runner:
         while not self.stopping.is_set():
             self.step()
         self.let_go()
-        self.save_counts()
 
     def let_go(self):
         """Give up every session the runner holds, and stop counting as
@@ -305,27 +302,21 @@ class Runner:
                     get_queue("default").enqueue(write_records, session_id)
                 session.records = False
 
-    def save_counts(self):
-        """Add what the runner has done since it last did so to the runners'
-        counts in redis."""
-        store.add_runner_counts(self.counts)
-        self.counts = Counter()
-
     def count(self, timings, starts, results, seconds):
-        """Count a step that took ``seconds``: its sessions' ``timings``, and
-        by session id, the seconds into the step each pass ``starts``, and
-        the ``results`` of the passes that were saved. Another runner plays
-        the others again, so they count only towards busy time."""
-        counts = self.counts
-        counts["busy"] += seconds
+        """Add a step that took ``seconds`` to the runners' counts in redis:
+        its sessions' ``timings``, and by session id, the seconds into the
+        step each pass ``starts``, and the ``results`` of the passes that were
+        saved. Another runner plays the others again, so they count only
+        towards busy time."""
+        games = {}
         for took, session in timings:
             result = results.get(session.id)
             if result is None:
                 continue
             started = starts[session.id]
-            channel = session.channel or ""
-            counts["passes|" + channel] += 1
-            counts["seconds|" + channel] += took
+            game = games.setdefault(session.channel or "", Counter())
+            game["passes"] += 1
+            game["seconds"] += took
             for measure, delays in (
                 ("tick_delays", result.tick_delays),
                 ("message_delays", result.message_delays),
@@ -333,9 +324,9 @@ class Runner:
                 for delay in delays:
                     # A pass plays at the step's clock, so a session played
                     # later in the step was later by the time before it.
-                    late = delay + started
-                    index = store.delay_range(late)
-                    counts["{}|{}|{}".format(measure, index, channel)] += 1
+                    index = store.delay_range(delay + started)
+                    game["{}:{}".format(measure, index)] += 1
+        store.add_runner_counts(seconds, games)
 
     def play(self, read):
         """Play the sessions that have new entries or are due, save them, and
@@ -385,9 +376,6 @@ class Runner:
             {session_id: result for session_id, _, result in kept},
             seconds,
         )
-        # Saved with each step, so a load test reading the counts sees every
-        # pass that was saved before it.
-        self.save_counts()
         limit = min(_tick_interval(session.game) for _, session in timings)
         if seconds > limit:
             self.log_slow(seconds, limit, timings)
