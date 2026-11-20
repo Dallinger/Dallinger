@@ -9,7 +9,7 @@ from sqlalchemy import event
 from dallinger import db
 from dallinger.models import RealtimeEvent, RealtimeSession
 from dallinger.realtime import store
-from dallinger.realtime.delivery import publish_player_saved, publish_saved
+from dallinger.realtime.delivery import publish_saved
 from dallinger.realtime.game import FAILED
 
 logger = logging.getLogger(__name__)
@@ -56,10 +56,15 @@ def write_records(session_id):
         raise
     finally:
         db.session.remove()
-    for participant in players_ended:
-        ending = store.note_player_ending_saved(session_id, participant)
-        if ending is not None:
-            publish_player_saved("write_records", session_id, participant, ending)
+    endings = {
+        participant: store.note_player_ending_saved(session_id, participant)
+        for participant in players_ended
+    }
+    publish_saved(
+        "write_records",
+        session_id,
+        {player: ending for player, ending in endings.items() if ending is not None},
+    )
     if written is not None:
         store.trim_records(session_id, written)
 
@@ -97,16 +102,16 @@ def _publish_saved(session_id):
     # member before the session starts or adds them, and a player added just
     # before the session ended, who can have a page open without one.
     done = store.players_done(session_id)
-    players = [
-        player
+    ending = store.load_ending(session_id)
+    endings = {
+        player: ending
         for player, is_bot in store.session_members(session_id).items()
         if not is_bot and player not in done
-    ]
-    publish_saved("write_ending", session_id, store.load_ending(session_id), players)
+    }
     # A player whose own ending failed to save, which failed the session, is
     # told now.
-    for participant, ending in store.note_unsaved_player_endings(session_id, status):
-        publish_player_saved("write_ending", session_id, participant, ending)
+    endings.update(store.note_unsaved_player_endings(session_id, status))
+    publish_saved("write_ending", session_id, endings)
 
 
 def _write(session_id):

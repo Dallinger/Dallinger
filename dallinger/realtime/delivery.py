@@ -168,42 +168,28 @@ def publish_started(origin, session_id, game_type, players):
     redis_conn.publish(REALTIME_SESSION_CHANNEL, direct_envelope(origin, [send]))
 
 
-def publish_saved(origin, session_id, ending, players):
-    """Tell each player's pages that the session's ending is saved, with the
-    session's status, the ending's reason and the player's final view.
+def publish_saved(origin, session_id, endings):
+    """Tell each player's pages that their ending is saved, with its status,
+    its reason and the player's final view.
 
     :param origin: names the sender, a string
-    :param ending: the session's saved ending, as
-        :func:`~dallinger.realtime.store.load_ending` returns it
-    :param players: the participant ids, as strings, to tell. One without a
-        final view in ``ending`` gets ``None`` as their view.
+    :param endings: by participant id, as a string, the ending to tell them:
+        the session's, as :func:`~dallinger.realtime.store.load_ending`
+        returns it, or their own, from before the session's, as
+        :func:`~dallinger.realtime.store.load_player_ending` returns it. A
+        player without a final view in it gets ``None`` as their view.
     """
+    if not endings:
+        return
     items = [
         {
             "participant_ids": [player],
             "scope": None,
             "payload": ending_payload(session_id, ending, player),
         }
-        for player in players
+        for player, ending in endings.items()
     ]
     redis_conn.publish(REALTIME_SESSION_CHANNEL, direct_envelope(origin, items))
-
-
-def publish_player_saved(origin, session_id, participant, ending):
-    """Tell a player's pages that their ending, from before the session's, is
-    saved, with its reason and their final view.
-
-    :param origin: names the sender, a string
-    :param participant: the player's participant id, a string
-    :param ending: the player's ending, as
-        :func:`~dallinger.realtime.store.load_player_ending` returns it
-    """
-    send = {
-        "participant_ids": [participant],
-        "scope": None,
-        "payload": ending_payload(session_id, ending, participant),
-    }
-    redis_conn.publish(REALTIME_SESSION_CHANNEL, direct_envelope(origin, [send]))
 
 
 def publish_views(origin, passes):
