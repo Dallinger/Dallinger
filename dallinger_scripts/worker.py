@@ -10,9 +10,11 @@ DEFAULT_STARTUP_TIMEOUT = 120
 def worker_options(config, cpu=False):
     """Return the RQ gevent worker's keyword arguments and Redis pool size.
 
-    A CPU worker runs one job at a time. Each greenlet can hold a Redis
-    connection while RQ also uses some, so the connection pool needs headroom
-    above the greenlet count.
+    A CPU worker runs one job at a time, and ignores signals after the first:
+    Heroku and ``dallinger debug`` signal it directly as well as through the
+    worker that started it. Each greenlet can hold a Redis connection while
+    RQ also uses some, so the connection pool needs headroom above the
+    greenlet count.
     """
     if cpu:
         pool_size = 1
@@ -20,7 +22,11 @@ def worker_options(config, cpu=False):
         pool_size = config.get(
             "worker_greenlets_per_process", DEFAULT_GREENLETS_PER_PROCESS
         )
-    worker_kwargs = {"log_job_description": False, "pool_size": pool_size}
+    worker_kwargs = {
+        "log_job_description": False,
+        "pool_size": pool_size,
+        "cold_shutdown": not cpu,
+    }
     return worker_kwargs, max(50, pool_size + 10)
 
 

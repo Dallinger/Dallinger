@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 RESTART_DELAY = 1
 """Seconds between a child exiting and the next one starting."""
 
+# Python 3.12's os.fork warns about threads while it still holds its fork
+# locks, and Dallinger's warning hook can switch greenlets there. A second
+# fork from another greenlet would then block the whole process, so
+# supervisors fork one at a time.
+_fork_lock = threading.Lock()
+
 
 class RunnerSupervisor:
     """Run ``command`` in a child process, and run it again
@@ -64,7 +70,8 @@ class RunnerSupervisor:
                 if self.stopping.is_set():
                     return
                 try:
-                    self.process = subprocess.Popen(self.command)
+                    with _fork_lock:
+                        self.process = subprocess.Popen(self.command)
                 except OSError:
                     logger.exception("Couldn't start the %s.", self.name)
                     self.process = None

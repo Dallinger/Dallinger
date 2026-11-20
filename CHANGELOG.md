@@ -11,7 +11,9 @@
   `worker_greenlets_per_process` jobs at once, and a job that computes
   without waiting on the network or the database stalls all of them,
   including jobs holding database locks that requests are waiting for.
-  While the setting is `0`, the ordinary workers run `cpu` jobs too.
+  While the setting is `0`, the ordinary workers run `cpu` jobs too. On
+  shutdown, a CPU worker finishes its running job even if it gets more than
+  one signal, unless the platform kills it.
 - A real-time game type can define `handle_ending(session_row)`, which
   Dallinger calls once per session when it writes the session's ending, after
   the session's effects, however the session ended, including at its

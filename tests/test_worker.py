@@ -183,7 +183,8 @@ def test_cpu_worker_runs_cpu_jobs_one_at_a_time(tmp_path):
     assert result.returncode == 0, result.stderr
 
 
-def test_warm_shutdown_lets_the_running_job_finish_when_the_pool_is_full(tmp_path):
+def test_cpu_worker_finishes_its_job_despite_a_second_signal(tmp_path):
+    # Heroku sends SIGTERM to every process; the parent worker sends another.
     result = run_worker(
         tmp_path,
         """
@@ -191,6 +192,7 @@ def test_warm_shutdown_lets_the_running_job_finish_when_the_pool_is_full(tmp_pat
         import gevent
         job = self.queues[0].enqueue("time.sleep", 1)
         gevent.spawn_later(0.5, os.kill, os.getpid(), signal.SIGTERM)
+        gevent.spawn_later(0.51, os.kill, os.getpid(), signal.SIGTERM)
         real_work(self, logging_level=logging_level)
         assert job.get_status() == "finished", job.get_status()
         """,
@@ -216,7 +218,7 @@ def test_worker_keeps_cpu_workers_going_and_stops_them_when_it_stops(tmp_path):
     result = run_worker(
         tmp_path,
         f"""
-        deadline = time.monotonic() + 20
+        deadline = time.monotonic() + 5
         while not (
             os.path.exists({str(started)!r})
             and len(open({str(started)!r}).read().split()) >= 2
@@ -236,6 +238,24 @@ def test_worker_keeps_cpu_workers_going_and_stops_them_when_it_stops(tmp_path):
     lines = started.read_text().split()
     assert len([line for line in lines if line.isdigit()]) == 2
     assert lines.count("stopped") == 2
+
+
+def test_cpu_worker_starts_no_cpu_workers_of_its_own(tmp_path):
+    started = tmp_path / "started"
+    result = run_worker(
+        tmp_path,
+        "time.sleep(1)",
+        startup_timeout="60",
+        before_main=(
+            "import os, sys\n"
+            f"worker.CPU_WORKER_COMMAND = (sys.executable, '-c', "
+            f"{CPU_WORKER_STAND_IN!r}, {str(started)!r})"
+        ),
+        extra_config="cpu_processes_per_worker = 2\n",
+        argv=["--cpu"],
+    )
+    assert result.returncode == 0, result.stderr
+    assert not started.exists()
 
 
 def test_default_startup_timeout_matches_global_config_defaults():
