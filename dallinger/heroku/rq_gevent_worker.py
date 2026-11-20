@@ -160,6 +160,10 @@ class GeventWorker(Worker):
                 self.execute_job(job, queue)
 
         finally:
+            # A full pool makes the loop above notice a warm shutdown while
+            # its jobs still run; they must finish before the process exits.
+            # A cold shutdown has killed them already.
+            self.gevent_pool.join()
             if not self.is_horse:
                 self.register_death()
         return self.did_perform_work

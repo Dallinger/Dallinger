@@ -4,6 +4,14 @@
 
 ### Added
 
+- A `cpu` job queue and the `cpu_processes_per_worker` setting (default `0`)
+  for jobs that compute for long, such as audio analyses. Each worker
+  process starts that many CPU workers beside it, which take jobs from
+  `get_queue("cpu")` one at a time. A worker runs up to
+  `worker_greenlets_per_process` jobs at once, and a job that computes
+  without waiting on the network or the database stalls all of them,
+  including jobs holding database locks that requests are waiting for.
+  While the setting is `0`, the ordinary workers run `cpu` jobs too.
 - A real-time game type can define `handle_ending(session_row)`, which
   Dallinger calls once per session when it writes the session's ending, after
   the session's effects, however the session ended, including at its
@@ -54,6 +62,9 @@
   (`db.session.begin_nested()`). Before, closing one failed the session as
   if the handler had committed. A handler that leaves a savepoint open now
   fails the session, instead of its changes being lost or partly saved.
+- On a warm shutdown (one SIGTERM), a worker whose greenlet pool was full
+  exited without waiting for its running jobs, which were left unfinished.
+  It now waits for them, as it already did when the pool had room.
 
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 

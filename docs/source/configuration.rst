@@ -591,6 +591,8 @@ Setting                           What it sets
                                   ``num_dynos_worker``, with a warning, if
                                   only that is set.
 ``worker_greenlets_per_process``  Tasks per worker, on both platforms.
+``cpu_processes_per_worker``      Processes each worker starts for CPU-heavy
+                                  tasks, on both platforms.
 ================================  ============================================
 
 ``web_processes`` *unicode* or *integer*
@@ -610,6 +612,14 @@ Setting                           What it sets
 ``worker_greenlets_per_process`` *integer*
     Number of tasks that each worker process (a worker dyno or container)
     runs at the same time, as gevent greenlets. Default ``20``.
+
+``cpu_processes_per_worker`` *integer*
+    Number of CPU worker processes that each worker process starts and keeps
+    running beside it, in the same dyno or container. A CPU worker runs tasks
+    from the ``cpu`` queue (``dallinger.db.get_queue("cpu")``) one at a time,
+    so a task that computes for long, such as an audio analysis, can't hold up
+    the worker's other tasks. Default ``0``: then the ordinary workers run
+    ``cpu`` tasks too, after their other queues.
 
 Worker containers in Docker deployments get a low CPU weight, so the web
 server gets priority when the CPU is busy. Together, the workers get about a
@@ -645,8 +655,11 @@ very large difference to how the application behaves.
     ``worker_greenlets_per_process`` tasks at once (default 20). These tasks share
     the process cooperatively, so a task that computes for a long time without
     waiting on the network or the database blocks all the others in its process.
-    For CPU-heavy tasks, set ``worker_greenlets_per_process = 1`` and add
-    worker processes instead.
+    For CPU-heavy tasks, enqueue them on the ``cpu`` queue and set
+    ``cpu_processes_per_worker``, so they run in processes of their own while
+    other tasks keep sharing the workers. If most tasks are CPU-heavy, you
+    can instead set ``worker_greenlets_per_process = 1`` and add worker
+    processes.
     When running with bots, the total number of tasks (worker processes times
     ``worker_greenlets_per_process``) must be at least the
     number of bots, otherwise the experiment is guaranteed to fail. In practice,

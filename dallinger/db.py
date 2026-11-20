@@ -213,6 +213,8 @@ def get_queue(name="default"):
         - "high"
         - "default"
         - "low"
+        - "cpu", for jobs that compute for long without waiting on the
+          network or the database (see ``cpu_processes_per_worker``)
 
     as these are the names of the queues workers read from.
     """

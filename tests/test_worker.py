@@ -21,6 +21,7 @@ import dallinger.config
 from dallinger_scripts import worker
 
 worker.listen = [{queue!r}]
+worker.CPU_QUEUE = {queue!r} + "_cpu"
 real_initialize_experiment_package = dallinger.config.initialize_experiment_package
 
 def initialize_experiment_package(path):
@@ -38,19 +39,25 @@ def initialize_experiment_package(path):
 
 dallinger.config.initialize_experiment_package = initialize_experiment_package
 {before_main}
-worker.main()
+worker.main({argv!r})
 """
 
 
 def run_worker(
-    tmp_path, work_body="pass", startup_timeout="1", before_main="", extra_config=""
+    tmp_path,
+    work_body="pass",
+    startup_timeout="1",
+    before_main="",
+    extra_config="",
+    argv=(),
 ):
     """Run the worker's ``main`` with ``GeventWorker.work`` replaced by ``work_body``.
 
     ``work_body`` can call the original as ``real_work``. The worker listens
-    on a fresh queue, so it doesn't pick up other tests' jobs.
+    on fresh queues, so it doesn't pick up other tests' jobs.
     ``startup_timeout=None`` leaves ``worker_startup_timeout`` out of the
     environment; ``extra_config`` is appended to the experiment's config.txt.
+    ``argv`` are the worker's command-line arguments.
     """
     experiment_dir = shutil.copytree(EXPERIMENT_DIR, tmp_path / "experiment")
     with open(experiment_dir / "config.txt", "a") as config_txt:
@@ -59,6 +66,7 @@ def run_worker(
         queue=f"test_worker_{uuid.uuid4().hex}",
         work_body=textwrap.indent(textwrap.dedent(work_body).strip(), " " * 8),
         before_main=before_main,
+        argv=list(argv),
     )
     env = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
     if startup_timeout is None:
@@ -157,6 +165,77 @@ def test_worker_runs_jobs_and_keeps_their_executions_past_the_job_timeout(tmp_pa
         startup_timeout="60",
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_cpu_worker_runs_cpu_jobs_one_at_a_time(tmp_path):
+    result = run_worker(
+        tmp_path,
+        """
+        assert [queue.name for queue in self.queues] == [worker.CPU_QUEUE]
+        assert self.gevent_pool.size == 1
+        job = self.queues[0].enqueue("math.sqrt", 4)
+        real_work(self, burst=True, logging_level=logging_level)
+        assert job.get_status() == "finished", job.get_status()
+        """,
+        startup_timeout="60",
+        argv=["--cpu"],
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_warm_shutdown_lets_the_running_job_finish_when_the_pool_is_full(tmp_path):
+    result = run_worker(
+        tmp_path,
+        """
+        import os, signal
+        import gevent
+        job = self.queues[0].enqueue("time.sleep", 1)
+        gevent.spawn_later(0.5, os.kill, os.getpid(), signal.SIGTERM)
+        real_work(self, logging_level=logging_level)
+        assert job.get_status() == "finished", job.get_status()
+        """,
+        startup_timeout="60",
+        argv=["--cpu"],
+    )
+    assert result.returncode == 0, result.stderr
+
+
+CPU_WORKER_STAND_IN = """
+import os, signal, sys, time
+def stopped(*args):
+    open(sys.argv[1], 'a').write('stopped\\n')
+    sys.exit()
+signal.signal(signal.SIGTERM, stopped)
+open(sys.argv[1], 'a').write(f'{os.getpid()}\\n')
+time.sleep(60)
+"""
+
+
+def test_worker_keeps_cpu_workers_going_and_stops_them_when_it_stops(tmp_path):
+    started = tmp_path / "started"
+    result = run_worker(
+        tmp_path,
+        f"""
+        deadline = time.monotonic() + 20
+        while not (
+            os.path.exists({str(started)!r})
+            and len(open({str(started)!r}).read().split()) >= 2
+        ):
+            assert time.monotonic() < deadline, "CPU workers didn't start"
+            time.sleep(0.05)
+        """,
+        startup_timeout="60",
+        before_main=(
+            "import os, sys\n"
+            f"worker.CPU_WORKER_COMMAND = (sys.executable, '-c', "
+            f"{CPU_WORKER_STAND_IN!r}, {str(started)!r})"
+        ),
+        extra_config="cpu_processes_per_worker = 2\n",
+    )
+    assert result.returncode == 0, result.stderr
+    lines = started.read_text().split()
+    assert len([line for line in lines if line.isdigit()]) == 2
+    assert lines.count("stopped") == 2
 
 
 def test_default_startup_timeout_matches_global_config_defaults():
