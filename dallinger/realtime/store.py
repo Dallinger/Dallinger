@@ -438,9 +438,10 @@ def _start_session(session_id, channel, players, bots):
 
 
 def clear_realtime_sessions():
-    """Delete every session from redis, ended or not, keeping the runners'
-    heartbeats. :func:`dallinger.db.init_db` calls this when it recreates the
-    database, since session ids then start again at 1.
+    """Delete every session from redis, ended or not, and the runners'
+    counts, keeping the runners' heartbeats. :func:`dallinger.db.init_db`
+    calls this when it recreates the database, since session ids then start
+    again at 1.
     """
     # SCAN walks the keyspace a batch at a time without blocking redis.
     keys = [

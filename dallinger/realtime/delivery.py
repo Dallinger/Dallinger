@@ -125,12 +125,14 @@ def view_batch(origin, passes):
 
 
 def ending_payload(session_id, ending, participant):
-    """Return the payload that tells a player's page how its session ended:
-    a ``realtime_saved`` frame's if the ending is saved, otherwise a
-    ``realtime_ended`` frame's.
+    """Return the payload that tells a player's page how its session, or
+    their own game, ended: a ``realtime_saved`` frame's if the ending is
+    saved, otherwise a ``realtime_ended`` frame's.
 
     :param ending: the session's ending, as
-        :func:`~dallinger.realtime.store.load_ending` returns it
+        :func:`~dallinger.realtime.store.load_ending` returns it, or the
+        player's own, as :func:`~dallinger.realtime.store.load_player_ending`
+        returns it
     :param participant: the player's participant id, a string
     """
     payload = {
