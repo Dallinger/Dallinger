@@ -250,6 +250,7 @@ class TestSessions:
     def test_a_session_that_cant_start_after_the_commit_is_marked_failed(
         self, monkeypatch, failure
     ):
+        earlier = create_session(TurnTally, ["1"])
         monkeypatch.setattr(store, "publish_started", Mock())
         if failure == "redis":
             monkeypatch.setattr(
@@ -270,7 +271,8 @@ class TestSessions:
         )
         exception.assert_called_once_with("Could not start session %s.", session_id)
         store.publish_started.assert_not_called()
-        assert store.running_sessions() == []
+        assert store.running_sessions() == [earlier]
+        assert store.newest_session(TurnTally.channel, "1") == earlier
 
     def test_recreating_the_database_deletes_the_sessions_but_not_the_runners(self):
         session_id = create_session(TurnTally, ["1"])

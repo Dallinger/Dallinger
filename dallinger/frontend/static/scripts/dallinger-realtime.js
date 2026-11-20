@@ -76,8 +76,8 @@
    * It waits as ``waitForRealtimeSession`` does, on a connection of its
    * own, so the promise resolves at once if the participant is already
    * playing a session of the game type, and a page that is reloaded during
-   * a game finds its session again. A session whose ending has been saved
-   * isn't reported. It then opens the socket with ``openExperimentSocket``.
+   * a game finds its session again, or its ending if the game has ended.
+   * It then opens the socket with ``openExperimentSocket``.
    * Set the socket's callbacks, such as ``onView``, in the ``done``
    * callback, which runs before the socket has received anything.
    *
@@ -156,15 +156,17 @@
    * that needs the id before it joins, or that joins on ``/chat`` with
    * ``openChatSocket``.
    *
-   * If the participant is already a player in a running session of the
-   * game type, the promise resolves at once, with the newest such session,
-   * so a page that is reloaded during a game finds its session again. A
-   * session whose ending has been saved isn't reported.
+   * If the participant is already a player in a session of the game type,
+   * the promise resolves at once, with the newest such session, so a page
+   * that is reloaded during a game finds its session again. A session that
+   * has ended counts too, for an hour after its ending is saved, so a page
+   * that starts waiting after its game ended can join it and get the
+   * ending.
    *
    * When the participant plays several sessions of the game type, one
    * after another, pass the id of the session the page already has as
-   * ``afterSession``, so that only a newer one counts. Otherwise a
-   * still-running earlier session is the answer.
+   * ``afterSession``, so that only a newer one counts. Otherwise an earlier
+   * session, running or ended, is the answer.
    *
    * It waits on a connection of its own to the ``/experiment-socket``
    * route, which closes once it has the id. Like any experiment socket, that
@@ -458,6 +460,9 @@
       this.unacknowledged.push({
         number: number,
         payload: copy,
+        // Kept, so that each time predict replays the message it gets the
+        // same time.
+        sentAt: this.sessionTime(),
         connection: wentNow ? this._connection : null
       });
     }
@@ -571,7 +576,7 @@
         view: this.view,
         count: messages.length,
         predicted: messages.reduce(function (view, message) {
-          var next = predict(view, message.payload);
+          var next = predict(view, message.payload, message.sentAt);
           return next === undefined ? view : next;
         }, copyJson(this.view.view))
       };
@@ -675,7 +680,9 @@
    *   game has applied or rejected (see ``send``), or ``null``
    * - ``rejected``: this page's messages the game rejected since its last
    *   view, also passed to ``onRejected``
-   * - ``ended``: why the session ended, once it has, otherwise ``null``
+   * - ``ended``: why the session ended, once it has, or why this player's
+   *   game ended, if the game type's ``is_done`` ended it first, otherwise
+   *   ``null``
    * - ``clock``: the server's clock, in seconds since 1970, when the
    *   session time was ``time``
    * - ``tick_rate``: the game type's ``tick_rate``, how many tick views
@@ -715,19 +722,24 @@
 
   /**
    * Call ``callback`` once, as soon as the page learns the session has
-   * ended, with the reason it ended and this player's final view. Use it to
+   * ended, or this player's game has, if the game type's ``is_done`` ended
+   * it first, with the reason it ended and this player's final view. Use it to
    * stop taking moves and show how the game turned out. Don't submit the
    * page yet, since the result may not be saved (see ``resultSaved``).
    *
    * The reason is the one the game type's ``outcome`` method was passed:
    *
-   * - ``"finished"``: the game type's ``is_over`` method returned true
+   * - the reason the game type's ``end_reason`` method returned once its
+   *   ``is_over`` method returned true, ``"finished"`` by default
    * - ``"max_duration"``: the session ran for the game type's
    *   ``max_duration``
    * - ``"not_joined"``: no player other than a bot joined within the game
    *   type's ``join_timeout``
    * - ``"failed"``: the game's code failed
    * - or the reason the experiment passed to ``end_realtime_session``
+   *
+   * A player's own ending has the reason the game type's ``done_reason``
+   * returned, ``"done"`` by default.
    *
    * It also runs for a page that joins after the session has ended, which
    * gets no views. The final view can reach ``onView`` after this callback,
@@ -742,8 +754,8 @@
   };
 
   /**
-   * Call ``callback`` once, when the session's result has been saved, so the
-   * page can move on. It does what ``resultSaved`` does, as a callback, and
+   * Call ``callback`` once, when the session's result has been saved, or
+   * this player's, if their game ended first, so the page can move on. It does what ``resultSaved`` does, as a callback, and
    * is passed the same object.
    *
    * @param {function} callback - Called with the saved result
@@ -762,7 +774,8 @@
    * The returned promise resolves with an object holding:
    *
    * - ``status``: ``"ended"``, or ``"failed"`` if the game's code failed
-   * - ``reason``: why the session ended (see ``onEnded``)
+   * - ``reason``: why the session or this player's game ended (see
+   *   ``onEnded``)
    * - ``view``: this player's final view
    *
    * A failed session's result is saved too, so the page can move on either
@@ -875,10 +888,14 @@
    *
    * It is the newest view, with the player's moves that the game hasn't
    * handled yet applied by ``predict``, in the order they were sent.
-   * ``predict(view, message)`` gets a view and a message as it was passed
-   * to ``send``, and returns the view as it would be once the game applied
-   * the message. It may change the view it's given and return nothing, but
-   * must not change the message.
+   * ``predict(view, message, sentAt)`` gets a view and a message as it was
+   * passed to ``send``, and returns the view as it would be once the game
+   * applied the message. It may change the view it's given and return
+   * nothing, but must not change the message. ``sentAt`` is the session
+   * time (see ``sessionTime``) when the page sent the message, or ``null``
+   * if it wasn't known yet. It stays the same each time ``predict`` is
+   * applied again, after a new view, so use it rather than the time now to
+   * predict when something happens, such as when a moving piece arrives.
    *
    * ``predict`` has to do to the view what the game type's ``apply`` method
    * does to the state, or the player's piece jumps when the next view
