@@ -541,6 +541,17 @@ class TestEndings:
         assert session(result)["time"] == 0.9
         assert result.views[0]["view"]["time"] == 0.9
 
+    def test_max_duration_ends_the_game_without_asking_end_reason(self):
+        class Timed(TurnTally):
+            max_duration = 2
+
+            def end_reason(self, state):
+                raise AssertionError("end_reason was called")
+
+        game = Timed()
+
+        assert play(game, started(game), [], 2).ended["reason"] == MAX_DURATION
+
     def test_max_duration_ends_a_pass_with_nothing_to_do(self):
         game = type("Timed", (TurnTally,), {"max_duration": 2})()
 
@@ -783,7 +794,15 @@ class TestRecords:
 
     @pytest.mark.parametrize(
         "method",
-        ["next_deadline", "view", "is_over", "outcome", "bot", "save_message"],
+        [
+            "next_deadline",
+            "view",
+            "is_over",
+            "end_reason",
+            "outcome",
+            "bot",
+            "save_message",
+        ],
     )
     def test_only_methods_that_change_the_state_can_queue_effects(self, method):
         def queueing(self, *args):
@@ -1244,6 +1263,8 @@ class TestAddedAndFinishedPlayers:
         result = play(game, started(game), [message(0.1, "2", "leave")], 0.1)
 
         assert result.players_done[0]["reason"] == "quit 2"
+        (ending,) = [r for r in result.records if r["type"] == "player_end"]
+        assert ending["reason"] == "quit 2"
 
     @pytest.mark.parametrize("reason", ["", True, None])
     @pytest.mark.parametrize("method", ["end_reason", "done_reason"])

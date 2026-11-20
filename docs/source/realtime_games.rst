@@ -207,8 +207,9 @@ a die. It can draw in the methods that change the state, ``apply``, ``tick``,
 ``on_join``, ``on_leave`` and ``on_add``, and use what it drew in the state.
 ``view``, ``is_over``, ``end_reason``, ``is_done``, ``done_reason``,
 ``outcome``, ``next_deadline`` and ``save_message`` should only
-read the state, not change it: Dallinger can call them several times for the
-same state, so a number drawn in ``view`` could come out differently each time,
+read the state, not change it: Dallinger can call some of them, such as
+``view``, ``is_over`` and ``is_done``, several times for the same state, so a
+number drawn in ``view`` could come out differently each time,
 and a change one of them makes is kept without any error.
 
 A game whose sessions should replay exactly, for example to test it, keeps a
