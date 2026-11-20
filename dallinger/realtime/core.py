@@ -866,17 +866,17 @@ class _Pass:
     def page_views(self, everyone):
         session = self.session
         done = session["done"]
-        pages = [
-            page
-            for page in session["pages"]
-            if page["participant"] in self.newly_done
-            or (
-                page["participant"] not in done
-                and (
-                    everyone or (page["participant"], page["scope"]) in self.recipients
-                )
-            )
-        ]
+
+        def gets_view(page):
+            participant = page["participant"]
+            if participant in self.newly_done:
+                return True
+            # A player whose game ended in an earlier pass gets no more views.
+            if participant in done:
+                return False
+            return everyone or (participant, page["scope"]) in self.recipients
+
+        pages = [page for page in session["pages"] if gets_view(page)]
         if not pages:
             return []
         session["view_number"] += 1
@@ -895,6 +895,10 @@ class _Pass:
             if participant in shown:
                 view = copy_json(view)
             shown.add(participant)
+            if participant in done:
+                reason = done[participant]
+            else:
+                reason = None if ended is None else ended["reason"]
             views.append(
                 {
                     "participant": participant,
@@ -907,13 +911,7 @@ class _Pass:
                         "tick_rate": self.game.tick_rate,
                         "last_processed": page["last_processed"],
                         "rejected": page["rejected"],
-                        "ended": (
-                            done[participant]
-                            if participant in done
-                            else None
-                            if ended is None
-                            else ended["reason"]
-                        ),
+                        "ended": reason,
                         "view": view,
                     },
                 }
