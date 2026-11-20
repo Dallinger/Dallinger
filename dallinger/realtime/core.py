@@ -107,9 +107,9 @@ class PassResult:
     first: the time by which the session needs another pass even if no entry
     arrives. It's ``None`` if neither is coming, or the session has ended.
 
-    ``players_done`` lists a ``{"participant", "reason", "view"}`` dict for
-    each player who isn't a bot and whose game this pass ended before the
-    session's, with their final view.
+    ``players_done`` has a ``{"reason", "view"}`` dict for each player who
+    isn't a bot and whose game this pass ended before the session's, by
+    player, with their final view.
 
     ``tick_delays`` lists how many seconds after it was due each of the
     pass's ticks ran, and ``message_delays`` how many seconds each message
@@ -123,7 +123,7 @@ class PassResult:
     records: list
     ended: dict | None
     next_due: float | None
-    players_done: list = field(default_factory=list)
+    players_done: dict = field(default_factory=dict)
     tick_delays: list = field(default_factory=list)
     message_delays: list = field(default_factory=list)
 
@@ -490,21 +490,16 @@ class _Pass:
         views = self.page_views(everyone)
         saved = dump_json(self.session, self.state_name)
         copied = copy_json({"records": self.records, "ended": self.session["ended"]})
-        players_done = [
-            {
-                "participant": player,
-                "reason": self.session["done"][player],
-                "view": view,
-            }
-            for player, view in self.newly_done.items()
-        ]
         return PassResult(
             saved,
             views,
             copied["records"],
             copied["ended"],
             next_due,
-            players_done,
+            {
+                player: {"reason": self.session["done"][player], "view": view}
+                for player, view in self.newly_done.items()
+            },
             self.tick_delays,
             self.message_delays,
         )

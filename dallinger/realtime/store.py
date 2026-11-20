@@ -1252,11 +1252,13 @@ def _write_pass(pipe, session_id, applied, result, px):
         pipe.hincrby(state_key, "applied", len(applied))
     pipe.hset(state_key, mapping=state)
     pipe.delete(session_key(session_id, "handovers"))
-    for done in result.players_done:
+    if result.players_done:
         pipe.hset(
             session_key(session_id, "done"),
-            done["participant"],
-            dump_json({"reason": done["reason"], "view": done["view"], "status": None}),
+            mapping={
+                player: dump_json({**done, "status": None})
+                for player, done in result.players_done.items()
+            },
         )
     for record in result.records:
         pipe.xadd(session_key(session_id, "records"), {"record": dump_json(record)})

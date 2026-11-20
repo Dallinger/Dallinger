@@ -1199,13 +1199,9 @@ class TestAddedAndFinishedPlayers:
         first = play(game, saved, [message(0.1, "1", "leave", number=1)], 0.1)
 
         assert first.ended is None
-        assert first.players_done == [
-            {
-                "participant": "1",
-                "reason": "done",
-                "view": {"for": "1", "log": log(first)},
-            }
-        ]
+        assert first.players_done == {
+            "1": {"reason": "done", "view": {"for": "1", "log": log(first)}}
+        }
         assert views_by_page(first)[("1", "page")]["ended"] == "done"
         (ending,) = [r for r in first.records if r["type"] == "player_end"]
         assert ending["participant"] == "1" and ending["outcome"]["moves"] == 3
@@ -1224,7 +1220,7 @@ class TestAddedAndFinishedPlayers:
         assert ["1", "move", 0.2] not in log(second)
         assert ["leave", "1", 0.4] not in log(second)
         assert {each["participant"] for each in second.views} == {"2"}
-        assert second.players_done == []
+        assert second.players_done == {}
         assert set(second.ended["views"]) == {"2"}
 
     @pytest.mark.parametrize("failing", [False, True])
@@ -1262,7 +1258,7 @@ class TestAddedAndFinishedPlayers:
 
         result = play(game, started(game), [message(0.1, "2", "leave")], 0.1)
 
-        assert result.players_done[0]["reason"] == "quit 2"
+        assert result.players_done["2"]["reason"] == "quit 2"
         (ending,) = [r for r in result.records if r["type"] == "player_end"]
         assert ending["reason"] == "quit 2"
 
