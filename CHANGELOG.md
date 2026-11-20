@@ -30,7 +30,6 @@
   they were busy, and for each game type, its passes, the time they took,
   and how many ticks ran, and how many messages from pages were applied,
   within each range of delay.
-
 - A real-time game type can define `end_reason(state)`, which gives the
   session's end reason once `is_over` returns true, such as `"timeout"` for
   a limit the game keeps itself, instead of `"finished"`. Likewise,

@@ -280,14 +280,14 @@ class RealtimeGame(ABC):
 
         It should only read ``state``, not change it.
 
-        :param reason: why the session ended:
-            :data:`~dallinger.realtime.game.FINISHED`,
+        :param reason: why the session ended: the reason :meth:`end_reason`
+            returned (:data:`~dallinger.realtime.game.FINISHED` by default),
             :data:`~dallinger.realtime.game.MAX_DURATION`,
             :data:`~dallinger.realtime.game.NOT_JOINED`,
-            :data:`~dallinger.realtime.game.FAILED`, the reason
-            :meth:`end_reason` returned, or the reason the experiment gave
-            when it ended the session; or, for one player's ending, the
-            reason :meth:`done_reason` returned. A session that failed
+            :data:`~dallinger.realtime.game.FAILED`, or the reason the
+            experiment gave when it ended the session; or, for one player's
+            ending, the reason :meth:`done_reason` returned
+            (:data:`~dallinger.realtime.game.DONE` by default). A session that failed
             passes the state from before the failure.
         """
         return None
