@@ -205,8 +205,8 @@ the state as session times.
 A game can use Python's ``random`` module, for example to shuffle a deck or roll
 a die. It can draw in the methods that change the state, ``apply``, ``tick``,
 ``on_join``, ``on_leave`` and ``on_add``, and use what it drew in the state.
-``view``, ``is_over``, ``is_done``, ``outcome``, ``next_deadline`` and
-``save_message`` should only
+``view``, ``is_over``, ``end_reason``, ``is_done``, ``done_reason``,
+``outcome``, ``next_deadline`` and ``save_message`` should only
 read the state, not change it: Dallinger can call them several times for the
 same state, so a number drawn in ``view`` could come out differently each time,
 and a change one of them makes is kept without any error.
@@ -506,7 +506,8 @@ each player still playing:
 time is up, and that ``is_done`` reads.
 
 A player who is done gets their final view, with their ending's reason,
-``"done"`` unless ``is_done`` returns a string. The session refuses their
+which :meth:`~dallinger.realtime.RealtimeGame.done_reason` gives, ``"done"``
+by default. The session refuses their
 messages from then on, and their pages get no more views. They stay in the
 state, and in the other players' views, unless the game removes them. The
 record notes the player's ending, with the reason and the ``outcome`` of the
@@ -522,8 +523,9 @@ Endings
 
 Dallinger ends a session automatically when any of these happens:
 
-- ``is_over`` returns true, or a string, which becomes the session's end
-  reason
+- ``is_over`` returns true. The session's end reason is then what
+  :meth:`~dallinger.realtime.RealtimeGame.end_reason` returns, ``"finished"``
+  by default
 - the session time reaches the game type's
   :attr:`~dallinger.realtime.RealtimeGame.max_duration`
 - no player other than a bot has opened the game's page within

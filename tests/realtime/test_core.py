@@ -425,10 +425,13 @@ class TestJoinAndLeave:
         assert log(result) == [["9", "stop", 0]]
         assert (result.ended["time"], result.ended["reason"]) == (0, FINISHED)
 
-    def test_is_over_can_give_the_end_reason(self):
+    def test_end_reason_gives_the_end_reason(self):
         class StopsWithReason(TurnTally):
             def is_over(self, state):
-                return "timeout" if state["log"] else False
+                return bool(state["log"])
+
+            def end_reason(self, state):
+                return "timeout"
 
             def on_join(self, state, player_id, now):
                 state["log"].append([player_id, "join", now])
@@ -1231,13 +1234,28 @@ class TestAddedAndFinishedPlayers:
 
         assert {each["participant"] for each in second.views} == {"2"}
 
-    def test_is_done_can_give_the_reason(self):
+    def test_done_reason_gives_the_reason(self):
         class Quitting(Growing):
-            def is_done(self, state, player_id):
-                return "quit" if super().is_done(state, player_id) else False
+            def done_reason(self, state, player_id):
+                return "quit " + player_id
 
         game = Quitting()
 
         result = play(game, started(game), [message(0.1, "2", "leave")], 0.1)
 
-        assert result.players_done[0]["reason"] == "quit"
+        assert result.players_done[0]["reason"] == "quit 2"
+
+    @pytest.mark.parametrize("reason", ["", True, None])
+    @pytest.mark.parametrize("method", ["end_reason", "done_reason"])
+    def test_a_reason_that_is_not_a_non_empty_string_fails_the_session(
+        self, method, reason
+    ):
+        game = type("Bad", (Growing,), {method: lambda self, *args: reason})()
+        ending = message(0.1, "1", "stop" if method == "end_reason" else "leave")
+
+        result = play(game, started(game), [ending], 0.1)
+
+        assert result.ended["reason"] == FAILED
+        assert "Bad.{} returned {!r}, not a non-empty string".format(
+            method, reason
+        ) in error(result)

@@ -27,8 +27,8 @@ from dataclasses import dataclass
 from dallinger.db import RESERVED_CHANNELS
 from dallinger.realtime.utils import copy_json, is_int, is_number
 
-#: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
-#: :meth:`~dallinger.realtime.RealtimeGame.is_over` returned true.
+#: The reason :meth:`~dallinger.realtime.RealtimeGame.end_reason` gives by
+#: default, once :meth:`~dallinger.realtime.RealtimeGame.is_over` returned true.
 FINISHED = "finished"
 
 #: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
@@ -45,8 +45,9 @@ NOT_JOINED = "not_joined"
 #: the session failed.
 FAILED = "failed"
 
-#: The reason a player's game ended when
-#: :meth:`~dallinger.realtime.RealtimeGame.is_done` returned true for them.
+#: The reason :meth:`~dallinger.realtime.RealtimeGame.done_reason` gives by
+#: default, once :meth:`~dallinger.realtime.RealtimeGame.is_done` returned true
+#: for a player.
 DONE = "done"
 
 #: The reason a message is refused when its player's game has ended, after
@@ -256,16 +257,22 @@ class RealtimeGame(ABC):
         """
 
     def is_over(self, state):
-        """Return whether the game has finished. Checked after every change
-        to the state.
-
-        Return a non-empty string instead of ``True`` to end the session with
-        that string as its reason, such as ``"timeout"``. ``True`` ends it
-        with the reason :data:`~dallinger.realtime.game.FINISHED`.
+        """Return whether the game has finished, as a bool. Checked after
+        every change to the state. Once it's true, :meth:`end_reason` gives
+        the session's end reason.
 
         It should only read ``state``, not change it.
         """
         return False
+
+    def end_reason(self, state):
+        """Return why the game finished, a non-empty string such as
+        ``"timeout"``, which becomes the session's end reason. Called once
+        :meth:`is_over` returns true. Any other value fails the session.
+
+        It should only read ``state``, not change it.
+        """
+        return FINISHED
 
     def outcome(self, state, reason):
         """Return the session's result, saved in Postgres when the session
@@ -277,10 +284,10 @@ class RealtimeGame(ABC):
             :data:`~dallinger.realtime.game.FINISHED`,
             :data:`~dallinger.realtime.game.MAX_DURATION`,
             :data:`~dallinger.realtime.game.NOT_JOINED`,
-            :data:`~dallinger.realtime.game.FAILED`, the reason ``is_over``
-            returned, or the reason the experiment gave when it ended the
-            session; or, for one player's ending, :data:`~dallinger.realtime.game.DONE`
-            or the reason ``is_done`` returned. A session that failed
+            :data:`~dallinger.realtime.game.FAILED`, the reason
+            :meth:`end_reason` returned, or the reason the experiment gave
+            when it ended the session; or, for one player's ending, the
+            reason :meth:`done_reason` returned. A session that failed
             passes the state from before the failure.
         """
         return None
@@ -316,21 +323,27 @@ class RealtimeGame(ABC):
 
     def is_done(self, state, player_id):
         """Return whether a player's game has ended while the session carries
-        on, such as once they've played their turns or chosen to leave.
-        Checked for each player still playing after every change to the
-        state, while the session runs. :ref:`Players Who Join or Finish
-        During a Session` says what happens to a player who is done; the
-        session refuses their messages with the reason
-        :data:`~dallinger.realtime.game.PLAYER_DONE_REASON`.
-
-        Return a non-empty string instead of ``True`` to give that string as
-        the reason. ``True`` gives the reason
-        :data:`~dallinger.realtime.game.DONE`. By default, a player's game
-        ends with the session.
+        on, such as once they've played their turns or chosen to leave, as a
+        bool. Checked for each player still playing after every change to the
+        state, while the session runs. Once it's true, :meth:`done_reason`
+        gives the reason. :ref:`Players Who Join or Finish During a Session`
+        says what happens to a player who is done; the session refuses their
+        messages with the reason
+        :data:`~dallinger.realtime.game.PLAYER_DONE_REASON`. By default, a
+        player's game ends with the session.
 
         It should only read ``state``, not change it.
         """
         return False
+
+    def done_reason(self, state, player_id):
+        """Return why a player's game ended, a non-empty string. Called once
+        :meth:`is_done` returns true for that player. Any other value fails
+        the session.
+
+        It should only read ``state``, not change it.
+        """
+        return DONE
 
     def save_message(self, state, player_id, message, rejection):
         """Return ``True`` to save a message in the session's record, or

@@ -40,9 +40,7 @@ import traceback
 from dataclasses import dataclass, field
 
 from dallinger.realtime.game import (
-    DONE,
     FAILED,
-    FINISHED,
     MAX_DURATION,
     NOT_JOINED,
     PLAYER_DONE_REASON,
@@ -93,7 +91,8 @@ class PassResult:
       it's a ``bot``
     - ``player_end``: the ``participant`` whose game
       :meth:`~dallinger.realtime.RealtimeGame.is_done` ended, its ``reason``
-      and the ``outcome`` then
+      from :meth:`~dallinger.realtime.RealtimeGame.done_reason` and the
+      ``outcome`` then
     - ``end``: the ``reason``, ``outcome``, final ``state`` and ``error``
 
     ``ended`` is the session's ending if this pass ended it, otherwise
@@ -808,13 +807,22 @@ class _Pass:
     def check_over(self):
         if self.end_reason is not None:
             return
-        over = self.call("is_over", self.state)
-        if isinstance(over, str) and over:
-            self.end_reason = over
-        elif over:
-            self.end_reason = FINISHED
+        if self.call("is_over", self.state):
+            self.end_reason = self.reason("end_reason", self.state)
         elif self.checks_done:
             self.check_done()
+
+    def reason(self, name, *args):
+        """Call the game's method ``name`` and return the reason it gives,
+        which must be a non-empty string."""
+        reason = self.call(name, *args)
+        if not isinstance(reason, str) or not reason:
+            raise TypeError(
+                "{}.{} returned {!r}, not a non-empty string.".format(
+                    self.name, name, reason
+                )
+            )
+        return reason
 
     def check_done(self):
         """End the game of each player still playing that ``is_done`` says
@@ -823,11 +831,8 @@ class _Pass:
         for player in list(self.session["members"]):
             if player in done:
                 continue
-            result = self.call("is_done", self.state, player)
-            if isinstance(result, str) and result:
-                self.end_player(player, result)
-            elif result:
-                self.end_player(player, DONE)
+            if self.call("is_done", self.state, player):
+                self.end_player(player, self.reason("done_reason", self.state, player))
 
     def end_player(self, player, reason):
         """End a player's game before the session's."""

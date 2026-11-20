@@ -31,15 +31,15 @@
   and how many ticks ran, and how many messages from pages were applied,
   within each range of delay.
 
+- A real-time game type can define `end_reason(state)`, which gives the
+  session's end reason once `is_over` returns true, such as `"timeout"` for
+  a limit the game keeps itself, instead of `"finished"`. Likewise,
+  `done_reason(state, player_id)` gives a player's reason once `is_done`
+  returns true for them, instead of `"done"`. Both must return a non-empty
+  string, or the session fails.
+
 ### Changed
 
-- A real-time game's `is_over` can return a non-empty string instead of
-  `True`, to end the session with that string as its reason, such as
-  `"timeout"` for a limit the game keeps itself. Before, any true value
-  ended the session with the reason `"finished"`, so an `is_over` that
-  returned a string such as a winner's name now gives that string as the
-  reason; return `True` to keep `"finished"`. No game in Dallinger's demos
-  returns a string.
 - `dallinger.waitForRealtimeSession` and `dallinger.joinRealtimeSession` also
   find a session of the game type that has ended, for an hour after its
   ending is saved, so a page reloaded or opened after its game ended gets the

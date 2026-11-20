@@ -729,8 +729,8 @@
    *
    * The reason is the one the game type's ``outcome`` method was passed:
    *
-   * - ``"finished"``: the game type's ``is_over`` method returned true
-   * - the string the game type's ``is_over`` method returned
+   * - the reason the game type's ``end_reason`` method returned once its
+   *   ``is_over`` method returned true, ``"finished"`` by default
    * - ``"max_duration"``: the session ran for the game type's
    *   ``max_duration``
    * - ``"not_joined"``: no player other than a bot joined within the game
@@ -738,8 +738,8 @@
    * - ``"failed"``: the game's code failed
    * - or the reason the experiment passed to ``end_realtime_session``
    *
-   * A player's own ending has ``"done"`` as its reason, or the reason the
-   * game type's ``is_done`` returned.
+   * A player's own ending has the reason the game type's ``done_reason``
+   * returned, ``"done"`` by default.
    *
    * It also runs for a page that joins after the session has ended, which
    * gets no views. The final view can reach ``onView`` after this callback,
