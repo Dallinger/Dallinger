@@ -857,9 +857,9 @@ def test_worker_greenlets_per_process_sizes_gevent_and_redis_pools(
 @pytest.mark.parametrize(
     "cpu, cpu_processes, queues, pool_size",
     [
-        (False, 0, ["high", "default", "low", "cpu"], 20),
+        (False, 0, ["high", "default", "low", "cpu_high", "cpu", "cpu_low"], 20),
         (False, 2, ["high", "default", "low"], 20),
-        (True, 2, ["cpu"], 1),
+        (True, 2, ["cpu_high", "cpu", "cpu_low"], 1),
     ],
 )
 def test_cpu_jobs_go_to_cpu_workers_when_there_are_any(

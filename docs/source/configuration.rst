@@ -616,10 +616,12 @@ Setting                           What it sets
 ``cpu_processes_per_worker`` *integer*
     Number of CPU worker processes that each worker process starts and keeps
     running beside it, in the same dyno or container. A CPU worker runs tasks
-    from the ``cpu`` queue (``dallinger.db.get_queue("cpu")``) one at a time,
-    so a task that computes for long, such as an audio analysis, can't hold up
-    the worker's other tasks. Default ``0``: then the ordinary workers run
-    ``cpu`` tasks too, after their other queues.
+    from the CPU queues one at a time, so a task that computes for long, such
+    as an audio analysis, can't hold up the worker's other tasks. The CPU
+    queues mirror the priority queues: ``cpu_high``, ``cpu`` and ``cpu_low``
+    (for example ``dallinger.db.get_queue("cpu_high")``), taken in that
+    order. Default ``0``: then the ordinary workers run CPU tasks too, after
+    their other queues.
 
 Worker containers in Docker deployments get a low CPU weight, so the web
 server gets priority when the CPU is busy. Together, the workers get about a
@@ -655,7 +657,8 @@ very large difference to how the application behaves.
     ``worker_greenlets_per_process`` tasks at once (default 20). These tasks share
     the process cooperatively, so a task that computes for a long time without
     waiting on the network or the database blocks all the others in its process.
-    For CPU-heavy tasks, enqueue them on the ``cpu`` queue and set
+    For CPU-heavy tasks, enqueue them on a CPU queue (``cpu_high``, ``cpu``
+    or ``cpu_low``) and set
     ``cpu_processes_per_worker``, so they run in processes of their own while
     other tasks keep sharing the workers. If most tasks are CPU-heavy, you
     can instead set ``worker_greenlets_per_process = 1`` and add worker

@@ -1,5 +1,6 @@
 listen = ["high", "default", "low"]
-CPU_QUEUE = "cpu"
+# CPU-heavy counterparts of ``listen``, in the same priority order.
+cpu_listen = ["cpu_high", "cpu", "cpu_low"]
 CPU_WORKER_COMMAND = ("dallinger_heroku_worker", "--cpu")
 DEFAULT_GREENLETS_PER_PROCESS = 20
 # Applies until the config is loaded, unless the environment sets
@@ -33,15 +34,16 @@ def worker_options(config, cpu=False):
 def worker_queues(config, cpu=False):
     """Return the names of the queues a worker takes jobs from, in order.
 
-    A CPU worker takes jobs only from the ``cpu`` queue. Other workers take
-    them from ``cpu`` too, last, unless ``cpu_processes_per_worker`` starts
-    CPU workers to do it.
+    A CPU worker takes jobs only from the CPU queues, ``cpu_high``, ``cpu``
+    and ``cpu_low``, in that order. Other workers take them too, after their
+    other queues, unless ``cpu_processes_per_worker`` starts CPU workers to
+    do it.
     """
     if cpu:
-        return [CPU_QUEUE]
+        return list(cpu_listen)
     if config.get("cpu_processes_per_worker", 0) > 0:
         return list(listen)
-    return [*listen, CPU_QUEUE]
+    return [*listen, *cpu_listen]
 
 
 def _checked_startup_timeout(value):
@@ -117,7 +119,7 @@ def _exit_unless_registered_within(timeout, started):
 def main(argv=None):
     """Run a worker.
 
-    With ``--cpu``, run a CPU worker: it takes jobs from the ``cpu`` queue one
+    With ``--cpu``, run a CPU worker: it takes jobs from the CPU queues one
     at a time, so a job that computes for long can't hold up other jobs, and
     it starts no real-time runner or CPU workers of its own.
     """
@@ -129,7 +131,7 @@ def main(argv=None):
     parser.add_argument(
         "--cpu",
         action="store_true",
-        help="Run jobs from the cpu queue, one at a time.",
+        help="Run jobs from the CPU queues, one at a time.",
     )
     cpu = parser.parse_args(argv).cpu
 

@@ -21,7 +21,7 @@ import dallinger.config
 from dallinger_scripts import worker
 
 worker.listen = [{queue!r}]
-worker.CPU_QUEUE = {queue!r} + "_cpu"
+worker.cpu_listen = [{queue!r} + suffix for suffix in ("_cpu_high", "_cpu", "_cpu_low")]
 real_initialize_experiment_package = dallinger.config.initialize_experiment_package
 
 def initialize_experiment_package(path):
@@ -167,15 +167,20 @@ def test_worker_runs_jobs_and_keeps_their_executions_past_the_job_timeout(tmp_pa
     assert result.returncode == 0, result.stderr
 
 
-def test_cpu_worker_runs_cpu_jobs_one_at_a_time(tmp_path):
+def test_cpu_worker_runs_cpu_jobs_one_at_a_time_by_priority(tmp_path):
     result = run_worker(
         tmp_path,
         """
-        assert [queue.name for queue in self.queues] == [worker.CPU_QUEUE]
+        assert [queue.name for queue in self.queues] == worker.cpu_listen
         assert self.gevent_pool.size == 1
-        job = self.queues[0].enqueue("math.sqrt", 4)
+        high, _, low = self.queues
+        low_job = low.enqueue("time.sleep", 0.1)
+        high_job = high.enqueue("time.sleep", 0.1)
         real_work(self, burst=True, logging_level=logging_level)
-        assert job.get_status() == "finished", job.get_status()
+        for job in (low_job, high_job):
+            job.refresh()
+            assert job.get_status() == "finished", job.get_status()
+        assert high_job.ended_at <= low_job.started_at
         """,
         startup_timeout="60",
         argv=["--cpu"],
