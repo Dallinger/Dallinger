@@ -15,6 +15,7 @@
   While the setting is `0`, the ordinary workers run CPU jobs too, after
   their other queues. On shutdown, a CPU worker finishes its running job
   even if it gets more than one signal, unless the platform kills it.
+  Docker worker containers now get 30 seconds to stop, as on Heroku.
 - A real-time game type can define `handle_ending(session_row)`, which
   Dallinger calls once per session when it writes the session's ending, after
   the session's effects, however the session ended, including at its
