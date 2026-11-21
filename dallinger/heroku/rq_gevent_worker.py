@@ -76,7 +76,8 @@ class GeventWorker(Worker):
         # Nothing renews the registration while the pool is full, so it must
         # last as long as the running jobs may.
         timeout = max(
-            [timeout or 0] + [self.get_heartbeat_ttl(c.job) for c in self.children]
+            [timeout or self.worker_ttl + 60]
+            + [self.get_heartbeat_ttl(c.job) for c in self.children]
         )
         super(GeventWorker, self).heartbeat(timeout)
         connection.hset(self.key, "curr_pool_len", len(self.gevent_pool))
@@ -230,7 +231,7 @@ class GeventWorker(Worker):
                 # it runs a job.
                 log = self.log.debug if self.gevent_pool.size == 1 else self.log.warning
                 log(
-                    "RQ GEVENT worker greenlet pool empty current size %s",
+                    "RQ GEVENT worker greenlet pool full, size %s",
                     self.gevent_pool.size,
                 )
 
