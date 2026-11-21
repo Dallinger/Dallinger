@@ -87,6 +87,7 @@ services:
     restart: unless-stopped
     image: {{ experiment_image }}
     command: dallinger_heroku_worker
+    stop_grace_period: 30s
     cpu_shares: {{ worker_cpu_shares }}
     depends_on:
       <<: *commondepends

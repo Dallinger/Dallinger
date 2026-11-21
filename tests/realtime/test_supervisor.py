@@ -88,6 +88,24 @@ def test_stop_passes_sigterm_on_and_starts_no_more(supervise, caplog):
     assert "Starting another" not in caplog.text
 
 
+COUNTS_SIGTERMS = """
+import os, signal, sys, time
+signal.signal(signal.SIGTERM, lambda *args: open(sys.argv[1], 'a').write('term\\n'))
+open(sys.argv[1], 'a').write(f'{os.getpid()}\\n')
+time.sleep(1)
+"""
+
+
+def test_stopping_twice_sends_one_sigterm(supervise):
+    supervisor, path = supervise(COUNTS_SIGTERMS)
+    wait_until(lambda: len(lines(path)) == 1)
+
+    supervisor.stop()
+    supervisor.stop()
+    supervisor.join()
+    assert lines(path)[1:] == ["term"]
+
+
 def test_a_supervisor_stopped_before_it_starts_starts_nothing(tmp_path):
     path = tmp_path / "started"
     supervisor = RunnerSupervisor([sys.executable, "-c", EXITS, str(path)])

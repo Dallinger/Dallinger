@@ -182,6 +182,7 @@ def stub_config():
         "web_processes": "1",
         "whimsical": True,
         "worker_greenlets_per_process": 20,
+        "cpu_processes_per_worker": 0,
         "worker_processes": 1,
         "replay": False,
     }
