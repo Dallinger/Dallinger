@@ -590,6 +590,24 @@ def _random_pin():
     return "-".join((digits[:3], digits[3:6], digits[6:]))
 
 
+def serves_requests():
+    """Return whether this ``flask run`` process serves the requests.
+
+    With auto-reload on, that's the process the reloader restarts on every
+    code change, and not the reloader itself. With auto-reload off, it's
+    the only process. It's ``False`` outside ``flask run``.
+    """
+    import click
+    from werkzeug.serving import is_running_from_reloader
+
+    if is_running_from_reloader():
+        return True
+    return (
+        click.get_current_context(silent=True) is not None
+        and not _flask_run_settings()[0]
+    )
+
+
 def _flask_run_settings():
     """Return ``(reload, debugger)`` for the running ``flask run`` command.
 

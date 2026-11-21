@@ -298,6 +298,31 @@ def test_development_role_sets_up_the_console(monkeypatch, capsys):
     assert "hidden" not in err
 
 
+@pytest.mark.parametrize(
+    "args, reloader_child, serves",
+    [
+        (["--no-reload"], False, True),
+        (["--reload"], False, False),
+        (["--reload"], True, True),
+        (None, False, False),
+    ],
+)
+def test_only_the_process_that_serves_requests_counts_as_serving(
+    monkeypatch, args, reloader_child, serves
+):
+    from flask.cli import run_command
+
+    if reloader_child:
+        monkeypatch.setenv("WERKZEUG_RUN_MAIN", "true")
+    else:
+        monkeypatch.delenv("WERKZEUG_RUN_MAIN", raising=False)
+    if args is None:
+        assert dev_logging.serves_requests() is serves
+        return
+    with run_command.make_context("run", args) as ctx, ctx.scope():
+        assert dev_logging.serves_requests() is serves
+
+
 def wsgi_app(environ, start_response):
     path = environ["PATH_INFO"]
     if path == "/boom":
