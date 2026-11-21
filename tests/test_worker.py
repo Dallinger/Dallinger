@@ -188,6 +188,30 @@ def test_cpu_worker_runs_cpu_jobs_one_at_a_time_by_priority(tmp_path):
     assert result.returncode == 0, result.stderr
 
 
+def test_busy_cpu_worker_keeps_its_registration_alive(tmp_path):
+    result = run_worker(
+        tmp_path,
+        """
+        import gevent
+        self.worker_ttl = 2
+        beats = []
+        real_heartbeat = self.heartbeat
+        def heartbeat(*args, **kwargs):
+            beats.append(time.monotonic())
+            return real_heartbeat(*args, **kwargs)
+        self.heartbeat = heartbeat
+        job = self.queues[0].enqueue("time.sleep", 3)
+        started = time.monotonic()
+        real_work(self, burst=True, logging_level=logging_level)
+        assert job.get_status() == "finished", job.get_status()
+        assert len([b for b in beats if started + 0.5 < b < started + 2.9]) >= 2, beats
+        """,
+        startup_timeout="60",
+        argv=["--cpu"],
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_cpu_worker_finishes_its_job_despite_a_second_signal(tmp_path):
     # Heroku sends SIGTERM to every process; the parent worker sends another.
     result = run_worker(
