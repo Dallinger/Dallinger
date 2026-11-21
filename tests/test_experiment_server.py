@@ -980,6 +980,13 @@ class TestParticipantByAssignmentRoute:
         assert resp.status_code == 200
         assert json.loads(resp.data.decode("utf8"))["participant"] is None
 
+    def test_missing_ok_must_be_true(self, webapp):
+        resp = webapp.post(
+            "/load-participant",
+            data={"assignment_id": "unknown", "missing_ok": "false"},
+        )
+        assert resp.status_code == 403
+
     def test_missing_ok_still_loads_an_existing_participant(self, a, webapp):
         a.participant(worker_id="W1", assignment_id="A1")
         resp = webapp.post(
@@ -1005,7 +1012,9 @@ class TestParticipantByAssignmentRoute:
                 "hit_id": hit_id,
                 "entry_information": args[-1],
             }
-            resp = webapp.post("/load-participant", data={"random_info": "123"})
+            resp = webapp.post(
+                "/load-participant", data={"random_info": "123", "missing_ok": "true"}
+            )
             data = json.loads(resp.data.decode("utf8"))
             normalizer.assert_called_once_with({"random_info": "123"})
             assert data.get("status") == "success"
