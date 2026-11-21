@@ -54,6 +54,9 @@
   (`db.session.begin_nested()`). Before, closing one failed the session as
   if the handler had committed. A handler that leaves a savepoint open now
   fails the session, instead of its changes being lost or partly saved.
+- The development server starts its worker and clock with auto-reload off
+  (`FLASK_RUN_RELOAD=false` or `flask run --no-reload`). Before, it served
+  pages but never ran jobs, so, for example, the experiment never launched.
 
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 

@@ -62,7 +62,7 @@ def _shutdown_logging_before_teardown():
 
 os.environ["FLASK_SECRET_KEY"] = codecs.encode(os.urandom(16), "hex").decode("ascii")
 
-if werkzeug.serving.is_running_from_reloader() and load_error is None:
+if dev_logging.serves_requests() and load_error is None:
     env = {**os.environ, "PYTHONUNBUFFERED": "1"}
     env.pop(dev_logging.PIN_ENV, None)
     worker = subprocess.Popen(
