@@ -352,6 +352,13 @@ When the lookup fails, the JSON error response may include a machine-readable
 
 JavaScript clients can read these values from ``AjaxRejection.errorCode``.
 
+A client that expects to find no participant, such as a start page that
+creates one when it finds none, can include ``missing_ok=true`` in the POST
+data. Either failure
+then gets a success response with ``participant`` set to ``null``, so the
+browser doesn't log an error for every new participant. ``missing_ok`` is
+not passed on to ``normalize_entry_information``.
+
 ::
 
     POST /question/<participant_id>
