@@ -24,8 +24,16 @@ RESTART_DELAY = 1
 # Python 3.12's os.fork warns about threads while it still holds its fork
 # locks, and Dallinger's warning hook can switch greenlets there. A second
 # fork from another greenlet would then block the whole process, so
-# supervisors fork one at a time.
-_fork_lock = threading.Lock()
+# supervisors fork one at a time. The lock is created on first use, after
+# the worker has monkey-patched threading, so that it is a gevent lock.
+_fork_lock = None
+
+
+def _get_fork_lock():
+    global _fork_lock
+    if _fork_lock is None:
+        _fork_lock = threading.Lock()
+    return _fork_lock
 
 
 class RunnerSupervisor:
@@ -50,8 +58,8 @@ class RunnerSupervisor:
     def stop(self):
         """Send the child ``SIGTERM``, and start no more.
 
-        Only the first call sends ``SIGTERM``: a second one would make a CPU
-        worker abandon its job.
+        Only the first call sends ``SIGTERM``, though a worker calls it from
+        both its signal handler and its cleanup.
         """
         with self.lock:
             if self.stopping.is_set():
@@ -70,7 +78,7 @@ class RunnerSupervisor:
                 if self.stopping.is_set():
                     return
                 try:
-                    with _fork_lock:
+                    with _get_fork_lock():
                         self.process = subprocess.Popen(self.command)
                 except OSError:
                     logger.exception("Couldn't start the %s.", self.name)

@@ -97,7 +97,9 @@ class GeventWorker(Worker):
 
                 self._stop_requested = True
                 self.gevent_pool.join()
-                if self.gevent_worker is not None:
+                # Once the loop has ended, the worker is unregistering
+                # itself, which must not be interrupted.
+                if self.gevent_worker is not None and self._in_work_loop:
                     self.gevent_worker.kill(StopRequested)
 
         gevent.signal_handler(signal.SIGINT, request_stop)
@@ -120,6 +122,7 @@ class GeventWorker(Worker):
         The return value indicates whether any jobs were processed.
         """
         setup_loghandlers(logging_level)
+        self._in_work_loop = False
         self._install_signal_handlers()
 
         self.did_perform_work = False
@@ -131,6 +134,7 @@ class GeventWorker(Worker):
         )
         self.set_state(WorkerStatus.STARTED)
 
+        self._in_work_loop = True
         try:
             while True:
                 try:
@@ -165,6 +169,7 @@ class GeventWorker(Worker):
                 self.execute_job(job, queue)
 
         finally:
+            self._in_work_loop = False
             # A full pool makes the loop above notice a warm shutdown while
             # its jobs still run; they must finish before the process exits.
             # A cold shutdown has killed them already.

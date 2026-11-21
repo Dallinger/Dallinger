@@ -869,7 +869,9 @@ def test_cpu_jobs_go_to_cpu_workers_when_there_are_any(
 
     stub_config.set("cpu_processes_per_worker", cpu_processes)
     assert worker_queues(stub_config, cpu=cpu) == queues
-    assert worker_options(stub_config, cpu=cpu)[0]["pool_size"] == pool_size
+    worker_kwargs = worker_options(stub_config, cpu=cpu)[0]
+    assert worker_kwargs["pool_size"] == pool_size
+    assert worker_kwargs["cold_shutdown"] is not cpu
 
 
 def test_procfile_wrapper_repr_survives_processes_that_exit():

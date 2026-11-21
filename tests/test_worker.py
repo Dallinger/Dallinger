@@ -198,13 +198,15 @@ def test_cpu_worker_finishes_its_job_despite_a_second_signal(tmp_path):
         job = self.queues[0].enqueue("time.sleep", 1)
         gevent.spawn_later(0.5, os.kill, os.getpid(), signal.SIGTERM)
         gevent.spawn_later(0.51, os.kill, os.getpid(), signal.SIGTERM)
-        real_work(self, logging_level=logging_level)
+        assert real_work(self, logging_level=logging_level) is True
         assert job.get_status() == "finished", job.get_status()
+        assert not self.connection.sismember(self.redis_workers_keys, self.key)
         """,
         startup_timeout="60",
         argv=["--cpu"],
     )
     assert result.returncode == 0, result.stderr
+    assert "StopRequested" not in result.stderr, result.stderr
 
 
 CPU_WORKER_STAND_IN = """
