@@ -14,7 +14,6 @@ psycogreen.gevent.patch_psycopg()
 
 import logging
 import signal
-import time
 
 import gevent
 import gevent.pool
@@ -174,9 +173,7 @@ class GeventWorker(Worker):
             # A full pool makes the loop above notice a warm shutdown while
             # its jobs still run; they must finish before the process exits.
             # A cold shutdown has killed them already.
-            beat = time.monotonic()
-            while not self.gevent_pool.join(timeout=1):
-                beat = self._heartbeat_if_due(beat)
+            self.gevent_pool.join()
             if not self.is_horse:
                 self.register_death()
         return self.did_perform_work
@@ -210,19 +207,6 @@ class GeventWorker(Worker):
         child_greenlet.link(job_done)
         self.children.append(child_greenlet)
 
-    def _heartbeat_if_due(self, last):
-        """Heartbeat if a quarter of the worker TTL has passed since ``last``.
-
-        Nothing else refreshes the worker's registration while its pool is
-        full, and a CPU worker's pool is full for as long as its job runs.
-        Returns the time of the latest heartbeat.
-        """
-        now = time.monotonic()
-        if now - last < max(1, self.worker_ttl / 4):
-            return last
-        self.heartbeat()
-        return now
-
     def dequeue_job_and_maintain_ttl(self, timeout):
         if self._stop_requested:
             raise StopRequested()
@@ -244,12 +228,10 @@ class GeventWorker(Worker):
                     self.gevent_pool.size,
                 )
 
-            beat = time.monotonic()
             while self.gevent_pool.full():
                 gevent.sleep(0.1)
                 if self._stop_requested:
                     raise StopRequested()
-                beat = self._heartbeat_if_due(beat)
 
             try:
                 result = self.queue_class.dequeue_any(

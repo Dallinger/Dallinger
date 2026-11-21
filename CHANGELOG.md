@@ -68,10 +68,6 @@
 - On a warm shutdown (one SIGTERM), a worker whose greenlet pool was full
   exited without waiting for its running jobs, which were left unfinished.
   It now waits for them, as it already did when the pool had room.
-- A worker whose greenlet pool stays full, such as one with
-  `worker_greenlets_per_process = 1` running a long job, now keeps its
-  registration in Redis alive. Before, it stopped heartbeating, and after
-  about 8 minutes RQ dropped it from its list of workers.
 
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 
