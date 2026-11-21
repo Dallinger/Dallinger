@@ -1200,19 +1200,25 @@ def get_participant(participant_id):
 def load_participant():
     """Get the participant with an assignment id provided in the request.
     Delegates to :func:`~dallinger.experiments.Experiment.load_participant`.
+    With ``missing_ok=true``, a request that finds no participant gets
+    ``participant: null`` instead of a 403, which the browser would log as
+    an error for every new participant.
     """
     entry_information = request.form.to_dict()
+    missing_ok = entry_information.pop("missing_ok", None) == "true"
     exp = Experiment()
     participant_info = exp.normalize_entry_information(entry_information)
 
     assignment_id = participant_info.get("assignment_id")
+    ppt = None if assignment_id is None else exp.load_participant(assignment_id)
+    if ppt is None and missing_ok:
+        return success_response(participant=None)
     if assignment_id is None:
         return error_response(
             error_type="/load-participant POST: no participant found",
             error_code="assignment_id_missing",
             status=403,
         )
-    ppt = exp.load_participant(assignment_id)
     if ppt is None:
         return error_response(
             error_type="/load-participant POST: no participant found",
