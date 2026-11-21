@@ -299,27 +299,29 @@ def test_development_role_sets_up_the_console(monkeypatch, capsys):
 
 
 @pytest.mark.parametrize(
-    "args, reloader_child, serves",
+    "command, args, reloader_child, serves",
     [
-        (["--no-reload"], False, True),
-        (["--reload"], False, False),
-        (["--reload"], True, True),
-        (None, False, False),
+        ("run", ["--no-reload"], False, True),
+        ("run", ["--reload"], False, False),
+        ("run", ["--reload"], True, True),
+        ("shell", [], False, False),
+        (None, None, False, False),
     ],
 )
 def test_only_the_process_that_serves_requests_counts_as_serving(
-    monkeypatch, args, reloader_child, serves
+    monkeypatch, command, args, reloader_child, serves
 ):
-    from flask.cli import run_command
+    from flask.cli import run_command, shell_command
 
     if reloader_child:
         monkeypatch.setenv("WERKZEUG_RUN_MAIN", "true")
     else:
         monkeypatch.delenv("WERKZEUG_RUN_MAIN", raising=False)
-    if args is None:
+    if command is None:
         assert dev_logging.serves_requests() is serves
         return
-    with run_command.make_context("run", args) as ctx, ctx.scope():
+    cli_command = {"run": run_command, "shell": shell_command}[command]
+    with cli_command.make_context(command, args) as ctx, ctx.scope():
         assert dev_logging.serves_requests() is serves
 
 

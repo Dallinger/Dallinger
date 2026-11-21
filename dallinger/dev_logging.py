@@ -595,16 +595,17 @@ def serves_requests():
 
     With auto-reload on, that's the process the reloader restarts on every
     code change, and not the reloader itself. With auto-reload off, it's
-    the only process. It's ``False`` outside ``flask run``.
+    the only process. It's ``False`` outside ``flask run``, including in
+    other ``flask`` commands such as ``flask shell``.
     """
     import click
     from werkzeug.serving import is_running_from_reloader
 
     if is_running_from_reloader():
         return True
+    ctx = click.get_current_context(silent=True)
     return (
-        click.get_current_context(silent=True) is not None
-        and not _flask_run_settings()[0]
+        ctx is not None and ctx.command.name == "run" and not _flask_run_settings()[0]
     )
 
 
