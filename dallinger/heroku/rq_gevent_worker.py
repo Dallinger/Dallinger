@@ -73,6 +73,11 @@ class GeventWorker(Worker):
 
     def heartbeat(self, timeout=0, pipeline=None):
         connection = pipeline if pipeline is not None else self.connection
+        # Nothing renews the registration while the pool is full, so it must
+        # last as long as the running jobs may.
+        timeout = max(
+            [timeout or 0] + [self.get_heartbeat_ttl(c.job) for c in self.children]
+        )
         super(GeventWorker, self).heartbeat(timeout)
         connection.hset(self.key, "curr_pool_len", len(self.gevent_pool))
 
@@ -204,6 +209,7 @@ class GeventWorker(Worker):
         child_greenlet = self.gevent_pool.spawn(
             self.perform_job, job, queue, self.prepare_execution(job)
         )
+        child_greenlet.job = job
         child_greenlet.link(job_done)
         self.children.append(child_greenlet)
 

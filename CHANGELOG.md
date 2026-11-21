@@ -61,6 +61,10 @@
 
 ### Fixed
 
+- A worker whose jobs fill its pool stays registered with RQ for as long as
+  those jobs may run. Before, its registration could lapse after the worker
+  TTL plus 60 seconds, so a long job's worker disappeared from RQ's list of
+  workers.
 - A real-time game's `handle_effect` can use savepoints
   (`db.session.begin_nested()`). Before, closing one failed the session as
   if the handler had committed. A handler that leaves a savepoint open now
