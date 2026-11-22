@@ -24,6 +24,9 @@
 	@health path /health /health/
 	log_skip @health
 
+	# Compress text replies such as pages and JSON, which shrink several times.
+	encode zstd gzip
+
 	handle @parked {
 		reverse_proxy controller:8080
 	}
