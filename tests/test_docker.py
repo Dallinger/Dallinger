@@ -1856,7 +1856,8 @@ def test_server_caddyfile_validates_on_the_pinned_caddy(tmp_path):
 def frontdoor(tmp_path):
     """Run the front-door Caddyfile in front of echo servers for web and controller.
 
-    Yields a ``get(path, **headers)`` helper and the state directory.
+    Yields a ``get(path, **headers)`` helper, the state directory, the
+    container names and the front door's ``host:port``.
     """
     import json
     import os
@@ -1917,7 +1918,7 @@ def frontdoor(tmp_path):
         (state / "hibernating").write_text("")
         _eventually(get, "/ad", lambda result: result[1].get("from") == "controller")
         (state / "hibernating").unlink()
-        yield get, state, names
+        yield get, state, names, listen
     finally:
         for name in names:
             subprocess.run(["docker", "rm", "-f", name], capture_output=True)
@@ -1935,7 +1936,7 @@ def _eventually(get, path, predicate):
 
 
 def test_frontdoor_routes_awake_parked_and_missing_backend(frontdoor):
-    get, state, names = frontdoor
+    get, state, names, _ = frontdoor
     # cloudflared appends the real address to whatever the participant sent.
     status, body = get(
         "/ad",
@@ -1963,6 +1964,21 @@ def test_frontdoor_routes_awake_parked_and_missing_backend(frontdoor):
     _docker("rm", "-f", names[0])
     unavailable = (503, {"status": "unavailable"})
     assert _eventually(get, "/ad", lambda result: result == unavailable) == unavailable
+
+
+def test_frontdoor_compresses_replies(frontdoor):
+    import gzip
+    import json
+    import urllib.request
+
+    get, _, _, listen = frontdoor
+    # Caddy leaves replies under 512 bytes uncompressed; the echo repeats this header.
+    request = urllib.request.Request(
+        f"http://{listen}/ad", headers={"Accept-Encoding": "gzip", "X-Pad": "x" * 600}
+    )
+    with urllib.request.urlopen(request, timeout=5) as response:
+        assert response.headers["Content-Encoding"] == "gzip"
+        assert json.loads(gzip.decompress(response.read()))["from"] == "web"
 
 
 def test_controller_project_matches_compose_normalization():

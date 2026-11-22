@@ -47,6 +47,9 @@
   found only running sessions. A page that waits for a later session than
   one it has played passes that session as `afterSession`, as the docs
   already advised, or it now joins the ended session again.
+- Docker-ssh deployments compress replies with zstd or gzip when the browser
+  accepts it, so pages and JSON replies download several times smaller.
+  Streamed replies and WebSockets still pass through as they arrive.
 
 ### Fixed
 
