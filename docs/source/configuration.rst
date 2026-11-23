@@ -616,13 +616,15 @@ Setting                           What it sets
 ``cpu_processes_per_worker`` *integer*
     Number of CPU worker processes that each worker process starts and keeps
     running beside it, in the same dyno or container. A CPU worker runs tasks
-    from the CPU queues one at a time, so a task that computes for long, such
-    as an audio analysis, can't hold up the worker's other tasks. The CPU
-    queues mirror the priority queues: ``cpu_high``, ``cpu`` and ``cpu_low``
-    (for example ``dallinger.db.get_queue("cpu_high")``), taken in that
-    order. Default ``0``: then the ordinary workers run CPU tasks too, after
-    their other queues. A task's ``job_timeout`` can't stop it while it
-    computes without waiting on the network or the database, so a CPU task
+    from the CPU queues one at a time, each in a process of its own, so a
+    task that computes for long, such as an audio analysis, can't hold up the
+    worker's other tasks, and it stops at its ``job_timeout`` (RQ's default
+    is 3 minutes). The CPU queues mirror the priority queues: ``cpu_high``,
+    ``cpu`` and ``cpu_low`` (for example
+    ``dallinger.db.get_queue("cpu_high")``), taken in that order. Default
+    ``0``: then the ordinary workers run CPU tasks too, after their other
+    queues. They can't stop a task at its ``job_timeout`` while it computes
+    without waiting on the network or the database, so there a CPU task
     should limit its own running time.
 
 Worker containers in Docker deployments get a low CPU weight, so the web

@@ -60,9 +60,6 @@ class GeventWorker(Worker):
         self.children = []
         self.gevent_worker = None
         self.startup_watchdog = kwargs.pop("startup_watchdog", None)
-        # When False, signals after the first are ignored, so the job
-        # finishes unless the platform kills the process.
-        self.cold_shutdown = kwargs.pop("cold_shutdown", True)
         super(GeventWorker, self).__init__(*args, **kwargs)
 
     def register_birth(self):
@@ -90,16 +87,14 @@ class GeventWorker(Worker):
 
         def request_stop():
             if not self._stop_requested:
+                gevent.signal_handler(signal.SIGINT, request_force_stop)
+                gevent.signal_handler(signal.SIGTERM, request_force_stop)
+
                 self.log.warning("Warm shut down requested.")
-                if self.cold_shutdown:
-                    gevent.signal_handler(signal.SIGINT, request_force_stop)
-                    gevent.signal_handler(signal.SIGTERM, request_force_stop)
-                    self.log.warning(
-                        "Stopping after all greenlets are finished. "
-                        "Press Ctrl+C again for a cold shutdown."
-                    )
-                else:
-                    self.log.warning("Stopping after the running job finishes.")
+                self.log.warning(
+                    "Stopping after all greenlets are finished. "
+                    "Press Ctrl+C again for a cold shutdown."
+                )
 
                 self._stop_requested = True
                 self.gevent_pool.join()
@@ -227,8 +222,7 @@ class GeventWorker(Worker):
 
             if self.gevent_pool.full():
                 self.set_state(WorkerStatus.BUSY)
-                # A single-job worker, such as a CPU worker, is full whenever
-                # it runs a job.
+                # A single-job worker is full whenever it runs a job.
                 log = self.log.debug if self.gevent_pool.size == 1 else self.log.warning
                 log(
                     "RQ GEVENT worker greenlet pool full, size %s",

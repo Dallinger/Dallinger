@@ -25,16 +25,19 @@ worker.cpu_listen = [{queue!r} + suffix for suffix in ("_cpu_high", "_cpu", "_cp
 real_initialize_experiment_package = dallinger.config.initialize_experiment_package
 
 def initialize_experiment_package(path):
-    # Runs after main() has started the timer and imported rq_gevent_worker.
+    # Runs after main() has started the timer and imported the worker class.
     dallinger.config.initialize_experiment_package = real_initialize_experiment_package
-    from dallinger.heroku.rq_gevent_worker import GeventWorker
+    if "--cpu" in {argv!r}:
+        from dallinger.heroku.rq_cpu_worker import CPUWorker as WorkerClass
+    else:
+        from dallinger.heroku.rq_gevent_worker import GeventWorker as WorkerClass
 
-    real_work = GeventWorker.work
+    real_work = WorkerClass.work
 
     def work(self, logging_level):
 {work_body}
 
-    GeventWorker.work = work
+    WorkerClass.work = work
     real_initialize_experiment_package(path)
 
 dallinger.config.initialize_experiment_package = initialize_experiment_package
@@ -51,7 +54,7 @@ def run_worker(
     extra_config="",
     argv=(),
 ):
-    """Run the worker's ``main`` with ``GeventWorker.work`` replaced by ``work_body``.
+    """Run the worker's ``main`` with its ``work`` replaced by ``work_body``.
 
     ``work_body`` can call the original as ``real_work``. The worker listens
     on fresh queues, so it doesn't pick up other tests' jobs.
@@ -83,8 +86,9 @@ def run_worker(
     )
 
 
-def test_worker_that_never_registers_exits_after_startup_timeout(tmp_path):
-    result = run_worker(tmp_path, "time.sleep(30)", startup_timeout="5")
+@pytest.mark.parametrize("argv", [(), ("--cpu",)])
+def test_worker_that_never_registers_exits_after_startup_timeout(tmp_path, argv):
+    result = run_worker(tmp_path, "time.sleep(30)", startup_timeout="5", argv=argv)
     assert result.returncode == 1
     # The announcement is logged at DEBUG, so only loglevel_worker = 0 shows it.
     assert "Worker will exit" not in result.stderr
@@ -138,7 +142,8 @@ def test_zero_startup_timeout_disables_it(tmp_path):
     assert "registered with RQ within" not in result.stderr
 
 
-def test_worker_start_up_cancels_startup_timeout(tmp_path):
+@pytest.mark.parametrize("argv", [(), ("--cpu",)])
+def test_worker_start_up_cancels_startup_timeout(tmp_path, argv):
     result = run_worker(
         tmp_path,
         """
@@ -146,6 +151,7 @@ def test_worker_start_up_cancels_startup_timeout(tmp_path):
         time.sleep(6)
         """,
         startup_timeout="5",
+        argv=argv,
     )
     assert result.returncode == 0, result.stderr
     assert "exiting" not in result.stderr
@@ -172,7 +178,6 @@ def test_cpu_worker_runs_cpu_jobs_one_at_a_time_by_priority(tmp_path):
         tmp_path,
         """
         assert [queue.name for queue in self.queues] == worker.cpu_listen
-        assert self.gevent_pool.size == 1
         high, _, low = self.queues
         low_job = low.enqueue("time.sleep", 0.1)
         high_job = high.enqueue("time.sleep", 0.1)
@@ -188,7 +193,22 @@ def test_cpu_worker_runs_cpu_jobs_one_at_a_time_by_priority(tmp_path):
     assert result.returncode == 0, result.stderr
 
 
-def test_busy_cpu_worker_stays_registered_for_its_jobs_timeout(tmp_path):
+def test_cpu_worker_stops_a_job_that_computes_past_its_timeout(tmp_path):
+    result = run_worker(
+        tmp_path,
+        """
+        job = self.queues[0].enqueue(exec, "while True: pass", job_timeout=1)
+        real_work(self, burst=True, logging_level=logging_level)
+        assert job.get_status() == "failed", job.get_status()
+        assert "JobTimeoutException" in job.latest_result().exc_string
+        """,
+        startup_timeout="60",
+        argv=["--cpu"],
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_full_worker_stays_registered_for_its_jobs_timeout(tmp_path):
     result = run_worker(
         tmp_path,
         """
@@ -202,13 +222,12 @@ def test_busy_cpu_worker_stays_registered_for_its_jobs_timeout(tmp_path):
         assert ttls and ttls[0] > 600, ttls
         """,
         startup_timeout="60",
-        argv=["--cpu"],
+        extra_config="worker_greenlets_per_process = 1\n",
     )
     assert result.returncode == 0, result.stderr
 
 
-def test_cpu_worker_finishes_its_job_despite_a_second_signal(tmp_path):
-    # Heroku sends SIGTERM to every process; the parent worker sends another.
+def test_full_worker_finishes_its_jobs_on_a_warm_shutdown(tmp_path):
     result = run_worker(
         tmp_path,
         """
@@ -216,7 +235,43 @@ def test_cpu_worker_finishes_its_job_despite_a_second_signal(tmp_path):
         import gevent
         job = self.queues[0].enqueue("time.sleep", 1)
         gevent.spawn_later(0.5, os.kill, os.getpid(), signal.SIGTERM)
-        gevent.spawn_later(0.51, os.kill, os.getpid(), signal.SIGTERM)
+        assert real_work(self, logging_level=logging_level) is True
+        assert job.get_status() == "finished", job.get_status()
+        assert not self.connection.sismember(self.redis_workers_keys, self.key)
+        """,
+        startup_timeout="60",
+        extra_config="worker_greenlets_per_process = 1\n",
+    )
+    assert result.returncode == 0, result.stderr
+    assert "StopRequested" not in result.stderr, result.stderr
+
+
+SIGNALS_A_WORKER_AND_ITS_JOB_TWICE = """
+import os, signal, sys, time
+import psutil
+worker = psutil.Process(int(sys.argv[1]))
+while not [child for child in worker.children() if child.pid != os.getpid()]:
+    time.sleep(0.05)
+time.sleep(0.2)
+for _ in range(2):
+    for process in [worker, *worker.children()]:
+        if process.pid != os.getpid():
+            process.send_signal(signal.SIGTERM)
+    # RQ itself ignores a second signal within a second.
+    time.sleep(1.2)
+"""
+
+
+def test_cpu_worker_finishes_its_job_despite_repeated_signals(tmp_path):
+    # Heroku sends SIGTERM to every process; the parent worker sends another.
+    result = run_worker(
+        tmp_path,
+        f"""
+        import os, subprocess, sys
+        job = self.queues[0].enqueue("time.sleep", 2.5)
+        subprocess.Popen(
+            [sys.executable, "-c", {SIGNALS_A_WORKER_AND_ITS_JOB_TWICE!r}, str(os.getpid())]
+        )
         assert real_work(self, logging_level=logging_level) is True
         assert job.get_status() == "finished", job.get_status()
         assert not self.connection.sismember(self.redis_workers_keys, self.key)
@@ -225,7 +280,7 @@ def test_cpu_worker_finishes_its_job_despite_a_second_signal(tmp_path):
         argv=["--cpu"],
     )
     assert result.returncode == 0, result.stderr
-    assert "StopRequested" not in result.stderr, result.stderr
+    assert "cold shut down" not in result.stderr, result.stderr
 
 
 CPU_WORKER_STAND_IN = """

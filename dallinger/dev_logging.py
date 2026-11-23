@@ -78,7 +78,6 @@ _WORKER_STOP_MESSAGES = {
     "Warm shut down requested.",
     "Stopping after all greenlets are finished. "
     "Press Ctrl+C again for a cold shutdown.",
-    "Stopping after the running job finishes.",
 }
 _WERKZEUG_ACCESS_SUFFIX = '"%s" %s %s'
 _RUNNING_ON = re.compile(r" \* Running on (\S+://\S+)")
