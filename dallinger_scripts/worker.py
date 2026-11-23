@@ -9,25 +9,19 @@ DEFAULT_STARTUP_TIMEOUT = 120
 
 
 def worker_options(config, cpu=False):
-    """Return the RQ gevent worker's keyword arguments and Redis pool size.
+    """Return the RQ worker's keyword arguments and Redis pool size.
 
-    A CPU worker runs one job at a time, and ignores signals after the first:
-    Heroku and ``dallinger debug`` signal it directly as well as through the
-    worker that started it. Each greenlet can hold a Redis connection while
-    RQ also uses some, so the connection pool needs headroom above the
-    greenlet count.
+    A CPU worker runs one job at a time. In a gevent worker, each greenlet
+    can hold a Redis connection while RQ also uses some, so the connection
+    pool needs headroom above the greenlet count.
     """
+    worker_kwargs = {"log_job_description": False}
     if cpu:
-        pool_size = 1
-    else:
-        pool_size = config.get(
-            "worker_greenlets_per_process", DEFAULT_GREENLETS_PER_PROCESS
-        )
-    worker_kwargs = {
-        "log_job_description": False,
-        "pool_size": pool_size,
-        "cold_shutdown": not cpu,
-    }
+        return worker_kwargs, 50
+    pool_size = config.get(
+        "worker_greenlets_per_process", DEFAULT_GREENLETS_PER_PROCESS
+    )
+    worker_kwargs["pool_size"] = pool_size
     return worker_kwargs, max(50, pool_size + 10)
 
 
@@ -74,45 +68,69 @@ def _startup_timeout_from_environment():
     return _checked_startup_timeout(value)
 
 
-def _exit_unless_registered_within(timeout, started):
-    """Return a greenlet that ends the process unless it is killed in time.
+class _AlarmWatchdog:
+    """Call ``callback`` with the interrupted frame after ``seconds``, using
+    ``SIGALRM``, unless :meth:`kill` is called first."""
+
+    def __init__(self, seconds, callback):
+        import math
+        import signal
+
+        signal.signal(signal.SIGALRM, lambda signum, frame: callback(frame))
+        signal.alarm(max(1, math.ceil(seconds)))
+
+    def kill(self, block=False):
+        import signal
+
+        signal.alarm(0)
+
+
+def _exit_unless_registered_within(timeout, started, cpu=False):
+    """Return a watchdog that ends the process unless it is killed in time.
 
     It fires ``timeout`` seconds after ``started``, a ``time.monotonic()``
     value, or at once if that is already past. Returns ``None`` if
     ``timeout`` is 0.
 
-    ``GeventWorker.register_birth`` kills it, so only a worker whose start-up
-    hangs exits, and Docker or Heroku then restarts it. It is a timer in the
-    gevent hub, so it can't fire if start-up blocks without yielding to
-    gevent (a blocking C call, an unpatched system call or a CPU-bound loop).
-    A watchdog thread or signal doesn't work here: a second thread makes the
-    fork in Dallinger's import-time ``script --help`` probe
-    (``dallinger.command_line.docker``) hang, and a container's PID 1 ignores
-    SIGALRM.
+    The worker's ``register_birth`` kills it, so only a worker whose start-up
+    hangs exits, and Docker, Heroku or the worker that started a CPU worker
+    then restarts it. In a gevent worker it is a timer in the gevent hub, so
+    it can't fire if start-up blocks without yielding to gevent (a blocking C
+    call, an unpatched system call or a CPU-bound loop). A watchdog thread or
+    signal doesn't work there: a second thread makes the fork in Dallinger's
+    import-time ``script --help`` probe (``dallinger.command_line.docker``)
+    hang, and a container's PID 1 ignores SIGALRM. A CPU worker
+    (``cpu=True``) doesn't run gevent and is never PID 1, so it uses SIGALRM.
     """
     import time
-
-    import gevent
 
     if timeout == 0:
         return None
 
-    def exit_unregistered():
+    def exit_unregistered(frame=None):
         import os
         import sys
-
-        from gevent.util import print_run_info
+        import traceback
 
         print(
             f"Worker hasn't registered with RQ within {timeout} s; exiting. "
             "Raise worker_startup_timeout if start-up is legitimately slower.",
             file=sys.stderr,
         )
-        print_run_info(file=sys.stderr)
+        if cpu:
+            traceback.print_stack(frame, file=sys.stderr)
+        else:
+            from gevent.util import print_run_info
+
+            print_run_info(file=sys.stderr)
         sys.stderr.flush()
         os._exit(1)
 
     remaining = max(0, started + timeout - time.monotonic())
+    if cpu:
+        return _AlarmWatchdog(remaining, exit_unregistered)
+    import gevent
+
     return gevent.spawn_later(remaining, exit_unregistered)
 
 
@@ -120,8 +138,9 @@ def main(argv=None):
     """Run a worker.
 
     With ``--cpu``, run a CPU worker: it takes jobs from the CPU queues one
-    at a time, so a job that computes for long can't hold up other jobs, and
-    it starts no real-time runner or CPU workers of its own.
+    at a time, each in a process of its own, so a job that computes for long
+    can't hold up other jobs and still stops at its timeout. It doesn't use
+    gevent, and starts no real-time runner or CPU workers of its own.
     """
     import argparse
     import time
@@ -135,11 +154,12 @@ def main(argv=None):
     )
     cpu = parser.parse_args(argv).cpu
 
-    import gevent.monkey
+    if not cpu:
+        import gevent.monkey
 
-    gevent.monkey.patch_all()
+        gevent.monkey.patch_all()
     startup_timeout = _startup_timeout_from_environment()
-    startup_watchdog = _exit_unless_registered_within(startup_timeout, started)
+    startup_watchdog = _exit_unless_registered_within(startup_timeout, started, cpu)
     # These imports are inside the __main__ block
     # to make sure that we only import from rq_gevent_worker
     # (which has the side effect of applying gevent monkey patches)
@@ -150,14 +170,17 @@ def main(argv=None):
     import os
     from urllib.parse import urlparse
 
-    from gevent.queue import LifoQueue
     from redis import BlockingConnectionPool, StrictRedis
     from rq import Queue
 
     from dallinger import dev_logging
     from dallinger.config import LOG_LEVELS, get_config, initialize_experiment_package
-    from dallinger.heroku.rq_gevent_worker import GeventWorker as Worker
     from dallinger.utils import attach_json_logger
+
+    if cpu:
+        from dallinger.heroku.rq_cpu_worker import CPUWorker as Worker
+    else:
+        from dallinger.heroku.rq_gevent_worker import GeventWorker as Worker
 
     initialize_experiment_package(os.getcwd())
 
@@ -179,7 +202,7 @@ def main(argv=None):
         if startup_watchdog is not None:
             startup_watchdog.kill()
         startup_timeout = configured_timeout
-        startup_watchdog = _exit_unless_registered_within(startup_timeout, started)
+        startup_watchdog = _exit_unless_registered_within(startup_timeout, started, cpu)
     if startup_watchdog is not None:
         logging.getLogger(__name__).debug(
             "Worker will exit if it hasn't registered with RQ within %s s",
@@ -187,14 +210,13 @@ def main(argv=None):
         )
 
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-    # Specify queue class for improved performance with gevent.
-    # see http://carsonip.me/posts/10x-faster-python-gevent-redis-connection-pool/
+    connection_args = {"url": redis_url, "max_connections": max_connections}
+    if not cpu:
+        from gevent.queue import LifoQueue
 
-    connection_args = {
-        "url": redis_url,
-        "queue_class": LifoQueue,
-        "max_connections": max_connections,
-    }
+        # Specify queue class for improved performance with gevent.
+        # see http://carsonip.me/posts/10x-faster-python-gevent-redis-connection-pool/
+        connection_args["queue_class"] = LifoQueue
     # Since we are generally running on Heroku, and configuring SSL certificates
     # is challenging, we disable cert requirements on secure connections.
     if urlparse(redis_url).scheme == "rediss":

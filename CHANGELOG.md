@@ -5,17 +5,20 @@
 ### Added
 
 - CPU job queues and the `cpu_processes_per_worker` setting (default `0`)
-  for jobs that compute for long, such as audio analyses. Each worker
-  process starts that many CPU workers beside it, which take jobs one at a
-  time from `get_queue("cpu_high")`, then `"cpu"`, then `"cpu_low"`, like
-  the `high`, `default` and `low` queues. A worker runs up to
-  `worker_greenlets_per_process` jobs at once, and a job that computes
+  for jobs that compute for long, such as audio analyses. A worker runs up
+  to `worker_greenlets_per_process` jobs at once, and a job that computes
   without waiting on the network or the database stalls all of them,
   including jobs holding database locks that requests are waiting for.
+  Each worker process starts `cpu_processes_per_worker` CPU workers beside
+  it, which take jobs one at a time from `get_queue("cpu_high")`, then
+  `"cpu"`, then `"cpu_low"`, like the `high`, `default` and `low` queues.
+  A CPU worker runs each job in a process of its own, so it stops the job
+  at its `job_timeout` (RQ's default is 3 minutes) even while it computes.
   While the setting is `0`, the ordinary workers run CPU jobs too, after
-  their other queues. On shutdown, a CPU worker finishes its running job
-  even if it gets more than one signal, unless the platform kills it.
-  Docker worker containers now get 30 seconds to stop, as on Heroku.
+  their other queues, and can't stop them at their timeout while they
+  compute. On shutdown, a CPU worker finishes its running job even if it
+  gets more than one signal, unless the platform kills it. Docker worker
+  containers now get 30 seconds to stop, as on Heroku.
 - A real-time game type can define `handle_ending(session_row)`, which
   Dallinger calls once per session when it writes the session's ending, after
   the session's effects, however the session ended, including at its
