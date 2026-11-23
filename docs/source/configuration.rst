@@ -621,7 +621,9 @@ Setting                           What it sets
     queues mirror the priority queues: ``cpu_high``, ``cpu`` and ``cpu_low``
     (for example ``dallinger.db.get_queue("cpu_high")``), taken in that
     order. Default ``0``: then the ordinary workers run CPU tasks too, after
-    their other queues.
+    their other queues. A task's ``job_timeout`` can't stop it while it
+    computes without waiting on the network or the database, so a CPU task
+    should limit its own running time.
 
 Worker containers in Docker deployments get a low CPU weight, so the web
 server gets priority when the CPU is busy. Together, the workers get about a
