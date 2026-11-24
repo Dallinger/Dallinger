@@ -30,7 +30,7 @@ attrs==26.1.0
     #   referencing
     #   sphinx-js
     #   trio
-babel==2.18.0
+babel==2.19.0
     # via
     #   jupyterlab-server
     #   sphinx
