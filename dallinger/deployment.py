@@ -664,9 +664,11 @@ class DebugDeployment(HerokuLocalDeployment):
         exp_config,
         no_browsers=False,
         experiment_files=None,
+        keep_running=False,
     ):
         self.out = output
         self.verbose = verbose
+        self.keep_running = keep_running
         self.bot = bot
         self.exp_config = exp_config or {}
         self.proxy_port = proxy_port
@@ -828,8 +830,11 @@ class DebugDeployment(HerokuLocalDeployment):
             self.out.log("Experiment summary: {}".format(exp_data))
             if exp_data.get("completed", False):
                 self.out.log("Experiment completed, all nodes filled.")
-                self.complete = True
                 self._stop_status_checks.set()
+                if self.keep_running:
+                    self.out.log("The server keeps running. Press Ctrl+C to exit.")
+                    return
+                self.complete = True
                 self.heroku.stop()
 
     def notify(self, message):

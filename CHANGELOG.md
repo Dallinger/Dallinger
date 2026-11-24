@@ -4,6 +4,10 @@
 
 ### Added
 
+- `dallinger debug --keep-running` (and `dallinger docker debug --keep-running`)
+  keeps the local server running after the experiment completes, instead of
+  shutting it down, so you can keep trying the experiment until you press
+  Ctrl+C. `DebugDeployment` takes the same option as `keep_running`.
 - A real-time game type can define `handle_ending(session_row)`, which
   Dallinger calls once per session when it writes the session's ending, after
   the session's effects, however the session ended, including at its
