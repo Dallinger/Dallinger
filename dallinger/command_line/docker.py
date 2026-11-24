@@ -78,8 +78,15 @@ def docker():
     default=False,
     help="Skip opening browsers",
 )
+@click.option(
+    "--keep-running",
+    is_flag=True,
+    flag_value=True,
+    default=False,
+    help="Keep the server running after the experiment completes",
+)
 @require_exp_directory
-def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
+def debug(verbose, bot, proxy, no_browsers=False, keep_running=False, exp_config=None):
     """Run the experiment locally using `docker compose`."""
     from dallinger.docker.deployment import DockerDebugDeployment
 
@@ -91,6 +98,7 @@ def debug(verbose, bot, proxy, no_browsers=False, exp_config=None):
         exp_config,
         no_browsers,
         experiment_files=get_experiment_files(),
+        keep_running=keep_running,
     )
     log(header, chevrons=False)
     debugger.run()

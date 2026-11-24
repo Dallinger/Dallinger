@@ -2186,6 +2186,20 @@ class TestDebugServer:
         debugger.out.log.assert_called_with("Experiment completed, all nodes filled.")
         debugger.heroku.stop.assert_called_once()
 
+    def test_keep_running_leaves_the_server_up_once_complete(self, status_debugger):
+        debugger = status_debugger
+        debugger.keep_running = True
+        response = mock.Mock(json=mock.Mock(return_value={"completed": True}))
+        with mock.patch("dallinger.deployment.requests.get", return_value=response):
+            debugger.notify(recruiters.CLOSE_RECRUITMENT_LOG_PREFIX)
+            debugger.status_thread.join()
+
+        debugger.out.log.assert_called_with(
+            "The server keeps running. Press Ctrl+C to exit."
+        )
+        debugger.heroku.stop.assert_not_called()
+        assert debugger.notify("some output") is None
+
     def test_status_errors_are_reported_only_when_they_persist(self, status_debugger):
         import requests
 
