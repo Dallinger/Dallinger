@@ -50,6 +50,10 @@
 
 ### Fixed
 
+- `dallinger docker-ssh destroy` for an app that isn't on the server lists
+  the server's apps and suggests the closest name, e.g. "Did you mean
+  my-app?", so that a mistyped `--app` no longer looks like a successful
+  destroy.
 - A real-time game's `handle_effect` can use savepoints
   (`db.session.begin_nested()`). Before, closing one failed the session as
   if the handler had committed. A handler that leaves a savepoint open now
