@@ -1,12 +1,16 @@
 """Real-time sessions, kept in redis while they're played.
 
 Experiment code starts a session with
-:func:`~dallinger.realtime.create_realtime_session`, reads its state with
+:func:`~dallinger.realtime.create_realtime_session`, adds a player to a
+running one with :func:`~dallinger.realtime.add_realtime_player`, reads its
+state with
 :func:`~dallinger.realtime.realtime_state`, ends it early with
 :func:`~dallinger.realtime.end_realtime_session` and reads its saved outcome
 with :func:`~dallinger.realtime.realtime_result`. It finds a participant's
-sessions with :func:`~dallinger.realtime.realtime_sessions_for`. All five can
-be imported from ``dallinger.realtime``. The rest of this module is for the
+sessions with :func:`~dallinger.realtime.realtime_sessions_for`. Load tests
+read what the runners have done with
+:func:`~dallinger.realtime.realtime_runner_stats`. All seven can be imported
+from ``dallinger.realtime``. The rest of this module is for the
 web process and the runners.
 """
 
@@ -33,7 +37,11 @@ web process and the runners.
 #   queued or waiting for another to finish. It expires, so a lost job doesn't
 #   stop the next one being queued.
 # - final: once the session has ended, its ending's "reason" and the final
-#   "views" of the players who aren't bots, as JSON.
+#   "views" of the players who aren't bots and were still playing, as JSON.
+# - done: a hash from the participant id of each player who isn't a bot and
+#   whose game ended before the session's to the JSON of their ending's
+#   "reason", final "view" and "status": once it's saved in Postgres, "ended",
+#   or "failed" if saving it failed the session, otherwise null.
 # - saved: the session's status in Postgres, once its ending is saved there.
 #
 # Once an ended session's final job has run, the keys it still has expire.
@@ -41,6 +49,13 @@ web process and the runners.
 # realtime:running is the set of sessions that haven't ended, and
 # realtime:runners is a sorted set of the runners, each scored by the time its
 # heartbeat expires.
+#
+# The runners count what they do after each step that plays sessions:
+# realtime:runner_busy is the seconds they've been busy, realtime:runner_games
+# the set of the channels they've played, and realtime:runner_counts:<channel>
+# a hash of that game type's "passes", their "seconds", and its
+# "tick_delays:<range>" and "message_delays:<range>", where <range> is the
+# index in DELAY_BOUNDS of the range a delay fell in.
 #
 # Redis 7.0 is needed for XINFO STREAM's count of the entries ever added. The
 # save relies on a watched key that expires aborting the transaction that
@@ -61,7 +76,7 @@ from dallinger.db import get_queue, redis_conn
 from dallinger.models import Participant, RealtimeSession
 from dallinger.realtime.core import new_session
 from dallinger.realtime.delivery import publish_started
-from dallinger.realtime.game import validate_game_types
+from dallinger.realtime.game import RealtimeGame, validate_game_types
 from dallinger.realtime.utils import dump_json
 from dallinger.utils import normalized_participant_id
 
@@ -74,6 +89,12 @@ MAX_ENTRIES = 10000
 
 RUNNING = "realtime:running"
 RUNNERS = "realtime:runners"
+RUNNER_BUSY = "realtime:runner_busy"
+RUNNER_GAMES = "realtime:runner_games"
+
+#: The upper bounds, in seconds, of the ranges that runners count tick and
+#: message delays in. Each range includes its upper bound.
+DELAY_BOUNDS = (0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, float("inf"))
 
 #: Seconds an ended session stays in redis after its record is written, or
 #: fails to be.
@@ -92,6 +113,7 @@ _ENDED_SESSION_KEYS = (
     "epoch",
     "records",
     "final",
+    "done",
 )
 
 # Redis runs each script as one command, so nothing else reaches its keys
@@ -124,6 +146,16 @@ _add_entry = redis_conn.register_script(
     -- XADD returns the new entry's ID, "<milliseconds>-<sequence>" on redis's
     -- clock. An approximate MAXLEN trims only whole blocks of old entries,
     -- which is cheaper, so the stream can run a little over.
+    return redis.call("xadd", KEYS[1], "MAXLEN", "~", ARGV[2], "*", "entry", ARGV[3])
+    """
+)
+_add_member = redis_conn.register_script(
+    """
+    if redis.call("sismember", KEYS[2], ARGV[1]) == 0
+        or redis.call("hexists", KEYS[3], ARGV[4]) == 1 then
+        return false
+    end
+    redis.call("hset", KEYS[3], ARGV[4], ARGV[5])
     return redis.call("xadd", KEYS[1], "MAXLEN", "~", ARGV[2], "*", "entry", ARGV[3])
     """
 )
@@ -266,6 +298,106 @@ def create_realtime_session(game_type, players, bots=()):
     return session_id
 
 
+def add_realtime_player(session_id, participant, bot=False):
+    """Add a player to a running session, which the game type's
+    :meth:`~dallinger.realtime.RealtimeGame.on_add` makes room for.
+
+    As for :func:`create_realtime_session`, the player is added once the
+    transaction the call is made in commits, and their pages that wait with
+    ``dallinger.waitForRealtimeSession`` then get the session's id. The
+    session's :attr:`~dallinger.models.RealtimeSession.members` lists the
+    player once the job that writes the session's record has written their
+    addition, a few seconds later, in the order the session added its
+    players, so a player's place in it is the same as in the session. A
+    session that ends before the commit doesn't get the player, and that's
+    logged.
+
+    :param participant: a :class:`~dallinger.models.Participant`, or a
+        participant id
+    :param bot: whether the runner plays for the player, using
+        :meth:`~dallinger.realtime.RealtimeGame.bot`
+    :raises ValueError: if ``participant`` isn't a participant or a
+        participant id or is already in the session's ``members``, the
+        session isn't running, or its game type doesn't define ``on_add``.
+        A participant added again before their first addition is written
+        isn't added twice, and that's logged.
+    :raises KeyError: if there is no session ``session_id``
+    """
+    participant_id = _participant_id(participant)
+    row = (
+        db.session.query(RealtimeSession)
+        .filter_by(id=session_id)
+        .with_for_update()
+        .one_or_none()
+    )
+    if row is None:
+        raise KeyError(session_id)
+    if row.status != "running":
+        raise ValueError(
+            "Session {} has {}, so it can't have players added.".format(
+                session_id, "failed" if row.status == "failed" else "ended"
+            )
+        )
+    game = experiment_games().get(row.game_type)
+    if game is None or type(game).on_add is RealtimeGame.on_add:
+        raise ValueError(
+            "Session {}'s game type doesn't define on_add, so it can't have "
+            "players added.".format(session_id)
+        )
+    if int(participant_id) in row.members:
+        raise ValueError(
+            "Participant {} is already a player in session {}.".format(
+                participant_id, session_id
+            )
+        )
+    db.run_after_commit(
+        partial(_add_player, session_id, row.game_type, participant_id, bool(bot)),
+        "adding player {} to real-time session {}".format(participant_id, session_id),
+    )
+
+
+def _add_player(session_id, channel, participant_id, bot):
+    try:
+        added = _add_member(
+            keys=[
+                session_key(session_id, "entries"),
+                RUNNING,
+                session_key(session_id, "members"),
+            ],
+            args=[
+                session_id,
+                MAX_ENTRIES,
+                dump_json({"type": "add", "participant": participant_id, "bot": bot}),
+                participant_id,
+                int(bot),
+            ],
+        )
+    except RedisError:
+        logger.exception(
+            "Could not add player %s to session %s.", participant_id, session_id
+        )
+        return
+    if added is None:
+        logger.warning(
+            "Player %s wasn't added to session %s, which had ended or "
+            "already had them.",
+            participant_id,
+            session_id,
+        )
+        return
+    if not bot:
+        try:
+            publish_started(
+                "add_realtime_player", session_id, channel, [participant_id]
+            )
+        except RedisError:
+            logger.exception(
+                "Could not tell player %s's pages about session %s.",
+                participant_id,
+                session_id,
+            )
+
+
 def _start_session(session_id, channel, players, bots):
     try:
         started = _start(
@@ -306,9 +438,10 @@ def _start_session(session_id, channel, players, bots):
 
 
 def clear_realtime_sessions():
-    """Delete every session from redis, ended or not, keeping the runners'
-    heartbeats. :func:`dallinger.db.init_db` calls this when it recreates the
-    database, since session ids then start again at 1.
+    """Delete every session from redis, ended or not, and the runners'
+    counts, keeping the runners' heartbeats. :func:`dallinger.db.init_db`
+    calls this when it recreates the database, since session ids then start
+    again at 1.
     """
     # SCAN walks the keyspace a batch at a time without blocking redis.
     keys = [
@@ -328,6 +461,17 @@ def _experiment_game(game_type):
             "{!r} isn't one of the experiment's realtime_games.".format(game_type)
         )
     return channel, game
+
+
+def _participant_id(participant):
+    if isinstance(participant, Participant):
+        participant = participant.id
+    participant_id = normalized_participant_id(participant)
+    if participant_id is None:
+        raise ValueError(
+            "{!r} isn't a participant or a participant id.".format(participant)
+        )
+    return participant_id
 
 
 def _participant_ids(values, what):
@@ -407,13 +551,7 @@ def realtime_sessions_for(participant, game_type):
         types
     """
     channel, _ = _experiment_game(game_type)
-    if isinstance(participant, Participant):
-        participant = participant.id
-    participant_id = normalized_participant_id(participant)
-    if participant_id is None:
-        raise ValueError(
-            "{!r} isn't a participant or a participant id.".format(participant)
-        )
+    participant_id = _participant_id(participant)
     # populate_existing reads rows the caller's session already loaded again,
     # since a runner saves the ending from another session.
     return (
@@ -459,25 +597,41 @@ def player_game_channel(session_id, participant_id):
     return channel.decode()
 
 
-def newest_running_session(game_type, participant_id, after=None):
-    """Return the id of the newest running session of the game type on the
-    channel ``game_type`` that has ``participant_id`` as a player other than
-    a bot, or ``None``.
+def newest_session(game_type, participant_id, after=None):
+    """Return the id of the newest session of the game type on the channel
+    ``game_type`` that has ``participant_id`` as a player other than a bot,
+    or ``None``. A session counts while it runs and, once it has ended, until
+    its keys expire, :data:`ENDED_SESSION_TTL` seconds after its ending is
+    saved.
 
     :param after: a session id, so only newer sessions count, or ``None``
     """
     with db.session_factory() as own:
         query = own.query(RealtimeSession.id).filter(
-            RealtimeSession.status == "running",
-            RealtimeSession.game_type == game_type,
-            RealtimeSession.members.contains([int(participant_id)]),
+            RealtimeSession.game_type == game_type
         )
         if after is not None:
             query = query.filter(RealtimeSession.id > after)
-        candidates = query.order_by(RealtimeSession.id.desc()).all()
-    # A session's row is committed before its keys are set in redis.
-    for (session_id,) in candidates:
-        if player_game_channel(session_id, participant_id) == game_type:
+        candidates = [
+            session_id
+            for (session_id,) in query.order_by(RealtimeSession.id.desc()).all()
+        ]
+    # The players are the session's members in redis, not the row's: the row
+    # lists a player added to the running session only once their addition is
+    # written. Members are set before the session starts and stay if it fails
+    # to start, so a session counts only once it's running or has its final
+    # views. A session whose keys have expired has no members.
+    # MULTI runs the checks at once, so a session can't leave the running set
+    # for its ending between them.
+    with redis_conn.pipeline(transaction=True) as pipe:
+        for session_id in candidates:
+            pipe.hget(session_key(session_id, "members"), participant_id)
+            pipe.sismember(RUNNING, session_id)
+            pipe.exists(session_key(session_id, "final"))
+        replies = pipe.execute()
+    for index, session_id in enumerate(candidates):
+        is_bot, running, ended = replies[3 * index : 3 * index + 3]
+        if is_bot == b"0" and (running or ended):
             return session_id
     return None
 
@@ -497,6 +651,81 @@ def load_ending(session_id):
     if final is None:
         return None
     return {**json.loads(final), "status": None if status is None else status.decode()}
+
+
+def load_player_ending(session_id, participant_id):
+    """Return the ending of a player whose game ended before the session's,
+    as :func:`load_ending` returns a session's, with only their view, or
+    ``None`` if their game hasn't ended that way.
+    """
+    # HGET returns None for a missing key or field.
+    done = redis_conn.hget(session_key(session_id, "done"), participant_id)
+    return None if done is None else _player_ending(participant_id, json.loads(done))
+
+
+def _player_ending(participant_id, done):
+    return {
+        "reason": done["reason"],
+        "views": {participant_id: done["view"]},
+        "status": done["status"],
+    }
+
+
+def players_done(session_id):
+    """Return the participant ids, as strings, of the players whose game
+    ended before the session's."""
+    return {
+        player.decode() for player in redis_conn.hkeys(session_key(session_id, "done"))
+    }
+
+
+def note_player_ending_saved(session_id, participant_id):
+    """Note that a player's ending is saved in Postgres, and return it, as
+    :func:`load_player_ending` does, or ``None`` if their ending has gone
+    from redis or was already noted, with this status or the session's.
+    """
+    return _note_player_ending_status(session_id, participant_id, "ended")
+
+
+def note_unsaved_player_endings(session_id, status):
+    """Note an ended session's ``status`` on each player ending from before
+    the session's that isn't noted as saved yet, as when writing it failed
+    the session, and return a ``(participant_id, ending)`` pair for each, with
+    the ending as :func:`load_player_ending` returns it.
+    """
+    noted = []
+    for participant in redis_conn.hkeys(session_key(session_id, "done")):
+        participant = participant.decode()
+        ending = _note_player_ending_status(session_id, participant, status)
+        if ending is not None:
+            noted.append((participant, ending))
+    return noted
+
+
+def _note_player_ending_status(session_id, participant_id, status):
+    """Set a player ending's ``status`` if it has none yet, returning the
+    ending, as :func:`load_player_ending` does, if it did, otherwise ``None``.
+
+    The record job and the session's last job can both try, from different
+    workers, so the first one wins.
+    """
+    key = session_key(session_id, "done")
+
+    def update(pipe):
+        # WATCH makes the transaction fail, and redis-py retry it, if the
+        # hash changes before EXEC.
+        done = pipe.hget(key, participant_id)
+        if done is None:
+            return None
+        done = json.loads(done)
+        if done["status"] is not None:
+            return None
+        done["status"] = status
+        pipe.multi()
+        pipe.hset(key, participant_id, dump_json(done))
+        return _player_ending(participant_id, done)
+
+    return redis_conn.transaction(update, key, value_from_callable=True)
 
 
 def note_ending_saved(session_id, status):
@@ -881,6 +1110,77 @@ def mark_runner_alive(runner, clock, ttl):
         return sorted(name.decode() for name in pipe.execute()[-1])
 
 
+def delay_range(delay):
+    """Return the index in :data:`DELAY_BOUNDS` of the range ``delay`` falls in."""
+    return next(i for i, bound in enumerate(DELAY_BOUNDS) if delay <= bound)
+
+
+def _runner_counts_key(channel):
+    return "realtime:runner_counts:" + channel
+
+
+def add_runner_counts(busy, games):
+    """Add ``busy`` seconds and, by channel, ``games``' counts, dicts from a
+    field of the game type's counts to a number, to the runners' counts.
+    """
+    with redis_conn.pipeline(transaction=False) as pipe:
+        pipe.incrbyfloat(RUNNER_BUSY, busy)
+        for channel, counts in games.items():
+            pipe.sadd(RUNNER_GAMES, channel)
+            key = _runner_counts_key(channel)
+            for field, number in counts.items():
+                if field == "seconds":
+                    pipe.hincrbyfloat(key, field, number)
+                else:
+                    pipe.hincrby(key, field, number)
+        pipe.execute()
+
+
+def realtime_runner_stats():
+    """Return what the experiment's runners have done, for load tests.
+
+    The counts only grow until the database is recreated, which resets them,
+    so a load test reads them before and after and subtracts. Runners add to
+    them after each step that plays sessions.
+
+    :returns: a dict with:
+
+        - ``runners``: how many runners are running now
+        - ``busy``: the seconds the runners spent playing sessions, saving
+          them and sending their views, rather than waiting
+        - ``games``: for each game type's channel, a dict with its
+          ``passes``, the ``seconds`` they took, and its ``tick_delays``
+          and ``message_delays``: how many ticks ran, and how many messages
+          from pages were applied, within each range of delay that
+          :data:`DELAY_BOUNDS` gives, as a list in the same order. A tick's
+          delay is how long after it was due it ran, and a message's is how
+          long it waited between reaching the server and the start of the
+          pass that applied it.
+    """
+    channels = sorted(channel.decode() for channel in redis_conn.smembers(RUNNER_GAMES))
+    with redis_conn.pipeline(transaction=False) as pipe:
+        pipe.zcount(RUNNERS, server_time(), "+inf")
+        pipe.get(RUNNER_BUSY)
+        for channel in channels:
+            pipe.hgetall(_runner_counts_key(channel))
+        runners, busy, *counts = pipe.execute()
+    games = {}
+    for channel, fields in zip(channels, counts):
+        fields = {field.decode(): value for field, value in fields.items()}
+        games[channel] = {
+            "passes": int(fields.get("passes", 0)),
+            "seconds": float(fields.get("seconds", 0)),
+            **{
+                measure: [
+                    int(fields.get("{}:{}".format(measure, index), 0))
+                    for index in range(len(DELAY_BOUNDS))
+                ]
+                for measure in ("tick_delays", "message_delays")
+            },
+        }
+    return {"runners": runners, "busy": float(busy or 0), "games": games}
+
+
 def remove_runner(runner):
     """Record that ``runner`` has stopped."""
     redis_conn.zrem(RUNNERS, runner)
@@ -953,6 +1253,14 @@ def _write_pass(pipe, session_id, applied, result, px):
         pipe.hincrby(state_key, "applied", len(applied))
     pipe.hset(state_key, mapping=state)
     pipe.delete(session_key(session_id, "handovers"))
+    if result.players_done:
+        pipe.hset(
+            session_key(session_id, "done"),
+            mapping={
+                player: dump_json({**done, "status": None})
+                for player, done in result.players_done.items()
+            },
+        )
     for record in result.records:
         pipe.xadd(session_key(session_id, "records"), {"record": dump_json(record)})
     if result.ended is None:

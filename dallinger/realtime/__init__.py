@@ -2,9 +2,11 @@
 
 from .game import RealtimeGame, Reject, Sent, validate_game_types
 from .store import (
+    add_realtime_player,
     create_realtime_session,
     end_realtime_session,
     realtime_result,
+    realtime_runner_stats,
     realtime_sessions_for,
     realtime_state,
 )
@@ -13,9 +15,11 @@ __all__ = [
     "RealtimeGame",
     "Reject",
     "Sent",
+    "add_realtime_player",
     "create_realtime_session",
     "end_realtime_session",
     "realtime_result",
+    "realtime_runner_stats",
     "realtime_sessions_for",
     "realtime_state",
     "validate_game_types",

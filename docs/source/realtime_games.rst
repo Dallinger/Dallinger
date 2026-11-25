@@ -204,10 +204,12 @@ the state as session times.
 
 A game can use Python's ``random`` module, for example to shuffle a deck or roll
 a die. It can draw in the methods that change the state, ``apply``, ``tick``,
-``on_join`` and ``on_leave``, and use what it drew in the state. ``view``,
-``is_over``, ``outcome``, ``next_deadline`` and ``save_message`` should only
-read the state, not change it: Dallinger can call them several times for the
-same state, so a number drawn in ``view`` could come out differently each time,
+``on_join``, ``on_leave`` and ``on_add``, and use what it drew in the state.
+``view``, ``is_over``, ``end_reason``, ``is_done``, ``done_reason``,
+``outcome``, ``next_deadline`` and ``save_message`` should only
+read the state, not change it: Dallinger can call some of them, such as
+``view``, ``is_over`` and ``is_done``, several times for the same state, so a
+number drawn in ``view`` could come out differently each time,
 and a change one of them makes is kept without any error.
 
 A game whose sessions should replay exactly, for example to test it, keeps a
@@ -308,14 +310,53 @@ as described under Reading the Outcome, rather than in an effect. A
 participant's ``bonus`` records the bonus Dallinger has paid them, and
 Dallinger pays no bonus to a participant whose ``bonus`` is already set.
 
-Only ``apply``, ``tick``, ``on_join`` and ``on_leave`` can queue effects. An
+Only ``apply``, ``tick``, ``on_join``, ``on_leave`` and ``on_add`` can queue
+effects. An
 effect queued by an ``apply`` that then raises ``Reject`` is dropped.
 
 Each effect is handled once, in the order it was queued. Dallinger saves the
 changes ``handle_effect`` makes together with the session's record, so
-``handle_effect`` doesn't call ``db.session.commit()`` itself. Code that
+``handle_effect`` doesn't call ``db.session.commit()`` itself. It can use
+savepoints (``db.session.begin_nested()``), if it closes each one. Code that
 should run only once the changes are saved, such as sending a message to a
 page, can be passed to :func:`~dallinger.db.run_after_commit`.
+
+Work that needs the session's ending, such as recording each player's score
+from the outcome, goes in
+:meth:`~dallinger.realtime.RealtimeGame.handle_ending`. Dallinger calls it
+once per session, after the session's effects, with the session's row, whose
+``status``, ``end_reason``, ``outcome`` and ``members`` are then set. It runs
+however the session ended, including at its time limit, and its changes are
+saved together with the ending, as for ``handle_effect``. A session that
+failed can have no outcome.
+
+``members`` also lists the players whose game ended before the session's
+(see `Players Who Join or Finish During a Session`_). A game that pays them in
+:meth:`~dallinger.realtime.RealtimeGame.handle_player_ending` skips them here,
+or they're paid twice. Their endings are the session's ``player_end``
+events::
+
+    from dallinger.models import RealtimeEvent
+
+    class CoinGame(RealtimeGame):
+        ...
+
+        def handle_ending(self, session_row):
+            if session_row.outcome is None:
+                return
+            # Paid in handle_player_ending.
+            finished = {
+                event.participant_id
+                for event in RealtimeEvent.query.filter_by(
+                    session_id=session_row.id, event_type="player_end"
+                )
+            }
+            for participant_id in session_row.members:
+                if participant_id in finished:
+                    continue
+                coins = session_row.outcome["coins"][str(participant_id)]
+                participant = Participant.query.get(participant_id)
+                db.session.add(Info(origin=participant.nodes()[0], contents=str(coins)))
 
 Sessions
 --------
@@ -422,17 +463,78 @@ progress, for example on a route of its own, can pass the session's id to
 :func:`~dallinger.realtime.realtime_state`, which returns the session's
 state, a moment behind the game.
 
+Players Who Join or Finish During a Session
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A session's players are usually the ones it was created with. A game that
+keeps going while people come and go, such as a market or a society that
+newcomers join, can add players and let each one finish before the
+session ends.
+
+To add a player to a running session, call
+:func:`~dallinger.realtime.add_realtime_player` with the session's id and the
+participant, inside a database transaction, as for
+:func:`~dallinger.realtime.create_realtime_session`. The player is added once
+the transaction commits. The game type must define
+:meth:`~dallinger.realtime.RealtimeGame.on_add`, which makes room for them in
+the state:
+
+.. code-block:: python
+
+    class Market(RealtimeGame):
+        ...
+
+        def on_add(self, state, player_id, now):
+            state["cash"][player_id] = 100
+
+A player's game can end before the session does, for example once they've
+had their time or chosen to leave. After each change to the state, Dallinger
+asks the game type's :meth:`~dallinger.realtime.RealtimeGame.is_done` about
+each player still playing:
+
+.. code-block:: python
+
+        def apply(self, state, player_id, message, now, sent):
+            if message == "leave":
+                state["left"].append(player_id)
+            ...
+
+        def is_done(self, state, player_id):
+            return player_id in state["left"]
+
+``is_done`` isn't given the time, so a player's own time limit is a flag that
+:meth:`~dallinger.realtime.RealtimeGame.tick` sets in the state once their
+time is up, and that ``is_done`` reads.
+
+A player who is done gets their final view, with their ending's reason,
+which :meth:`~dallinger.realtime.RealtimeGame.done_reason` gives, ``"done"``
+by default. The session refuses their
+messages from then on, and their pages get no more views. They stay in the
+state, and in the other players' views, unless the game removes them. The
+record notes the player's ending, with the reason and the ``outcome`` of the
+state then, and :meth:`~dallinger.realtime.RealtimeGame.handle_player_ending`
+can pay them. They're still among the session's ``members`` when
+``handle_ending`` runs, so a game that pays in both skips them there, as
+`Effects`_ shows. Their pages then get the ending as saved,
+just as they would for the session's, so a page needs no code of its own for
+it.
+
 Endings
 ~~~~~~~
 
 Dallinger ends a session automatically when any of these happens:
 
-- ``is_over`` returns true
+- ``is_over`` returns true. The session's end reason is then what
+  :meth:`~dallinger.realtime.RealtimeGame.end_reason` returns, ``"finished"``
+  by default
 - the session time reaches the game type's
   :attr:`~dallinger.realtime.RealtimeGame.max_duration`
 - no player other than a bot has opened the game's page within
   :attr:`~dallinger.realtime.RealtimeGame.join_timeout`, which is 60
-  seconds by default
+  seconds by default. This applies only to a session created with players
+  other than bots: one created with only bots never ends this way, even
+  once players are added to it, and an added player doesn't restart the
+  time
 
 The experiment's code can also end a session early, for example when a player
 drops out, by calling :func:`~dallinger.realtime.end_realtime_session`
@@ -495,16 +597,29 @@ saved:
   ``apply`` raising ``Reject``
 - a method returns a value that isn't JSON
 - the methods run for longer than the game type's
-  :attr:`~dallinger.realtime.RealtimeGame.time_limit`
-- ``handle_effect`` raises an error
+  :attr:`~dallinger.realtime.RealtimeGame.time_limit` in one pass. A pass
+  runs every tick that's due, so this includes a session whose runner fell
+  so far behind that the overdue ticks don't fit in the limit. The session
+  fails rather than playing on at a pace its players didn't see, so a
+  study's data never silently include a game that stalled.
+- ``handle_effect``, ``handle_ending`` or ``handle_player_ending`` raises an
+  error
 - saving the session's record raises an error, for example because the
   database is unavailable. Dallinger doesn't try again.
 
-A failed session ends with the reason :data:`~dallinger.realtime.game.FAILED`,
-so its players can still move on, and the experiment's other sessions carry
-on. ``outcome`` is given the state from before the error. The session's
-:class:`~dallinger.models.RealtimeSession` row has the status ``failed`` and
-the error's traceback, and the experiment decides what its players are paid.
+A session still running when it fails ends with the reason
+:data:`~dallinger.realtime.game.FAILED`, so its players can still move on, and
+the experiment's other sessions carry on. ``outcome`` is given the state from
+before the error. The session's :class:`~dallinger.models.RealtimeSession` row
+has the status ``failed`` and the error's traceback, and the experiment decides
+what its players are paid.
+
+A session that had already ended, as when ``handle_ending`` raises or saving
+its last records fails, keeps its reason: its pages are told the status
+``failed`` with the reason the session ended with. A player whose game ended
+before the session's keeps their own reason in the same way. When writing the
+record failed, including the ``handle_`` methods raising, the row's
+``end_reason`` stays empty, and only ``status`` says the session failed.
 
 Game Pages
 ----------
@@ -528,7 +643,7 @@ Every helper is listed in the
 to exist before the game can start. The page before the game's page, such as
 the instructions or a waiting room, creates it with
 :js:func:`dallinger.createAgent`, and the game's page only joins the session.
-That keeps the game's page safe to reload: it finds a running session again,
+That keeps the game's page safe to reload: it finds its session again,
 whereas calling ``createAgent`` a second time would put the participant in
 another network.
 
@@ -614,15 +729,17 @@ starts the session once a group is complete. The page joins it with
 returned promise resolves with the page's socket for the session once the
 experiment has started a session of that game type with the participant as a
 player. If the participant is already playing one, it resolves at once, so a
-page that is reloaded during a game finds its session again. A session stops
-counting once its ending is saved, a moment after it ends, so a page reloaded
-after its game has ended keeps waiting.
+page that is reloaded during a game finds its session again. A session that
+has ended still counts for an hour after its ending is saved, so a page that
+is reloaded, or only starts waiting, after its game has ended joins the session
+and gets the ending, with no view if the player never played.
 The page sets the socket's callbacks, such as ``onView``, as soon as it has the
 socket, as ``SealedBid``'s page does.
 
 A participant who plays several sessions of the game type, one after another,
 passes the id of the session the page already has, the socket's ``session``,
-as the ``afterSession`` option, so that only a newer one counts.
+as the ``afterSession`` option, so that only a newer one counts. Without it,
+the page would join the earlier session again once that one has ended.
 
 Each load of a page needs a scope of its own, the value that tells a session
 one of a player's pages from another. Dallinger's helpers use
@@ -752,6 +869,13 @@ movement message should say how far, or for how long, the player moved, rather
 than ``tick`` moving players while a key is held, which the page can't
 predict. A move the game rejects is undone by the next view.
 
+``predict`` also gets the session time when the page sent the message, as a
+third argument, ``sentAt`` (``null`` if the page didn't know the session time
+yet). A message is predicted again each time a new view arrives until the game
+handles it, and ``sentAt`` stays the same each time, so use it rather than
+``sessionTime()`` to predict when something happens, such as
+``view.me.arrives_at = sentAt + view.travel_seconds``.
+
 :js:func:`~dallinger.Socket.interpolatedView` shows the game two tick
 intervals behind ``sessionTime``, between the tick views either side of that
 time. ``interpolate`` is passed those two views and how far between them that
@@ -778,6 +902,8 @@ order they happened:
 - copies of the state, about every
   :attr:`~dallinger.realtime.RealtimeGame.checkpoint_interval` seconds of
   session time, 5 by default
+- each player added to the running session, and each player whose game
+  ended before the session's, with the reason and the outcome then
 - the ending, with its reason, the outcome and the final state
 - the clock measurements a page reports, so browser times can be put on the
   server's clock during analysis
@@ -813,6 +939,13 @@ Runners log at the experiment's ``loglevel_worker``. They log each session
 that fails, with its error, and warn when they fall behind, naming the slowest
 sessions, so slow game code shows up while testing.
 
+For load tests, the runners also count what they do in redis.
+:func:`~dallinger.realtime.realtime_runner_stats` returns the counts: how long
+the runners were busy, and for each game type, how long its passes took and
+how late its ticks and its players' messages were applied. The counts only
+grow until the database is recreated, which resets them, so read them before
+and after a test and subtract.
+
 API Reference
 -------------
 
@@ -837,6 +970,10 @@ Game Type Reference
 
 .. autodata:: dallinger.realtime.game.FAILED
 
+.. autodata:: dallinger.realtime.game.DONE
+
+.. autodata:: dallinger.realtime.game.PLAYER_DONE_REASON
+
 .. autodata:: dallinger.realtime.game.MAX_TIME_LIMIT
 
 .. autodata:: dallinger.realtime.runner.MAX_HANDOVERS
@@ -848,6 +985,8 @@ Session Reference
 
 .. autofunction:: dallinger.realtime.create_realtime_session
 
+.. autofunction:: dallinger.realtime.add_realtime_player
+
 .. autofunction:: dallinger.realtime.realtime_state
 
 .. autofunction:: dallinger.realtime.end_realtime_session
@@ -855,6 +994,10 @@ Session Reference
 .. autofunction:: dallinger.realtime.realtime_result
 
 .. autofunction:: dallinger.realtime.realtime_sessions_for
+
+.. autofunction:: dallinger.realtime.realtime_runner_stats
+
+.. autodata:: dallinger.realtime.store.DELAY_BOUNDS
 
 .. autodata:: dallinger.realtime.store.ENDED_SESSION_TTL
 

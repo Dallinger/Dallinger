@@ -27,8 +27,8 @@ from dataclasses import dataclass
 from dallinger.db import RESERVED_CHANNELS
 from dallinger.realtime.utils import copy_json, is_int, is_number
 
-#: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
-#: :meth:`~dallinger.realtime.RealtimeGame.is_over` returned true.
+#: The reason :meth:`~dallinger.realtime.RealtimeGame.end_reason` gives by
+#: default, once :meth:`~dallinger.realtime.RealtimeGame.is_over` returned true.
 FINISHED = "finished"
 
 #: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
@@ -44,6 +44,15 @@ NOT_JOINED = "not_joined"
 #: The reason passed to :meth:`~dallinger.realtime.RealtimeGame.outcome` when
 #: the session failed.
 FAILED = "failed"
+
+#: The reason :meth:`~dallinger.realtime.RealtimeGame.done_reason` gives by
+#: default, once :meth:`~dallinger.realtime.RealtimeGame.is_done` returned true
+#: for a player.
+DONE = "done"
+
+#: The reason a message is refused when its player's game has ended, after
+#: :meth:`~dallinger.realtime.RealtimeGame.is_done` said they were done.
+PLAYER_DONE_REASON = "Your game has ended."
 
 #: The largest :attr:`~dallinger.realtime.RealtimeGame.time_limit` allowed,
 #: in seconds. Game code can run for up to twice its limit before the runner
@@ -98,8 +107,8 @@ class RealtimeGame(ABC):
     :meth:`apply` and :meth:`view`. The other methods are optional.
 
     The methods are passed the session's ``state``, and most are passed
-    ``now``, the session time. :meth:`apply`, :meth:`tick`, :meth:`on_join`
-    and :meth:`on_leave` change the state in place. The other methods only
+    ``now``, the session time. :meth:`apply`, :meth:`tick`, :meth:`on_join`,
+    :meth:`on_leave` and :meth:`on_add` change the state in place. The other methods only
     read it, and Dallinger may call them more than once for the same state.
     No method may use the database: use :meth:`queue_effect` for anything
     that needs it.
@@ -119,8 +128,11 @@ class RealtimeGame(ABC):
     - its messages, each with its sender, the message, and whether it was
       accepted, rejected with a reason, or failed
     - its effects, each with its name and payload
+    - each player added while the session ran (see :meth:`on_add`)
     - copies of the state, at most every :attr:`checkpoint_interval` seconds
       of session time
+    - each player whose game ended before the session did, with the reason
+      and the :meth:`outcome` then (see :meth:`is_done`)
     - the ending, with its reason, the :meth:`outcome` and the final state
 
     :meth:`save_message` can leave accepted and rejected messages out of the
@@ -143,8 +155,11 @@ class RealtimeGame(ABC):
 
     #: Seconds on the session clock within which a player who isn't a bot
     #: must open the game's page, or the session ends, so a session whose
-    #: players never load the page doesn't run forever. A session whose
-    #: players are all bots never ends this way. ``None`` means no limit.
+    #: players never load the page doesn't run forever. Any player's page
+    #: counts, including one added with
+    #: :func:`~dallinger.realtime.add_realtime_player`. A session created
+    #: with only bots never ends this way, even once players are added to it,
+    #: and an added player doesn't restart the time. ``None`` means no limit.
     join_timeout = 60
 
     #: Whether a player's page gets a view as soon as the player's message is
@@ -242,12 +257,22 @@ class RealtimeGame(ABC):
         """
 
     def is_over(self, state):
-        """Return whether the game has finished. Checked after every change
-        to the state.
+        """Return whether the game has finished, as a bool. Checked after
+        every change to the state. Once it's true, :meth:`end_reason` gives
+        the session's end reason.
 
         It should only read ``state``, not change it.
         """
         return False
+
+    def end_reason(self, state):
+        """Return why the game finished, a non-empty string such as
+        ``"timeout"``, which becomes the session's end reason. Called once
+        :meth:`is_over` returns true. Any other value fails the session.
+
+        It should only read ``state``, not change it.
+        """
+        return FINISHED
 
     def outcome(self, state, reason):
         """Return the session's result, saved in Postgres when the session
@@ -255,12 +280,14 @@ class RealtimeGame(ABC):
 
         It should only read ``state``, not change it.
 
-        :param reason: why the session ended:
-            :data:`~dallinger.realtime.game.FINISHED`,
+        :param reason: why the session ended: the reason :meth:`end_reason`
+            returned (:data:`~dallinger.realtime.game.FINISHED` by default),
             :data:`~dallinger.realtime.game.MAX_DURATION`,
             :data:`~dallinger.realtime.game.NOT_JOINED`,
             :data:`~dallinger.realtime.game.FAILED`, or the reason the
-            experiment gave when it ended the session. A session that failed
+            experiment gave when it ended the session; or, for one player's
+            ending, the reason :meth:`done_reason` returned
+            (:data:`~dallinger.realtime.game.DONE` by default). A session that failed
             passes the state from before the failure.
         """
         return None
@@ -278,6 +305,45 @@ class RealtimeGame(ABC):
 
         By default the game carries on without them.
         """
+
+    def on_add(self, state, player_id, now):
+        """Make room in ``state`` for a player added to the running session
+        with :func:`~dallinger.realtime.add_realtime_player`, such as by
+        giving them a score of 0.
+
+        The player then joins, as in :meth:`on_join`, when their page opens,
+        or at once for a bot. A game type that doesn't define this method
+        can't have players added.
+        """
+        raise NotImplementedError(
+            "{} doesn't define on_add, so it can't have players added.".format(
+                type(self).__name__
+            )
+        )
+
+    def is_done(self, state, player_id):
+        """Return whether a player's game has ended while the session carries
+        on, such as once they've played their turns or chosen to leave, as a
+        bool. Checked for each player still playing after every change to the
+        state, while the session runs. Once it's true, :meth:`done_reason`
+        gives the reason. :ref:`Players Who Join or Finish During a Session`
+        says what happens to a player who is done; the session refuses their
+        messages with the reason
+        :data:`~dallinger.realtime.game.PLAYER_DONE_REASON`. By default, a
+        player's game ends with the session.
+
+        It should only read ``state``, not change it.
+        """
+        return False
+
+    def done_reason(self, state, player_id):
+        """Return why a player's game ended, a non-empty string. Called once
+        :meth:`is_done` returns true for that player. Any other value fails
+        the session.
+
+        It should only read ``state``, not change it.
+        """
+        return DONE
 
     def save_message(self, state, player_id, message, rejection):
         """Return ``True`` to save a message in the session's record, or
@@ -305,7 +371,7 @@ class RealtimeGame(ABC):
         Bots are players the runner plays for, and their messages go through
         :meth:`apply` like any other player's. In a game with ticks, each bot
         is asked once per tick. In a game without ticks, bots are asked when
-        the session starts and after every message, join, leave and tick,
+        the session starts and after every message, join, leave, addition and tick,
         including each other's messages, until a round passes in which no
         bot's message is accepted. A bot in a game without ticks must
         therefore return ``None`` once it has nothing to do.
@@ -322,8 +388,8 @@ class RealtimeGame(ABC):
         Effects are saved with the session's records, whatever
         :meth:`save_message` returns, and handled later by
         :meth:`handle_effect`, in a job that can use the database. Only
-        :meth:`apply`, :meth:`tick`, :meth:`on_join` and :meth:`on_leave` can
-        queue effects, because the runner calls the other methods as often as
+        :meth:`apply`, :meth:`tick`, :meth:`on_join`, :meth:`on_leave` and
+        :meth:`on_add` can queue effects, because the runner calls the other methods as often as
         it needs to. The effects of a call that raises, such as an ``apply``
         that raises :class:`Reject`, are dropped.
 
@@ -333,8 +399,8 @@ class RealtimeGame(ABC):
         effects = queued_effects.get(None)
         if effects is None:
             raise RuntimeError(
-                "queue_effect only works in apply, tick, on_join and on_leave, "
-                "called by a runner."
+                "queue_effect only works in apply, tick, on_join, on_leave and "
+                "on_add, called by a runner."
             )
         effects.append((name, copy_json(payload, "queue_effect's payload")))
 
@@ -346,9 +412,10 @@ class RealtimeGame(ABC):
         handled once, in the order the session queued them. Dallinger saves
         the changes this makes together with the session's record, so it
         doesn't call ``db.session.commit()``, ``rollback()`` or ``close()``,
-        any of which fails the session. Code that should run only once the
-        changes are saved, such as sending a message to a page, can use
-        :func:`dallinger.db.run_after_commit`.
+        any of which fails the session. It can use savepoints
+        (``db.session.begin_nested()``) if it closes each one. Code that
+        should run only once the changes are saved, such as sending a message
+        to a page, can use :func:`dallinger.db.run_after_commit`.
 
         Dallinger handles a session's effects in batches. If this raises an
         error, nothing from the batch is saved, neither the other effects'
@@ -366,6 +433,45 @@ class RealtimeGame(ABC):
                 type(self).__name__, name
             )
         )
+
+    def handle_ending(self, session_row):
+        """Do work that needs the session's ending, such as paying each
+        player from the outcome.
+
+        Runs once per session, on one of the experiment's worker processes,
+        after the effects the session queued, when Dallinger writes the
+        session's ending. ``session_row`` then has the ending: its ``status``
+        (``"ended"``, or ``"failed"`` if the game's code raised an error),
+        ``end_reason``, ``outcome`` and ``members``, which still includes the
+        players :meth:`is_done` ended early, as :ref:`Effects` shows. As for
+        :meth:`handle_effect`, Dallinger saves the changes this makes together
+        with the ending, so it doesn't call ``db.session.commit()``,
+        ``rollback()`` or ``close()``, and if it raises an error, the ending
+        isn't saved and the session fails without an outcome. A session whose
+        record couldn't be written, and so has no saved ending, never calls
+        it. By default, it does nothing.
+
+        :param session_row: the session's
+            :class:`~dallinger.models.RealtimeSession`
+        """
+        return None
+
+    def handle_player_ending(self, session_row, player_id, ending):
+        """Do work that needs a player's ending, when :meth:`is_done` ended
+        their game before the session ended, such as paying them.
+
+        Runs once per such player, as :meth:`handle_ending` does, when
+        Dallinger writes the player's ending, and with the same rules about
+        the database. The player's pages then get the ending as saved. By
+        default, it does nothing.
+
+        :param session_row: the session's
+            :class:`~dallinger.models.RealtimeSession`
+        :param player_id: the player's id
+        :param ending: a dict with the ending's ``time`` on the session clock,
+            its ``reason`` and the ``outcome`` then
+        """
+        return None
 
 
 def _and(names):

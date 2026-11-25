@@ -71,6 +71,23 @@ class TurnTally(Tally):
     tick_rate = 0
 
 
+class Growing(TurnTally):
+    """Takes new players, and a player who sends "leave" is done."""
+
+    channel = "growing"
+    player_endings = []
+
+    def on_add(self, state, player_id, now):
+        state["players"].append(player_id)
+        state["log"].append(["add", player_id, now])
+
+    def is_done(self, state, player_id):
+        return any(entry[:2] == [player_id, "leave"] for entry in state["log"])
+
+    def handle_player_ending(self, session_row, player_id, ending):
+        self.player_endings.append((session_row.id, player_id, ending))
+
+
 def create_session(game_type, players, bots=()):
     """Create a session and commit, which starts it."""
     session_id = store.create_realtime_session(game_type, players, bots)
