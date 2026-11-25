@@ -1263,6 +1263,31 @@ def _refused_connection(**kwargs):
     paramiko.SSHClient().connect("127.0.0.1", port=port, timeout=5)
 
 
+def test_an_unresolved_ec2_dns_name_suggests_the_instances_aws_hostname(
+    monkeypatch,
+):
+    import socket
+
+    docker_ssh = importlib.import_module("dallinger.command_line.docker_ssh")
+    aws = "ec2-203-0-113-10.compute-1.amazonaws.com"
+    hosts = {
+        aws: {"host": aws, "ec2_instance_id": "i-1"},
+        "lab.example": {"host": "lab.example", "ec2_instance_id": "i-1"},
+    }
+    monkeypatch.setattr(docker_ssh, "get_configured_hosts", lambda: hosts)
+    with pytest.raises(socket.gaierror) as error:
+        _unknown_host()
+
+    message = docker_ssh._ssh_failure_message(error.value, "lab.example", "ubuntu")
+
+    assert "can't find a host called lab.example." in message
+    assert f"use --server {aws}, the same EC2 instance." in message
+    del hosts[aws]
+    assert "--server" not in docker_ssh._ssh_failure_message(
+        error.value, "lab.example", "ubuntu"
+    )
+
+
 @pytest.mark.parametrize(
     "error, expected",
     [

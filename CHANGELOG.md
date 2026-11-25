@@ -50,6 +50,11 @@
 
 ### Fixed
 
+- When docker-ssh can't find the DNS name of a server that
+  `dallinger ec2 provision` saved under both its DNS name and its AWS
+  hostname, the error says that a name created in the last 15 minutes may
+  still be cached as missing, and names the AWS hostname to use with
+  `--server` until it resolves.
 - A real-time game's `handle_effect` can use savepoints
   (`db.session.begin_nested()`). Before, closing one failed the session as
   if the handler had committed. A handler that leaves a savepoint open now
