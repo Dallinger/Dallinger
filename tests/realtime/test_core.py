@@ -4,10 +4,16 @@ import random
 import pytest
 
 from dallinger.realtime import RealtimeGame, Reject, Sent, core
-from dallinger.realtime.core import new_session, parse_message, run_pass
+from dallinger.realtime.core import (
+    fail_session,
+    new_session,
+    parse_message,
+    run_pass,
+)
 from dallinger.realtime.game import FAILED, FINISHED, MAX_DURATION, NOT_JOINED
 from tests.realtime.helpers import (
     CLOCK,
+    Growing,
     Restless,
     Tally,
     TurnTally,
@@ -140,6 +146,14 @@ class TestTimeOrder:
         assert log(result)[2:] == [["tick", 0.25], ["tick", 0.5], ["tick", 0.75]]
         assert session(result)["next_tick"] == 1.0
         assert session(result)["time"] == 0.8
+
+    def test_a_pass_says_how_late_its_ticks_and_messages_were(self):
+        game = Tally()
+
+        result = play(game, started(game), [message(0.2, "1", "a")], 0.8)
+
+        assert result.tick_delays == pytest.approx([0.55, 0.3, 0.05])
+        assert result.message_delays == [CLOCK - 100.2]
 
     def test_entry_times_are_kept_within_the_pass(self):
         game = TurnTally()
@@ -411,6 +425,24 @@ class TestJoinAndLeave:
         assert log(result) == [["9", "stop", 0]]
         assert (result.ended["time"], result.ended["reason"]) == (0, FINISHED)
 
+    def test_end_reason_gives_the_end_reason(self):
+        class StopsWithReason(TurnTally):
+            def is_over(self, state):
+                return bool(state["log"])
+
+            def end_reason(self, state):
+                return "timeout"
+
+            def on_join(self, state, player_id, now):
+                state["log"].append([player_id, "join", now])
+
+        game = StopsWithReason()
+
+        result = play(game, new_session(game, ["1", "9"], bots=["9"]), [], 1)
+
+        assert result.ended["reason"] == "timeout"
+        assert result.ended["outcome"]["reason"] == "timeout"
+
     def test_a_page_that_left_gets_no_view(self):
         game = Tally()
 
@@ -508,6 +540,17 @@ class TestEndings:
         assert result.ended["time"] == 0.5
         assert session(result)["time"] == 0.9
         assert result.views[0]["view"]["time"] == 0.9
+
+    def test_max_duration_ends_the_game_without_asking_end_reason(self):
+        class Timed(TurnTally):
+            max_duration = 2
+
+            def end_reason(self, state):
+                raise AssertionError("end_reason was called")
+
+        game = Timed()
+
+        assert play(game, started(game), [], 2).ended["reason"] == MAX_DURATION
 
     def test_max_duration_ends_a_pass_with_nothing_to_do(self):
         game = type("Timed", (TurnTally,), {"max_duration": 2})()
@@ -751,7 +794,15 @@ class TestRecords:
 
     @pytest.mark.parametrize(
         "method",
-        ["next_deadline", "view", "is_over", "outcome", "bot", "save_message"],
+        [
+            "next_deadline",
+            "view",
+            "is_over",
+            "end_reason",
+            "outcome",
+            "bot",
+            "save_message",
+        ],
     )
     def test_only_methods_that_change_the_state_can_queue_effects(self, method):
         def queueing(self, *args):
@@ -1061,3 +1112,167 @@ class TestReplay:
         assert without_checkpoints(
             [record for each in split for record in each.records]
         ) == without_checkpoints(whole.records)
+
+
+def added(time, participant, bot=False):
+    return {"type": "add", "time": time, "participant": participant, "bot": bot}
+
+
+class TestAddedAndFinishedPlayers:
+    def test_a_session_saved_before_players_could_finish_early_still_ends(self):
+        game = TurnTally()
+        saved = json.loads(started(game))
+        del saved["done"]
+
+        result = play(game, json.dumps(saved), [message(0.1, "1", "stop")], 0.1)
+
+        assert result.ended["reason"] == FINISHED
+
+    def test_a_bot_only_session_saved_by_dallinger_13_1_plays_past_its_join_timeout(
+        self,
+    ):
+        game = type("Unjoined", (TurnTally,), {"join_timeout": 5, "max_duration": 20})()
+        saved = json.loads(new_session(game, ["9"], bots=["9"]))
+        saved["joined"] = False
+        del saved["done"]
+
+        result = play(game, json.dumps(saved), [], 10)
+
+        assert (result.ended, result.next_due) == (None, 20)
+
+    def test_an_added_player_is_made_room_for_then_joins_with_their_page(self):
+        game = Growing()
+        entries = [
+            added(0.1, "3"),
+            added(0.15, "3"),
+            join(0.2, "3"),
+            message(0.3, "3", "move"),
+        ]
+
+        result = play(game, started(game), entries, 0.3)
+
+        assert session(result)["members"] == ["1", "2", "3"]
+        assert session(result)["state"]["players"] == ["1", "2", "3"]
+        assert log(result)[-3:] == [
+            ["add", "3", 0.1],
+            ["join", "3", 0.2],
+            ["3", "move", 0.3],
+        ]
+        assert [r for r in result.records if r["type"] == "player_add"] == [
+            {
+                "sequence": 1,
+                "type": "player_add",
+                "time": 0.1,
+                "participant": "3",
+                "bot": False,
+            }
+        ]
+
+    def test_an_added_bot_joins_at_once_and_plays(self):
+        class GrowingBots(Growing):
+            def bot(self, view, player_id, now):
+                return None if [player_id, "move", now] in view["log"] else "move"
+
+        game = GrowingBots()
+
+        result = play(game, started(game), [added(0.5, "9", bot=True)], 0.5)
+
+        assert log(result)[-3:] == [
+            ["add", "9", 0.5],
+            ["join", "9", 0.5],
+            ["9", "move", 0.5],
+        ]
+
+    def test_a_player_added_to_a_bot_session_after_its_join_timeout_plays(self):
+        game = type("Patient", (Growing,), {"join_timeout": 5})()
+        saved = play(game, new_session(game, ["9"], bots=["9"]), [], 10).saved
+
+        result = play(game, saved, [added(10, "3"), join(10, "3")], 10)
+
+        assert result.ended is None
+        assert log(result)[-2:] == [["add", "3", 10], ["join", "3", 10]]
+
+    def test_a_player_who_is_done_gets_their_ending_and_nothing_after_it(self):
+        game = Growing()
+        saved = started(game)
+
+        first = play(game, saved, [message(0.1, "1", "leave", number=1)], 0.1)
+
+        assert first.ended is None
+        assert first.players_done == {
+            "1": {"reason": "done", "view": {"for": "1", "log": log(first)}}
+        }
+        assert views_by_page(first)[("1", "page")]["ended"] == "done"
+        (ending,) = [r for r in first.records if r["type"] == "player_end"]
+        assert ending["participant"] == "1" and ending["outcome"]["moves"] == 3
+
+        entries = [
+            message(0.2, "1", "move", number=2),
+            message(0.3, "2", "move"),
+            leave(0.4, "1"),
+            {"type": "end", "time": 0.5, "reason": "stopped"},
+        ]
+        second = play(game, first.saved, entries, 0.5)
+
+        refused = [r for r in second.records if r["type"] == "message"][0]
+        assert refused["status"] == "rejected"
+        assert refused["reason"] == "Your game has ended."
+        assert ["1", "move", 0.2] not in log(second)
+        assert ["leave", "1", 0.4] not in log(second)
+        assert {each["participant"] for each in second.views} == {"2"}
+        assert second.players_done == {}
+        assert set(second.ended["views"]) == {"2"}
+
+    @pytest.mark.parametrize("failing", [False, True])
+    def test_a_done_player_who_joins_again_gets_no_view(self, failing):
+        class Forgetting(Growing):
+            def view(self, state, player_id):
+                if player_id not in state["players"]:
+                    raise KeyError(player_id)
+                return super().view(state, player_id)
+
+            def apply(self, state, player_id, message, now, sent):
+                super().apply(state, player_id, message, now, sent)
+                if message == "forget 1":
+                    state["players"].remove("1")
+
+        game = Forgetting()
+        first = play(game, started(game), [message(0.1, "1", "leave")], 0.1)
+        entries = [join(0.2, "1", socket="again"), message(0.3, "2", "forget 1")]
+
+        if failing:
+            second = fail_session(
+                game, first.saved, entries, 0.3, CLOCK, RuntimeError("x")
+            )
+        else:
+            second = play(game, first.saved, entries, 0.3)
+
+        assert {each["participant"] for each in second.views} == {"2"}
+
+    def test_done_reason_gives_the_reason(self):
+        class Quitting(Growing):
+            def done_reason(self, state, player_id):
+                return "quit " + player_id
+
+        game = Quitting()
+
+        result = play(game, started(game), [message(0.1, "2", "leave")], 0.1)
+
+        assert result.players_done["2"]["reason"] == "quit 2"
+        (ending,) = [r for r in result.records if r["type"] == "player_end"]
+        assert ending["reason"] == "quit 2"
+
+    @pytest.mark.parametrize("reason", ["", True, None])
+    @pytest.mark.parametrize("method", ["end_reason", "done_reason"])
+    def test_a_reason_that_is_not_a_non_empty_string_fails_the_session(
+        self, method, reason
+    ):
+        game = type("Bad", (Growing,), {method: lambda self, *args: reason})()
+        ending = message(0.1, "1", "stop" if method == "end_reason" else "leave")
+
+        result = play(game, started(game), [ending], 0.1)
+
+        assert result.ended["reason"] == FAILED
+        assert "Bad.{} returned {!r}, not a non-empty string".format(
+            method, reason
+        ) in error(result)

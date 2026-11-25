@@ -4,6 +4,7 @@ import subprocess
 import sys
 import threading
 import time
+from contextlib import nullcontext
 from datetime import datetime, timedelta
 
 import pytest
@@ -15,10 +16,13 @@ from dallinger import db
 from dallinger.models import Notification, RealtimeEvent, RealtimeSession
 from dallinger.realtime import store
 from dallinger.realtime.core import fail_session, run_pass
+from dallinger.realtime.game import FAILED
 from dallinger.realtime.jobs import write_ending, write_records
+from dallinger.realtime.session_sockets import SessionSocket
 from dallinger.realtime.utils import dump_json
 from tests.realtime.helpers import (
     CLOCK,
+    Growing,
     TurnTally,
     clock,
     create_session,
@@ -357,6 +361,186 @@ class TestEnding:
         ]
         assert keys_expire(session_id)
 
+    def test_the_game_handles_its_ending_once_after_its_effects(
+        self, realtime_experiment
+    ):
+        class Paying(Scoring):
+            def handle_ending(self, session_row):
+                db.session.add(
+                    Notification(
+                        assignment_id=",".join(map(str, session_row.members)),
+                        event_type="{} {} {}".format(
+                            session_row.status,
+                            session_row.end_reason,
+                            session_row.outcome["moves"],
+                        ),
+                    )
+                )
+
+        realtime_experiment.realtime_games = [Paying]
+        session_id = create_session(Paying, ["1", "2"])
+        save(session_id, [message(1, "1", "effect"), message(2, "1", "stop")], now=2)
+
+        write_ending(session_id)
+        write_records(session_id)
+
+        assert [
+            (each.assignment_id, each.event_type)
+            for each in db.session.query(Notification).order_by(Notification.id)
+        ] == [("{}:1".format(session_id), "scored"), ("1,2", "ended finished 2")]
+
+    def test_handle_ending_finds_the_players_who_finished_early(
+        self, realtime_experiment
+    ):
+        class Finding(Growing):
+            channel = "tally"
+            finished = None
+
+            def handle_ending(self, session_row):
+                Finding.finished = {
+                    event.participant_id
+                    for event in RealtimeEvent.query.filter_by(
+                        session_id=session_row.id, event_type="player_end"
+                    )
+                }
+
+        realtime_experiment.realtime_games = [Finding]
+        session_id = create_session(Finding, ["1", "2"])
+        save(session_id, [message(1, "1", "leave"), message(2, "2", "stop")], now=2)
+
+        write_ending(session_id)
+
+        assert Finding.finished == {1}
+
+    @pytest.mark.parametrize(
+        "method, ending, write",
+        [
+            ("handle_ending", "stop", write_ending),
+            ("handle_player_ending", "leave", write_records),
+        ],
+    )
+    def test_an_error_handling_an_ending_fails_the_session(
+        self, realtime_experiment, method, ending, write
+    ):
+        def raising(self, *args):
+            raise ValueError("no ending")
+
+        Raising = type("Raising", (Growing,), {"channel": "tally", method: raising})
+        realtime_experiment.realtime_games = [Raising]
+        session_id = create_session(Raising, ["1", "2"])
+        save(session_id, [message(1, "1", ending)], now=1)
+
+        with pytest.raises(ValueError, match="no ending"):
+            write(session_id)
+
+        failed = row(session_id)
+        assert (failed.status, failed.outcome) == ("failed", None)
+        assert "ValueError: no ending" in failed.error
+
+    @pytest.mark.parametrize("saved_as", ["ended", "failed"])
+    def test_a_player_who_finished_early_is_told_once_when_the_session_fails(
+        self, realtime_experiment, saved_frames, saved_as
+    ):
+        class Ending(Growing):
+            channel = "tally"
+
+            def handle_player_ending(self, session_row, player_id, ending):
+                if saved_as == "failed":
+                    raise ValueError("no ending")
+
+        realtime_experiment.realtime_games = [Ending]
+        session_id = create_session(Ending, ["1", "2"])
+        save(session_id, [message(1, "1", "leave")], now=1)
+        raising = pytest.raises(ValueError) if saved_as == "failed" else nullcontext()
+        with raising:
+            write_records(session_id)
+        save(session_id, [{"type": "end", "time": 2, "reason": FAILED}], now=2)
+
+        write_ending(session_id)
+
+        assert sorted(
+            (players, payload["status"]) for players, _, payload in saved_frames()
+        ) == [(["1"], saved_as), (["2"], "failed")]
+        assert store.load_player_ending(session_id, "1")["status"] == saved_as
+        assert store.note_player_ending_saved(session_id, "1") is None
+        assert store.load_player_ending(session_id, "1")["status"] == saved_as
+        assert store.newest_session("tally", "1") == session_id
+        reload = SessionSocket(session_id, Ending(), "1", "page", "a reload")
+        assert '"realtime_saved"' in reload.join()
+
+    def test_a_session_whose_game_type_is_gone_keeps_its_failure(
+        self, realtime_experiment, saved_frames
+    ):
+        Gone = type("Gone", (Growing,), {"channel": "tally"})
+        realtime_experiment.realtime_games = [Gone]
+        session_id = create_session(Gone, ["1", "2"])
+        save(session_id, [message(1, "1", "leave")], now=1)
+        save(session_id, [], now=2, error=RuntimeError("game type gone"))
+        realtime_experiment.realtime_games = []
+
+        write_ending(session_id)
+
+        failed = row(session_id)
+        assert failed.end_reason == FAILED
+        assert "RuntimeError: game type gone" in failed.error
+        assert "player_end" in [each.event_type for each in events(session_id)]
+        assert store.load_player_ending(session_id, "1")["status"] == "failed"
+        assert sorted(
+            (players, payload["status"]) for players, _, payload in saved_frames()
+        ) == [(["1"], "failed"), (["2"], "failed")]
+
+    def test_records_of_a_running_session_whose_game_type_is_gone_fail_it(
+        self, realtime_experiment
+    ):
+        Gone = type("Gone", (Growing,), {"channel": "tally"})
+        realtime_experiment.realtime_games = [Gone]
+        session_id = create_session(Gone, ["1", "2"])
+        save(session_id, [message(1, "1", "leave")], now=1)
+        realtime_experiment.realtime_games = []
+
+        with pytest.raises(LookupError):
+            write_records(session_id)
+
+        assert row(session_id).status == "failed"
+        assert events(session_id) == []
+
+    def test_records_of_a_session_that_ended_after_its_game_type_went_fail_it(
+        self, realtime_experiment
+    ):
+        session_id = create_session(TurnTally, ["1"])
+        save(session_id, [message(1, "1", "stop")], now=1)
+        realtime_experiment.realtime_games = []
+
+        with pytest.raises(LookupError):
+            write_ending(session_id)
+
+        assert row(session_id).status == "failed"
+        assert events(session_id) == []
+
+    def test_a_player_added_just_before_the_ending_is_told_it_is_saved(
+        self, realtime_experiment, saved_frames
+    ):
+        Adding = type("Adding", (Growing,), {"channel": "tally"})
+        realtime_experiment.realtime_games = [Adding]
+        session_id = create_session(Adding, ["1"])
+        store.end_realtime_session(session_id, "stopped")
+        store.add_realtime_player(session_id, 3)
+        db.session.commit()
+        assert [each["type"] for each in entries(session_id)] == ["end", "add"]
+        ending = {"type": "end", "time": 1, "reason": "stopped"}
+        added = {"type": "add", "time": 1, "participant": "3", "bot": False}
+        save(session_id, [ending, added], now=1)
+
+        write_ending(session_id)
+
+        assert [(players, payload["view"]) for players, _, payload in saved_frames()][
+            1:
+        ] == [(["3"], None)]
+        # A page that only starts waiting now finds the session and its ending.
+        assert store.newest_session("tally", "3") == session_id
+        late = SessionSocket(session_id, Adding(), "3", "page", "a late page")
+        assert '"realtime_saved"' in late.join()
+
     def test_a_final_job_that_fails_still_tells_the_pages_and_expires_the_keys(
         self, saved_frames
     ):
@@ -445,6 +629,60 @@ class TestFailing:
         )
         assert events(session_id) == []
         assert row(session_id).status == "failed"
+
+    def test_a_handler_can_use_savepoints(self, realtime_experiment):
+        class Nesting(TurnTally):
+            def handle_ending(self, session_row):
+                with db.session.begin_nested():
+                    db.session.add(
+                        Notification(assignment_id="kept", event_type="ending")
+                    )
+                savepoint = db.session.begin_nested()
+                db.session.add(
+                    Notification(assignment_id="dropped", event_type="ending")
+                )
+                savepoint.rollback()
+
+        realtime_experiment.realtime_games = [Nesting]
+        session_id = create_session(Nesting, ["1"])
+        save(session_id, [message(1, "1", "stop")], now=1)
+
+        write_ending(session_id)
+
+        assert row(session_id).status == "ended"
+        assert [each.assignment_id for each in db.session.query(Notification)] == [
+            "kept"
+        ]
+
+    @pytest.mark.parametrize(
+        "ending", ["commit after a savepoint", "open savepoint", "raise in a savepoint"]
+    )
+    def test_a_handler_that_commits_around_a_savepoint_fails_the_session(
+        self, realtime_experiment, ending
+    ):
+        class Nesting(TurnTally):
+            def handle_ending(self, session_row):
+                db.session.add(Notification(assignment_id="lost", event_type="ending"))
+                if ending == "open savepoint":
+                    db.session.begin_nested()
+                elif ending == "raise in a savepoint":
+                    db.session.begin_nested()
+                    raise RuntimeError("Nesting.handle_ending failed")
+                else:
+                    with db.session.begin_nested():
+                        pass
+                    db.session.commit()
+
+        realtime_experiment.realtime_games = [Nesting]
+        session_id = create_session(Nesting, ["1"])
+        save(session_id, [message(1, "1", "stop")], now=1)
+
+        with pytest.raises(RuntimeError) as raised:
+            write_ending(session_id)
+
+        assert str(raised.value).startswith("Nesting.handle_ending ")
+        assert row(session_id).status == "failed"
+        assert db.session.query(Notification).count() == 0
 
     def test_a_later_job_ends_a_failed_session_the_failing_one_couldnt(
         self, monkeypatch

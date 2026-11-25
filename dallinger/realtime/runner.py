@@ -34,6 +34,11 @@ once and sending their views takes longer than the time between ticks of the
 fastest game among them, or :data:`SLOW` seconds when none of them has ticks.
 The warning names the sessions that took longest, so slow game code shows up
 while testing. It comes at most every :data:`SLOW_LOG_INTERVAL` seconds.
+
+For load tests, the runners also count what they do in redis, as
+:func:`~dallinger.realtime.realtime_runner_stats` describes: how long they're
+busy, and for each game type, its passes, the time they took, and how late
+its ticks and players' messages were applied.
 """
 
 import hashlib
@@ -43,6 +48,7 @@ import socket
 import threading
 import time
 import uuid
+from collections import Counter
 from dataclasses import dataclass
 
 from dallinger.db import get_queue
@@ -296,6 +302,32 @@ class Runner:
                     get_queue("default").enqueue(write_records, session_id)
                 session.records = False
 
+    def count(self, timings, starts, results, seconds):
+        """Add a step that took ``seconds`` to the runners' counts in redis:
+        its sessions' ``timings``, and by session id, the seconds into the
+        step each pass ``starts``, and the ``results`` of the passes that were
+        saved. Another runner plays the others again, so they count only
+        towards busy time."""
+        games = {}
+        for took, session in timings:
+            result = results.get(session.id)
+            if result is None:
+                continue
+            started = starts[session.id]
+            game = games.setdefault(session.channel or "", Counter())
+            game["passes"] += 1
+            game["seconds"] += took
+            for measure, delays in (
+                ("tick_delays", result.tick_delays),
+                ("message_delays", result.message_delays),
+            ):
+                for delay in delays:
+                    # A pass plays at the step's clock, so a session played
+                    # later in the step was later by the time before it.
+                    index = store.delay_range(delay + started)
+                    game["{}:{}".format(measure, index)] += 1
+        store.add_runner_counts(seconds, games)
+
     def play(self, read):
         """Play the sessions that have new entries or are due, save them, and
         send their views.
@@ -307,6 +339,7 @@ class Runner:
         )
         passes = []
         timings = []
+        starts = {}
         for session_id, session in list(self.sessions.items()):
             items = read.get(session_id, [])
             if not items and clock < session.next_pass:
@@ -315,6 +348,7 @@ class Runner:
             if session_id not in self.sessions:
                 continue
             began = time.monotonic()
+            starts[session_id] = began - started
             result = self.play_session(session, items, lost.get(session_id, 0), clock)
             timings.append((time.monotonic() - began, session))
             applied = [entry_id for entry_id, _ in items]
@@ -336,6 +370,12 @@ class Runner:
         for session_id, applied, result in kept:
             self.after_save(self.sessions[session_id], applied, result, saved_at)
         seconds = time.monotonic() - started
+        self.count(
+            timings,
+            starts,
+            {session_id: result for session_id, _, result in kept},
+            seconds,
+        )
         limit = min(_tick_interval(session.game) for _, session in timings)
         if seconds > limit:
             self.log_slow(seconds, limit, timings)
