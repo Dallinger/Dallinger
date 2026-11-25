@@ -2,12 +2,62 @@
 
 ## [Unreleased]
 
+### Added
+
+- A real-time game type can define `handle_ending(session_row)`, which
+  Dallinger calls once per session when it writes the session's ending, after
+  the session's effects, however the session ended, including at its
+  `max_duration`. Like `handle_effect`, it runs on a worker and its database
+  changes are saved together with the ending, so a game can record each
+  player's result from the outcome without a separate job.
+- A socket's `predict` option gets a third argument, `sentAt`: the session
+  time when the page sent the message, or `null` if it wasn't known yet. It
+  stays the same each time the message is predicted again after a new view,
+  so a prediction can say when something happens, such as when a moving
+  piece arrives.
+- Players can join a real-time session while it's played, and finish before
+  it ends. `add_realtime_player(session_id, participant)` adds a player to a
+  running session, and the game type's new `on_add(state, player_id, now)`
+  makes room for them. A game type's new `is_done(state, player_id)` can end
+  one player's game early, and the new
+  `handle_player_ending(session_row, player_id, ending)` can pay them. Their
+  pages get the same frames as for the session's ending, so page code needs
+  no change. See
+  [Players Who Join or Finish During a Session](https://dallinger.readthedocs.io/latest/realtime_games.html#players-who-join-or-finish-during-a-session)
+  for how this works with `members`, `join_timeout` and payment.
+- Real-time runners count what they do in redis, for load tests:
+  `realtime_runner_stats()` returns how many runners are running, how long
+  they were busy, and for each game type, its passes, the time they took,
+  and how many ticks ran, and how many messages from pages were applied,
+  within each range of delay.
+- A real-time game type can define `end_reason(state)`, which gives the
+  session's end reason once `is_over` returns true, such as `"timeout"` for
+  a limit the game keeps itself, instead of `"finished"`. Likewise,
+  `done_reason(state, player_id)` gives a player's reason once `is_done`
+  returns true for them, instead of `"done"`. Both must return a non-empty
+  string, or the session fails.
+
+### Changed
+
+- `dallinger.waitForRealtimeSession` and `dallinger.joinRealtimeSession` also
+  find a session of the game type that has ended, for an hour after its
+  ending is saved, so a page reloaded or opened after its game ended gets the
+  saved ending instead of waiting forever. This includes a player added just
+  before the session ended and a player who finished early. Before, they
+  found only running sessions. A page that waits for a later session than
+  one it has played passes that session as `afterSession`, as the docs
+  already advised, or it now joins the ended session again.
+
 ### Fixed
 
 - `dallinger docker-ssh destroy` for an app that isn't on the server lists
   the server's apps and suggests the closest name, e.g. "Did you mean
   my-app?", so that a mistyped `--app` no longer looks like a successful
   destroy.
+- A real-time game's `handle_effect` can use savepoints
+  (`db.session.begin_nested()`). Before, closing one failed the session as
+  if the handler had committed. A handler that leaves a savepoint open now
+  fails the session, instead of its changes being lost or partly saved.
 
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 

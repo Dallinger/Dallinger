@@ -14,6 +14,9 @@ from dallinger.realtime.game import FAILED
 
 logger = logging.getLogger(__name__)
 
+# The records a game type handles when they're written.
+_HANDLED = ("effect", "player_end", "end")
+
 
 def write_records(session_id):
     """Write the session's new records to Postgres, and handle their effects.
@@ -21,8 +24,11 @@ def write_records(session_id):
     A runner queues this job every few seconds while a session has new
     records, and :func:`write_ending` runs it once the session has ended. In
     one transaction, the job adds a :class:`~dallinger.models.RealtimeEvent`
-    for each record, passes each effect to the game type's
-    :meth:`~dallinger.realtime.RealtimeGame.handle_effect`, and keeps the
+    for each record, adds each player added while the session ran to its
+    ``members``, passes each effect to the game type's
+    :meth:`~dallinger.realtime.RealtimeGame.handle_effect` and each player's
+    ending to its
+    :meth:`~dallinger.realtime.RealtimeGame.handle_player_ending`, and keeps the
     latest checkpoint on the session's
     :class:`~dallinger.models.RealtimeSession`. The job that writes the
     session's end record also saves the ending on the row, with the status
@@ -36,18 +42,29 @@ def write_records(session_id):
     with the reason :data:`~dallinger.realtime.game.FAILED`. Later jobs for a
     failed session write nothing, and end it if it's still running.
 
-    After the commit, the job removes the records it wrote from redis. An
+    After the commit, the job tells the pages of each player whose ending it
+    wrote that it's saved, and removes the records it wrote from redis. An
     error there is raised without failing the session, since the next job
     starts after the last record written.
     """
     try:
-        written = _write(session_id)
+        written, players_ended = _write(session_id)
     except Exception as error:
-        db.session.rollback()
+        # Unlike rollback(), which ends only a savepoint the game left open.
+        db.session.close()
         _fail(session_id, error)
         raise
     finally:
         db.session.remove()
+    endings = {
+        participant: store.note_player_ending_saved(session_id, participant)
+        for participant in players_ended
+    }
+    publish_saved(
+        "write_records",
+        session_id,
+        {player: ending for player, ending in endings.items() if ending is not None},
+    )
     if written is not None:
         store.trim_records(session_id, written)
 
@@ -81,7 +98,20 @@ def _publish_saved(session_id):
     # Noted before the frame goes out, so a page that joins in between and
     # finds the ending unsaved is already listening for it.
     store.note_ending_saved(session_id, status)
-    publish_saved("write_ending", session_id, store.load_ending(session_id))
+    # The members include every player with a final view, since a player is a
+    # member before the session starts or adds them, and a player added just
+    # before the session ended, who can have a page open without one.
+    done = store.players_done(session_id)
+    ending = store.load_ending(session_id)
+    endings = {
+        player: ending
+        for player, is_bot in store.session_members(session_id).items()
+        if not is_bot and player not in done
+    }
+    # A player whose own ending failed to save, which failed the session, is
+    # told now.
+    endings.update(store.note_unsaved_player_endings(session_id, status))
+    publish_saved("write_ending", session_id, endings)
 
 
 def _write(session_id):
@@ -101,12 +131,24 @@ def _write(session_id):
         db.session.commit()
         store.end_realtime_session(session_id, FAILED)
         store.delete_records(session_id)
-        return None
+        return None, []
     records = store.read_records(session_id, row.last_written_record)
     if not records:
         db.session.commit()
-        return None
+        return None, []
     game = None
+    if any(record["type"] in _HANDLED for _, record in records):
+        game = store.experiment_games().get(row.game_type)
+        # The runner fails a session whose game type has gone, and its
+        # failed ending is written without handlers. Anything else fails.
+        last = records[-1][1]
+        if game is None and (last["type"], last.get("reason")) != ("end", FAILED):
+            raise LookupError(
+                "No game type has session {}'s channel {!r}.".format(
+                    session_id, row.game_type
+                )
+            )
+    players_ended = []
     for record_id, record in records:
         # The end record of a session whose saved state can't be read has no
         # sequence number, so it can't be an event, but its ending is saved.
@@ -115,14 +157,43 @@ def _write(session_id):
         if record["type"] == "checkpoint":
             row.checkpoint = record["state"]
         elif record["type"] == "effect":
-            game = game or store.experiment_games()[row.game_type]
-            _handle_effect(game, record["name"], record["payload"], row)
+            if game is not None:
+                _handle_effect(game, record["name"], record["payload"], row)
+        elif record["type"] == "player_add":
+            _record_player_added(row, record)
+        elif record["type"] == "player_end":
+            if game is not None:
+                ending = {
+                    "time": record["time"],
+                    "reason": record["reason"],
+                    "outcome": record["outcome"],
+                }
+                _without_commits(
+                    "{}.handle_player_ending".format(type(game).__name__),
+                    lambda: game.handle_player_ending(
+                        row, record["participant"], ending
+                    ),
+                )
+                players_ended.append(record["participant"])
         elif record["type"] == "end":
             _record_ending(row, record_id, record)
+            if game is not None:
+                _without_commits(
+                    "{}.handle_ending".format(type(game).__name__),
+                    lambda: game.handle_ending(row),
+                )
     # Saved before the commit, which expires the row.
     last_written = row.last_written_record = records[-1][0]
     db.session.commit()
-    return last_written
+    return last_written, players_ended
+
+
+def _record_player_added(row, record):
+    # New lists, which is what marks the columns as changed.
+    participant_id = int(record["participant"])
+    row.members = [*row.members, participant_id]
+    if record["bot"]:
+        row.bots = [*row.bots, participant_id]
 
 
 def _record_ending(row, record_id, record):
@@ -142,24 +213,42 @@ def _handle_effect(game, name, payload, row):
     what = "{}.handle_effect, handling the effect {!r},".format(
         type(game).__name__, name
     )
+    _without_commits(what, lambda: game.handle_effect(name, payload, row))
+
+
+def _without_commits(what, call):
+    """Run a game's ``call``, failing if it ends the job's transaction.
+
+    The game can use savepoints (``db.session.begin_nested()``), but must
+    close each one it opens.
+    """
 
     def refuse_commit(session):
-        raise RuntimeError(
-            "{} committed. The job commits once every new record is saved.".format(what)
-        )
+        # Releasing a savepoint the game opened also fires before_commit.
+        if session.get_nested_transaction() is savepoint:
+            raise RuntimeError(
+                "{} committed. The job commits once every new record is saved.".format(
+                    what
+                )
+            )
 
     session = db.session()
     transaction = session.get_transaction()
+    savepoint = session.get_nested_transaction()
     event.listen(session, "before_commit", refuse_commit)
     try:
-        game.handle_effect(name, payload, row)
+        call()
     finally:
         event.remove(session, "before_commit", refuse_commit)
-    if db.session().get_transaction() is not transaction:
+    session = db.session()
+    if session.get_transaction() is not transaction:
         raise RuntimeError(
             "{} ended the job's transaction, by rolling back or closing the "
             "session.".format(what)
         )
+    # The job's commit would release only a savepoint left open.
+    if session.get_nested_transaction() is not savepoint:
+        raise RuntimeError("{} left a savepoint open.".format(what))
 
 
 def _event(session_id, record):
@@ -201,6 +290,17 @@ def _event(session_id, record):
         fields.update(name=record["name"], payload=record["payload"])
     elif kind == "checkpoint":
         fields.update(state=record["state"])
+    elif kind == "player_add":
+        fields.update(
+            participant_id=int(record["participant"]),
+            payload={"bot": record["bot"]},
+        )
+    elif kind == "player_end":
+        fields.update(
+            participant_id=int(record["participant"]),
+            reason=record["reason"],
+            outcome=record["outcome"],
+        )
     elif kind == "end":
         fields.update(
             reason=record["reason"],
