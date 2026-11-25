@@ -4,6 +4,15 @@
 
 ### Added
 
+- `dallinger constraints generate` and `dallinger constraints ensure` take a
+  repeatable `--constraint` option (and `generate_constraints()` and
+  `ensure_constraints_file_presence()` a `constraints` argument). Each file,
+  a path relative to the experiment directory or a URL, is compiled against
+  together with Dallinger's `dev-requirements.txt`. A framework built on
+  Dallinger, such as PsyNet, can use it to lock the packages that Dallinger
+  doesn't pin to the versions its own CI tested. A path that doesn't exist
+  stops the command with an error. Changing one of these files doesn't make
+  `constraints.txt` stale; regenerate it with `dallinger constraints generate`.
 - A real-time game type can define `handle_ending(session_row)`, which
   Dallinger calls once per session when it writes the session's ending, after
   the session's effects, however the session ended, including at its
