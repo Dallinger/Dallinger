@@ -50,6 +50,10 @@
 
 ### Fixed
 
+- `dallinger docker-ssh destroy` removes an app's build cache in one SSH
+  command. It made one Docker request per cache record, and Docker over SSH
+  logs in again for each request, so destroying an app with a few dozen
+  records sat silent for minutes.
 - A real-time game's `handle_effect` can use savepoints
   (`db.session.begin_nested()`). Before, closing one failed the session as
   if the handler had committed. A handler that leaves a savepoint open now
