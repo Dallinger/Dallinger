@@ -55,6 +55,10 @@
   if the handler had committed. A handler that leaves a savepoint open now
   fails the session, instead of its changes being lost or partly saved.
 
+### Updated
+
+- Updated Python dependencies.
+
 ## [v13.1.0](https://github.com/dallinger/dallinger/tree/v13.1.0) (2026-11-13)
 
 ### Migration Notes
