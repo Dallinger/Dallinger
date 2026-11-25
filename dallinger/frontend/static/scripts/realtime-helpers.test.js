@@ -1146,6 +1146,28 @@ describe("prediction", () => {
     expect(views).toEqual([{ log: ["a"] }]);
   });
 
+  test("gives predict the session time each message was sent, the same on each replay", () => {
+    const sentAt = [];
+    const { socket } = synced(undefined, undefined, {
+      predict: (view, message, at) => {
+        sentAt.push([message, at]);
+      },
+    });
+    socket.send("bids", "early");
+    viewPlayed(1, 12, 0, { view: {} });
+    socket.send("bids", "late");
+    socket.predictedView();
+    jest.advanceTimersByTime(1000);
+    viewPlayed(2, 13, 0, { view: {} });
+    socket.predictedView();
+
+    expect(sentAt.map(([message]) => message)).toEqual(["early", "late", "early", "late"]);
+    expect(sentAt[0][1]).toBeNull();
+    expect(Math.abs(sentAt[1][1] - 12)).toBeLessThanOrEqual(0.025);
+    expect(sentAt[2][1]).toBeNull();
+    expect(sentAt[3][1]).toBe(sentAt[1][1]);
+  });
+
   test("takes the view a predict returns", () => {
     const socket = joined({ predict: (view, message) => ({ n: view.n + message.step }) });
     live().onopen();

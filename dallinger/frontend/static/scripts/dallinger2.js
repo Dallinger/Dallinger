@@ -1198,9 +1198,9 @@ var dallinger = (function () {
    *   game type's ``channel``, on which ``send`` sends the player's messages
    *   to the game. ``dallinger.joinRealtimeSession`` sets it itself.
    * @param {function} [options.predict] - With ``session``, to show the
-   *   player's own moves at once: ``predict(view, message)`` returns the
-   *   view as it would be once the game applied the message. See
-   *   ``predictedView``.
+   *   player's own moves at once: ``predict(view, message, sentAt)``
+   *   returns the view as it would be once the game applied the message.
+   *   See ``predictedView``.
    * @param {function} [options.interpolate] - With ``session``, to show
    *   other players moving smoothly: ``interpolate(a, b, fraction)`` returns
    *   the view ``fraction`` of the way from tick view ``a`` to tick view
