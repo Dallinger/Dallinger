@@ -372,11 +372,18 @@ class TestLostClaims:
         store.redis_conn.delete(store.session_key(stolen, "claim"))
         store.claim(stolen, "another runner", 30)
 
+        def passes():
+            games = store.realtime_runner_stats()["games"].values()
+            return sum(game["passes"] for game in games)
+
+        before = passes()
         runner.step()
 
         assert list(published[-1]) == [kept]
         assert list(runner.sessions) == [kept]
         assert store.realtime_state(stolen)["log"] == []
+        # Only the saved pass counts.
+        assert passes() - before == 1
 
 
 class TestFailures:
@@ -591,6 +598,39 @@ class TestSlowPasses:
 
         assert len(published) == 2
         assert len(caplog.records) == 1
+
+
+def test_runners_count_their_passes_and_how_late_ticks_and_messages_ran(
+    runner, published
+):
+    session_id = create_session(Ticker, ["1"])
+    add(session_id, message(0, "1", "a"))
+    runner.step()
+    time.sleep(0.6)
+    runner.step()
+
+    stats = store.realtime_runner_stats()
+
+    assert stats["runners"] == 1
+    ticker = stats["games"]["ticker"]
+    assert ticker["passes"] == 2
+    assert sum(ticker["tick_delays"]) >= 1
+    assert sum(ticker["message_delays"][: store.delay_range(0.5) + 1]) == 1
+    assert 0 < ticker["seconds"] <= stats["busy"]
+
+
+def test_a_session_played_later_in_a_step_counts_the_wait_for_those_before(
+    runner, published
+):
+    for _ in range(2):
+        add(create_session(Sleeper, ["1"]), message(0, "1", "a"))
+    runner.step()
+
+    delays = store.realtime_runner_stats()["games"]["sleeper"]["message_delays"]
+
+    # The second message waited while the first session's apply slept.
+    first, second = [i for i, n in enumerate(delays) for _ in range(n)]
+    assert second > first
 
 
 class TestDelivery:

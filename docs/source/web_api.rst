@@ -108,9 +108,10 @@ it sends on the session's game channel go to the session, and to nothing else.
 
 An experiment socket can take a ``wait_for_game`` argument instead, naming the
 channel of one of the experiment's game types, for a page that doesn't know its
-session's id yet. The connection is sent the id of the newest running session of
-that game type with the participant as a player, as soon as it connects if there
-is one, or else when one starts. For a participant who plays several sessions of
+session's id yet. The connection is sent the id of the newest session of that
+game type with the participant as a player, as soon as it connects if there is
+one, or else when one starts or the participant is added to one. A session that
+has ended counts until an hour after its ending is saved. For a participant who plays several sessions of
 the game type, one after another, an ``after_session`` argument naming the
 session the page already has makes only newer sessions count. A
 ``wait_for_game`` that isn't a game type's channel, or that comes with a

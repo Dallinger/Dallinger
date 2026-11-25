@@ -484,7 +484,7 @@ def withheld_session_listener(sockets):
 
 
 class TestWaitingForASession:
-    def test_a_waiting_socket_is_sent_the_newest_running_session(self, sockets):
+    def test_a_waiting_socket_is_sent_the_newest_session(self, sockets):
         session_of()
         newest = session_of()
         ws = scripted()
@@ -527,15 +527,19 @@ class TestWaitingForASession:
 
         assert sent == {older: [started_frame(newer)], newer: []}
 
-    def test_nothing_is_sent_for_a_session_whose_ending_is_saved(self, sockets):
+    def test_a_session_whose_ending_is_saved_is_sent_unless_the_page_has_it(
+        self, sockets
+    ):
         session_id = session_of()
         end_session(session_id)
         write_ending(int(session_id))
-        ws = scripted()
+        sent = {}
+        for after in (None, session_id):
+            ws = scripted()
+            wait(sockets, ws, after_session=after)
+            sent[after] = sent_frames(ws)
 
-        wait(sockets, ws)
-
-        assert sent_frames(ws) == []
+        assert sent == {None: [started_frame(session_id)], session_id: []}
 
     def test_a_session_not_yet_in_redis_isnt_sent(self, sockets):
         with db.session_factory() as own:
@@ -616,7 +620,7 @@ class TestWaitingForASession:
         ws = scripted()
         lost = OperationalError("SELECT", {}, Exception("lost"))
 
-        with patch.object(store, "newest_running_session", side_effect=lost):
+        with patch.object(store, "newest_session", side_effect=lost):
             wait(sockets, ws)
 
         ws.close.assert_called_once_with(

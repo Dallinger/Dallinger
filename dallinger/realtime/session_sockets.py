@@ -29,17 +29,23 @@ values, and no view acknowledges it. A frame that is JSON is passed to
 
 A page whose session has already ended gets no join. Its socket gets the
 session's ending instead, as :mod:`dallinger.realtime.delivery` describes.
+So does a page whose player's game ended before the session's, once the
+runner has saved that ending: it gets the player's ending.
 
 A page that doesn't know its session's id yet opens a websocket to
 ``/experiment-socket`` with a game type's channel in the ``wait_for_game``
 query parameter, instead of a ``session``. The socket is sent a
-``realtime_started`` frame for the newest running session of that game type
-with the participant as a player other than a bot: at once if there is one,
-otherwise when :func:`~dallinger.realtime.create_realtime_session` starts
-one. A participant's sockets also get the frames of their other game types'
-sessions, so a page checks the frame's ``game_type``. A page whose participant
-plays several sessions of the game type, one after another, gives the id of
-the session it has in ``after_session``, so that only newer sessions count.
+``realtime_started`` frame for the newest session of that game type with the
+participant as a player other than a bot: at once if there is one, otherwise
+when :func:`~dallinger.realtime.create_realtime_session` starts one or
+:func:`~dallinger.realtime.add_realtime_player` adds them to one. A session
+that has ended counts until its keys expire, an hour after its ending is
+saved, so a page that starts waiting after its game has ended joins the
+session and gets the ending. A participant's sockets also get the frames of
+their other game types' sessions, so a page checks the frame's
+``game_type``. A page whose participant plays several sessions of the game
+type, one after another, gives the id of the session it has in
+``after_session``, so that only newer sessions count.
 
 A ``wait_for_game`` that isn't one of the experiment's game types, one with a
 ``session`` or on ``/chat``, and an ``after_session`` that isn't a whole
@@ -213,18 +219,20 @@ class SessionSocket(NoSession):
 
     def join(self):
         """Add the connection's join to its session and return ``None``, or,
-        if the session has ended, return the frame that tells the page how it
-        ended.
+        if the session or the player's game has ended, return the frame that
+        tells the page how it ended.
 
         :raises SessionExpired: if the session's keys have expired
         """
         self.clock_offset = store.server_time() - time.time()
-        if self.add_socket_entry("join") is not None:
-            self.joined = True
-            return None
-        ending = store.load_ending(self.session_id)
+        ending = store.load_player_ending(self.session_id, self.participant)
         if ending is None:
-            raise SessionExpired(self.session_id)
+            if self.add_socket_entry("join") is not None:
+                self.joined = True
+                return None
+            ending = store.load_ending(self.session_id)
+            if ending is None:
+                raise SessionExpired(self.session_id)
         return channel_frame(
             REALTIME_SESSION_CHANNEL,
             ending_payload(self.session_id, ending, self.participant),
@@ -319,11 +327,12 @@ class SessionWait(NoSession):
         self.after = after
 
     def join(self):
-        """Return the frame that tells the page about the newest running
-        session of the game type that has the participant as a player, or
-        ``None`` if there isn't one.
+        """Return the frame that tells the page about the newest session of
+        the game type that has the participant as a player, as
+        :func:`~dallinger.realtime.store.newest_session` finds it, or ``None``
+        if there isn't one.
         """
-        session_id = store.newest_running_session(
+        session_id = store.newest_session(
             self.game_type, self.participant, after=self.after
         )
         if session_id is None:

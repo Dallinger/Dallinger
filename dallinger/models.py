@@ -1949,8 +1949,9 @@ class RealtimeSession(Base):
 
 
 class RealtimeEvent(Base):
-    """One saved message, clock measurement, effect, checkpoint or ending of a
-    :class:`RealtimeSession`. The columns an event type doesn't use are null.
+    """One saved message, clock measurement, effect, checkpoint, added player,
+    player's ending or ending of a :class:`RealtimeSession`. The columns an
+    event type doesn't use are null.
     """
 
     __tablename__ = "realtime_event"
@@ -1964,13 +1965,15 @@ class RealtimeEvent(Base):
     #: its order among the session's events, counting from 1
     sequence = Column(Integer)
 
-    #: ``message``, ``clock``, ``effect``, ``checkpoint`` or ``end``
+    #: ``message``, ``clock``, ``effect``, ``checkpoint``, ``player_add``,
+    #: ``player_end`` or ``end``
     event_type = Column(String, nullable=False)
 
     #: the session time it happened at
     session_time = Column(Float)
 
-    #: the player whose page sent a message or a clock measurement
+    #: the player whose page sent a message or a clock measurement, who was
+    #: added, or whose game ended
     participant_id = Column(Integer)
 
     #: the scope of the page that sent a message or a clock measurement
@@ -1979,9 +1982,10 @@ class RealtimeEvent(Base):
     #: an effect's name
     name = Column(String)
 
-    #: a message's or an effect's payload, or a clock measurement's
+    #: a message's or an effect's payload, a clock measurement's
     #: ``server_time`` and ``round_trip``, as
-    #: :mod:`dallinger.realtime.session_sockets` describes them
+    #: :mod:`dallinger.realtime.session_sockets` describes them, or for an
+    #: added player, ``{"bot": ...}``
     payload = Column(JSONB)
 
     #: the number the page gave a message
@@ -2003,11 +2007,11 @@ class RealtimeEvent(Base):
     #: the game code applying it raised an error
     status = Column(String)
 
-    #: why a message was rejected, or why the session ended
+    #: why a message was rejected, or why a player's game or the session ended
     reason = Column(JSONB)
 
     #: what :meth:`~dallinger.realtime.RealtimeGame.outcome` returned,
-    #: for an ending
+    #: for a player's ending or the session's
     outcome = Column(JSONB)
 
     #: the state at a checkpoint, or when the session ended
