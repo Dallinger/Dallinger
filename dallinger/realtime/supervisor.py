@@ -7,11 +7,11 @@ started. A worker that can't load the experiment logs the error and starts no
 runner. The worker keeps its CPU workers (``cpu_processes_per_worker``) going
 in the same way.
 
-The worker waits :data:`RESTART_DELAY` seconds before restarting a child, and
-twice as long after each child that couldn't start or exited within
-:data:`MAX_RESTART_DELAY` seconds, up to that maximum. So a child that can't
-start or keeps crashing is retried, and logged, about once a minute instead
-of every second.
+The wait before restarting a child starts at :data:`RESTART_DELAY` seconds
+and doubles after each restart, up to :data:`MAX_RESTART_DELAY`. A child that
+ran for at least :data:`MAX_RESTART_DELAY` seconds resets it. So a child that
+can't start or keeps crashing is retried, and logged, about once a minute
+instead of every second.
 
 When the worker gets ``SIGTERM`` or ``SIGINT``, it sends its children
 ``SIGTERM`` at once, so the runner gives up its sessions while the worker
