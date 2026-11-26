@@ -33,6 +33,7 @@ services:
   worker:
     image: {{ experiment_image }}
     command: dallinger_heroku_worker
+    stop_grace_period: 30s
     cpu_shares: {{ worker_cpu_shares }}
     deploy:
       replicas: {{ worker_processes }}

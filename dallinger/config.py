@@ -194,6 +194,7 @@ default_keys = (
     ("web_processes", str, ["threads"], False, [is_auto_or_positive_int]),
     ("whimsical", bool, []),
     ("worker_greenlets_per_process", int, [], False, [is_positive_int]),
+    ("cpu_processes_per_worker", int, [], False, [is_non_negative_int]),
     ("worker_multiplier", float, []),
     ("worker_processes", int, [], False, [is_non_negative_int]),
     ("worker_startup_timeout", int, []),

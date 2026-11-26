@@ -854,6 +854,26 @@ def test_worker_greenlets_per_process_sizes_gevent_and_redis_pools(
     assert pool_connections == max_connections
 
 
+@pytest.mark.parametrize(
+    "cpu, cpu_processes, queues, pool_size",
+    [
+        (False, 0, ["high", "default", "low", "cpu_high", "cpu", "cpu_low"], 20),
+        (False, 2, ["high", "default", "low"], 20),
+        (True, 2, ["cpu_high", "cpu", "cpu_low"], 1),
+    ],
+)
+def test_cpu_jobs_go_to_cpu_workers_when_there_are_any(
+    stub_config, cpu, cpu_processes, queues, pool_size
+):
+    from dallinger_scripts.worker import worker_options, worker_queues
+
+    stub_config.set("cpu_processes_per_worker", cpu_processes)
+    assert worker_queues(stub_config, cpu=cpu) == queues
+    worker_kwargs = worker_options(stub_config, cpu=cpu)[0]
+    assert worker_kwargs["pool_size"] == pool_size
+    assert worker_kwargs["cold_shutdown"] is not cpu
+
+
 def test_procfile_wrapper_repr_survives_processes_that_exit():
     from dallinger.heroku.tools import LocalProcfileWrapper
 

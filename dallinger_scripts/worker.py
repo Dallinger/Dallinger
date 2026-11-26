@@ -1,21 +1,49 @@
 listen = ["high", "default", "low"]
+# CPU-heavy counterparts of ``listen``, in the same priority order.
+cpu_listen = ["cpu_high", "cpu", "cpu_low"]
+CPU_WORKER_COMMAND = ("dallinger_heroku_worker", "--cpu")
 DEFAULT_GREENLETS_PER_PROCESS = 20
 # Applies until the config is loaded, unless the environment sets
 # worker_startup_timeout; keep in step with global_config_defaults.txt.
 DEFAULT_STARTUP_TIMEOUT = 120
 
 
-def worker_options(config):
+def worker_options(config, cpu=False):
     """Return the RQ gevent worker's keyword arguments and Redis pool size.
 
-    Each greenlet can hold a Redis connection while RQ also uses some, so the
-    connection pool needs headroom above the greenlet count.
+    A CPU worker runs one job at a time, and ignores signals after the first:
+    Heroku and ``dallinger debug`` signal it directly as well as through the
+    worker that started it. Each greenlet can hold a Redis connection while
+    RQ also uses some, so the connection pool needs headroom above the
+    greenlet count.
     """
-    pool_size = config.get(
-        "worker_greenlets_per_process", DEFAULT_GREENLETS_PER_PROCESS
-    )
-    worker_kwargs = {"log_job_description": False, "pool_size": pool_size}
+    if cpu:
+        pool_size = 1
+    else:
+        pool_size = config.get(
+            "worker_greenlets_per_process", DEFAULT_GREENLETS_PER_PROCESS
+        )
+    worker_kwargs = {
+        "log_job_description": False,
+        "pool_size": pool_size,
+        "cold_shutdown": not cpu,
+    }
     return worker_kwargs, max(50, pool_size + 10)
+
+
+def worker_queues(config, cpu=False):
+    """Return the names of the queues a worker takes jobs from, in order.
+
+    A CPU worker takes jobs only from the CPU queues, ``cpu_high``, ``cpu``
+    and ``cpu_low``, in that order. Other workers take them too, after their
+    other queues, unless ``cpu_processes_per_worker`` starts CPU workers to
+    do it.
+    """
+    if cpu:
+        return list(cpu_listen)
+    if config.get("cpu_processes_per_worker", 0) > 0:
+        return list(listen)
+    return [*listen, *cpu_listen]
 
 
 def _checked_startup_timeout(value):
@@ -88,10 +116,24 @@ def _exit_unless_registered_within(timeout, started):
     return gevent.spawn_later(remaining, exit_unregistered)
 
 
-def main():
+def main(argv=None):
+    """Run a worker.
+
+    With ``--cpu``, run a CPU worker: it takes jobs from the CPU queues one
+    at a time, so a job that computes for long can't hold up other jobs, and
+    it starts no real-time runner or CPU workers of its own.
+    """
+    import argparse
     import time
 
     started = time.monotonic()
+    parser = argparse.ArgumentParser(prog="dallinger_heroku_worker")
+    parser.add_argument(
+        "--cpu",
+        action="store_true",
+        help="Run jobs from the CPU queues, one at a time.",
+    )
+    cpu = parser.parse_args(argv).cpu
 
     import gevent.monkey
 
@@ -124,7 +166,7 @@ def main():
     if not dev_logging.configure_from_environment(log_level):
         logging.basicConfig(format="%(asctime)s %(message)s", level=log_level)
     attach_json_logger(logging.getLogger())
-    worker_kwargs, max_connections = worker_options(config)
+    worker_kwargs, max_connections = worker_options(config, cpu=cpu)
 
     # The environment overrides config files, so an env value was already checked.
     if "worker_startup_timeout" not in os.environ:
@@ -161,7 +203,7 @@ def main():
     redis_conn = StrictRedis(connection_pool=redis_pool)
 
     worker = Worker(
-        [Queue(name, connection=redis_conn) for name in listen],
+        [Queue(name, connection=redis_conn) for name in worker_queues(config, cpu)],
         connection=redis_conn,
         startup_watchdog=startup_watchdog,
         **worker_kwargs,
@@ -171,40 +213,46 @@ def main():
     # level
     worker.log.info = worker.log.debug
 
-    supervisor = start_runner_supervisor()
+    supervisors = [] if cpu else start_supervisors(config)
     try:
         worker.work(logging_level=log_level)
     finally:
-        if supervisor is not None:
+        for supervisor in supervisors:
             supervisor.stop()
-            # A container's other processes are killed when its first one
-            # exits, so the runner must give up its sessions first.
+        # A container's other processes are killed when its first one exits,
+        # so the runner must give up its sessions, and CPU workers finish
+        # their jobs, first.
+        for supervisor in supervisors:
             supervisor.join()
 
 
-def start_runner_supervisor():
-    """Start keeping a real-time runner going, and return its
-    :class:`~dallinger.realtime.supervisor.RunnerSupervisor`, if the
-    experiment has game types. Return ``None`` if it has none.
+def start_supervisors(config):
+    """Start keeping this worker's child processes going, and return their
+    :class:`~dallinger.realtime.supervisor.RunnerSupervisor` objects.
 
-    ``SIGTERM`` and ``SIGINT`` stop the supervisor and its runner.
+    The children are a real-time runner, if the experiment has game types,
+    and ``cpu_processes_per_worker`` CPU workers. ``SIGTERM`` and ``SIGINT``
+    stop the supervisors and their children.
     """
-    if not experiment_has_realtime_games():
-        return None
-
     import signal
 
     import gevent
 
     from dallinger.realtime.supervisor import RunnerSupervisor
 
-    supervisor = RunnerSupervisor()
-    # gevent runs every handler registered for a signal, so these run
-    # beside the ones the worker registers.
-    for signum in (signal.SIGTERM, signal.SIGINT):
-        gevent.signal_handler(signum, supervisor.stop)
-    supervisor.start()
-    return supervisor
+    supervisors = [
+        RunnerSupervisor(CPU_WORKER_COMMAND, name="CPU worker")
+        for _ in range(config.get("cpu_processes_per_worker", 0))
+    ]
+    if experiment_has_realtime_games():
+        supervisors.append(RunnerSupervisor())
+    for supervisor in supervisors:
+        # gevent runs every handler registered for a signal, so these run
+        # beside the ones the worker registers.
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            gevent.signal_handler(signum, supervisor.stop)
+        supervisor.start()
+    return supervisors
 
 
 def experiment_has_realtime_games():

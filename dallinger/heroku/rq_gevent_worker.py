@@ -60,6 +60,9 @@ class GeventWorker(Worker):
         self.children = []
         self.gevent_worker = None
         self.startup_watchdog = kwargs.pop("startup_watchdog", None)
+        # When False, signals after the first are ignored, so the job
+        # finishes unless the platform kills the process.
+        self.cold_shutdown = kwargs.pop("cold_shutdown", True)
         super(GeventWorker, self).__init__(*args, **kwargs)
 
     def register_birth(self):
@@ -70,6 +73,12 @@ class GeventWorker(Worker):
 
     def heartbeat(self, timeout=0, pipeline=None):
         connection = pipeline if pipeline is not None else self.connection
+        # Nothing renews the registration while the pool is full, so it must
+        # last as long as the running jobs may.
+        timeout = max(
+            [timeout or self.worker_ttl + 60]
+            + [self.get_heartbeat_ttl(c.job) for c in self.children]
+        )
         super(GeventWorker, self).heartbeat(timeout)
         connection.hset(self.key, "curr_pool_len", len(self.gevent_pool))
 
@@ -81,18 +90,22 @@ class GeventWorker(Worker):
 
         def request_stop():
             if not self._stop_requested:
-                gevent.signal_handler(signal.SIGINT, request_force_stop)
-                gevent.signal_handler(signal.SIGTERM, request_force_stop)
-
                 self.log.warning("Warm shut down requested.")
-                self.log.warning(
-                    "Stopping after all greenlets are finished. "
-                    "Press Ctrl+C again for a cold shutdown."
-                )
+                if self.cold_shutdown:
+                    gevent.signal_handler(signal.SIGINT, request_force_stop)
+                    gevent.signal_handler(signal.SIGTERM, request_force_stop)
+                    self.log.warning(
+                        "Stopping after all greenlets are finished. "
+                        "Press Ctrl+C again for a cold shutdown."
+                    )
+                else:
+                    self.log.warning("Stopping after the running job finishes.")
 
                 self._stop_requested = True
                 self.gevent_pool.join()
-                if self.gevent_worker is not None:
+                # Once the loop has ended, the worker is unregistering
+                # itself, which must not be interrupted.
+                if self.gevent_worker is not None and self._in_work_loop:
                     self.gevent_worker.kill(StopRequested)
 
         gevent.signal_handler(signal.SIGINT, request_stop)
@@ -115,6 +128,7 @@ class GeventWorker(Worker):
         The return value indicates whether any jobs were processed.
         """
         setup_loghandlers(logging_level)
+        self._in_work_loop = False
         self._install_signal_handlers()
 
         self.did_perform_work = False
@@ -126,6 +140,7 @@ class GeventWorker(Worker):
         )
         self.set_state(WorkerStatus.STARTED)
 
+        self._in_work_loop = True
         try:
             while True:
                 try:
@@ -160,6 +175,11 @@ class GeventWorker(Worker):
                 self.execute_job(job, queue)
 
         finally:
+            self._in_work_loop = False
+            # A full pool makes the loop above notice a warm shutdown while
+            # its jobs still run; they must finish before the process exits.
+            # A cold shutdown has killed them already.
+            self.gevent_pool.join()
             if not self.is_horse:
                 self.register_death()
         return self.did_perform_work
@@ -190,6 +210,7 @@ class GeventWorker(Worker):
         child_greenlet = self.gevent_pool.spawn(
             self.perform_job, job, queue, self.prepare_execution(job)
         )
+        child_greenlet.job = job
         child_greenlet.link(job_done)
         self.children.append(child_greenlet)
 
@@ -206,8 +227,11 @@ class GeventWorker(Worker):
 
             if self.gevent_pool.full():
                 self.set_state(WorkerStatus.BUSY)
-                self.log.warning(
-                    "RQ GEVENT worker greenlet pool empty current size %s",
+                # A single-job worker, such as a CPU worker, is full whenever
+                # it runs a job.
+                log = self.log.debug if self.gevent_pool.size == 1 else self.log.warning
+                log(
+                    "RQ GEVENT worker greenlet pool full, size %s",
                     self.gevent_pool.size,
                 )
 

@@ -1,14 +1,15 @@
-"""Each worker keeps a runner going beside it.
+"""Each worker keeps its child processes going beside it.
 
 When the experiment has game types, each ``dallinger_heroku_worker`` process
 starts a runner as a child process, and starts another :data:`RESTART_DELAY`
 seconds after each time it exits. The platform restarts a worker that stops,
 but not a process the worker started. A worker that can't load the experiment
-logs the error and starts no runner.
+logs the error and starts no runner. The worker keeps its CPU workers
+(``cpu_processes_per_worker``) going in the same way.
 
-When the worker gets ``SIGTERM`` or ``SIGINT``, it sends its runner
+When the worker gets ``SIGTERM`` or ``SIGINT``, it sends its children
 ``SIGTERM`` at once, so the runner gives up its sessions while the worker
-finishes its jobs. The worker exits after its runner does.
+finishes its jobs. The worker exits after its children do.
 """
 
 import logging
@@ -18,17 +19,33 @@ import threading
 logger = logging.getLogger(__name__)
 
 RESTART_DELAY = 1
-"""Seconds between a runner exiting and the next one starting."""
+"""Seconds between a child exiting and the next one starting."""
+
+# Python 3.12's os.fork warns about threads while it still holds its fork
+# locks, and Dallinger's warning hook can switch greenlets there. A second
+# fork from another greenlet would then block the whole process, so
+# supervisors fork one at a time. The lock is created on first use, after
+# the worker has monkey-patched threading, so that it is a gevent lock.
+_fork_lock = None
+
+
+def _get_fork_lock():
+    global _fork_lock
+    if _fork_lock is None:
+        _fork_lock = threading.Lock()
+    return _fork_lock
 
 
 class RunnerSupervisor:
     """Run ``command`` in a child process, and run it again
     :data:`RESTART_DELAY` seconds after each time it exits, until :meth:`stop`
-    is called. The child shares the worker's output.
+    is called. The child shares the worker's output. ``name`` describes the
+    child in log messages.
     """
 
-    def __init__(self, command=("dallinger_realtime",)):
+    def __init__(self, command=("dallinger_realtime",), name="real-time runner"):
         self.command = list(command)
+        self.name = name
         self.process = None
         self.stopping = threading.Event()
         # Held while starting a child, so stop() can't miss one.
@@ -39,14 +56,20 @@ class RunnerSupervisor:
         self.thread.start()
 
     def stop(self):
-        """Send the runner ``SIGTERM``, and start no more."""
+        """Send the child ``SIGTERM``, and start no more.
+
+        Only the first call sends ``SIGTERM``, though a worker calls it from
+        both its signal handler and its cleanup.
+        """
         with self.lock:
+            if self.stopping.is_set():
+                return
             self.stopping.set()
             if self.process is not None:
                 self.process.terminate()
 
     def join(self):
-        """Wait for the last runner to exit, once :meth:`stop` is called."""
+        """Wait for the last child to exit, once :meth:`stop` is called."""
         self.thread.join()
 
     def _supervise(self):
@@ -55,9 +78,10 @@ class RunnerSupervisor:
                 if self.stopping.is_set():
                     return
                 try:
-                    self.process = subprocess.Popen(self.command)
+                    with _get_fork_lock():
+                        self.process = subprocess.Popen(self.command)
                 except OSError:
-                    logger.exception("Couldn't start the real-time runner.")
+                    logger.exception("Couldn't start the %s.", self.name)
                     self.process = None
             if self.process is None:
                 reason = "couldn't start"
@@ -66,7 +90,8 @@ class RunnerSupervisor:
             if self.stopping.is_set():
                 return
             logger.warning(
-                "The real-time runner %s. Starting another in %s second(s).",
+                "The %s %s. Starting another in %s second(s).",
+                self.name,
                 reason,
                 RESTART_DELAY,
             )
