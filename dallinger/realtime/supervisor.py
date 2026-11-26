@@ -49,8 +49,10 @@ def _get_fork_lock():
 
 class RunnerSupervisor:
     """Run ``command`` in a child process, and run it again after each time
-    it exits, until :meth:`stop` is called. The child shares the worker's
-    output. ``name`` describes the child in log messages.
+    it exits, until :meth:`stop` is called, waiting between
+    :data:`RESTART_DELAY` and :data:`MAX_RESTART_DELAY` seconds as the module
+    docstring describes. The child shares the worker's output. ``name``
+    describes the child in log messages.
     """
 
     def __init__(self, command=("dallinger_realtime",), name="real-time runner"):

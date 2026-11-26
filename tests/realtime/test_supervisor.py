@@ -153,6 +153,8 @@ def test_restarts_back_off_up_to_the_maximum(monkeypatch, caplog):
     finally:
         stop(supervisor)
     assert restart_delays(caplog)[:5] == ["0.01", "0.02", "0.04", "0.04", "0.04"]
+    logged = [r.created for r in caplog.records if "Starting another" in r.message]
+    assert logged[4] - logged[0] >= 0.01 + 0.02 + 0.04 + 0.04
 
 
 RUNS_LONG_THE_THIRD_TIME = f"""
@@ -160,7 +162,7 @@ import os, sys, time
 runs = open(sys.argv[1]).read().count("\\n") if os.path.exists(sys.argv[1]) else 0
 {EXITS}
 if runs == 2:
-    time.sleep(0.6)
+    time.sleep(0.8)
 """
 
 
