@@ -60,7 +60,7 @@
   one it has played passes that session as `afterSession`, as the docs
   already advised, or it now joins the ended session again.
 - A worker that restarts its real-time runner or a CPU worker now waits
-  1 second at first, then twice as long after each restart, up to 60
+  1 second at first, then twice as long after each attempt, up to 60
   seconds, instead of 1 second every time. So a misconfigured or crashing
   child is retried and logged about once a minute. A child that ran for at
   least 60 seconds resets the wait to 1 second.

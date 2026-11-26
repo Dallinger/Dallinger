@@ -8,7 +8,7 @@ runner. The worker keeps its CPU workers (``cpu_processes_per_worker``) going
 in the same way.
 
 The wait before restarting a child starts at :data:`RESTART_DELAY` seconds
-and doubles after each restart, up to :data:`MAX_RESTART_DELAY`. A child that
+and doubles after each attempt, up to :data:`MAX_RESTART_DELAY`. A child that
 ran for at least :data:`MAX_RESTART_DELAY` seconds resets it. So a child that
 can't start or keeps crashing is retried, and logged, about once a minute
 instead of every second.
@@ -99,12 +99,10 @@ class RunnerSupervisor:
                 reason = "couldn't start"
             else:
                 reason = "exited with code {}".format(self.process.wait())
+                if time.monotonic() - started >= MAX_RESTART_DELAY:
+                    delay = RESTART_DELAY
             if self.stopping.is_set():
                 return
-            if self.process is not None and (
-                time.monotonic() - started >= MAX_RESTART_DELAY
-            ):
-                delay = RESTART_DELAY
             logger.warning(
                 "The %s %s. Starting another in %s second(s).",
                 self.name,
