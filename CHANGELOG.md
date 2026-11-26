@@ -55,7 +55,8 @@
   the changed behavior, or when a likely regression with real consequences
   would pass the tests. A test that could be stronger is low. In the
   `branch-review-loop` skill, a commit that only adds or changes tests no
-  longer restarts the count of clean reviews.
+  longer restarts the count of clean reviews; one made after both clean
+  reviews gets a review of that commit only.
 - `dallinger.waitForRealtimeSession` and `dallinger.joinRealtimeSession` also
   find a session of the game type that has ended, for an hour after its
   ending is saved, so a page reloaded or opened after its game ended gets the

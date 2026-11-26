@@ -48,7 +48,9 @@ for the user's approval. They may prefer fewer reviews or other models.
   need a third review.
 - Any commit after the first of those two restarts the count, except one
   that only rewords comments or `CHANGELOG.md`, or only adds or changes
-  tests; record such commits in the PR description.
+  tests; record such commits in the PR description. A commit that only
+  adds or changes tests after the second of those reviews gets one more
+  review, of that commit only.
 - Reviews read the diff; they don't replace dogfooding (see `AGENTS.md`).
   Use the change the way a user would early, not only after the reviews
   converge.
