@@ -47,8 +47,8 @@ for the user's approval. They may prefer fewer reviews or other models.
   at the current head and find no high or medium issues. Their lows don't
   need a third review.
 - Any commit after the first of those two restarts the count, except one
-  that only rewords comments or `CHANGELOG.md`; record such commits in the
-  PR description.
+  that only rewords comments or `CHANGELOG.md`, or only adds or changes
+  tests; record such commits in the PR description.
 - Reviews read the diff; they don't replace dogfooding (see `AGENTS.md`).
   Use the change the way a user would early, not only after the reviews
   converge.
