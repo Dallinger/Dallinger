@@ -156,7 +156,7 @@ honcho==2.0.0
     # via dallinger
 httpcore==1.0.9
     # via httpx
-httpx==0.28.1
+httpx==0.29.0
     # via jupyterlab
 identify==2.6.20
     # via pre-commit
