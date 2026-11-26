@@ -3,6 +3,7 @@ runner. Each child appends its pid to a file when it starts.
 """
 
 import logging
+import re
 import sys
 import time
 
@@ -134,6 +135,33 @@ def test_a_runner_that_cannot_start_is_tried_again(quick_restarts, caplog):
     finally:
         stop(supervisor)
     assert "The real-time runner couldn't start." in caplog.text
+
+
+def restart_delays(caplog):
+    return re.findall(r"Starting another in ([\d.]+) second", caplog.text)
+
+
+def test_restarts_back_off_up_to_the_maximum(monkeypatch, caplog):
+    monkeypatch.setattr("dallinger.realtime.supervisor.RESTART_DELAY", 0.01)
+    monkeypatch.setattr("dallinger.realtime.supervisor.MAX_RESTART_DELAY", 0.04)
+    supervisor = RunnerSupervisor(["/nonexistent/dallinger_realtime"])
+    supervisor.start()
+
+    try:
+        wait_until(lambda: len(restart_delays(caplog)) >= 5)
+    finally:
+        stop(supervisor)
+    assert restart_delays(caplog)[:5] == ["0.01", "0.02", "0.04", "0.04", "0.04"]
+
+
+def test_a_runner_that_ran_long_enough_restarts_soon(supervise, monkeypatch, caplog):
+    monkeypatch.setattr("dallinger.realtime.supervisor.RESTART_DELAY", 0.01)
+    monkeypatch.setattr("dallinger.realtime.supervisor.MAX_RESTART_DELAY", 0.2)
+    supervisor, path = supervise(f"import time; time.sleep(0.3); {EXITS}")
+
+    wait_until(lambda: len(restart_delays(caplog)) >= 3)
+    stop(supervisor)
+    assert restart_delays(caplog)[:3] == ["0.01", "0.01", "0.01"]
 
 
 class WithGames:

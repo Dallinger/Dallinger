@@ -1,11 +1,17 @@
 """Each worker keeps its child processes going beside it.
 
 When the experiment has game types, each ``dallinger_heroku_worker`` process
-starts a runner as a child process, and starts another :data:`RESTART_DELAY`
-seconds after each time it exits. The platform restarts a worker that stops,
-but not a process the worker started. A worker that can't load the experiment
-logs the error and starts no runner. The worker keeps its CPU workers
-(``cpu_processes_per_worker``) going in the same way.
+starts a runner as a child process, and starts another each time it exits.
+The platform restarts a worker that stops, but not a process the worker
+started. A worker that can't load the experiment logs the error and starts no
+runner. The worker keeps its CPU workers (``cpu_processes_per_worker``) going
+in the same way.
+
+The worker waits :data:`RESTART_DELAY` seconds before restarting a child, and
+twice as long after each child that couldn't start or exited within
+:data:`MAX_RESTART_DELAY` seconds, up to that maximum. So a child that can't
+start or keeps crashing is retried, and logged, about once a minute instead
+of every second.
 
 When the worker gets ``SIGTERM`` or ``SIGINT``, it sends its children
 ``SIGTERM`` at once, so the runner gives up its sessions while the worker
@@ -15,11 +21,16 @@ finishes its jobs. The worker exits after its children do.
 import logging
 import subprocess
 import threading
+import time
 
 logger = logging.getLogger(__name__)
 
 RESTART_DELAY = 1
-"""Seconds between a child exiting and the next one starting."""
+"""Seconds between a child exiting and the next one starting, at first."""
+
+MAX_RESTART_DELAY = 60
+"""Longest wait between children. A child that runs at least this long
+resets the wait to :data:`RESTART_DELAY`."""
 
 # Python 3.12's os.fork warns about threads while it still holds its fork
 # locks, and Dallinger's warning hook can switch greenlets there. A second
@@ -37,10 +48,9 @@ def _get_fork_lock():
 
 
 class RunnerSupervisor:
-    """Run ``command`` in a child process, and run it again
-    :data:`RESTART_DELAY` seconds after each time it exits, until :meth:`stop`
-    is called. The child shares the worker's output. ``name`` describes the
-    child in log messages.
+    """Run ``command`` in a child process, and run it again after each time
+    it exits, until :meth:`stop` is called. The child shares the worker's
+    output. ``name`` describes the child in log messages.
     """
 
     def __init__(self, command=("dallinger_realtime",), name="real-time runner"):
@@ -73,10 +83,12 @@ class RunnerSupervisor:
         self.thread.join()
 
     def _supervise(self):
+        delay = RESTART_DELAY
         while True:
             with self.lock:
                 if self.stopping.is_set():
                     return
+                started = time.monotonic()
                 try:
                     with _get_fork_lock():
                         self.process = subprocess.Popen(self.command)
@@ -89,11 +101,16 @@ class RunnerSupervisor:
                 reason = "exited with code {}".format(self.process.wait())
             if self.stopping.is_set():
                 return
+            if self.process is not None and (
+                time.monotonic() - started >= MAX_RESTART_DELAY
+            ):
+                delay = RESTART_DELAY
             logger.warning(
                 "The %s %s. Starting another in %s second(s).",
                 self.name,
                 reason,
-                RESTART_DELAY,
+                delay,
             )
-            if self.stopping.wait(RESTART_DELAY):
+            if self.stopping.wait(delay):
                 return
+            delay = min(delay * 2, MAX_RESTART_DELAY)

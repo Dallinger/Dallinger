@@ -59,6 +59,11 @@
   found only running sessions. A page that waits for a later session than
   one it has played passes that session as `afterSession`, as the docs
   already advised, or it now joins the ended session again.
+- A worker restarts a real-time runner or CPU worker that can't start or
+  keeps exiting after a wait that doubles each time, from 1 second up to 60,
+  instead of every second. So a misconfigured or crashing child is retried
+  and logged about once a minute. A child that ran for at least 60 seconds
+  is still restarted after 1 second.
 
 ### Fixed
 
