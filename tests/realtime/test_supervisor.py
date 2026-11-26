@@ -59,6 +59,10 @@ def lines(path):
     return path.read_text().splitlines() if path.exists() else []
 
 
+def restart_delays(caplog):
+    return re.findall(r"Starting another in ([\d.]+) second", caplog.text)
+
+
 def wait_until(condition, timeout=10):
     deadline = time.monotonic() + timeout
     while not condition():
@@ -78,6 +82,7 @@ def test_a_runner_that_exits_is_started_again(supervise, quick_restarts, caplog)
     stop(supervisor)
     assert len(set(lines(path))) == len(lines(path))
     assert "The real-time runner exited with code 0." in caplog.text
+    assert restart_delays(caplog)[:2] == ["0.01", "0.02"]
 
 
 def test_stop_passes_sigterm_on_and_starts_no_more(supervise, caplog):
@@ -137,10 +142,6 @@ def test_a_runner_that_cannot_start_is_tried_again(quick_restarts, caplog):
     assert "The real-time runner couldn't start." in caplog.text
 
 
-def restart_delays(caplog):
-    return re.findall(r"Starting another in ([\d.]+) second", caplog.text)
-
-
 def test_restarts_back_off_up_to_the_maximum(monkeypatch, caplog):
     monkeypatch.setattr("dallinger.realtime.supervisor.RESTART_DELAY", 0.01)
     monkeypatch.setattr("dallinger.realtime.supervisor.MAX_RESTART_DELAY", 0.04)
@@ -157,7 +158,7 @@ def test_restarts_back_off_up_to_the_maximum(monkeypatch, caplog):
 def test_a_runner_that_ran_long_enough_restarts_soon(supervise, monkeypatch, caplog):
     monkeypatch.setattr("dallinger.realtime.supervisor.RESTART_DELAY", 0.01)
     monkeypatch.setattr("dallinger.realtime.supervisor.MAX_RESTART_DELAY", 0.2)
-    supervisor, path = supervise(f"import time; time.sleep(0.3); {EXITS}")
+    supervisor, _ = supervise("import time; time.sleep(0.3)")
 
     wait_until(lambda: len(restart_delays(caplog)) >= 3)
     stop(supervisor)

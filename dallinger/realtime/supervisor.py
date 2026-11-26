@@ -88,10 +88,10 @@ class RunnerSupervisor:
             with self.lock:
                 if self.stopping.is_set():
                     return
-                started = time.monotonic()
                 try:
                     with _get_fork_lock():
                         self.process = subprocess.Popen(self.command)
+                    started = time.monotonic()
                 except OSError:
                     logger.exception("Couldn't start the %s.", self.name)
                     self.process = None
