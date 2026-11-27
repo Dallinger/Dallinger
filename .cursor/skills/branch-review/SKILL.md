@@ -80,9 +80,10 @@ Flag:
 Present findings first, ordered by severity. Tag each finding, missing test
 and refactoring item high, medium or low: high for serious correctness,
 data-loss or security problems; medium for other likely bugs, misleading
-behavior or docs, and
-missing tests for changed behavior; low for wording, style and optional
-refactors.
+behavior or docs, and changed behavior that no test exercises or where a
+likely regression with real consequences would pass the tests; low for
+wording, style, optional refactors, and tests that could be stronger, such
+as a contrived code change that no test catches.
 
 Use this structure:
 
