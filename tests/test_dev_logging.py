@@ -298,6 +298,46 @@ def test_development_role_sets_up_the_console(monkeypatch, capsys):
     assert "hidden" not in err
 
 
+@pytest.mark.parametrize(
+    "command, args, reload_env, reloader_child, serves",
+    [
+        ("run", ["--no-reload"], None, False, True),
+        ("run", [], "false", False, True),
+        # FLASK_DEBUG=1, as the develop directory's run.sh sets it, turns
+        # auto-reload on by default.
+        ("run", [], None, False, False),
+        ("run", ["--reload"], None, True, True),
+        ("shell", [], None, False, False),
+        (None, None, None, False, False),
+    ],
+)
+def test_only_the_process_that_serves_requests_counts_as_serving(
+    monkeypatch, command, args, reload_env, reloader_child, serves
+):
+    from flask.cli import run_command, shell_command
+
+    monkeypatch.setenv("FLASK_DEBUG", "1")
+    if reload_env is None:
+        monkeypatch.delenv("FLASK_RUN_RELOAD", raising=False)
+    else:
+        monkeypatch.setenv("FLASK_RUN_RELOAD", reload_env)
+    if reloader_child:
+        monkeypatch.setenv("WERKZEUG_RUN_MAIN", "true")
+    else:
+        monkeypatch.delenv("WERKZEUG_RUN_MAIN", raising=False)
+    if command is None:
+        assert dev_logging.serves_requests() is serves
+        return
+    cli_command = {"run": run_command, "shell": shell_command}[command]
+    with (
+        cli_command.make_context(
+            command, args, auto_envvar_prefix=f"FLASK_{command.upper()}"
+        ) as ctx,
+        ctx.scope(),
+    ):
+        assert dev_logging.serves_requests() is serves
+
+
 def wsgi_app(environ, start_response):
     path = environ["PATH_INFO"]
     if path == "/boom":

@@ -70,6 +70,9 @@
   (`db.session.begin_nested()`). Before, closing one failed the session as
   if the handler had committed. A handler that leaves a savepoint open now
   fails the session, instead of its changes being lost or partly saved.
+- The development server starts its worker and clock with auto-reload off
+  (`FLASK_RUN_RELOAD=false` or `flask run --no-reload`). Before, it served
+  pages but never ran jobs, so, for example, the experiment never launched.
 - On a warm shutdown (one SIGTERM), a worker whose greenlet pool was full
   exited without waiting for its running jobs, which were left unfinished.
   It now waits for them, as it already did when the pool had room.
