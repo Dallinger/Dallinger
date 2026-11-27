@@ -974,6 +974,28 @@ class TestParticipantByAssignmentRoute:
         assert data.get("error_code") == "participant_not_found"
         assert "no participant found" in data.get("html")
 
+    @pytest.mark.parametrize("data", [{}, {"assignment_id": "unknown"}])
+    def test_missing_ok_finds_no_participant_without_an_error(self, webapp, data):
+        resp = webapp.post("/load-participant", data={"missing_ok": "true", **data})
+        assert resp.status_code == 200
+        assert json.loads(resp.data.decode("utf8"))["participant"] is None
+
+    def test_missing_ok_must_be_true(self, webapp):
+        resp = webapp.post(
+            "/load-participant",
+            data={"assignment_id": "unknown", "missing_ok": "false"},
+        )
+        assert resp.status_code == 403
+
+    def test_missing_ok_still_loads_an_existing_participant(self, a, webapp):
+        a.participant(worker_id="W1", assignment_id="A1")
+        resp = webapp.post(
+            "/load-participant",
+            data={"assignmentId": "A1", "workerId": "W1", "missing_ok": "true"},
+        )
+        participant = json.loads(resp.data.decode("utf8"))["participant"]
+        assert participant["unique_id"] == "W1:A1"
+
     def test_load_participant_calls_normalize_entry_information(
         self, a, db_session, webapp
     ):
@@ -990,7 +1012,9 @@ class TestParticipantByAssignmentRoute:
                 "hit_id": hit_id,
                 "entry_information": args[-1],
             }
-            resp = webapp.post("/load-participant", data={"random_info": "123"})
+            resp = webapp.post(
+                "/load-participant", data={"random_info": "123", "missing_ok": "true"}
+            )
             data = json.loads(resp.data.decode("utf8"))
             normalizer.assert_called_once_with({"random_info": "123"})
             assert data.get("status") == "success"

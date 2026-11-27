@@ -37,6 +37,10 @@
   no change. See
   [Players Who Join or Finish During a Session](https://dallinger.readthedocs.io/latest/realtime_games.html#players-who-join-or-finish-during-a-session)
   for how this works with `members`, `join_timeout` and payment.
+- `POST /load-participant` accepts `missing_ok=true`. When no participant is
+  found, the response is then a success with `participant: null` instead of a
+  403, so a start page that creates new participants doesn't show a console
+  error for each one.
 - Real-time runners count what they do in redis, for load tests:
   `realtime_runner_stats()` returns how many runners are running, how long
   they were busy, and for each game type, its passes, the time they took,
