@@ -46,6 +46,7 @@ worker_startup_timeout = 120
 web_processes = auto
 worker_processes = 1
 worker_greenlets_per_process = 20
+cpu_processes_per_worker = 0
 
 [Prolific]
 prolific_api_token = Set your Prolific API token in ~/.dallingerconfig!
