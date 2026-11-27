@@ -59,6 +59,12 @@
   found only running sessions. A page that waits for a later session than
   one it has played passes that session as `afterSession`, as the docs
   already advised, or it now joins the ended session again.
+- A worker that restarts its real-time runner now waits 1 second at first,
+  then twice as long after each attempt, up to 60 seconds, instead of
+  1 second every time. So a runner that can't start or keeps crashing is
+  retried and logged about once a minute. A runner that ran for at least
+  60 seconds resets the wait to 1 second. CPU workers are restarted the
+  same way.
 
 ### Fixed
 
